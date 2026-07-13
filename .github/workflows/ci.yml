@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      EXPO_NO_TELEMETRY: 1
+      NEXT_TELEMETRY_DISABLED: 1
+      TURBO_TELEMETRY_DISABLED: 1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check peer dependencies
+        run: pnpm peers check
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Validate development Compose configuration
+        run: docker compose --file infrastructure/docker/compose.dev.yml config --quiet
+
+  database:
+    name: Validate migrations and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start local Supabase
+        run: pnpm exec supabase start
+
+      - name: Reset and validate migrations
+        run: pnpm database:reset
+
+      - name: Run database and RLS tests
+        run: pnpm database:test
+
+      - name: Export required local Supabase connection details
+        run: |
+          set -euo pipefail
+          pnpm exec supabase status -o env \
+            | sed -n -E 's/^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)="(.*)"$/\1=\2/p' \
+            >> "$GITHUB_ENV"
+
+      - name: Run local email Auth and provider-gated phone Auth flows
+        env:
+          REQUIRE_LOCAL_SUPABASE: true
+        run: pnpm test:auth:e2e
+
+      - name: Verify generated database types
+        run: |
+          pnpm database:types
+          git diff --exit-code -- packages/database/src/database.types.ts
+
+      - name: Stop local Supabase
+        if: always()
+        run: pnpm exec supabase stop --no-backup

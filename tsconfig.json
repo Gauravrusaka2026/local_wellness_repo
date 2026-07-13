@@ -1,0 +1,21 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/mobile/tsconfig.build.json" },
+    { "path": "./apps/citizen-web/tsconfig.build.json" },
+    { "path": "./apps/government-dashboard/tsconfig.build.json" },
+    { "path": "./apps/admin-console/tsconfig.build.json" },
+    { "path": "./apps/api/tsconfig.build.json" },
+    { "path": "./apps/realtime-server/tsconfig.build.json" },
+    { "path": "./apps/workers/tsconfig.build.json" },
+    { "path": "./packages/database" },
+    { "path": "./packages/api-client" },
+    { "path": "./packages/types" },
+    { "path": "./packages/validation" },
+    { "path": "./packages/routing-engine" },
+    { "path": "./packages/design-system" },
+    { "path": "./packages/localization" },
+    { "path": "./packages/config" },
+    { "path": "./packages/observability" }
+  ]
+}

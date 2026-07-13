@@ -1,0 +1,41 @@
+{
+  "name": "@local-wellness/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "expo-router/entry",
+  "scripts": {
+    "build": "expo export --platform android --output-dir dist/app",
+    "dev": "expo start",
+    "lint": "eslint .",
+    "start": "expo start",
+    "test": "node --test --import tsx test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@expo/log-box": "catalog:",
+    "@expo/metro-runtime": "catalog:",
+    "@local-wellness/config": "workspace:*",
+    "@local-wellness/types": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "expo": "catalog:",
+    "expo-constants": "catalog:",
+    "expo-crypto": "catalog:",
+    "expo-linking": "catalog:",
+    "expo-router": "catalog:",
+    "expo-secure-store": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-native": "catalog:",
+    "react-native-safe-area-context": "catalog:",
+    "react-native-screens": "catalog:",
+    "react-native-url-polyfill": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "eslint": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

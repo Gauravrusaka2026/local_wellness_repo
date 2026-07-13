@@ -1,0 +1,17 @@
+.expo
+.next
+.turbo
+coverage
+dist
+node_modules
+pnpm-lock.yaml
+AGENTS.md
+general_idea.md
+**/.expo
+**/.next
+**/.turbo
+**/coverage
+**/dist
+**/node_modules
+**/next-env.d.ts
+**/*.tsbuildinfo

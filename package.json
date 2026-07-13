@@ -1,0 +1,50 @@
+{
+  "name": "local-wellness",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Maharashtra-first civic complaint reporting and accountability platform.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.11.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.11.0 <12"
+  },
+  "scripts": {
+    "access:bootstrap-platform-admin": "node scripts/bootstrap-platform-admin.mjs",
+    "build": "turbo run build",
+    "changeset": "changeset",
+    "database:reset": "supabase db reset",
+    "database:start": "supabase start",
+    "database:stop": "supabase stop",
+    "database:test": "supabase test db",
+    "database:types": "supabase gen types typescript --local --schema public > packages/database/src/database.types.ts",
+    "dev": "turbo run dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "prepare": "husky",
+    "references:check": "tsc --build --pretty false",
+    "release": "changeset publish",
+    "test": "turbo run test && node --test tests/*.test.mjs",
+    "test:auth:e2e": "node --test tests/auth-flow.e2e.test.mjs",
+    "typecheck": "turbo run typecheck && tsc --build --pretty false",
+    "version-packages": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "catalog:",
+    "@eslint/js": "catalog:",
+    "@types/node": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "globals": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "prettier": "catalog:",
+    "supabase": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

@@ -1,0 +1,58 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  supabase: true
+
+overrides:
+  'postcss@<8.5.10': 8.5.16
+  'uuid@<11.1.1': 11.1.1
+
+catalog:
+  '@changesets/cli': 2.31.0
+  '@eslint/js': 10.0.1
+  '@expo/log-box': 57.0.0
+  '@expo/metro-runtime': 57.0.3
+  '@nestjs/common': 11.1.28
+  '@nestjs/core': 11.1.28
+  '@nestjs/platform-express': 11.1.28
+  '@nestjs/testing': 11.1.28
+  '@supabase/ssr': 0.12.0
+  '@supabase/supabase-js': 2.110.2
+  '@types/node': 22.20.1
+  '@types/react': 19.2.17
+  '@types/react-dom': 19.2.3
+  '@types/supertest': 7.2.0
+  eslint: 10.6.0
+  eslint-config-prettier: 10.1.8
+  eslint-plugin-react-hooks: 7.1.1
+  expo: 57.0.4
+  expo-constants: 57.0.3
+  expo-crypto: 57.0.0
+  expo-linking: 57.0.2
+  expo-router: 57.0.4
+  expo-secure-store: 57.0.0
+  globals: 17.7.0
+  husky: 9.1.7
+  lint-staged: 17.0.8
+  next: 16.2.10
+  prettier: 3.9.5
+  react: 19.2.7
+  react-dom: 19.2.7
+  react-native: 0.86.0
+  react-native-safe-area-context: 5.8.0
+  react-native-screens: 4.26.0
+  react-native-url-polyfill: 3.0.0
+  reflect-metadata: 0.2.2
+  rxjs: 7.8.2
+  socket.io: 4.8.3
+  supabase: 2.109.1
+  supertest: 7.2.2
+  turbo: 2.10.4
+  tsx: 4.23.0
+  typescript: 6.0.3
+  typescript-eslint: 8.63.0
+  zod: 4.4.3

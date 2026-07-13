@@ -1,0 +1,45 @@
+name: local-wellness-dev
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/api.Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      SUPABASE_URL: ${SUPABASE_URL:-http://host.docker.internal:54321}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      GOVERNMENT_INVITE_REDIRECT_URL: ${GOVERNMENT_INVITE_REDIRECT_URL:-http://localhost:3003/auth/callback}
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3003,http://localhost:3004}
+    ports:
+      - '${API_PORT:-3001}:3001'
+    init: true
+    stop_grace_period: 10s
+
+  realtime-server:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/realtime-server.Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+    ports:
+      - '${REALTIME_PORT:-3002}:3002'
+    init: true
+    stop_grace_period: 10s
+
+  workers:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/workers.Dockerfile
+      target: development
+    environment:
+      NODE_ENV: development
+    init: true
+    stop_grace_period: 10s
