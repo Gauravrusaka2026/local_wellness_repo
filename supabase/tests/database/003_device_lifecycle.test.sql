@@ -5,6 +5,14 @@ set local search_path = public, extensions;
 
 select plan(28);
 
+insert into governance.authorities (id, code, name, authority_type)
+values (
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'TEST_DEVICE_AUTHORITY',
+  'Test Device Authority',
+  'other'
+);
+
 insert into auth.users (
   instance_id,
   id,

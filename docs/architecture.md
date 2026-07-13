@@ -267,16 +267,19 @@ Device registration and soft revocation are atomic with their audit events. Sens
 
 ### Governance Domain
 
-- state;
-- district;
-- local body;
-- zone;
-- ward;
-- department;
-- office;
-- officer role;
-- officer;
-- officer assignment.
+- canonical authority supertype for grantable government scope;
+- state, district, taluka, local body, multi-district coverage, administrative unit, and ward hierarchy;
+- department, authority-department, office, utility, and emergency-contact catalogs;
+- durable officer roles, real officers, and versioned officer assignments;
+- versioned PostGIS jurisdiction boundaries;
+- versioned, non-operational complaint-routing references;
+- append-only import batches, source files, raw records, checksums, and normalization dispositions.
+
+Phase 2 implements this domain in an unexposed `governance` schema. The hash-pinned CSV exports are the machine-readable input and the workbook is the human reference. A deterministic repository pipeline validates and renders the seed; it never rewrites either canonical source. Verified directory rows may be read only through explicit RLS grants, while placeholders, unresolved routing labels, import provenance, officers, and assignments remain restricted to their authorized management scope. No Phase 2 client write surface or public governance endpoint exists.
+
+State, state-agency, district, local-body, and utility identities reference the authority supertype. Phase 1 memberships and scoped roles now use restrictive foreign keys to that registry; any pre-Phase-2 identifier is retained as an explicitly marked, non-routable legacy placeholder until reconciled and is excluded from effective access. Structured parent types are enforced, parent/scope keys are immutable, and row plus whole-graph checks reject authority cycles. Taluka, local-body, ward, office, and assignment relationships are independently constrained so a supplied child scope cannot silently point outside its supplied parent.
+
+Boundary, assignment, and routing-reference versions retain UTC effective periods and append history instead of replacing it. PostgreSQL temporal exclusion constraints prevent overlapping non-draft versions, and PostGIS `MultiPolygon` geometry uses SRID 4326, valid longitude/latitude bounds and GiST indexing. Because the supplied data has no usable polygons, the baseline seed creates no boundary version and therefore cannot claim real jurisdiction routing.
 
 ### Complaint Domain
 

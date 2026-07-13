@@ -92,6 +92,8 @@ A user may have multiple roles.
 
 Each government role is evaluated against its active date range, assignment status, scope and corresponding active authority membership. A role stored in Supabase user metadata is never treated as authorization.
 
+Phase 2 makes `governance.authorities` the canonical target for authority memberships, non-global role assignments, and authority-attributed audit events. State, district, local-body, and utility records own typed authority rows. A forward migration preserves any pre-existing arbitrary Phase 1 identifier as a clearly marked, non-routable legacy placeholder rather than dropping access history or treating it as verified; service-only effective-access functions exclude those placeholders until they are explicitly reconciled. New authority, ward, and department scopes are validated against governance lifecycle and ownership before a role row is accepted.
+
 ---
 
 ## Authorization Model
@@ -267,8 +269,10 @@ Registry revocation prevents the same installation identifier from silently re-r
 ### Officer Assignments
 
 - citizen cannot write;
-- municipal admin may write within authority;
-- platform admin may manage onboarding.
+- Phase 2 exposes no client write path;
+- authenticated users can read person/assignment data only when current authority scope permits it;
+- service-side imports and future reviewed administration flows must validate office, department, district, taluka, local-body, and ward ownership;
+- officer roles remain durable while incumbent assignments append versions with non-overlapping effective periods.
 
 ---
 
@@ -370,3 +374,5 @@ Required tests:
 - anonymous user blocked from private complaint.
 
 Phase 1 implements local migration and pgTAP coverage for the identity tables, including self-access, cross-user and cross-authority denial, expired and revoked assignments, sensitive device-column isolation, anonymous denial, audit immutability and direct escalation attempts. The local email magic-link flow is automated. Phone OTP is provider-gated because the local Supabase Auth service disables phone sign-in without a real SMS provider. Hosted delivery, redirect URLs, device/session revocation, and real-device SecureStore behavior still require environment-specific validation before launch.
+
+Phase 2 extends those tests with canonical-authority foreign keys, safe legacy placeholder backfill, ward/department ownership checks, and governance RLS isolation. The invitation E2E uses the deterministic seeded Maharashtra authority, so arbitrary client-supplied UUIDs can no longer create government access scope.

@@ -164,3 +164,110 @@ Updated the execution tracker, progress summary, implementation conventions, cha
 ### Breaking Changes
 
 None.
+
+## 2026-07-13 — Phase 2 Maharashtra Governance Engineering Baseline
+
+### Summary
+
+Recovered the interrupted Phase 2 session and completed the locally safe Maharashtra governance engineering baseline. The implementation preserves the canonical source bytes, normalizes only defensible records, quarantines placeholders, enforces governance and access integrity in PostgreSQL, and leaves the real pilot-coordinate exit criterion open until verified external geometry is available.
+
+### Feature
+
+- Added an unexposed, forced-RLS `governance` schema with 22 normalized provenance, hierarchy, organization, personnel, service, boundary and routing-reference tables.
+- Enabled PostGIS and `btree_gist`; added versioned SRID 4326 `MultiPolygon` boundaries, spatial indexing, coordinate-envelope checks, temporal exclusions and a service-only evidence-returning `ST_Covers` resolver.
+- Added canonical authority ownership for Phase 1 access records, safe legacy-placeholder preservation, immutable scope keys, parent-type/cycle enforcement and service-only effective-access RPCs that filter inactive, placeholder and invalid scopes.
+- Implemented a manifest-pinned CSV validator/importer for exact files, hashes, titles, headers, widths, malformed/incomplete/duplicate rows, placeholder sentinels, dates, HTTPS sources and cross-file parents.
+- Added deterministic stable IDs, raw row provenance, normalization dispositions, a machine-readable report, an idempotent generated baseline seed and a separate checksum companion without changing the canonical CSV or workbook bytes.
+- Safely normalized the supplied structural/catalog baseline while creating zero officer people, assignments, administrative units or boundary versions from templates and leaving all routing references unresolved and non-routable.
+- Regenerated database types for `public` and `governance`, added atomic generation/drift checking and added application-owned schema lint to CI.
+- Started the three web applications and verified public/auth routes and protected redirects over HTTP. Rendered viewport inspection remains environment-gated because the in-app browser was unavailable.
+
+### Files Modified
+
+- Governance sources and manifest under `resources/governance/`.
+- Governance types, validation and import pipeline under `packages/types`, `packages/validation` and `packages/database`.
+- Phase 2 migrations, generated seeds, generated database types and pgTAP plans under `supabase/`.
+- Canonical effective-access persistence boundary and tests under `apps/api`.
+- Root scripts, CI, lock/workspace configuration and canonical governance-resource tests.
+- ADR-0008, governance documentation, Phase 2 worklog and all required tracking documents.
+
+### Migrations Created
+
+- `20260713160000_phase_2_governance_schema.sql`
+- `20260713161000_phase_2_governance_security.sql`
+- `20260713162000_phase_2_identity_authority_forward_fix.sql`
+- `20260713163000_phase_2_jurisdiction_resolution.sql`
+- `20260713164000_phase_2_governance_integrity_forward_fix.sql`
+- `20260713165000_enforce_authority_parent_types.sql`
+- `20260713166000_harden_governance_access_and_geometry.sql`
+
+### Seeds Created
+
+- `20_phase_2_governance.generated.sql`
+- `21_phase_2_governance_checksum.generated.sql`
+
+### Tests Added
+
+- 194 Phase 2 pgTAP assertions across governance schema/migration, seed/provenance, RLS/effective access, PostGIS resolution and temporal/version-history plans; all 348 repository database assertions pass.
+- 12 governance import pipeline cases and 4 governance validation helper cases.
+- Three canonical governance resource/hash/companion-seed contract cases.
+- API persistence-boundary coverage proving roles and memberships are loaded through the canonical service-only RPCs.
+
+### Documentation Updated
+
+- `README.md`, `PLAN.md` and every Phase 2-relevant architecture, database, authentication, API, deployment and Supabase setup document.
+- Added ADR-0008, `docs/governance-data.md` and the Phase 2 implementation/testing worklog.
+- Reconciled TASKS, PROGRESS, DECISIONS and KNOWN_ISSUES with delivered work and unresolved external data/tooling gaps.
+
+### Verification
+
+- Frozen install, deterministic governance artifact check, formatting, lint, TypeScript checks, aggregate tests, all 16 workspace builds, Expo Android export, three Next.js builds, Compose validation and production dependency audit passed.
+- Clean Supabase reset, application-schema database lint, all 348 pgTAP assertions and generated database type drift checks passed.
+- Local email magic-link and government invitation E2E passed; the SMS case remains correctly provider-gated.
+- The three Next.js surfaces started and their public/auth routes and authorization redirects passed runtime HTTP checks.
+
+### Security
+
+- Governance remains outside the Supabase Data API with forced RLS and no authenticated mutation surface.
+- Placeholder officers, contacts, authorities, wards and unresolved routing references are not presented as verified operational data.
+- Service-only access functions reject inactive or placeholder authorities and invalid ward/department ownership.
+- Redis, BullMQ and Sentry were not introduced.
+
+### Breaking Changes
+
+None. Additive forward migrations preserve prior access history; invalid or placeholder legacy scopes are retained for remediation but excluded from effective access.
+
+## 2026-07-13 — Citizen Email Callback Diagnostic
+
+### Summary
+
+Manually exercised local citizen email sign-in and confirmed that Mailpit delivery succeeds but the generated magic link falls back to the landing page because its query-bearing callback is not an exact Supabase allow-list match.
+
+### Feature
+
+- Recorded `AUTH-006` as a blocking citizen browser-sign-in defect.
+- Documented that the static landing page does not exchange the PKCE authorization code and that `localhost`/`127.0.0.1` fallback differences can also separate the flow from its host-scoped verifier.
+- Added the minimal same-origin callback fix and delivered-link/SSR-cookie regression coverage to the execution backlog.
+
+### Files Modified
+
+- `docs/TASKS.md`
+- `docs/PROGRESS.md`
+- `docs/CHANGELOG.md`
+- `docs/KNOWN_ISSUES.md`
+
+### Migrations Created
+
+None.
+
+### Tests Added
+
+None. This diagnostic recorded the failing manual browser path for the next implementation task.
+
+### Documentation Updated
+
+Updated the execution backlog, progress blockers, changelog, and known-issue register with the observed callback failure and required regression coverage.
+
+### Breaking Changes
+
+None.

@@ -3,11 +3,12 @@
 ## Project Status
 
 - Project: Local Wellness
-- Current phase: Phase 1 — Identity and access complete
-- Current sprint: Sprint 2 — Identity and Access complete
-- Overall implementation progress: 18%
+- Current phase: Phase 2 — engineering baseline complete; verified pilot data closure in progress
+- Current sprint: Sprint 3 — Governance data foundation and pilot-data closure
+- Overall implementation progress: 26%
 - Phase 0 implementation progress: 100%
 - Phase 1 implementation progress: 100%
+- Phase 2 implementation progress: 90%
 - Last updated: 2026-07-13
 
 ## Phase 0 Scope
@@ -157,6 +158,56 @@ Phase 0 deferred all feature dependencies. Phase 1 introduced only its required 
 - [x] Create the Phase 1 authentication/RLS ADR and implementation worklog.
 - [x] Record the owner-directed V1 deferral of Redis, BullMQ, and Sentry in an ADR and active architecture documents.
 
+## Phase 2 Execution Plan
+
+### Canonical Data Audit
+
+- [x] Inspect all 18 governance CSV files without modifying the canonical inputs.
+- [x] Record file schemas, counts, checksums, malformed rows, duplicates, missing identifiers, placeholders, provenance gaps, and cross-file import risks.
+- [x] Confirm that the CSV directory contains 887 data records plus README metadata and that every data file uses a workbook-title row before its actual header.
+- [x] Record the missing requested `resources/governance/csv/seed_data_for_mh/` directory and use the existing read-only `resources/governance/csv/` files as the available CSV source.
+- [ ] Cross-check workbook-to-CSV parity when the approved spreadsheet artifact runtime is available; the CSV files remain the machine-readable source of truth.
+
+### Governance Database Model
+
+- [x] Create the `governance` schema and normalized tables for states, districts, talukas, authorities, local bodies, local-body district coverage, wards, departments, offices, officer roles, officers, officer assignments, utilities, emergency contacts, and complaint-routing references.
+- [x] Add durable source provenance, verification state, placeholder state, LGD-code fields, lifecycle fields, constraints, foreign keys, and indexes.
+- [x] Enable PostGIS and add versioned jurisdiction-boundary storage with spatial indexes.
+- [x] Version officer assignments and complaint-routing reference records separately from their durable identities.
+- [x] Add the Phase 1 authority foreign keys as an additive forward fix after creating canonical governance authorities (`DB-001`).
+- [x] Create an ADR for the normalized, versioned, CSV-driven governance registry and its server-managed access boundary.
+
+### Validation and Seed Pipeline
+
+- [x] Implement deterministic CSV validation for exact headers, malformed rows, duplicate keys, incomplete records, placeholder sentinels, dates, URLs, identifiers, and cross-file references.
+- [x] Generate an idempotent Supabase seed from the canonical CSV files without editing them.
+- [x] Record source-file, workbook, and generated-seed checksums, raw source rows, normalization dispositions, and validation issue codes for import traceability.
+- [x] Import durable structural/reference records with explicit verification status while quarantining template Gram Panchayat/village rows and non-person officer placeholders.
+- [x] Preserve incomplete routing rows as non-routable versioned references until department, role, authority, and asset ownership mappings are verified.
+- [x] Generate and commit a machine-readable validation report and document the baseline import and reviewed refresh workflow.
+
+### Security, Types, and Verification
+
+- [x] Enable and force RLS on governance tables with least-privilege grants and policies appropriate to verified public-safe versus server-managed data.
+- [x] Add a Phase 2 integrity forward fix so historical ward/department scopes, parent reassignments, and verified child visibility cannot bypass canonical governance ownership.
+- [x] Enforce structured authority parent types, immutable hierarchy keys, whole-graph cycle rejection, and valid SRID 4326 coordinate envelopes.
+- [x] Make the API load effective access through service-only database functions that reject inactive authorities and invalid ward/department scope targets.
+- [x] Exclude retained legacy placeholder authorities from effective roles and memberships without deleting their remediation history.
+- [x] Add migration, seed, RLS, source-integrity, and synthetic spatial-routing tests.
+- [x] Add behavioral governance RLS and version-history suites, including anonymous denial, manager isolation, placeholder filtering, append-only history, and overlap rejection.
+- [x] Correct the interrupted seed provenance assertion to use the exact canonical district source URL.
+- [x] Verify inactive boundaries do not resolve, historical boundary versions remain queryable, and officer assignments cannot overlap an open assignment for the same scope.
+- [x] Regenerate committed database types for `public` and `governance`.
+- [x] Wire atomic database-type generation, drift checking, and application-schema database lint into the root scripts and CI.
+- [x] Run formatting, lint, type-check, unit tests, local database reset/lint/pgTAP, generated-seed drift checks, all-workspace builds, dependency audit, and Compose validation.
+- [x] Start the citizen web, government dashboard, and admin console and verify their public/auth routes and access redirects over HTTP without adding Phase 3+ UI.
+- [ ] Complete the owner-requested rendered visual inspection when the approved in-app browser is connected (`ENV-003`).
+
+### Documentation and Traceability
+
+- [x] Update the database, architecture, authentication, API, deployment, Supabase setup, and governance import documentation.
+- [x] Update TASKS, CHANGELOG, PROGRESS, DECISIONS, KNOWN_ISSUES, and the Phase 2 worklog with final results and unresolved data gaps.
+
 ## Automatically Discovered Tasks
 
 - [ ] Rotate the exposed Supabase privileged credential, database credential, and Redis token before any environment integration.
@@ -169,7 +220,16 @@ Phase 0 deferred all feature dependencies. Phase 1 introduced only its required 
 - [ ] Bind device revocation to provider sessions before representing revocation as forced logout (`AUTH-003`).
 - [ ] Add PostgreSQL/platform-backed audit, invitation, and device quotas without Redis (`AUTH-004`).
 - [ ] Run hosted callback, real SMS, Expo development-build deep-link, OS SecureStore, and SSR-cookie smoke tests (`AUTH-005`).
-- [ ] Add the authority foreign key after Phase 2 creates the canonical governance entity (`DB-001`).
+- [ ] Fix the citizen email magic-link redirect to use an allow-listed same-origin callback and add delivered-link/SSR-cookie regression coverage (`AUTH-006`).
+- [x] Add the authority foreign key after Phase 2 creates the canonical governance entity (`DB-001`).
+- [ ] Obtain official LGD codes for all districts, talukas, local bodies, Gram Panchayats, villages, and wards before promoting affected records to verified routing data (`DATA-002`).
+- [ ] Replace template Gram Panchayat/village records and synthetic ward rows with complete official datasets (`DATA-002`, `DATA-003`).
+- [ ] Import verified pilot municipality and ward polygons so a real pilot coordinate can satisfy the Phase 2 spatial exit criterion (`DATA-004`).
+- [ ] Resolve the Vasai-Virar ward/local-body name mismatch and all composite routing department/role/agency labels through an explicit reviewed crosswalk (`DATA-005`).
+- [ ] Obtain record-specific sources and current verification for local-body, office, ward, utility, department, role, and officer contact data (`DATA-003`, `DATA-006`).
+- [ ] Implement a reviewed delta-refresh operator workflow before importing a replacement governance bundle; the current generator intentionally supports the pinned baseline only (`DATA-008`).
+- [ ] Extend governance reporting with complete per-file outcome matrices and strengthen official LGD/contact/source-specificity review checks before pilot promotion (`DATA-006`).
+- [ ] Add an audited mapping/revocation workflow for any retained legacy placeholder authority scopes before existing-account onboarding (`AUTH-001`, `DATA-008`).
 - [x] Re-run `pnpm audit --prod` with registry connectivity; no known vulnerabilities were reported.
 - [x] Make the Husky pre-commit hook invoke the repository-pinned pnpm through Corepack so it works without a global `pnpm` shim.
 - [ ] Reconcile the documentation lifecycle's root-level tracker names with the current `docs/` locations in a documentation-only change.
@@ -178,10 +238,13 @@ Phase 0 deferred all feature dependencies. Phase 1 introduced only its required 
 
 ## Current Blockers
 
-- No blocker remains for the locally verified Phase 1 exit criteria.
+- Automated Phase 1 identity coverage remains green, but manual citizen email magic-link click-through is blocked by the exact redirect mismatch tracked as `AUTH-006`.
 - Hosted identity activation remains blocked on owner credential rotation/audit (`SEC-001`) and operator-managed provider/environment configuration (`ENV-002`).
 - Phone OTP E2E requires an explicitly configured SMS provider; the code path and dispatch behavior are otherwise covered.
-- Phase 2 requires selection of the pilot municipality and verified governance inputs.
+- Phase 2 schema, validation, safe baseline import, security, generated types, and local verification are complete.
+- The `PLAN.md` Phase 2 pilot-coordinate exit criterion remains blocked by pilot selection and absent verified boundary geometry (`DATA-004`).
+- Workbook-to-CSV visual/cell parity remains blocked by the unavailable approved spreadsheet runtime (`DATA-007`).
+- Rendered application inspection remains blocked by the unavailable in-app browser; route-level runtime smoke checks passed (`ENV-003`).
 
 ## Technical Debt
 
@@ -198,16 +261,16 @@ Phase 0 deferred all feature dependencies. Phase 1 introduced only its required 
 - ADR-0005 — Use Socket.IO for realtime delivery.
 - ADR-0006 — Use Supabase Auth and database-enforced access control.
 - ADR-0007 — Defer Redis, BullMQ, and Sentry beyond V1.
+- ADR-0008 — Use a normalized, provenance-aware Maharashtra governance registry.
 
 ## Files Modified This Session
 
-- Phase 1 identity clients and tests in `apps/mobile`, `apps/citizen-web`, `apps/government-dashboard`, and `apps/admin-console`.
-- NestJS identity, authorization, invitation, device, audit, configuration, HTTP contract, and service tests in `apps/api`.
-- Shared identity/configuration/validation/database contracts in `packages/types`, `packages/config`, `packages/validation`, and `packages/database`.
-- Three ordered identity migrations, pgTAP plans, local Auth configuration, and the invite template under `supabase/`.
-- Auth E2E, security-boundary, CI, environment, Compose, bootstrap, lockfile, and TypeScript project-reference changes.
-- ADR-0006, ADR-0007, the Phase 1 worklog, every required implementation document, and all session trackers.
+- Canonical governance sources and manifest under `resources/governance/` without modifying source bytes.
+- Governance contracts, validation, deterministic import/seed generation, reports, and tests under `packages/types`, `packages/validation`, `packages/database`, and `tests/`.
+- Seven ordered Phase 2 migrations, two generated seed artifacts, regenerated database types, and five governance pgTAP plans under `supabase/`.
+- Canonical effective-access RPC consumption and tests in `apps/api`.
+- CI/root database scripts, ADR-0008, the Phase 2 worklog, governance guide, every Phase 2-relevant implementation document, and all session trackers.
 
 ## Next Recommended Task
 
-Complete `SEC-001`, activate and smoke-test a non-production hosted identity environment, then collect the pilot municipality's verified governance inputs and begin Phase 2. Implement the `AUTH-001` access-lifecycle follow-up before onboarding existing or returning government accounts at scale.
+Fix `AUTH-006` before continuing citizen browser smoke tests. Then select the pilot municipality and obtain reviewed local-body/ward SRID 4326 polygons, official identifiers, contacts, and record-specific sources. Implement the reviewed delta refresh, rerun the Phase 2 suite, and prove a real pilot coordinate resolves to both municipality and ward before beginning Phase 3. Complete `SEC-001`/`ENV-002` before hosted activation and `AUTH-001` before broad government onboarding.

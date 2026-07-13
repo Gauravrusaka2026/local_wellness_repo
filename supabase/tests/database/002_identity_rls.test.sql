@@ -5,6 +5,58 @@ set local search_path = public, extensions;
 
 select plan(63);
 
+insert into governance.authorities (id, parent_authority_id, code, name, authority_type)
+values
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', null, 'TEST_STATE', 'Test State', 'state'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'TEST_LOCAL_BODY_A', 'Test Local Body A', 'local_body'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'TEST_LOCAL_BODY_B', 'Test Local Body B', 'local_body');
+
+insert into governance.states (id, authority_id, name, iso_code)
+values (
+  'cccccccc-cccc-4ccc-8ccc-000000000001',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'Test State',
+  'TS'
+);
+
+insert into governance.local_bodies (id, authority_id, state_id, name, body_type)
+values
+  (
+    'aaaaaaaa-aaaa-4aaa-8aaa-000000000002',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'cccccccc-cccc-4ccc-8ccc-000000000001',
+    'Test Local Body A',
+    'municipal_corporation'
+  ),
+  (
+    'bbbbbbbb-bbbb-4bbb-8bbb-000000000002',
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    'cccccccc-cccc-4ccc-8ccc-000000000001',
+    'Test Local Body B',
+    'municipal_corporation'
+  );
+
+insert into governance.wards (id, local_body_id, name)
+values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-000000000001',
+  'aaaaaaaa-aaaa-4aaa-8aaa-000000000002',
+  'Test Ward A'
+);
+
+insert into governance.departments (id, code, name)
+values (
+  'bbbbbbbb-bbbb-4bbb-8bbb-000000000002',
+  'test_department',
+  'Test Department'
+);
+
+insert into governance.authority_departments (id, authority_id, department_id)
+values (
+  'bbbbbbbb-bbbb-4bbb-8bbb-000000000001',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'bbbbbbbb-bbbb-4bbb-8bbb-000000000002'
+);
+
 insert into auth.users (
   instance_id,
   id,

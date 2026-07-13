@@ -226,3 +226,5 @@ export interface GovernmentInvitation {
   membershipStatus: 'active';
   roleStatus: 'active';
 }
+
+export * from './governance.js';

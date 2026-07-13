@@ -193,8 +193,8 @@ select is(
       )
       and pg_catalog.pg_get_constraintdef(oid) like '%authority_id%'
   ),
-  0,
-  'Phase 1 authority UUIDs intentionally have no Phase 2 foreign key'
+  3,
+  'identity authority identifiers reference the canonical Phase 2 authority registry'
 );
 
 select has_index(

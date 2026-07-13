@@ -590,3 +590,24 @@ The platform can:
 8. work under poor connectivity;
 9. recover failed jobs;
 10. support production monitoring.
+
+### Phase 2 Inputs
+
+Required datasets:
+
+- `MH_MASTER_GOVERNANCE_DATA_v1.xlsx` as the human reference copy
+- `csv/` exports as the machine-readable source of truth
+- District reference
+- Taluka reference
+- Municipal Corporation reference
+- Ward reference
+- Department reference
+- Officer Role reference
+- Utility reference
+- Routing reference
+
+These datasets are stored under:
+
+resources/governance/
+
+and are considered the canonical source for Maharashtra governance.

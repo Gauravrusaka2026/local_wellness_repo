@@ -62,6 +62,7 @@ Use explicit scripts for each environment.
 Enable:
 
 - PostGIS;
+- `btree_gist` for concurrency-safe temporal exclusion constraints;
 - pgcrypto;
 - uuid-ossp only if required;
 - pg_trgm for text similarity;
@@ -73,6 +74,7 @@ Recommended migration:
 
 ```sql
 create extension if not exists postgis;
+create extension if not exists btree_gist;
 create extension if not exists pgcrypto;
 create extension if not exists pg_trgm;
 create extension if not exists unaccent;
@@ -171,7 +173,7 @@ Policies:
 
 ## 8. Configure Database Schemas
 
-Phase 1 migrations create the unexposed `private` helper schema and keep exposed identity tables in `public` for Supabase data-API RLS. Governance, complaints, communications, operations, analytics, integrations and audit schemas belong to later phases and must be created by their committed migrations when implemented.
+Phase 1 migrations create the unexposed `private` helper schema and keep exposed identity tables in `public` for Supabase data-API RLS. Phase 2 creates `governance`, but intentionally leaves it out of the `[api].schemas` allow-list. Its tables use forced RLS and explicit grants as defense in depth; server-side imports and the jurisdiction resolver use trusted database/service-role access. Complaints, communications, operations, analytics, integrations and audit schemas belong to later phases and must be created by their committed migrations when implemented.
 
 Do not pre-create schemas only through a dashboard, and do not expose every schema automatically.
 
@@ -275,19 +277,23 @@ Commands:
 ```bash
 pnpm exec supabase migration new <name>
 pnpm database:reset
+pnpm database:lint
 pnpm exec supabase db diff
 pnpm database:test
 pnpm database:types
+pnpm database:types:check
+pnpm governance:data:check
 ```
 
 ---
 
 ## 13. Database Types
 
-Generate the current local `public` schema types with the repository script:
+Generate the current local `public` and `governance` schema types with the repository script:
 
 ```bash
 pnpm database:types
+pnpm database:types:check
 ```
 
 For remote development project:
@@ -295,11 +301,11 @@ For remote development project:
 ```bash
 pnpm exec supabase gen types typescript \
   --project-id <project-ref> \
-  --schema public \
+  --schema public,governance \
   > packages/database/src/database.types.ts
 ```
 
-Expand the schema list only after the corresponding later-phase migrations exist.
+The repository script generates to a temporary file, formats it, and only then replaces the committed type file. Its check mode compares fresh local output without writing. Generate remote types only from the intended reviewed environment and never use shell redirection in CI where a failed CLI call could truncate the committed file.
 
 ---
 
@@ -415,6 +421,17 @@ Phase 1 local verification is complete:
 - migration, RLS and generated-type checks pass locally and are enforced by CI;
 - local email magic-link and delivered government-invite flows pass;
 - phone request/verification has unit coverage and remains provider-gated for E2E.
+
+Phase 2 local verification is complete for the available baseline:
+
+- `pnpm governance:data:check` against the hash-pinned workbook/CSV manifest and committed generated artifacts;
+- a clean `pnpm database:reset`, which applies all governance migrations and the generated baseline seed in order;
+- `pnpm database:lint` against application-owned schemas and all pgTAP migration, seed, RLS, hierarchy, temporal, and synthetic PostGIS plans;
+- `pnpm database:types:check` for both `public` and `governance`;
+- confirmation that placeholder wards/contacts, officer templates, and unresolved routing references are not exposed as verified or routing-eligible;
+- confirmation that zero officer assignments and zero real boundary versions are created from the supplied baseline.
+
+These checks pass locally: seven Phase 2 migrations, two generated governance seed files, 22 forced-RLS governance tables and all 194 Phase 2 pgTAP assertions. The canonical source, generated seeds and validation report are reviewed artifacts. Follow `docs/governance-data.md` for refreshes; never modify the CSVs or generated SQL in place.
 
 Before managed identity activation, operators must:
 

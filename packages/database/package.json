@@ -14,11 +14,29 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./governance-import": {
+      "types": "./dist/governance-import/index.d.ts",
+      "import": "./dist/governance-import/index.js",
+      "default": "./dist/governance-import/index.js"
     }
   },
   "scripts": {
     "build": "tsc --build tsconfig.json",
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test": "node --test --import tsx src/**/*.test.ts",
+    "governance:validate": "node --import tsx src/governance-import/cli.ts validate --manifest ../../resources/governance/manifests/phase-2-baseline.v1.json --output ../../supabase/seed/20_phase_2_governance.generated.sql --report ../../docs/worklogs/phase-2-maharashtra-governance/data-validation.json",
+    "governance:generate": "node --import tsx src/governance-import/cli.ts generate --manifest ../../resources/governance/manifests/phase-2-baseline.v1.json --output ../../supabase/seed/20_phase_2_governance.generated.sql --report ../../docs/worklogs/phase-2-maharashtra-governance/data-validation.json",
+    "governance:check": "node --import tsx src/governance-import/cli.ts check --manifest ../../resources/governance/manifests/phase-2-baseline.v1.json --output ../../supabase/seed/20_phase_2_governance.generated.sql --report ../../docs/worklogs/phase-2-maharashtra-governance/data-validation.json"
+  },
+  "dependencies": {
+    "@local-wellness/types": "workspace:*",
+    "@local-wellness/validation": "workspace:*",
+    "csv-parse": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
   }
 }

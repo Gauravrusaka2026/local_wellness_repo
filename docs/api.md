@@ -151,6 +151,12 @@ POST   /api/v1/admin/government-invitations
 
 The remaining routes in this document are planned contracts for their later implementation phases.
 
+## Phase 2 API Boundary
+
+Phase 2 adds no HTTP, realtime, map, complaint, dashboard, or governance-administration endpoint. It introduces the server-managed governance registry, canonical authority foreign keys, validation/seed tooling, RLS, and a service-role-only PostgreSQL jurisdiction resolver. The existing identity store now obtains effective roles and memberships through service-only database functions that filter inactive/placeholder authorities and invalid ward/department ownership; it does not create a parallel HTTP contract. The jurisdiction function is exercised with synthetic geometry but is not exposed as the planned `POST /api/v1/jurisdictions/resolve` route.
+
+Routing rows imported in Phase 2 are historical/source references only. They stay draft, unresolved, and non-routable, so no API may use them to assign a complaint. The planned endpoints below remain contracts for their designated later phases.
+
 ## Citizen Endpoint Details
 
 ### Profile
@@ -197,6 +203,8 @@ Request:
   "capturedAt": "2026-07-11T08:00:00Z"
 }
 ```
+
+The later API implementation must call the trusted jurisdiction boundary and routing layers server-side. A client coordinate, ward ID, authority ID, department ID, or routing rule is evidence/input only and never an official assignment decision.
 
 ### Planned: Complaint Draft
 

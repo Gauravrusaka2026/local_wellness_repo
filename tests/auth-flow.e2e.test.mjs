@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
 import { createClient } from '@supabase/supabase-js';
@@ -26,6 +25,7 @@ const serviceRoleKey = firstEnvironmentValue(
 const hasLocalConfiguration = Boolean(supabaseUrl && anonKey && serviceRoleKey);
 const hasSmsProvider = process.env['LOCAL_SUPABASE_SMS_ENABLED'] === 'true';
 const requiresLocalConfiguration = process.env['REQUIRE_LOCAL_SUPABASE'] === 'true';
+const seededMaharashtraStateAuthorityId = '984805ee-52b9-5be0-bed2-3951cc6cab2d';
 
 if (requiresLocalConfiguration && !hasLocalConfiguration) {
   throw new Error(
@@ -243,7 +243,7 @@ test(
     const actorEmail = `phase1-platform-admin-${Date.now()}@localwellness.test`;
     const email = `phase1-invite-${Date.now()}@localwellness.test`;
     const redirectTo = 'http://localhost:3003/auth/callback';
-    const authorityId = randomUUID();
+    const authorityId = seededMaharashtraStateAuthorityId;
     let actorUserId;
     let invitedUserId;
 

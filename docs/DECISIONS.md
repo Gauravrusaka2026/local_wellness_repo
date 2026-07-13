@@ -79,7 +79,7 @@ These conventions implement ADR-0006 and ADR-0007.
 - Global roles require an active profile and current assignment. Authority-scoped roles additionally require a matching current active authority membership.
 - The trusted API verifies bearer tokens with Supabase Auth and uses a current secret key or legacy service-role key only as its server-side persistence boundary.
 - System role codes are seeded, immutable application constants. Clients cannot assign roles, membership state, grantors or risk state.
-- Authority UUIDs remain intentionally unreferenced until Phase 2 creates the canonical governance entity.
+- Phase 1 authority UUIDs were intentionally unreferenced until Phase 2; they now reference the canonical governance authority entity through an additive, history-preserving forward fix.
 
 ### Sessions and Keys
 
@@ -104,3 +104,31 @@ These conventions implement ADR-0006 and ADR-0007.
 - Next.js project-reference builds include application, library and proxy sources so the root TypeScript solution validates the complete runtime boundary; test sources remain in the normal no-emit checks.
 - TypeScript test scripts use Node's test runner with `--import tsx`, avoiding a separate `tsx` command-process dependency while preserving the same test semantics.
 - Repository Git hooks invoke `corepack pnpm` so the pinned package-manager version works even when no global `pnpm` shim is installed. Staged ESLint checks suppress notices only for files already excluded by the repository ESLint configuration; real lint warnings still fail the hook.
+
+## 2026-07-13 — Phase 2 Maharashtra Governance Conventions
+
+These conventions implement ADR-0008 and do not activate Phase 3 complaint routing.
+
+### Canonical Inputs and Generated Artifacts
+
+- The manifest-pinned CSV files are immutable machine input; the XLSX workbook is the checksum-pinned human reference copy.
+- Every CSV title, header, row width, source hash, required parent, placeholder disposition and generated artifact is validated before an atomic write can replace a report or seed.
+- Stable namespace UUIDs make repeated generation deterministic without using mutable source row order as identity.
+- The main generated seed cannot safely contain its own checksum. A second generated, idempotent companion seed records the externally computed main-seed SHA-256 and rejects conflicting values.
+- The baseline generator is not a general delta-refresh engine. Replacement bundles require explicit review and append/close version logic before import.
+
+### Governance Identity and History
+
+- `governance.authorities` is the durable access-control supertype; typed geography, organization and service records retain domain-specific ownership and provenance.
+- Structured authority parents follow an enforced type matrix, parent links are immutable, and both row-level and deferred whole-graph checks reject cycles, including multi-row cycles.
+- Official LGD codes are nullable text distinct from repository/source codes; placeholder strings never become official identifiers.
+- Durable officer roles and people are separate from temporal officer assignments. The supplied officer placeholders create neither people nor assignments.
+- Boundary, assignment and routing-reference content is append-versioned. Existing versions may be closed but not rewritten, reopened or deleted.
+
+### Security and Runtime Boundaries
+
+- The `governance` schema is excluded from the Supabase Data API and every table still has forced RLS, least-privilege grants and explicit policies as defense in depth.
+- Placeholder, unverified and unresolved rows are never promoted to verified public-safe or routing-eligible records merely because source text says `Active`.
+- Effective API access is loaded through service-only database functions that enforce active canonical authority state, membership validity and ward/department ownership. The API does not read raw role/membership rows as an alternate authorization path.
+- Jurisdiction lookup is a service-only `ST_Covers` database function over active, verified, current SRID 4326 `MultiPolygon` versions; it returns evidence and does not assign complaints.
+- Database types are generated atomically for `public` and `governance`, with drift checks and application-schema database lint enforced in CI.

@@ -1,0 +1,25 @@
+﻿Officer Roles,,,,
+Officer Role,Core Responsibility,People/Units Under Role,Reports To,Typical Coverage
+Municipal Commissioner,Administrative head of municipal corporation,"Additional/Dy Commissioners, department heads",State Urban Development / elected body,City-wide
+Chief Officer / Executive Officer,Administrative head of municipal council or nagar panchayat,"Engineers, health and sanitation staff",Directorate of Municipal Administration,Town-wide
+Deputy/Assistant Municipal Commissioner,Zone/ward or portfolio administration,"Ward officers, inspectors, engineers",Municipal Commissioner,Zone/department
+Ward Officer,Geographic operational head,"Sanitary inspectors, JEs, clerical staff",Zonal/Assistant Commissioner,Ward
+Chief Engineer,Engineering head,SE/EE/AE/JE,Municipal Commissioner,Corporation
+Executive Engineer,Engineering division head,"AEs, JEs, contractors",Chief/Superintending Engineer,Division
+Assistant Engineer,Subdivision engineering,"JEs, supervisors",Executive Engineer,Subdivision/zone
+Junior Engineer,Field inspection and work verification,Contractor/field teams,Assistant Engineer,Ward/section
+Medical Officer of Health,Public health and sanitation head,"Health inspectors, pest-control teams",Commissioner/Chief Officer,ULB
+Sanitary Inspector,Field sanitation oversight,Supervisors and sanitation workers,Health/Ward Officer,Ward/beat
+Tree Officer / Horticulture Officer,"Trees, parks and horticulture",Garden inspectors/contractors,Department head/Commissioner,ULB
+Veterinary Officer,Animal control and veterinary public health,Inspectors/catching teams,Chief Veterinary Officer,ULB/district
+Town Planner / Building Officer,Planning approval and building enforcement,Building inspectors/surveyors,Commissioner/Authority CEO,Planning area
+District Collector / District Magistrate,District coordination and emergency authority,"SDMs, district officers",Divisional Commissioner,District
+CEO Zilla Parishad,District rural local-body executive,"BDOs, departmental officers",State Rural Development,District rural
+Block Development Officer,Block-level rural development oversight,"Panchayat Secretaries, technical assistants",CEO ZP,Block
+Panchayat Secretary / Gram Sevak,Gram Panchayat administration,Village workers/committees,BDO,Gram Panchayat
+Sarpanch / Pradhan,Elected head of Gram Panchayat,Ward members/committees,Gram Sabha/statutory system,Gram Panchayat
+Tehsildar,Revenue and local executive functions,Circle officers/talathis,SDM/Collector,Taluka
+Station House Officer,Police station head,Sub-inspectors and beat officers,ACP/DSP/SP,Police station area
+Traffic ACP/DSP,Traffic subdivision head,Traffic inspectors and constables,DCP/SP Traffic,City/subdivision
+Fire Station Officer,Fire station response head,Fire crews,Divisional/Chief Fire Officer,Station area
+"Regional Officer, MPCB",Regional pollution-control head,Environmental engineers/inspectors,Member Secretary MPCB,Region

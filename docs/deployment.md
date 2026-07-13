@@ -109,15 +109,16 @@ Each project should have:
 Recommended stages:
 
 1. install;
-2. lint;
-3. type-check;
-4. unit test;
-5. integration test;
-6. migration validation;
-7. build;
-8. security scan;
-9. deploy;
-10. smoke test.
+2. canonical governance source/hash and generated-seed drift check;
+3. lint;
+4. type-check and generated-database-type drift check;
+5. unit test;
+6. integration and pgTAP migration/RLS/seed/spatial test;
+7. clean local migration/seed reset and schema lint;
+8. build;
+9. security scan;
+10. deploy;
+11. smoke test.
 
 ---
 
@@ -144,6 +145,10 @@ Production migration requires:
 - migration plan;
 - rollback or forward-fix plan;
 - deployment approval.
+
+Phase 2 governance deployments additionally require the reviewed manifest, canonical source checksums, machine-readable validation report, generated main-seed/checksum-companion pair, and explicit review of additions/removals, verification promotions, hierarchy changes, and temporal-version closures. Apply migrations before both generated seed files. Do not hand-edit governance rows in a hosted dashboard or silently replace a canonical CSV. Placeholder/template data must remain non-routable and excluded from effective authority access in every environment.
+
+The baseline contains no pilot geometry or verified incumbents. A successful deployment therefore proves schema/import integrity only; it must not be represented as production jurisdiction coverage or a current officer directory. Redis, BullMQ, and Sentry remain absent from the V1 deployment topology.
 
 ---
 

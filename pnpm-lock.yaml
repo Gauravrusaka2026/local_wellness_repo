@@ -48,6 +48,9 @@ catalogs:
     '@types/supertest':
       specifier: 7.2.0
       version: 7.2.0
+    csv-parse:
+      specifier: 7.0.1
+      version: 7.0.1
     eslint:
       specifier: 10.6.0
       version: 10.6.0
@@ -494,7 +497,24 @@ importers:
 
   packages/config: {}
 
-  packages/database: {}
+  packages/database:
+    dependencies:
+      '@local-wellness/types':
+        specifier: workspace:*
+        version: link:../types
+      '@local-wellness/validation':
+        specifier: workspace:*
+        version: link:../validation
+      csv-parse:
+        specifier: 'catalog:'
+        version: 7.0.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.0
 
   packages/design-system: {}
 
@@ -2681,6 +2701,9 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  csv-parse@7.0.1:
+    resolution: {integrity: sha512-+2z7Ar0APQ7Uu6fX4cn+pitRmxjZ1WPBcGmZFKmA74FCyi7Et/XZx8cjNQ5CjbZ4HCOxXCOpRBYvYH08Qa003A==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -7318,6 +7341,8 @@ snapshots:
   css.escape@1.5.1: {}
 
   csstype@3.2.3: {}
+
+  csv-parse@7.0.1: {}
 
   debug@2.6.9:
     dependencies:

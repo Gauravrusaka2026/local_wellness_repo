@@ -44,6 +44,9 @@ jobs:
       - name: Audit production dependencies
         run: pnpm audit --prod
 
+      - name: Validate governance reference data and generated seed
+        run: pnpm governance:data:check
+
       - name: Check formatting
         run: pnpm format:check
 
@@ -88,6 +91,9 @@ jobs:
       - name: Reset and validate migrations
         run: pnpm database:reset
 
+      - name: Lint application-owned database schemas
+        run: pnpm database:lint
+
       - name: Run database and RLS tests
         run: pnpm database:test
 
@@ -104,9 +110,7 @@ jobs:
         run: pnpm test:auth:e2e
 
       - name: Verify generated database types
-        run: |
-          pnpm database:types
-          git diff --exit-code -- packages/database/src/database.types.ts
+        run: pnpm database:types:check
 
       - name: Stop local Supabase
         if: always()

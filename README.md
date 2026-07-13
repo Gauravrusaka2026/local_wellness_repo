@@ -136,6 +136,12 @@ local-wellness/
 │   ├── policies/
 │   └── tests/
 │
+├── resources/
+│   └── governance/
+│       ├── csv/
+│       ├── manifests/
+│       └── MH_MASTER_GOVERNANCE_DATA_v1.xlsx
+│
 ├── infrastructure/
 │   ├── docker/
 │   ├── terraform/
@@ -182,7 +188,7 @@ Before implementing any feature, contributors and coding agents should read:
 ### Prerequisites
 
 - Node.js LTS
-- pnpm
+- Corepack-provided pnpm 11
 - Docker
 - Git
 - Android Studio or Xcode as needed
@@ -199,6 +205,7 @@ corepack enable
 pnpm install --frozen-lockfile
 cp .env.example .env.local
 pnpm database:start
+pnpm governance:data:check
 pnpm database:reset
 pnpm database:test
 
@@ -208,6 +215,12 @@ set -a
 set +a
 
 pnpm dev
+```
+
+If the Corepack installation directory is not writable, install its pnpm shim in a user-owned directory already on `PATH`:
+
+```bash
+corepack enable --install-directory "$HOME/.local/bin" pnpm
 ```
 
 After the local stack starts, read its values with `pnpm exec supabase status -o env` and copy them into the untracked environment file using this mapping:
@@ -227,10 +240,13 @@ pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm governance:data:check
 pnpm database:reset
+pnpm database:lint
 pnpm database:test
 pnpm test:auth:e2e
 pnpm database:types
+pnpm database:types:check
 EXPO_NO_TELEMETRY=1 NEXT_TELEMETRY_DISABLED=1 pnpm build
 docker compose --file infrastructure/docker/compose.dev.yml config --quiet
 pnpm audit --prod
@@ -304,13 +320,18 @@ All database changes must be created through SQL migrations.
 
 ```bash
 pnpm exec supabase migration new <migration_name>
+pnpm governance:data:check
 pnpm database:reset
+pnpm database:lint
 pnpm exec supabase db diff
 pnpm database:test
 pnpm database:types
+pnpm database:types:check
 ```
 
 No production schema change should be performed only through the Supabase dashboard.
+
+Phase 2 governance data is generated from the hash-pinned canonical CSVs. Use `pnpm governance:data:validate` for a read-only audit, `pnpm governance:data:generate` after an intentionally reviewed source/manifest change, and `pnpm governance:data:check` in ordinary development and CI. Never hand-edit the canonical CSVs, the generated main seed, its checksum companion or the machine report; see `docs/governance-data.md`.
 
 ---
 
@@ -366,10 +387,11 @@ Current stage:
 - Maharashtra-first scope defined;
 - Phase 0 pnpm/Turborepo foundation implemented and verified;
 - Phase 1 identity schema, RLS, passwordless Auth clients, secure sessions, profile setup, audited device registration, scoped government access, and invitation APIs implemented and locally verified against its exit criteria;
+- Phase 2 governance schema, PostGIS/versioning, canonical CSV validation, deterministic normalized seed, governance RLS, canonical authority links, and migration/seed/routing-data tests implemented locally; the supplied baseline remains non-routable where identifiers, contacts, assignments, or geometry are unverified;
 - local Supabase configuration, migration tests, RLS tests, API tests, and client build validation are part of CI;
 - Redis, BullMQ, and Sentry are intentionally outside the V1 topology;
 - previously exposed development credentials still require owner rotation before hosted integration;
 - phone delivery, hosted callbacks, MFA enforcement, device-bound session invalidation, and real-device behavior remain documented pre-launch follow-ups;
-- pilot municipality selection pending.
+- pilot municipality selection plus verified LGD identifiers and ward geometry remain required before Phase 2 can claim real jurisdiction-routing coverage.
 
 See `PLAN.md` for implementation phases.

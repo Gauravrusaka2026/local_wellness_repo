@@ -89,3 +89,5 @@ export type RegisterDeviceRequest = z.infer<typeof registerDeviceSchema>;
 export type DeviceIdParameters = z.infer<typeof deviceIdParametersSchema>;
 export type RecordAuthAuditEventRequest = z.infer<typeof recordAuthAuditEventSchema>;
 export type CreateGovernmentInvitationRequest = z.infer<typeof createGovernmentInvitationSchema>;
+
+export * from './governance/index.js';

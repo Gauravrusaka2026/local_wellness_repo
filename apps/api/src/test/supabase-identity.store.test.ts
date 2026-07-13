@@ -159,3 +159,89 @@ describe('Supabase identity store device lifecycle', () => {
     );
   });
 });
+
+describe('Supabase identity store effective access', () => {
+  it('loads roles and memberships through the canonical governance RPC boundary', async () => {
+    const authorityId = '984805ee-52b9-5be0-bed2-3951cc6cab2d';
+    const roleId = '00000000-0000-4000-8000-000000000002';
+    const at = '2026-07-13T12:00:00.000Z';
+    const calls: Array<Readonly<{ arguments_: Record<string, unknown>; functionName: string }>> =
+      [];
+    const serviceRoleClient = {
+      from: (table: string) => {
+        assert.equal(table, 'roles');
+        return {
+          select: () => ({
+            in: async (_column: string, values: string[]) => {
+              assert.deepEqual(values, [roleId]);
+              return {
+                data: [
+                  {
+                    code: 'government_operator',
+                    description: null,
+                    id: roleId,
+                    is_government: true,
+                    is_privileged: false,
+                    name: 'Government operator',
+                  },
+                ],
+                error: null,
+              };
+            },
+          }),
+        };
+      },
+      rpc: async (functionName: string, arguments_: Record<string, unknown>) => {
+        calls.push({ arguments_, functionName });
+
+        if (functionName === 'get_active_user_roles') {
+          return {
+            data: [
+              {
+                authority_id: authorityId,
+                effective_from: at,
+                effective_until: null,
+                id: '53a36014-c619-4034-a8d1-d6ec21e66dd9',
+                role_id: roleId,
+                scope_id: authorityId,
+                scope_type: 'authority',
+              },
+            ],
+            error: null,
+          };
+        }
+
+        assert.equal(functionName, 'get_active_authority_memberships');
+        return {
+          data: [
+            {
+              authority_id: authorityId,
+              effective_from: at,
+              effective_until: null,
+              id: '992572fd-1a4f-4e56-b6b6-72bfca9c3930',
+              invitation_email: 'operator@example.test',
+              status: 'active',
+            },
+          ],
+          error: null,
+        };
+      },
+    };
+    const store = new SupabaseIdentityStore({ serviceRoleClient } as unknown as SupabaseClients);
+
+    const access = await store.findActiveAccess(userId, at);
+
+    assert.deepEqual(calls.map((call) => call.functionName).sort(), [
+      'get_active_authority_memberships',
+      'get_active_user_roles',
+    ]);
+    assert.equal(
+      calls.every(
+        (call) => call.arguments_['p_at'] === at && call.arguments_['p_user_id'] === userId,
+      ),
+      true,
+    );
+    assert.equal(access.roles[0]?.code, 'government_operator');
+    assert.equal(access.authorities[0]?.authorityId, authorityId);
+  });
+});

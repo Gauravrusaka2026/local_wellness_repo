@@ -572,3 +572,20 @@ The repository should always be sufficient for a new developer or AI agent to un
 The project must never depend on previous chat history.
 
 All important project knowledge must exist inside the repository.
+
+## Reference Data
+
+The repository contains authoritative reference datasets.
+
+These files are considered read-only unless explicitly instructed.
+
+Before implementing governance, routing, municipalities, wards, officer assignments, or departments, the agent must inspect:
+
+- `resources/governance/csv/` as the machine-readable source of truth;
+- `resources/governance/MH_MASTER_GOVERNANCE_DATA_v1.xlsx` as the human reference copy.
+
+These read-only datasets are the canonical reference for Phase 2. If the workbook and CSV exports differ, stop automated promotion and resolve the discrepancy without silently rewriting either source.
+
+Do not hardcode municipalities, wards, departments, or officer roles.
+
+Always derive implementation from the reference datasets.

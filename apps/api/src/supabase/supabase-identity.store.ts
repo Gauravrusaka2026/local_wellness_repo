@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Tables, TablesInsert, TablesUpdate } from '@local-wellness/database';
+import type { Database, Tables, TablesInsert, TablesUpdate } from '@local-wellness/database';
 import {
   accessScopeTypes,
   authorityMembershipStatuses,
@@ -37,15 +37,15 @@ type DeviceRow = Tables<'devices'>;
 type RoleRow = Tables<'roles'>;
 type UserRoleRow = Tables<'user_roles'>;
 type MembershipRow = Tables<'authority_memberships'>;
+type RegisterDeviceArguments = Database['public']['Functions']['register_device']['Args'];
+type ProvisionGovernmentInvitationArguments =
+  Database['public']['Functions']['provision_government_invitation']['Args'];
 
 const profileColumns =
   'id,display_name,phone,email,preferred_language,status,onboarding_completed_at,created_at,updated_at';
 const deviceColumns =
   'id,platform,app_version,push_token,last_seen_at,risk_status,revoked_at,created_at,updated_at';
 const roleColumns = 'id,code,name,description,is_government,is_privileged';
-const userRoleColumns =
-  'id,role_id,authority_id,scope_type,scope_id,effective_from,effective_until';
-const membershipColumns = 'id,authority_id,status,invitation_email,effective_from,effective_until';
 
 const hasDatabaseErrorMarker = (
   error: Readonly<{ message: string }> | null,
@@ -248,7 +248,7 @@ export class SupabaseIdentityStore extends IdentityStore {
   }
 
   public async upsertDevice(userId: string, input: DeviceRegistration): Promise<Device> {
-    const { data, error } = await this.clients.serviceRoleClient.rpc('register_device', {
+    const registrationArguments = {
       p_device_identifier_hash: input.deviceIdentifierHash,
       p_last_seen_at: input.lastSeenAt,
       p_platform: input.platform,
@@ -256,7 +256,11 @@ export class SupabaseIdentityStore extends IdentityStore {
       p_user_id: userId,
       ...(input.appVersion === undefined ? {} : { p_app_version: input.appVersion }),
       ...(input.pushToken === undefined ? {} : { p_push_token: input.pushToken }),
-    });
+    } as unknown as RegisterDeviceArguments;
+    const { data, error } = await this.clients.serviceRoleClient.rpc(
+      'register_device',
+      registrationArguments,
+    );
 
     if (hasDatabaseErrorMarker(error, 'DEVICE_BLOCKED')) {
       throw new DeviceBlockedError();
@@ -312,22 +316,14 @@ export class SupabaseIdentityStore extends IdentityStore {
 
   public async findActiveAccess(userId: string, at: string): Promise<ActiveAccess> {
     const [assignmentsResult, membershipsResult] = await Promise.all([
-      this.clients.serviceRoleClient
-        .from('user_roles')
-        .select(userRoleColumns)
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .lte('effective_from', at)
-        .or(`effective_until.is.null,effective_until.gt.${at}`)
-        .order('effective_from', { ascending: true }),
-      this.clients.serviceRoleClient
-        .from('authority_memberships')
-        .select(membershipColumns)
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .lte('effective_from', at)
-        .or(`effective_until.is.null,effective_until.gt.${at}`)
-        .order('effective_from', { ascending: true }),
+      this.clients.serviceRoleClient.rpc('get_active_user_roles', {
+        p_at: at,
+        p_user_id: userId,
+      }),
+      this.clients.serviceRoleClient.rpc('get_active_authority_memberships', {
+        p_at: at,
+        p_user_id: userId,
+      }),
     ]);
 
     if (assignmentsResult.error || membershipsResult.error) {
@@ -425,19 +421,20 @@ export class SupabaseIdentityStore extends IdentityStore {
       throw new IdentityDataAccessError('validate government invitation scope');
     }
 
+    const invitationArguments = {
+      actor_user_id: input.actorUserId,
+      authority_id: input.authorityId,
+      effective_from: input.effectiveFrom,
+      effective_until: input.effectiveUntil,
+      invitation_email: input.email,
+      invited_user_id: input.invitedUserId,
+      role_id: input.role.id,
+      scope_id: input.scopeId,
+      scope_type: input.scopeType,
+    } as unknown as ProvisionGovernmentInvitationArguments;
     const { data, error } = await this.clients.serviceRoleClient.rpc(
       'provision_government_invitation',
-      {
-        actor_user_id: input.actorUserId,
-        authority_id: input.authorityId,
-        effective_from: input.effectiveFrom,
-        effective_until: input.effectiveUntil,
-        invitation_email: input.email,
-        invited_user_id: input.invitedUserId,
-        role_id: input.role.id,
-        scope_id: input.scopeId,
-        scope_type: input.scopeType,
-      },
+      invitationArguments,
     );
     const invitation = data?.[0];
 
