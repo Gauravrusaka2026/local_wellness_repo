@@ -15,8 +15,13 @@ Supabase Auth is the V1 identity provider.
 Authentication options:
 
 - phone OTP;
-- email OTP;
-- email magic link.
+- email OTP.
+
+Citizen, government and administrator interactive email sign-in uses code entry. The committed
+local confirmation and magic-link templates contain the six-digit `Token` and no clickable sign-in
+URL, preventing provider template defaults from changing those flows back to a link. Managed
+projects require the equivalent reviewed templates. Government invitations remain a separate,
+one-time token-hash link flow.
 
 Google and Apple sign-in are not part of Phase 1.
 
@@ -62,6 +67,11 @@ Application tables extend identity data.
 - preferred language (`en`, `hi`, or `mr`);
 - account status;
 - onboarding completion timestamp.
+
+An idempotent private migration repairs legacy Auth identities that predate successful application
+profile provisioning. It creates only a missing profile and missing non-privileged global citizen
+role, normalizes bounded email/phone/name/language metadata, and never overwrites an existing
+profile or reactivates an existing revoked citizen role.
 
 ### `roles`
 
@@ -158,7 +168,11 @@ Current role and membership scope evaluated
 
 The trusted API creates invitations through Supabase Auth, then persists the invited authority membership and scoped role assignment. The caller must already hold active `platform_admin` access or active `municipal_admin` access for the same authority. Client applications cannot submit `granted_by`, membership status, or privileged role state.
 
-Supabase administrator invitations do not originate a PKCE verifier. The invite email therefore links to the government callback with a one-time `token_hash` and `type=invite`; the server verifies that hash and writes the SSR session cookies. Subsequent government and administrator magic-link requests use the normal PKCE callback.
+Supabase administrator invitations do not originate a PKCE verifier. The invite email therefore
+links to the government callback with a one-time `token_hash` and `type=invite`; the server verifies
+that hash and writes the SSR session cookies. Subsequent government and administrator sign-in
+requests keep `shouldCreateUser` disabled, send a code through the reviewed magic-link template,
+and verify it in the requesting application with the `email` OTP type.
 
 ---
 
@@ -182,11 +196,13 @@ The Phase 1 mobile adapter stores the Supabase session only in Expo SecureStore.
 
 Use the official Supabase SSR PKCE integration and cookies shared by browser and server clients. Authenticated pages are dynamic and validate the current user or claims rather than trusting an unverified cookie payload.
 
-The citizen email request uses the exact, queryless, same-origin `/auth/callback` URL. This avoids
-depending on a query-string variant that may not match a managed Supabase redirect allow-list. The
-callback still validates PKCE or supported token-hash evidence and writes the SSR session cookie;
-it must never accept raw access/refresh tokens from a URL. Each managed environment must allow-list
-its exact callback origin and verify a newly delivered link in a real browser before launch.
+Citizen, government and administrator email sign-in sends a six-digit code and verifies it with
+Supabase `verifyOtp` using the `email` type. Government and administrator requests set
+`shouldCreateUser` to false, so those surfaces cannot register a privileged identity. Code sign-in
+does not require a link callback. Callback routes remain available for reviewed PKCE/token-hash
+flows such as government invitations and must never accept raw access/refresh tokens from a URL.
+Each managed environment must verify its actual email template, OTP delivery, expiry/rate limits,
+session cookie, and authenticated landing page in a real browser before launch.
 
 After callback completion, the citizen account page still depends on the application profile API.
 Citizen web, NestJS API, and Supabase Auth must target the same environment; the API configured by
@@ -302,6 +318,25 @@ inspects the object server-side and verifies its MIME type, size, and SHA-256; t
 media, exact coordinates, and internal spoof/duplicate/routing evidence are not exposed in public
 contracts or logs.
 
+### Government complaint workflow
+
+- every queue/detail/action endpoint requires a verified bearer session and active application
+  profile;
+- the database derives access from the actor's current role assignment and active authority
+  membership, never from JWT metadata or a client-provided role name;
+- platform administrators may use global scope; municipal roles stay within their authority; ward
+  and department roles stay within their exact current scope; moderators are read-only;
+- a caller may select one of their own current role-assignment IDs to disambiguate scope but cannot
+  invent or broaden it;
+- every action rechecks the current verified, non-placeholder, routable governance assignment,
+  role capability, workflow transition, expected workflow version, and idempotency fingerprint;
+- internal notes, inspections, work/dependency details, exact location, originals, and resolution
+  evidence remain private government data;
+- resolution evidence uses a server-reserved private path, verified upload finalization, and short-
+  lived signed read access after a fresh scope check;
+- assignment and transfer append versions, while action audit, resolution history, evidence links,
+  and status history are retained rather than deleted.
+
 ### Messages
 
 - room member may read room messages;
@@ -404,7 +439,7 @@ Potential risk indicators:
 Citizen recovery:
 
 - phone OTP;
-- email magic link.
+- email OTP.
 
 Government recovery:
 
@@ -429,7 +464,7 @@ Required tests:
 - MFA-required operation rejected without MFA (pre-launch coverage tracked by `AUTH-002`);
 - anonymous user blocked from private complaint.
 
-Phase 1 implements local migration and pgTAP coverage for the identity tables, including self-access, cross-user and cross-authority denial, expired and revoked assignments, sensitive device-column isolation, anonymous denial, audit immutability and direct escalation attempts. The local email magic-link flow is automated. Phone OTP is provider-gated because the local Supabase Auth service disables phone sign-in without a real SMS provider. Hosted delivery, redirect URLs, device/session revocation, and real-device SecureStore behavior still require environment-specific validation before launch.
+Phase 1 implements local migration and pgTAP coverage for the identity tables, including self-access, cross-user and cross-authority denial, expired and revoked assignments, sensitive device-column isolation, anonymous denial, audit immutability and direct escalation attempts. The local code-only citizen email OTP flow is automated, including profile provisioning; focused service tests cover non-registering government and administrator OTP requests and verification. The identity forward-fix test covers safe repair of a missing profile/citizen role and preservation of revoked access. Phone OTP is provider-gated because the local Supabase Auth service disables phone sign-in without a real SMS provider. Hosted delivery, templates, privileged account access, device/session revocation, and real-device SecureStore behavior still require environment-specific validation before launch.
 
 Phase 2 extends those tests with canonical-authority foreign keys, safe legacy placeholder backfill, ward/department ownership checks, and governance RLS isolation. The invitation E2E uses the deterministic seeded Maharashtra authority, so arbitrary client-supplied UUIDs can no longer create government access scope.
 
@@ -440,3 +475,10 @@ duplicate acknowledgement, and actor-owned complaint history. The mobile flow an
 also have focused tests. Hosted email delivery/SSR-cookie behavior, real SMS, physical-device
 SecureStore/location/camera/microphone behavior, and verified Pune positive submission remain
 environment-gated and are not claimed as production-validated.
+
+Phase 5 adds migration/RLS, API, store-adapter, validation, and dashboard coverage for current
+government scope/capability enforcement, cross-scope denial, read-only moderation, workflow-version
+conflicts, exact-replay action idempotency, versioned assignments, guarded status transitions,
+private notes/evidence, dependency closure, resolution requirements, audit history, and outbox
+persistence. Local synthetic fixtures do not make any placeholder pilot entity verified or prove a
+hosted government login/queue.

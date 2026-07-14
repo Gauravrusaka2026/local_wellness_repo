@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   decodeComplaintDraft,
   decodeComplaintMediaUploadIntent,
+  decodeRoutingAssetDiscovery,
   decodeRoutingCategories,
 } from '../src/complaints/response-decoders';
 
@@ -45,6 +46,31 @@ describe('complaint response decoders', () => {
 
     assert.deepEqual(decodeRoutingCategories([category]), [category]);
     assert.throws(() => decodeRoutingCategories([{ ...category, officerPhone: 'private' }]));
+  });
+
+  it('accepts only bounded, unique, public-safe nearby asset options', () => {
+    const result = {
+      assets: [
+        {
+          assetTypeName: 'Streetlight',
+          displayName: 'Verified pole 24',
+          distanceMeters: 8.25,
+          id: '55555555-5555-4555-8555-555555555555',
+        },
+      ],
+      categoryId: '22222222-2222-4222-8222-222222222222',
+    };
+
+    assert.deepEqual(decodeRoutingAssetDiscovery(result), result);
+    assert.throws(() =>
+      decodeRoutingAssetDiscovery({
+        ...result,
+        assets: [{ ...result.assets[0], ownerPhone: 'private' }],
+      }),
+    );
+    assert.throws(() =>
+      decodeRoutingAssetDiscovery({ ...result, assets: [result.assets[0], result.assets[0]] }),
+    );
   });
 
   it('rejects malformed or secret-bearing draft responses', () => {

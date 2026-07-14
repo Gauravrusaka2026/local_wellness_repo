@@ -10,18 +10,26 @@ export type Database = {
           asset_type_id: string | null;
           asset_version_id: string | null;
           assigned_at: string;
+          assigned_by_user_id: string | null;
+          assigned_user_id: string | null;
           assignment_source: string;
           authority_department_id: string;
           authority_id: string;
           complaint_id: string;
           created_at: string;
           department_id: string;
+          effective_from: string;
+          effective_to: string | null;
+          ended_by_user_id: string | null;
           id: string;
           local_body_id: string;
           officer_assignment_id: string | null;
           officer_role_id: string;
+          reason_code: string | null;
           routing_decision_id: string;
           status: string;
+          supersedes_assignment_id: string | null;
+          version: number;
           ward_id: string | null;
         };
         Insert: {
@@ -30,18 +38,26 @@ export type Database = {
           asset_type_id?: string | null;
           asset_version_id?: string | null;
           assigned_at: string;
+          assigned_by_user_id?: string | null;
+          assigned_user_id?: string | null;
           assignment_source?: string;
           authority_department_id: string;
           authority_id: string;
           complaint_id: string;
           created_at?: string;
           department_id: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          ended_by_user_id?: string | null;
           id?: string;
           local_body_id: string;
           officer_assignment_id?: string | null;
           officer_role_id: string;
+          reason_code?: string | null;
           routing_decision_id: string;
           status?: string;
+          supersedes_assignment_id?: string | null;
+          version?: number;
           ward_id?: string | null;
         };
         Update: {
@@ -50,26 +66,41 @@ export type Database = {
           asset_type_id?: string | null;
           asset_version_id?: string | null;
           assigned_at?: string;
+          assigned_by_user_id?: string | null;
+          assigned_user_id?: string | null;
           assignment_source?: string;
           authority_department_id?: string;
           authority_id?: string;
           complaint_id?: string;
           created_at?: string;
           department_id?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          ended_by_user_id?: string | null;
           id?: string;
           local_body_id?: string;
           officer_assignment_id?: string | null;
           officer_role_id?: string;
+          reason_code?: string | null;
           routing_decision_id?: string;
           status?: string;
+          supersedes_assignment_id?: string | null;
+          version?: number;
           ward_id?: string | null;
         };
         Relationships: [
           {
             foreignKeyName: 'complaint_assignments_complaint_id_fkey';
             columns: ['complaint_id'];
-            isOneToOne: true;
+            isOneToOne: false;
             referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_assignments_supersedes_assignment_id_fkey';
+            columns: ['supersedes_assignment_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_assignments';
             referencedColumns: ['id'];
           },
         ];
@@ -138,6 +169,174 @@ export type Database = {
             columns: ['selected_location_evidence_id'];
             isOneToOne: false;
             referencedRelation: 'complaint_location_evidence';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_external_dependencies: {
+        Row: {
+          added_by_user_id: string;
+          assignment_id: string;
+          complaint_id: string;
+          created_at: string;
+          dependency_type: string;
+          description: string;
+          expected_by: string | null;
+          id: string;
+          resolution_summary: string | null;
+          resolved_at: string | null;
+          resolved_by_user_id: string | null;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          added_by_user_id: string;
+          assignment_id: string;
+          complaint_id: string;
+          created_at?: string;
+          dependency_type: string;
+          description: string;
+          expected_by?: string | null;
+          id?: string;
+          resolution_summary?: string | null;
+          resolved_at?: string | null;
+          resolved_by_user_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          added_by_user_id?: string;
+          assignment_id?: string;
+          complaint_id?: string;
+          created_at?: string;
+          dependency_type?: string;
+          description?: string;
+          expected_by?: string | null;
+          id?: string;
+          resolution_summary?: string | null;
+          resolved_at?: string | null;
+          resolved_by_user_id?: string | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_external_dependencies_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_external_dependencies_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_inspections: {
+        Row: {
+          assignment_id: string;
+          complaint_id: string;
+          completed_at: string | null;
+          completed_by_user_id: string | null;
+          created_at: string;
+          id: string;
+          instructions: string | null;
+          outcome: string | null;
+          scheduled_by_user_id: string;
+          scheduled_for: string;
+          status: string;
+          summary: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          assignment_id: string;
+          complaint_id: string;
+          completed_at?: string | null;
+          completed_by_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          instructions?: string | null;
+          outcome?: string | null;
+          scheduled_by_user_id: string;
+          scheduled_for: string;
+          status?: string;
+          summary?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          assignment_id?: string;
+          complaint_id?: string;
+          completed_at?: string | null;
+          completed_by_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          instructions?: string | null;
+          outcome?: string | null;
+          scheduled_by_user_id?: string;
+          scheduled_for?: string;
+          status?: string;
+          summary?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_inspections_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_inspections_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_internal_notes: {
+        Row: {
+          assignment_id: string;
+          author_user_id: string;
+          body: string;
+          complaint_id: string;
+          created_at: string;
+          id: string;
+        };
+        Insert: {
+          assignment_id: string;
+          author_user_id: string;
+          body: string;
+          complaint_id: string;
+          created_at?: string;
+          id?: string;
+        };
+        Update: {
+          assignment_id?: string;
+          author_user_id?: string;
+          body?: string;
+          complaint_id?: string;
+          created_at?: string;
+          id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_internal_notes_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_internal_notes_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
             referencedColumns: ['id'];
           },
         ];
@@ -318,6 +517,171 @@ export type Database = {
           },
         ];
       };
+      complaint_resolution_evidence: {
+        Row: {
+          assignment_id: string;
+          bucket_id: string;
+          captured_at: string | null;
+          client_sha256: string;
+          complaint_id: string;
+          created_at: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          failure_code: string | null;
+          finalized_at: string | null;
+          id: string;
+          kind: string;
+          object_path: string;
+          observed_byte_size: number | null;
+          observed_mime_type: string | null;
+          updated_at: string;
+          upload_expires_at: string;
+          upload_status: string;
+          uploader_user_id: string;
+          verified_sha256: string | null;
+        };
+        Insert: {
+          assignment_id: string;
+          bucket_id?: string;
+          captured_at?: string | null;
+          client_sha256: string;
+          complaint_id: string;
+          created_at?: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          failure_code?: string | null;
+          finalized_at?: string | null;
+          id?: string;
+          kind: string;
+          object_path: string;
+          observed_byte_size?: number | null;
+          observed_mime_type?: string | null;
+          updated_at?: string;
+          upload_expires_at: string;
+          upload_status?: string;
+          uploader_user_id: string;
+          verified_sha256?: string | null;
+        };
+        Update: {
+          assignment_id?: string;
+          bucket_id?: string;
+          captured_at?: string | null;
+          client_sha256?: string;
+          complaint_id?: string;
+          created_at?: string;
+          declared_byte_size?: number;
+          declared_mime_type?: string;
+          failure_code?: string | null;
+          finalized_at?: string | null;
+          id?: string;
+          kind?: string;
+          object_path?: string;
+          observed_byte_size?: number | null;
+          observed_mime_type?: string | null;
+          updated_at?: string;
+          upload_expires_at?: string;
+          upload_status?: string;
+          uploader_user_id?: string;
+          verified_sha256?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_resolution_evidence_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_resolution_evidence_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_resolution_evidence_links: {
+        Row: {
+          created_at: string;
+          evidence_id: string;
+          resolution_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          evidence_id: string;
+          resolution_id: string;
+        };
+        Update: {
+          created_at?: string;
+          evidence_id?: string;
+          resolution_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_resolution_evidence_links_evidence_id_fkey';
+            columns: ['evidence_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_resolution_evidence';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_resolution_evidence_links_resolution_id_fkey';
+            columns: ['resolution_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_resolutions: {
+        Row: {
+          assignment_id: string;
+          complaint_id: string;
+          completion_note: string;
+          created_at: string;
+          id: string;
+          public_message: string | null;
+          submitted_by_user_id: string;
+          version: number;
+        };
+        Insert: {
+          assignment_id: string;
+          complaint_id: string;
+          completion_note: string;
+          created_at?: string;
+          id?: string;
+          public_message?: string | null;
+          submitted_by_user_id: string;
+          version: number;
+        };
+        Update: {
+          assignment_id?: string;
+          complaint_id?: string;
+          completion_note?: string;
+          created_at?: string;
+          id?: string;
+          public_message?: string | null;
+          submitted_by_user_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_resolutions_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_resolutions_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaint_status_history: {
         Row: {
           actor_user_id: string | null;
@@ -440,6 +804,54 @@ export type Database = {
           },
         ];
       };
+      complaint_work_references: {
+        Row: {
+          added_by_user_id: string;
+          assignment_id: string;
+          complaint_id: string;
+          created_at: string;
+          description: string | null;
+          id: string;
+          reference_number: string;
+          reference_type: string;
+        };
+        Insert: {
+          added_by_user_id: string;
+          assignment_id: string;
+          complaint_id: string;
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          reference_number: string;
+          reference_type: string;
+        };
+        Update: {
+          added_by_user_id?: string;
+          assignment_id?: string;
+          complaint_id?: string;
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          reference_number?: string;
+          reference_type?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_work_references_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_work_references_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaints: {
         Row: {
           asset_id: string | null;
@@ -458,6 +870,7 @@ export type Database = {
           submitted_at: string;
           updated_at: string;
           visibility: string;
+          workflow_version: number;
         };
         Insert: {
           asset_id?: string | null;
@@ -476,6 +889,7 @@ export type Database = {
           submitted_at: string;
           updated_at?: string;
           visibility?: string;
+          workflow_version?: number;
         };
         Update: {
           asset_id?: string | null;
@@ -494,6 +908,7 @@ export type Database = {
           submitted_at?: string;
           updated_at?: string;
           visibility?: string;
+          workflow_version?: number;
         };
         Relationships: [
           {
@@ -604,12 +1019,302 @@ export type Database = {
           },
         ];
       };
+      government_action_audit_events: {
+        Row: {
+          action_request_id: string;
+          action_type: string;
+          actor_user_id: string;
+          assignment_id: string | null;
+          authority_id: string;
+          complaint_id: string;
+          from_status: string | null;
+          id: string;
+          metadata: Json;
+          occurred_at: string;
+          request_id: string;
+          to_status: string | null;
+        };
+        Insert: {
+          action_request_id: string;
+          action_type: string;
+          actor_user_id: string;
+          assignment_id?: string | null;
+          authority_id: string;
+          complaint_id: string;
+          from_status?: string | null;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          request_id: string;
+          to_status?: string | null;
+        };
+        Update: {
+          action_request_id?: string;
+          action_type?: string;
+          actor_user_id?: string;
+          assignment_id?: string | null;
+          authority_id?: string;
+          complaint_id?: string;
+          from_status?: string | null;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          request_id?: string;
+          to_status?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'government_action_audit_events_action_request_id_fkey';
+            columns: ['action_request_id'];
+            isOneToOne: true;
+            referencedRelation: 'government_action_requests';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'government_action_audit_events_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'government_action_audit_events_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      government_action_requests: {
+        Row: {
+          action_type: string;
+          actor_user_id: string;
+          claimed_at: string;
+          complaint_id: string;
+          completed_at: string | null;
+          from_status: string | null;
+          id: string;
+          idempotency_key_hash: string;
+          request_fingerprint: string;
+          request_id: string;
+          response_payload: Json | null;
+          state: string;
+          to_status: string | null;
+        };
+        Insert: {
+          action_type: string;
+          actor_user_id: string;
+          claimed_at?: string;
+          complaint_id: string;
+          completed_at?: string | null;
+          from_status?: string | null;
+          id?: string;
+          idempotency_key_hash: string;
+          request_fingerprint: string;
+          request_id: string;
+          response_payload?: Json | null;
+          state?: string;
+          to_status?: string | null;
+        };
+        Update: {
+          action_type?: string;
+          actor_user_id?: string;
+          claimed_at?: string;
+          complaint_id?: string;
+          completed_at?: string | null;
+          from_status?: string | null;
+          id?: string;
+          idempotency_key_hash?: string;
+          request_fingerprint?: string;
+          request_id?: string;
+          response_payload?: Json | null;
+          state?: string;
+          to_status?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'government_action_requests_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      government_role_capabilities: {
+        Row: {
+          can_acknowledge: boolean;
+          can_add_external_dependency: boolean;
+          can_add_internal_note: boolean;
+          can_add_work_reference: boolean;
+          can_assign: boolean;
+          can_manage_inspection: boolean;
+          can_submit_resolution: boolean;
+          can_transfer: boolean;
+          can_update_status: boolean;
+          can_upload_resolution_evidence: boolean;
+          can_view: boolean;
+          created_at: string;
+          role_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          can_acknowledge?: boolean;
+          can_add_external_dependency?: boolean;
+          can_add_internal_note?: boolean;
+          can_add_work_reference?: boolean;
+          can_assign?: boolean;
+          can_manage_inspection?: boolean;
+          can_submit_resolution?: boolean;
+          can_transfer?: boolean;
+          can_update_status?: boolean;
+          can_upload_resolution_evidence?: boolean;
+          can_view?: boolean;
+          created_at?: string;
+          role_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          can_acknowledge?: boolean;
+          can_add_external_dependency?: boolean;
+          can_add_internal_note?: boolean;
+          can_add_work_reference?: boolean;
+          can_assign?: boolean;
+          can_manage_inspection?: boolean;
+          can_submit_resolution?: boolean;
+          can_transfer?: boolean;
+          can_update_status?: boolean;
+          can_upload_resolution_evidence?: boolean;
+          can_view?: boolean;
+          created_at?: string;
+          role_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      government_status_transition_rules: {
+        Row: {
+          action_type: string;
+          created_at: string;
+          from_status: string;
+          to_status: string;
+        };
+        Insert: {
+          action_type: string;
+          created_at?: string;
+          from_status: string;
+          to_status: string;
+        };
+        Update: {
+          action_type?: string;
+          created_at?: string;
+          from_status?: string;
+          to_status?: string;
+        };
+        Relationships: [];
+      };
+      notification_outbox: {
+        Row: {
+          aggregate_id: string;
+          aggregate_type: string;
+          complaint_id: string;
+          created_at: string;
+          event_type: string;
+          id: string;
+          occurred_at: string;
+          payload: Json;
+          status_history_id: string;
+        };
+        Insert: {
+          aggregate_id: string;
+          aggregate_type?: string;
+          complaint_id: string;
+          created_at?: string;
+          event_type?: string;
+          id?: string;
+          occurred_at: string;
+          payload: Json;
+          status_history_id: string;
+        };
+        Update: {
+          aggregate_id?: string;
+          aggregate_type?: string;
+          complaint_id?: string;
+          created_at?: string;
+          event_type?: string;
+          id?: string;
+          occurred_at?: string;
+          payload?: Json;
+          status_history_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_outbox_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'notification_outbox_status_history_id_fkey';
+            columns: ['status_history_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_status_history';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      action_capability: { Args: { p_action_type: string }; Returns: string };
+      action_is_state_eligible: {
+        Args: {
+          p_action_type: string;
+          p_complaint_id: string;
+          p_status: string;
+        };
+        Returns: boolean;
+      };
+      actor_can_access_assignment: {
+        Args: {
+          p_actor_user_id: string;
+          p_assignment_id: string;
+          p_at?: string;
+          p_capability: string;
+          p_scope_role_assignment_id?: string;
+        };
+        Returns: boolean;
+      };
+      assignment_has_current_verified_officer: {
+        Args: { p_assignment_id: string; p_at?: string };
+        Returns: boolean;
+      };
+      assignment_summary: { Args: { p_assignment_id: string }; Returns: Json };
+      current_action_request_id: { Args: never; Returns: string };
+      is_verified_assignment_scope: {
+        Args: {
+          p_at: string;
+          p_authority_department_id: string;
+          p_authority_id: string;
+          p_department_id: string;
+          p_local_body_id: string;
+          p_officer_assignment_id: string;
+          p_officer_role_id: string;
+          p_ward_id: string;
+        };
+        Returns: boolean;
+      };
+      role_capability_enabled: {
+        Args: {
+          capability: Database['complaints']['Tables']['government_role_capabilities']['Row'];
+          capability_name: string;
+        };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;
@@ -4108,6 +4813,26 @@ export type Database = {
           status: string;
         }[];
       };
+      discover_routing_assets: {
+        Args: {
+          p_accuracy_meters: number;
+          p_category_id: string;
+          p_latitude: number;
+          p_limit?: number;
+          p_longitude: number;
+          p_resolved_at?: string;
+        };
+        Returns: {
+          asset_id: string;
+          asset_type_name: string;
+          display_name: string;
+          distance_meters: number;
+        }[];
+      };
+      expire_government_resolution_evidence: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
       fail_governance_sync_run: {
         Args: {
           p_error_code: string;
@@ -4117,6 +4842,14 @@ export type Database = {
           p_source_endpoint_id: string;
         };
         Returns: undefined;
+      };
+      fail_government_resolution_evidence: {
+        Args: { p_evidence_id: string; p_failure_code: string };
+        Returns: {
+          evidence_id: string;
+          failure_code: string;
+          upload_status: string;
+        }[];
       };
       finalize_complaint_media: {
         Args: {
@@ -4133,6 +4866,32 @@ export type Database = {
           processing_status: string;
           replayed: boolean;
           upload_status: string;
+        }[];
+      };
+      finalize_government_resolution_evidence: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_evidence_id: string;
+          p_expected_workflow_version: number;
+          p_idempotency_key_hash: string;
+          p_observed_byte_size: number;
+          p_observed_mime_type: string;
+          p_request_fingerprint: string;
+          p_request_id: string;
+          p_verified_sha256: string;
+        };
+        Returns: {
+          captured_at: string;
+          created_at: string;
+          evidence_id: string;
+          finalized_at: string;
+          kind: string;
+          observed_byte_size: number;
+          observed_mime_type: string;
+          replayed: boolean;
+          upload_status: string;
+          workflow_version: number;
         }[];
       };
       find_complaint_duplicate_candidates: {
@@ -4287,6 +5046,67 @@ export type Database = {
           to_status: string;
         }[];
       };
+      get_government_complaint: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_scope_role_assignment_id?: string;
+        };
+        Returns: {
+          accuracy_meters: number;
+          allowed_actions: string[];
+          allowed_status_transitions: string[];
+          assignment_history: Json;
+          category_id: string;
+          category_name: string;
+          complaint_id: string;
+          complaint_number: string;
+          current_assignment: Json;
+          description: string;
+          external_dependencies: Json;
+          inspections: Json;
+          internal_notes: Json;
+          latitude: number;
+          location_captured_at: string;
+          location_provider: string;
+          location_verification_score: number;
+          location_verification_status: string;
+          longitude: number;
+          media: Json;
+          queue_flags: Json;
+          resolution_evidence: Json;
+          routing_summary: Json;
+          status: string;
+          submitted_at: string;
+          timeline: Json;
+          updated_at: string;
+          work_references: Json;
+          workflow_version: number;
+        }[];
+      };
+      get_government_resolution_evidence_object: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_evidence_id: string;
+          p_purpose?: string;
+          p_scope_role_assignment_id?: string;
+        };
+        Returns: {
+          bucket_id: string;
+          client_sha256: string;
+          complaint_id: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          evidence_id: string;
+          object_path: string;
+          observed_byte_size: number;
+          observed_mime_type: string;
+          upload_expires_at: string;
+          upload_status: string;
+          workflow_version: number;
+        }[];
+      };
       get_owned_complaint: {
         Args: { p_actor_user_id: string; p_complaint_id: string };
         Returns: {
@@ -4422,6 +5242,48 @@ export type Database = {
           width_pixels: number;
         }[];
       };
+      list_government_assignment_options: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_scope_role_assignment_id?: string;
+        };
+        Returns: {
+          complaint_id: string;
+          options: Json;
+          workflow_version: number;
+        }[];
+      };
+      list_government_complaints: {
+        Args: {
+          p_actor_user_id: string;
+          p_authority_department_id?: string;
+          p_before_id?: string;
+          p_before_submitted_at?: string;
+          p_category_id?: string;
+          p_limit?: number;
+          p_officer_assignment_id?: string;
+          p_queue?: string;
+          p_scope_role_assignment_id?: string;
+          p_search?: string;
+          p_statuses?: string[];
+          p_submitted_from?: string;
+          p_submitted_to?: string;
+          p_ward_id?: string;
+        };
+        Returns: {
+          category_id: string;
+          category_name: string;
+          complaint_id: string;
+          complaint_number: string;
+          current_assignment: Json;
+          queue_flags: Json;
+          status: string;
+          submitted_at: string;
+          updated_at: string;
+          workflow_version: number;
+        }[];
+      };
       list_owned_complaints: {
         Args: {
           p_actor_user_id: string;
@@ -4467,6 +5329,22 @@ export type Database = {
           requires_asset: boolean;
           requires_location: boolean;
           verification_status: string;
+        }[];
+      };
+      perform_government_complaint_action: {
+        Args: {
+          p_action_type: string;
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_expected_workflow_version: number;
+          p_idempotency_key_hash: string;
+          p_payload?: Json;
+          p_request_fingerprint: string;
+          p_request_id: string;
+        };
+        Returns: {
+          replayed: boolean;
+          response_payload: Json;
         }[];
       };
       provision_government_invitation: {
@@ -4595,6 +5473,32 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      report_routing_confidence_policy_conflicts: {
+        Args: never;
+        Returns: {
+          category_id: string;
+          conflict_effective_from: string;
+          conflict_effective_to: string;
+          left_asset_id: string;
+          left_asset_type_id: string;
+          left_confidence_policy_version_id: string;
+          left_route_rule_id: string;
+          left_route_rule_version_id: string;
+          left_rule_code: string;
+          left_scope_authority_id: string;
+          left_scope_local_body_id: string;
+          left_scope_ward_id: string;
+          right_asset_id: string;
+          right_asset_type_id: string;
+          right_confidence_policy_version_id: string;
+          right_route_rule_id: string;
+          right_route_rule_version_id: string;
+          right_rule_code: string;
+          right_scope_authority_id: string;
+          right_scope_local_body_id: string;
+          right_scope_ward_id: string;
+        }[];
+      };
       reserve_complaint_media: {
         Args: {
           p_actor_user_id: string;
@@ -4618,6 +5522,34 @@ export type Database = {
           replayed: boolean;
           upload_expires_at: string;
           upload_status: string;
+        }[];
+      };
+      reserve_government_resolution_evidence: {
+        Args: {
+          p_actor_user_id: string;
+          p_byte_size: number;
+          p_captured_at?: string;
+          p_complaint_id: string;
+          p_expected_workflow_version: number;
+          p_idempotency_key_hash: string;
+          p_kind: string;
+          p_mime_type: string;
+          p_request_fingerprint: string;
+          p_request_id: string;
+          p_sha256: string;
+        };
+        Returns: {
+          bucket_id: string;
+          created_at: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          evidence_id: string;
+          kind: string;
+          object_path: string;
+          replayed: boolean;
+          upload_expires_at: string;
+          upload_status: string;
+          workflow_version: number;
         }[];
       };
       resolve_jurisdiction_context: {
@@ -4732,6 +5664,30 @@ export type Database = {
         };
       };
       submit_complaint: {
+        Args: {
+          p_acknowledged_duplicate_suggestion_ids?: string[];
+          p_actor_user_id: string;
+          p_emergency_disclaimer_acknowledged?: boolean;
+          p_routing_decision_id: string;
+          p_submission_request_id: string;
+        };
+        Returns: {
+          assignment_id: string;
+          authority_id: string;
+          complaint_id: string;
+          complaint_number: string;
+          department_id: string;
+          draft_id: string;
+          local_body_id: string;
+          officer_role_id: string;
+          replayed: boolean;
+          routing_decision_id: string;
+          status: string;
+          submitted_at: string;
+          ward_id: string;
+        }[];
+      };
+      submit_complaint_phase4_impl: {
         Args: {
           p_acknowledged_duplicate_suggestion_ids?: string[];
           p_actor_user_id: string;

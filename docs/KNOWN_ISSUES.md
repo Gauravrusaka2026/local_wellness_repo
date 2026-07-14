@@ -30,10 +30,13 @@ Natural names must remain scoped by their parent jurisdiction until official ide
 
 All 70 ward rows are synthetic five-ward placeholders for 14 corporations and have pending zone, contact, and GIS fields. All corporation, municipal-council, and nagar-panchayat phone/email fields are extraction placeholders. The `Current_Officers.csv` file contains zero named people: its four `Officer Name` values are office/role descriptions or explicit incumbent placeholders.
 
-The synchronization pilot deliberately selects the five numeric Pune and five numeric Brihanmumbai
-bootstrap ward rows only as draft, unverified, non-routable targets. In particular,
-`BRIH-W01`–`BRIH-W05` are not an official BMC ward model and must be reconciled to BMC's official
-lettered ward structure through reviewed source evidence before activation.
+The owner has selected BMC administrative wards A, B, C, D, and E plus Pune's officially current
+numeric ward model for the pilot. That decision does not verify the canonical bootstrap rows. The
+existing `BRIH-W01`–`BRIH-W05` and `PUNE-W01`–`PUNE-W05` targets remain draft, unverified,
+non-routable placeholders. BMC's rows must never be interpreted ordinally as A–E; reviewed official
+records and a new versioned synchronization scope are required. Pune rows may be promoted only if
+official evidence proves their exact current identity, otherwise new official rows must supersede
+them.
 
 Phase 2 must not create verified officers or assignments from those labels. Placeholder rows may be retained only with an explicit placeholder/unverified state and raw-source provenance. Production-facing officer names and contacts require record-specific official verification.
 
@@ -51,7 +54,7 @@ The canonical CSV corpus contains no coordinates, WKT, GeoJSON, or boundary file
 - Status: Open data-mapping task
 - Discovered: 2026-07-13
 
-Five ward rows refer to `Vasai-Virar City Municipal Corporation`, while the corporation table uses `Vasai-Virar Municipal Corporation`. Brihanmumbai is represented by one slash-delimited two-district value and therefore requires a local-body-to-district join rather than one district foreign key. Its five numeric pilot ward placeholders also require an explicit crosswalk to the official lettered ward structure.
+Five ward rows refer to `Vasai-Virar City Municipal Corporation`, while the corporation table uses `Vasai-Virar Municipal Corporation`. Brihanmumbai is represented by one slash-delimited two-district value and therefore requires a local-body-to-district join rather than one district foreign key. The selected BMC A–E administrative wards require new official-source-backed records; no ordinal crosswalk from the five numeric placeholders is permitted. Pune's selected numeric model likewise requires an official effective-dated identity review.
 
 Only 6 of 18 routing primary department/agency labels exactly match a department row. Officer destinations are mostly composite free-text labels: only 1 of 18 first-recipient, 2 of 18 first-escalation, and 0 of 18 second-escalation values exactly match a durable officer role. All 18 routing notes state that official department/local-body mapping is required despite a source status of `Active`.
 
@@ -67,7 +70,12 @@ Row widths, dates, and declared source URLs are structurally valid, and no exact
 
 Imports must preserve the original provenance fields, map missing evidence to an explicit unverified state, and prevent promotion to verified/public-safe data until record-specific evidence exists.
 
-The baseline report exposes aggregate classifications plus per-file dispositions/diagnostics, but not a complete accepted/unverified/quarantined/rejected matrix per file. Database and importer checks validate shapes and recognized formats; they cannot establish that a syntactically valid contact or LGD value is the current official value. Thirteen normalized emergency contacts inherit verified source status, several from generic official pages, and require record-specific review before they are represented as fully verified pilot contact evidence.
+The baseline report now exposes a reconciled accepted/unverified/quarantined/rejected matrix for
+every source file. Database and importer checks validate shapes and recognized formats; they cannot
+establish that a syntactically valid contact or LGD value is the current official value. Thirteen
+normalized emergency contacts inherit verified source status, several from generic official pages,
+and require record-specific review before they are represented as fully verified pilot contact
+evidence.
 
 ### DATA-007 — Workbook-to-CSV parity has not been independently verified
 
@@ -103,7 +111,9 @@ dispatch-secret-protected Edge fetcher, conditional HTTP 304 handling, immutable
 Storage writes, structured audit events, durable review-bound versioned contact channels, and a pure
 contact normalizer. Ten official PMC/BMC endpoints are registered only as draft, unverified,
 inactive source definitions. No source was scheduled or activated, and no retrieved data was
-published or applied to hosted Supabase.
+published. The migrations and draft-only source/scope seeds are now present in the dedicated
+staging database, but the Edge Function, Cron, dispatch secret, parsers, snapshots, and publication
+runtime remain undeployed/inactive.
 
 The slice also adds generic service-only synchronization scope targets and selects five canonical
 ward placeholders per pilot municipality. All ten targets remain draft, unverified, unapproved, and
@@ -177,23 +187,6 @@ complete fallback paths. The 12 seeded categories are draft, unverified, and non
 Phase 2 placeholder records remain excluded. Until those inputs pass record-specific official-source
 review, a real Pune coordinate must not produce a production route.
 
-### ROUTING-003 — Conflicting applicable confidence policies need activation-time validation
-
-- Severity: Medium for operational routing configuration
-- Status: Runtime fails closed; activation tooling pending
-- Discovered: 2026-07-13
-
-Each route-rule version references one verified confidence-policy version. It is still possible for
-two otherwise applicable rules in the same category/jurisdiction context to reference different
-policy versions. The API adapter rejects that context rather than silently comparing scores produced
-under different policies, so the condition cannot generate an automatic route, but it appears as an
-unavailable configuration at request time.
-
-Before activating Pune routing data, add a reviewed configuration report or publication-time check
-that detects simultaneously applicable rules with conflicting policy versions across authority,
-local-body, ward, asset and effective-time scope. Retain the runtime fail-closed guard as defense in
-depth.
-
 ### COMPLAINT-001 — Transcription and media moderation providers are not configured
 
 - Severity: Medium before public pilot
@@ -258,7 +251,7 @@ application runtime failure, and Phase 3 intentionally adds no routing UI.
 ### ENV-004 — Citizen account data requires one aligned migrated environment
 
 - Severity: Medium for local and hosted account testing
-- Status: UI failure handling resolved; environment alignment and hosted validation pending
+- Status: Staging schema/profile alignment resolved; browser/API validation pending
 - Discovered: 2026-07-14
 
 The citizen account route authenticates with Supabase and reads its profile through the NestJS API.
@@ -271,11 +264,49 @@ The route now validates the API response and visibly distinguishes signed-in ide
 profile provisioning/unavailability, and API failure, with retry and sign-out actions. Operators
 must still configure the citizen web and API against the same fully migrated local or hosted
 Supabase environment and complete delivered-link/SSR-cookie testing under `AUTH-005`/`ENV-002`.
+The dedicated staging project now contains the identity trigger/backfill migration, and a read-only
+check confirmed the existing citizen Auth identity has an active profile and citizen role. A real
+browser session against a reachable staging-configured API is still required before this issue can
+be closed completely.
+
+### GOVDASH-001 — Interactive complaint map needs a provider and coordinate-sharing policy
+
+- Severity: Medium for the full Phase 5 map experience
+- Status: Open product/privacy input
+- Discovered: 2026-07-14
+
+The access-scoped queue and complaint-detail workflow can be implemented without sending complaint
+coordinates to a third party. A real interactive basemap cannot be selected safely until the owner
+chooses a provider and records key/billing/domain restrictions plus whether exact or generalized
+coordinates may leave Local Wellness infrastructure. Phase 5 therefore exposes no queue map points
+and uses authorized textual location context on complaint detail; it must not add fake map tiles or
+unreviewed outbound coordinate links.
+
+### GOVDASH-002 — Resolution evidence needs scheduled object cleanup and full media processing
+
+- Severity: High before a public pilot
+- Status: Open provider/operations hardening task
+- Discovered: 2026-07-14
+
+Phase 5 keeps resolution evidence private, caps active unlinked reservations, validates workflow
+version and expiry before download, verifies exact size and SHA-256 plus bounded JPEG/PNG/WebP/
+HEIC/HEIF/MP4/QuickTime/WebM signatures, rejects MIME spoofing, and marks failed or elapsed
+reservations terminal. Authorized reads are short-lived, non-cacheable, and forced to download.
+
+Signature recognition is deliberately a narrow integrity gate, not full container/image decoding,
+malware scanning, content moderation, or a guarantee that media is safe to open in another
+application. Expired database reservations can be marked in bounded batches, but no scheduled job
+yet deletes their exact private Storage objects or reconciles missing/orphan objects.
+
+Before public operation, select and approve a privacy-compatible scanning/moderation approach,
+enforce bounded concurrency and resource limits, add full decode/container validation, and deploy an
+idempotent Supabase-scheduled cleanup process that deletes only server-owned object paths and audits
+every result. Do not introduce Redis, BullMQ, or Sentry for this work.
 
 ### SEC-001 — Exposed environment credentials require rotation
 
 - Severity: Critical
-- Status: Open — owner action required
+- Status: Mitigated for staging — replacement credentials confirmed; historical audit remains
 - Discovered: 2026-07-11
 - Affected systems: Supabase and Redis
 
@@ -283,32 +314,48 @@ The previously ignored `.env.example` contained live-looking privileged Supabase
 
 The file is not tracked in the current Git index and has no entries in the currently available Git history. Pattern scans of the working source and current Git objects found no remaining matches. This does not establish that the credentials are safe because they were present in the working copy and may have been copied or exposed elsewhere.
 
-Required owner actions before any hosted Supabase integration or any future Redis use:
+On 2026-07-14 the owner confirmed that the active hosted target is a dedicated staging project and
+that its Supabase privileged credential and database credential are newly generated replacements.
+Those replacement values remain only in the untracked local environment and were sufficient for the
+reviewed staging migration deployment. They are not the earlier values described above.
 
-1. Revoke and rotate the affected Supabase privileged credential.
-2. Rotate the affected database password or connection credential.
-3. Revoke and rotate the affected Redis token.
-4. Review Supabase and Redis provider audit or access logs for unexpected activity.
-5. Run secret scanning against all local branches and the remote repository.
-6. Store replacement secrets only in approved environment-specific secret managers or untracked local environment files.
+Remaining owner/security actions:
 
-Local Supabase is isolated and does not use these values. Development, staging and production services must not use the affected credentials until these actions are complete.
+1. Confirm the replaced Supabase/database values are revoked if that was not part of generating the
+   new credentials.
+2. Revoke any legacy Redis token that still exists; Redis remains unused and deferred.
+3. Review Supabase/legacy-provider audit or access logs for unexpected activity.
+4. Run secret scanning against all local branches and the remote repository.
+5. Move deployed-environment values into approved environment-specific secret managers; keep local
+   replacements only in untracked environment files.
+
+The confirmed replacement staging credentials may be used for non-production integration. No old
+credential may be reused, and production remains separately gated.
 
 ### ENV-002 — Hosted identity environments require activation
 
 - Severity: High for hosted integration; not blocking local Phase 1 completion
-- Status: Open
+- Status: Staging database activated; provider/application smoke configuration remains open
 - Discovered: 2026-07-13
 
-Separate managed development, staging and production Supabase projects, current publishable/secret keys, SMS/email provider credentials, exact redirects, hosted invite templates, rate limits and backup settings remain operator-managed inputs.
+The dedicated staging project and replacement credentials are confirmed. All 23 repository
+migrations through Phase 5 and all six reviewed non-production seed files were applied successfully
+on 2026-07-14. The project still needs fully reviewed SMS/email provider settings, exact redirects,
+hosted OTP/invite templates, rate limits, backup settings, managed secrets, and application smoke
+tests. Separate development and production projects remain operator-managed inputs.
 
-Before hosted identity activation:
+Before completing hosted identity activation:
 
-- complete SEC-001 credential rotation;
+- finish the historical security audit under `SEC-001` without reusing prior values;
 - configure the exact token-hash government invite template in every project;
 - configure and verify email and Indian SMS delivery;
-- smoke-test redirects, invitation acceptance, SSR cookies and effective government scope;
-- apply and verify migrations/RLS in development, then staging, before production.
+- smoke-test OTP delivery, redirects, SSR cookies, and effective government scope in the browser;
+- repeat migration/RLS smoke in development where used, and never promote to production without an
+  independently reviewed production project/deployment.
+
+The first staging government invitation has been accepted and the demo privileges were reconciled
+to confirmed owner-controlled Auth identities with the temporary alias assignments revoked. This
+proves the stored staging identity state, not the remaining delivered-OTP/browser session checks.
 
 ### AUTH-001 — Existing-user assignment and role renewal are incomplete
 
@@ -321,6 +368,10 @@ The implemented endpoint securely invites a new government Auth user and creates
 Authorization stops at `effective_until`, but partial unique indexes use stored status. Without an explicit transition from `active` to `expired`, a time-expired row can block a replacement. Add audited expire/revoke/renew/assign operations and concurrency tests before onboarding existing or returning government users.
 
 Phase 2 also retains any pre-governance arbitrary authority UUID as a non-routable placeholder for audit/history. Effective-access functions exclude those rows, but an operator workflow must explicitly map or revoke them before reactivating an existing government's access.
+
+A one-time trusted staging transaction reconciled the demo privileges between already-confirmed
+identities while retaining revoked rows and audit history. That environment operation does not
+provide the missing application/API lifecycle and does not close this issue.
 
 ### AUTH-002 — Privileged MFA enforcement is not implemented
 
@@ -364,17 +415,63 @@ The production images copy the verified workspace from the build stage. They run
 
 Evaluate pnpm deployment pruning or service-specific production dependency packaging after real runtime dependencies exist. Any optimization must preserve reproducible builds and non-root execution.
 
-### DOC-001 — Tracking-document locations are inconsistent
+## Resolved Issues
+
+### AUTH-009 — Privileged clients could request a code-only email without offering code entry
+
+- Severity: Previously high for administrator and government demo access
+- Status: Resolved in code on 2026-07-14; hosted template/login smoke remains under `ENV-002`
+- Discovered: 2026-07-14
+
+The administrator and government clients previously requested `signInWithOtp` but instructed the
+user to follow a sign-in link. That did not match the reviewed code-only magic-link template. Both
+clients now provide explicit six-digit code entry and call `verifyOtp` with the `email` type while
+retaining `shouldCreateUser: false`, non-enumerating request behavior, safe return paths, and auth
+audit recording. The separate one-time government invitation token-hash callback remains intact.
+Focused tests, lint, type-checking, and production builds pass for both applications. The managed
+staging project's magic-link template and delivered OTP still require inbox/browser verification.
+
+### AUTH-007 — Existing Auth users could be missing identity profile rows
+
+- Severity: Previously high for affected account pages
+- Status: Resolved locally on 2026-07-14; hosted rollout remains under `ENV-002`/`ENV-004`
+- Discovered: 2026-07-14
+
+An additive, idempotent migration backfills only missing `public.profiles` and baseline global
+citizen roles for existing `auth.users`. It preserves existing profiles, privileged assignments,
+revocations, and non-citizen scopes. Local migration, RLS, security, and Auth-flow tests pass;
+managed projects must apply the migration before hosted legacy accounts benefit.
+
+### AUTH-008 — Local email OTP templates still emitted sign-in links
+
+- Severity: Previously medium for passwordless testing
+- Status: Resolved in repository configuration on 2026-07-14
+- Discovered: 2026-07-14
+
+Local confirmation and magic-link templates now render the delivered six-digit token only and do
+not include a sign-in URL. Auth E2E extracts and verifies the code and rejects link-bearing email
+content. Hosted Supabase projects retain their own operator-managed templates and must update both
+confirmation and magic-link/OTP templates before hosted behavior changes.
+
+### DOC-001 — Tracking-document locations were inconsistent
 
 - Severity: Low
-- Status: Open
+- Status: Resolved on 2026-07-14
 - Discovered: 2026-07-11
 
-`AGENTS.md` refers to root-level tracking filenames, while the repository currently stores them under `docs/`. The repository also contains an empty `docs/architecture.md,` file with a trailing comma.
+`AGENTS.md` now names the canonical tracker files under `docs/` and includes them in the required
+reading order. The empty trailing-comma file `docs/architecture.md,` was removed; no duplicate
+tracking documents were created.
 
-Resolve both in a documentation-only change after confirming the intended canonical locations; do not create duplicate trackers.
+### ROUTING-003 — Conflicting applicable confidence policies lacked activation reporting
 
-## Resolved Issues
+- Severity: Previously medium for operational routing configuration
+- Status: Resolved on 2026-07-14
+- Discovered: 2026-07-13
+
+A service-only activation report now identifies simultaneously applicable active verified routing
+rules whose confidence-policy versions differ across authority, local-body, ward, asset, and
+effective-time scope. Runtime resolution retains its fail-closed guard as defense in depth.
 
 ### MOB-001 — Mobile Expo SDK was incompatible with the current Android Expo Go client
 

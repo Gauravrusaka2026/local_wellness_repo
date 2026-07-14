@@ -1,0 +1,149 @@
+'use client';
+
+import { useState, type FormEvent } from 'react';
+
+import { getGovernmentEmailCallbackUrl } from '../../../lib/auth/callback';
+import {
+  getGovernmentLoginError,
+  requestGovernmentOtp,
+  verifyGovernmentOtp,
+} from '../../../lib/auth/service';
+import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
+
+type Step = 'request' | 'verify';
+
+export const OtpSignInForm = ({
+  callbackError,
+  nextPath,
+}: Readonly<{ callbackError: boolean; nextPath: string }>) => {
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(
+    callbackError
+      ? 'The invitation or authentication request is invalid or expired. Request a new code.'
+      : null,
+  );
+  const [isPending, setIsPending] = useState(false);
+  const [normalizedEmail, setNormalizedEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState<Step>('request');
+
+  const requestCode = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    setError(null);
+    setIsPending(true);
+
+    try {
+      const normalizedValue = await requestGovernmentOtp(
+        createBrowserSupabaseClient(),
+        email,
+        getGovernmentEmailCallbackUrl(window.location.origin),
+      );
+      setNormalizedEmail(normalizedValue);
+      setStep('verify');
+    } catch (requestError) {
+      setError(getGovernmentLoginError(requestError));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const verifyCode = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    setError(null);
+    setIsPending(true);
+
+    try {
+      await verifyGovernmentOtp(createBrowserSupabaseClient(), normalizedEmail, otp);
+      window.location.assign(nextPath);
+    } catch (verificationError) {
+      setError(getGovernmentLoginError(verificationError));
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <section aria-labelledby="login-heading" className="auth-card">
+      <p className="eyebrow">Restricted government access</p>
+      <h1 id="login-heading">Government dashboard</h1>
+      <p className="lede">
+        Only invited officers and municipal administrators can sign in. Access is limited to active
+        assigned scopes.
+      </p>
+
+      {step === 'request' ? (
+        <form aria-busy={isPending} className="stack" onSubmit={(event) => void requestCode(event)}>
+          <label htmlFor="email">Official email address</label>
+          <input
+            autoCapitalize="none"
+            autoComplete="email"
+            disabled={isPending}
+            id="email"
+            inputMode="email"
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+            placeholder="officer@municipality.gov.in"
+            required
+            type="email"
+            value={email}
+          />
+          <p className="field-hint">
+            If this address has active access, we will email a 6-digit verification code.
+          </p>
+          <button className="primary-button" disabled={isPending} type="submit">
+            {isPending ? 'Sending…' : 'Send verification code'}
+          </button>
+        </form>
+      ) : (
+        <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
+          <p aria-live="polite" className="success-notice">
+            If this address has active access, enter the verification code sent to{' '}
+            <strong>{normalizedEmail}</strong>.
+          </p>
+          <label htmlFor="otp">Verification code</label>
+          <input
+            autoComplete="one-time-code"
+            disabled={isPending}
+            id="otp"
+            inputMode="numeric"
+            maxLength={8}
+            onChange={(event) => {
+              setOtp(event.target.value);
+              setError(null);
+            }}
+            pattern="[0-9 ]{6,9}"
+            placeholder="123456"
+            required
+            value={otp}
+          />
+          <button className="primary-button" disabled={isPending} type="submit">
+            {isPending ? 'Verifying…' : 'Verify and continue'}
+          </button>
+          <button
+            className="text-button"
+            disabled={isPending}
+            onClick={() => {
+              setError(null);
+              setOtp('');
+              setStep('request');
+            }}
+            type="button"
+          >
+            Use a different email address
+          </button>
+        </form>
+      )}
+
+      {error === null ? null : (
+        <p aria-live="assertive" className="error-notice" role="alert">
+          {error}
+        </p>
+      )}
+      <p className="security-note">
+        Do not share invitation links or verification codes. Access is authorized from current
+        server-side role and membership state.
+      </p>
+    </section>
+  );
+};

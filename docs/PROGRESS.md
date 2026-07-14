@@ -2,7 +2,7 @@
 
 ## Overall Completion
 
-42% implemented.
+51% implemented.
 
 Phase 0 and Phase 1 are complete. Phase 2's engineering baseline is complete and locally verified;
 its remaining exit work requires external, verified pilot identifiers, contacts and real boundary
@@ -14,8 +14,19 @@ PMC/BMC endpoints and ten pilot ward targets remain draft, unverified, and inact
 source-specific parsing, matching, review, publication, and hosted scheduling remain open.
 Phase 4 provides the secure complaint persistence/API boundary and an Android-buildable citizen
 capture client; production submission remains disabled by the absence of verified routable pilot
-data, and transcription/moderation plus physical-device validation remain open. Maps, government
-workflows, realtime, operations and analytics remain in later phases.
+data, and transcription/moderation plus physical-device validation remain open. Phase 5 now adds
+database-enforced government workflow, an authenticated NestJS operations API, private verified
+resolution evidence, and an accessible access-scoped government dashboard. Its engineering is
+locally complete with synthetic verified fixtures; production-like use remains gated on verified
+pilot data, an authenticated managed-environment smoke test, map policy, and evidence operations.
+The dedicated staging Supabase project now uses owner-confirmed replacement credentials and has all
+23 migrations through Phase 5 plus the six reviewed non-production seed files. Its bootstrap still
+contains zero operational categories and zero active synchronization sources. A citizen profile,
+one active platform administrator, and one active Pune-scoped municipal administrator now exist as
+confirmed staging-only environment data. The initial invitation was accepted and temporary alias
+privileges were revoked with history retained; authenticated UI smoke testing remains pending.
+Realtime delivery, citizen resolution feedback, transparency, SLA/KPI and launch hardening remain
+in later phases.
 
 ## Phase Completion
 
@@ -25,8 +36,8 @@ workflows, realtime, operations and analytics remain in later phases.
 | Phase 1 — Identity and access                | Complete    |       100% |
 | Phase 2 — Maharashtra governance model       | In progress |        90% |
 | Phase 3 — Taxonomy and routing               | In progress |        85% |
-| Phase 4 — Citizen complaint capture          | In progress |        90% |
-| Phase 5 — Government dashboard               | Not started |         0% |
+| Phase 4 — Citizen complaint capture          | In progress |        95% |
+| Phase 5 — Government dashboard               | In progress |        95% |
 | Phase 6 — Realtime and notifications         | Not started |         0% |
 | Phase 7 — Resolution, feedback and reopening | Not started |         0% |
 | Phase 8 — Nearby map and transparency        | Not started |         0% |
@@ -53,13 +64,24 @@ photo/video/voice/location workflow with protected resume state. It is not marke
 current bootstrap exposes no verified routable category, speech-to-text/media-moderation providers
 are not selected, and complete physical-device/hosted callback/upload testing remains pending.
 
+Phase 5 engineering completion covers versioned complaint assignments, explicit transition rules,
+current-scope authorization, atomic idempotent actions, internal operational records, private
+resolution evidence, audit/outbox persistence, strict government APIs, and the server-rendered
+queue/detail/action workspace. Placeholder/unverified recipients remain excluded, stale incumbent
+versions remain recoverable rather than hiding complaints, and open inspection/dependency work
+cannot be stranded by transfer or manual status changes. Phase 5 is not marked 100% because a real
+interactive map needs an approved provider/coordinate policy, evidence needs scheduled object
+cleanup and full media processing, and an authenticated production-like run needs verified pilot
+governance/routing/complaint data.
+
 ## Sprint Completion
 
 - Sprint 1 — Project Foundation: 100% complete.
 - Sprint 2 — Identity and Access: 100% complete.
 - Sprint 3 — Governance data foundation and pilot-data closure: 90% complete.
 - Sprint 4 — Data-driven routing and governance synchronization foundation/retrieval: 85% complete.
-- Sprint 5 — Secure citizen complaint capture: 90% complete.
+- Sprint 5 — Secure citizen complaint capture: 95% complete.
+- Sprint 6 — Access-scoped government complaint operations: 95% complete.
 
 ## Completed Milestones
 
@@ -119,27 +141,45 @@ are not selected, and complete physical-device/hosted callback/upload testing re
   surface; OTP completion uses a reliable full-page transition.
 - The mobile workspace is aligned to Expo SDK 54.0.33, React Native 0.81.5, React 19.1, compatible
   SDK 54 native modules, and TypeScript 5.9.3 for current Android Expo Go compatibility.
+- Two additive Phase 5 migrations provide private forced-RLS government workflow tables,
+  capability/transition rules, versioned assignment history, inspections, work/dependencies,
+  resolution versions/evidence, idempotency/audit records, and a data-minimized notification outbox.
+- Authenticated government queue/detail/action APIs enforce current Auth identity and database scope,
+  return strict privacy-safe contracts, and use bounded private resolution-evidence upload/read
+  flows with expiry, checksum, binary signature, replay, and terminal failure handling.
+- The government dashboard now provides effective-scope queues, bookmarkable filters, pagination,
+  complaint/routing/assignment context, every Phase 5 operational action, private evidence upload,
+  and accessible loading/error/empty/conflict states without an external map call.
+- ADR-0013 and the Phase 5 government-dashboard implementation/testing worklog.
+- Dedicated staging database activation through all 23 existing migrations and six reviewed
+  non-production seeds, with post-deploy verification of the migration ledger, Pune authority,
+  fail-closed category/source state, citizen profile, audited platform administrator, and active
+  Pune-scoped municipal administrator.
+- BMC A–E administrative wards and Pune's officially current numeric ward model recorded as pilot
+  identity selections without promoting the existing placeholder rows or activating routing.
 
 ## Current Milestone
 
-Implement source-specific PMC HTML/API and BMC HTML/PDF parsers against retained fixtures, then
-stage their output for canonical entity matching and human review. Obtain the official BMC
-lettered-ward crosswalk before activating its pilot scope. In parallel, close Phase 4's verified-data/
-device/provider gates and begin Phase 5 access-scoped government queue/detail engineering with
-synthetic fixtures.
+Phase 5 engineering and its local verification matrix are complete, and the database portion is now
+deployed to dedicated staging. Invitation acceptance and role reconciliation are complete; the
+remaining closeout milestone is authenticated citizen/admin/government browser smoke testing. A
+populated operational queue still requires real verified pilot records; no placeholder recipient
+may be activated for a demo.
 
 ## Next Milestone
 
-Complete review APIs and transactional append/close publishers after the first PMC/BMC parser and
-matching contracts are validated. Deploy Cron/secrets and activate one source only after source
-review, DNS-resolution hardening, and snapshot reconciliation exist. Continue Phase 5 government
-dashboard queues/detail with database-derived scope and activate routing only after complete
-official pilot evidence passes review.
+Begin Phase 6 realtime and notification delivery from the Phase 5 transactional outbox with
+authorized events, PostgreSQL claiming/retry/replay, and single-instance Socket.IO delivery. Redis,
+BullMQ, Redis adapters/caching, and Sentry remain deferred. In parallel, continue reviewed PMC/BMC
+parsers and obtain verified pilot ward/contact/assignment/geometry/routing evidence.
 
 ## Current Blockers
 
 - No blocker remains for the Phase 2 schema, baseline import, security or local verification.
-- Hosted integration requires rotation/audit of the previously exposed credentials plus managed project, provider, redirect, template, backup, and secret configuration.
+- The dedicated staging project and newly generated privileged/database credentials are confirmed,
+  and all existing migrations/seeds are applied. Provider/template/redirect, SMS, backup, secret-
+  management, and browser/device smoke configuration remains incomplete; historical credential-log/
+  repository audit and any legacy Redis-token cleanup remain under `SEC-001`.
 - Phone OTP E2E needs a real SMS provider; phone request/verification code paths have unit coverage.
 - Citizen email callback construction now uses the exact allow-listed queryless same-origin route;
   delivered hosted-link and SSR-cookie behavior remain part of the environment-gated `AUTH-005` test.
@@ -151,39 +191,49 @@ official pilot evidence passes review.
 - Governance synchronization retrieval is implemented and locally tested, but it is not deployed or
   active. Source-specific parsers, entity matching/change detection, review API/UI, transactional
   publishers, environment Cron/secrets, and production source validation remain (`GOVSYNC-001`).
-- Pilot synchronization scope is implemented generically, but all ten selected canonical wards are
-  placeholders and non-routable; BMC's five numeric bootstrap wards require a reviewed crosswalk to
-  its official lettered ward structure before activation (`DATA-003`, `DATA-005`).
+- Pilot synchronization scope is implemented generically, but all ten V1 target rows remain
+  placeholders and non-routable. BMC A–E are now the selected administrative targets and Pune will
+  use its officially current numeric model; official canonical identities, effective dates,
+  geometry, reviewed V2 scope records, and placeholder supersession remain pending (`DATA-003` to
+  `DATA-005`).
 - Exact HTTPS host/redirect controls are implemented, but DNS result/private-address and rebinding
   checks must be added before source activation (`GOVSYNC-002`). Raw snapshot uploads also need
   reconciliation when database finalization fails (`GOVSYNC-003`).
-- The repaired citizen account page still requires its API and Supabase Auth/profile schema to point
-  to the same fully migrated environment; it now reports that dependency instead of rendering a
-  blank surface (`ENV-004`).
+- The staging Auth and profile schema are now aligned and the existing citizen identity has an
+  active profile/citizen role. A reachable API plus browser session smoke is still required before
+  closing the account-page environment issue (`ENV-004`).
 - Conflicting confidence-policy versions across simultaneously applicable rules fail closed at
-  runtime and need an activation-time validation report (`ROUTING-003`).
+  runtime and the service-only activation report is available; production activation still needs
+  reviewed conflict-free policy data (`ROUTING-003`).
 - Production complaint submission is intentionally unavailable because the canonical bootstrap
   contains zero verified routable categories and no verified Pune route (`ROUTING-001`).
 - Speech-to-text/media-moderation processing, expired-upload cleanup, and representative physical
   device capture/resume checks remain (`COMPLAINT-001` through `COMPLAINT-003`).
+- One staging platform administrator and one Pune-scoped municipal administrator are active on
+  confirmed owner-controlled Auth identities. Authenticated dashboard access remains to be smoke-
+  tested; a production-like queue additionally needs verified pilot roles, assignments, geometry,
+  routes, and complaints.
+- The interactive government complaint map needs an approved provider and exact-coordinate sharing
+  policy (`GOVDASH-001`). Resolution evidence still needs scheduled private-object cleanup, full
+  media decoding, malware scanning/moderation, and bounded operational concurrency (`GOVDASH-002`).
 
 ## Verification Summary
 
 - Frozen installation passed for all 17 workspace projects; the lockfile remained current.
 - Canonical governance validation and generated-artifact drift checks passed across 19 source files:
-  887 raw records plus 14 metadata records produced 789 operational/reference and 98 quarantined
-  records, with 0 errors and 2,343 explicit warnings.
+  887 raw records plus 14 metadata records reconcile to 41 accepted, 691 unverified, 169
+  quarantined, and 0 rejected records. The generator still reports 789 operational/reference and 98
+  seed-quarantined records, with 0 errors and 2,343 explicit warnings.
 - Prettier, ESLint, strict TypeScript checks, and production builds passed for the application
   implementation. After the Expo SDK alignment, `expo install --check`, mobile strict type-check,
-  and the Expo Android export passed (1,202 modules).
-- The API suite passed 86 tests, including 14 complaint HTTP-contract cases and 10 strict complaint
-  adapter cases. Mobile, API-client, validation, routing-engine, database-package, workspace and root
-  suites passed; complaint decoder/resume tests cover secret and coordinate allow-listing.
-- A clean local Supabase reset applied all migrations and seeds through the synchronization slice.
-  All 657 pgTAP assertions passed across 18 plans, including complaint migration/Storage/RLS and 100
-  synchronization schedule/lease/RLS/contact-version/publication/scope assertions across plans
-  016–018 (`44 + 26 + 30`). Database lint reported only diagnostics owned by the installed PostGIS
-  extension, not application-schema failures.
+  and the Expo Android export passed (1,204 modules).
+- The API suite passed all 121 tests, the government dashboard passed all 17 tests, shared
+  validation passed 31 tests across five suites, and mobile, citizen web, admin, API-client,
+  routing-engine, database-package, workspace and root suites passed without failures.
+- A clean local Supabase reset applied all migrations and seeds through Phase 5. All 846 pgTAP
+  assertions passed across 23 plans; the focused government-workflow integration plan passed 94/94.
+  Database lint reported only diagnostics owned by the installed PostGIS extension, not
+  application-schema failures.
 - Generated `public`, `governance`, `routing`, and `complaints` database types were regenerated
   atomically and the drift check passed.
 - Local Auth E2E passed 2 cases with 0 failures; the phone case remained correctly provider-gated
@@ -202,10 +252,21 @@ official pilot evidence passes review.
   non-routable engineering seed, so positive submission remains rollback-isolated synthetic test
   coverage. The SDK 54 Expo Android export passed; rendered/device inspection remains pending
   because no in-app browser or physical-device target was connected.
-- No Phase 3, Phase 4, or governance synchronization migration, seed, source activation, governance,
-  routing, complaint, snapshot, or media data was applied to hosted Supabase. A
-  mis-targeted Auth E2E briefly created disposable hosted Auth users, which its cleanup removed;
-  the new loopback guard prevents that local-test configuration error from recurring.
+- A staging dry run listed exactly 23 pending migrations and six seed files. The subsequent push
+  completed successfully through `20260714124000`; read-only verification returned 23 migration
+  ledger rows, the canonical Pune authority/local body, 12 categories with zero operational rows,
+  and 11 synchronization sources with zero active rows.
+- Staging identity verification confirmed the existing citizen profile/role, the first global
+  platform-administrator assignment created through the audited bootstrap, and one active Pune
+  `municipal_admin` membership/role created from an Auth invitation. The invitation was accepted;
+  a later atomic operator reconciliation revoked both temporary alias privileges and left exactly
+  one active global platform administrator plus one active Pune municipal administrator on the
+  owner's existing confirmed Auth identities. The original citizen remains active.
+- Administrator and government-dashboard code-only OTP tests, ESLint, strict type-checking, and
+  production builds passed; the canonical governance seed/report drift check remained clean.
+- No source, synchronization scope, ward, category, route, officer assignment, complaint, snapshot,
+  media object, Edge Function, Cron job, hosted application, or production database was activated
+  or deployed. The new loopback guard continues to prevent local Auth E2E from targeting staging.
 - Citizen web account regression coverage now verifies explicit signed-in identity, onboarding,
   profile-unavailable, API-error, and retry states. Delivered hosted links, SSR cookies, and
   cross-device behavior remain environment-gated under `AUTH-005`/`ENV-002`.

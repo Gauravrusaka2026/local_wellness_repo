@@ -1,5 +1,6 @@
 import type {
   CheckDuplicatesRequest,
+  DiscoverRoutingAssetsRequest,
   ResolveJurisdictionRequest,
   ResolveRoutingRequest,
 } from '@local-wellness/types';
@@ -32,6 +33,13 @@ export const resolveRoutingRequestSchema: z.ZodType<ResolveRoutingRequest> = z
   })
   .strict();
 
+export const discoverRoutingAssetsRequestSchema: z.ZodType<DiscoverRoutingAssetsRequest> = z
+  .object({
+    ...locationShape,
+    categoryId: z.uuid(),
+  })
+  .strict();
+
 export const checkDuplicatesRequestSchema: z.ZodType<CheckDuplicatesRequest> = z
   .object({
     ...locationShape,
@@ -56,5 +64,6 @@ export const categoryIdParametersSchema = z
 
 export type ResolveJurisdictionRequestInput = z.infer<typeof resolveJurisdictionRequestSchema>;
 export type ResolveRoutingRequestInput = z.infer<typeof resolveRoutingRequestSchema>;
+export type DiscoverRoutingAssetsRequestInput = z.infer<typeof discoverRoutingAssetsRequestSchema>;
 export type CheckDuplicatesRequestInput = z.infer<typeof checkDuplicatesRequestSchema>;
 export type CategoryIdParameters = z.infer<typeof categoryIdParametersSchema>;

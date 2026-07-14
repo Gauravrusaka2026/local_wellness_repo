@@ -18,11 +18,11 @@ The agent does NOT need approval for:
 - running local builds
 - running lint
 - running unit tests
-- updating TASKS.md
-- updating CHANGELOG.md
-- updating PROGRESS.md
-- updating DECISIONS.md
-- updating KNOWN_ISSUES.md
+- updating `docs/TASKS.md`
+- updating `docs/CHANGELOG.md`
+- updating `docs/PROGRESS.md`
+- updating `docs/DECISIONS.md`
+- updating `docs/KNOWN_ISSUES.md`
 - creating ADRs
 
 The agent MUST ask for approval only when:
@@ -55,6 +55,11 @@ Before implementation, read:
 8. `docs/deployment.md`
 9. `docs/supabase-setup.md`
 10. applicable ADRs under `docs/adr/`
+11. `docs/TASKS.md`
+12. `docs/PROGRESS.md`
+13. `docs/CHANGELOG.md`
+14. `docs/DECISIONS.md`
+15. `docs/KNOWN_ISSUES.md`
 
 ---
 
@@ -252,8 +257,8 @@ Required test categories:
 For every substantial feature:
 
 - update `PLAN.md`;
-- create or update `TASKS.md`;
-- update `CHANGELOG.md`;
+- create or update `docs/TASKS.md`;
+- update `docs/CHANGELOG.md`;
 - update relevant docs;
 - create ADR when required;
 - document open issues;
@@ -374,15 +379,15 @@ Do NOT use PLAN.md as a task tracker.
 
 ---
 
-TASKS.md
+`docs/TASKS.md`
 
-TASKS.md is the primary execution tracker.
+`docs/TASKS.md` is the primary execution tracker.
 
 This file represents the current implementation backlog.
 
 Before beginning any implementation the agent MUST:
 
-- read TASKS.md
+- read `docs/TASKS.md`
 - determine the highest priority unfinished task
 
 After implementation the agent MUST:
@@ -396,13 +401,13 @@ After implementation the agent MUST:
 
 Never silently ignore newly discovered work.
 
-Every implementation session must update TASKS.md.
+Every implementation session must update `docs/TASKS.md`.
 
 ---
 
-CHANGELOG.md
+`docs/CHANGELOG.md`
 
-CHANGELOG.md records repository history.
+`docs/CHANGELOG.md` records repository history.
 
 Every meaningful implementation session must append a new entry.
 
@@ -422,9 +427,9 @@ Only append.
 
 ---
 
-DECISIONS.md
+`docs/DECISIONS.md`
 
-DECISIONS.md stores implementation decisions that do not require a formal ADR.
+`docs/DECISIONS.md` stores implementation decisions that do not require a formal ADR.
 
 Examples include:
 
@@ -437,13 +442,13 @@ Examples include:
 - validation conventions
 
 Whenever a recurring implementation convention is introduced,
-update DECISIONS.md.
+update `docs/DECISIONS.md`.
 
 ---
 
-KNOWN_ISSUES.md
+`docs/KNOWN_ISSUES.md`
 
-KNOWN_ISSUES.md tracks:
+`docs/KNOWN_ISSUES.md` tracks:
 
 - bugs
 - technical debt
@@ -464,9 +469,9 @@ Never silently ignore technical debt.
 
 ---
 
-PROGRESS.md
+`docs/PROGRESS.md`
 
-PROGRESS.md provides a high-level overview of project completion.
+`docs/PROGRESS.md` provides a high-level overview of project completion.
 
 Update after every implementation session.
 
@@ -493,11 +498,11 @@ not planning.
 
 Before ending any implementation session verify:
 
-- [ ] TASKS.md updated
-- [ ] CHANGELOG.md updated
-- [ ] PROGRESS.md updated
-- [ ] DECISIONS.md updated (if applicable)
-- [ ] KNOWN_ISSUES.md updated (if applicable)
+- [ ] `docs/TASKS.md` updated
+- [ ] `docs/CHANGELOG.md` updated
+- [ ] `docs/PROGRESS.md` updated
+- [ ] `docs/DECISIONS.md` updated (if applicable)
+- [ ] `docs/KNOWN_ISSUES.md` updated (if applicable)
 - [ ] PLAN.md updated (if roadmap changed)
 - [ ] PROJECT_OVERVIEW.md updated (if scope changed)
 - [ ] README.md updated (if setup changed)
@@ -521,7 +526,7 @@ Examples:
 - missing utilities
 - missing APIs
 
-These MUST immediately be added to TASKS.md.
+These MUST immediately be added to `docs/TASKS.md`.
 
 Do not rely on conversational memory.
 

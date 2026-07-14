@@ -5,6 +5,7 @@ import type {
   ComplaintDuplicateCheckResult,
   ComplaintListResult,
   ComplaintLocationCapture,
+  ComplaintLocationEvidence,
   ComplaintMedia,
   ComplaintMediaUploadIntent,
   ComplaintReceipt,
@@ -12,6 +13,7 @@ import type {
   CreateComplaintDraftInput,
   CreateComplaintMediaUploadIntentInput,
   RoutingCategory,
+  RoutingAssetDiscoveryResult,
   SubmitComplaintInput,
   UpdateComplaintDraftInput,
 } from '@local-wellness/types';
@@ -21,6 +23,7 @@ import {
   finalizeComplaintMediaSchema,
   submitComplaintSchema,
   updateComplaintDraftSchema,
+  discoverRoutingAssetsRequestSchema,
 } from '@local-wellness/validation';
 
 import { getPublicApiUrl } from '../config/environment';
@@ -34,6 +37,7 @@ import {
   decodeComplaintReceipt,
   decodeComplaintTimeline,
   decodeRoutingCategories,
+  decodeRoutingAssetDiscovery,
 } from './response-decoders';
 
 const createClient = (accessToken: string) =>
@@ -41,6 +45,23 @@ const createClient = (accessToken: string) =>
 
 export const listRoutingCategories = (accessToken: string): Promise<RoutingCategory[]> =>
   createClient(accessToken).get('/api/v1/routing/categories', { decode: decodeRoutingCategories });
+
+export const discoverRoutingAssets = (
+  accessToken: string,
+  categoryId: string,
+  location: ComplaintLocationEvidence,
+): Promise<RoutingAssetDiscoveryResult> =>
+  createClient(accessToken).post(
+    '/api/v1/routing/assets/nearby',
+    discoverRoutingAssetsRequestSchema.parse({
+      accuracyMeters: location.accuracyMeters,
+      capturedAt: location.capturedAt,
+      categoryId,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    }),
+    { decode: decodeRoutingAssetDiscovery },
+  );
 
 export const createComplaintDraft = (
   accessToken: string,
@@ -73,7 +94,8 @@ export const setComplaintLocation = (
   accessToken: string,
   draftId: string,
   location: ComplaintLocationCapture,
-): Promise<ComplaintDraft> => updateComplaintDraft(accessToken, draftId, { location });
+): Promise<ComplaintDraft> =>
+  updateComplaintDraft(accessToken, draftId, { assetId: null, location });
 
 export const discardComplaintDraft = async (
   accessToken: string,

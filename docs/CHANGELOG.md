@@ -485,3 +485,183 @@ review/publication, security hardening, environment secrets, and Cron deployment
 
 None. Database changes are additive, prior versions remain queryable, and unverified data continues
 to fail closed.
+
+## 2026-07-14 — Known-Issue Closure and Phase 5 Government Dashboard
+
+### Summary
+
+Closed the locally reproducible citizen-authentication, profile provisioning, routing-validation,
+nearby-asset, Expo SDK, and dependency-layout issues, then implemented Phase 5 government complaint
+operations. Engineering is complete locally with synthetic verified fixtures; production-like use
+remains gated on verified pilot governance/routing data and managed-environment activation.
+
+### Feature
+
+- Added an idempotent Auth-profile/citizen-role backfill and code-only local citizen email OTP
+  templates without modifying existing privileged, revoked, or scoped assignments.
+- Added service-only routing-configuration conflict reporting, authenticated data-driven nearby
+  asset discovery, strict mobile profile decoding, and a verified-location gate in complaint capture.
+- Added private forced-RLS government workflow tables, explicit capability/transition rules,
+  append-and-close assignment versions, inspections, work records, dependencies, resolution
+  versions/evidence, atomic action/audit/idempotency records, and a transactional notification outbox.
+- Added authenticated government complaint queue/detail/action APIs and an accessible scoped
+  dashboard with filters, pagination, routing/assignment context, internal operations, dependency
+  handling, resolution evidence, and privacy-safe textual location context.
+- Hardened resolution evidence with pre-download workflow/expiry checks, bounded binary signature,
+  size/SHA-256/MIME verification, terminal failure handling, assignment isolation, reservation caps,
+  forced-download reads, and immutable linked-evidence history.
+- Preserved fail-closed data policy: placeholder/unverified officers, contacts, wards, assets, and
+  routes cannot become active or routable automatically. Redis, BullMQ, and Sentry remain absent.
+
+### Files Modified
+
+- Identity, routing, government workflow, Storage evidence, API tests, and Supabase adapters under
+  `apps/api`, plus citizen web/mobile authentication, profile, asset, and location behavior.
+- Government queue/detail/action UI and tests under `apps/government-dashboard`.
+- Shared government complaint/routing/governance contracts and validation under `packages/`.
+- Additive migrations, pgTAP plans, local OTP templates, generated database types, CI/workspace and
+  Docker development configuration under `supabase/`, `.github/`, and `infrastructure/`.
+- ADR-0013, the Phase 5 worklog, required architecture/database/API/authentication/deployment/setup
+  documentation, and all project trackers.
+
+### Migrations Created
+
+- `20260714120000_backfill_auth_profiles.sql`
+- `20260714121000_routing_configuration_validation.sql`
+- `20260714122000_routing_asset_discovery.sql`
+- `20260714123000_phase_5_government_workflow_schema.sql`
+- `20260714124000_phase_5_government_workflow_security_and_rpc.sql`
+
+### Tests Added and Verification
+
+- Added pgTAP plans 019–023 for profile backfill, routing configuration, asset discovery, workflow
+  schema/ACL, and government workflow integration. A clean reset passed all 846 assertions across
+  23 plans; focused plan 023 passed 94/94.
+- The API suite passed 121 tests, government dashboard 17 tests, shared validation 31 tests across
+  five suites, and the complete workspace/root test command passed with no failures.
+- Formatting, ESLint, strict TypeScript checks, all 16 workspace builds, database/governance drift
+  checks, Docker Compose validation, Expo SDK 54 alignment/Android export, and the production
+  dependency audit passed. No known production dependency vulnerabilities were reported.
+
+### Documentation Updated
+
+- Added ADR-0013 and `docs/worklogs/phase-5-government-dashboard/`.
+- Updated `README.md`, all required trackers, and the architecture, database, API, authentication,
+  deployment, and Supabase setup guides. `PLAN.md` and `PROJECT_OVERVIEW.md` remain unchanged because
+  the roadmap and product scope did not change.
+
+### Hosted Environment and Data Status
+
+- No migration, seed, source activation, workflow record, complaint, or media object from this
+  session was applied to hosted Supabase.
+- Managed Auth templates/providers, credential rotation, an authenticated hosted dashboard smoke,
+  and verified Pune/BMC geometry, contacts, assignments, assets, and routing records remain external
+  activation work. Canonical CSV/workbook bytes were not changed.
+
+### Breaking Changes
+
+None. Changes are additive; stale or unverified recipients fail closed, and prior history remains
+queryable.
+
+## 2026-07-14 — Staging Activation and Demo Access Provisioning
+
+### Summary
+
+Activated the existing schema and reviewed non-production bootstrap in the dedicated staging
+Supabase project, provisioned the first audited demo access scopes, aligned privileged sign-in with
+the code-only OTP template, and recorded the official BMC/Pune ward-model selections without
+promoting placeholder routing data.
+
+### Feature
+
+- Confirmed the hosted target is staging and its privileged/database credentials are newly
+  generated replacements stored outside source control.
+- Used the IPv4-compatible Supavisor session pool after the direct database hostname proved
+  IPv6-only in the development environment; completed a migration/seed dry run before deployment.
+- Applied all 23 existing migrations through `20260714124000` and six reviewed non-production seed
+  files to the previously empty staging database.
+- Verified 23 migration-ledger rows, the canonical Pune authority/local body, 12 categories with
+  zero operational rows, and 11 synchronization source definitions with zero active rows.
+- Confirmed the existing citizen's application profile/citizen role, bootstrapped the first global
+  platform administrator through its audited RPC, and invited one Pune-scoped `municipal_admin`
+  through Supabase Auth plus the guarded invitation persistence RPC. Environment identifiers and
+  emails were not committed.
+- Added explicit code verification to government and platform-administrator email sign-in so the
+  clients match the shared code-only OTP template while preserving the token-hash invitation flow.
+- Selected BMC administrative wards A–E and Pune's officially current numeric wards 1–5 as pilot
+  models. Existing bootstrap/scope rows remain placeholder audit history pending official identity,
+  effective-date, provenance, and geometry review.
+
+### Files Modified
+
+- Government-dashboard and admin-console authentication UI/services/tests.
+- `README.md` and governance, architecture, database, authentication, deployment, Supabase setup,
+  worklog, task, progress, decision, changelog, and known-issue documentation.
+
+### Migrations Created
+
+None. This session deployed the existing reviewed migration set unchanged.
+
+### Tests and Verification
+
+- Supabase migration/seed dry run and deployment completed against the confirmed staging target.
+- Post-deploy read-only database checks verified migration, seed, fail-closed routing/source, and
+  demo access invariants.
+- Administrator and government-dashboard authentication tests, ESLint, strict type-checking, and
+  production builds passed. Focused Prettier, canonical-governance artifact drift, secret-diff, and
+  repository diff checks also passed.
+
+### Security and Data Status
+
+- No credential, OTP, invitation token, demo email, user UUID, or database connection string was
+  committed.
+- No source, ward, category, route, officer assignment, complaint, snapshot, media object, Edge
+  Function, Cron job, hosted application, or production environment was activated or deployed.
+- Historical credential audit/legacy-token cleanup remains tracked; Redis, BullMQ, and Sentry remain
+  excluded.
+
+### Breaking Changes
+
+None.
+
+## 2026-07-14 — Staging Demo Identity Reconciliation
+
+### Summary
+
+Confirmed the citizen account and accepted government invitation, then reconciled the two staging
+privileged roles from temporary Gmail aliases onto the owner's existing confirmed Auth identities.
+
+### Environment Change
+
+- Preserved the original citizen as an active confirmed profile with only the global citizen role.
+- Granted one existing confirmed identity the global `platform_admin` role through the audited
+  bootstrap boundary after retiring the temporary administrator assignment.
+- Granted one existing confirmed identity an active Pune Municipal Corporation membership and
+  authority-scoped `municipal_admin` role through the guarded persistence boundary.
+- Revoked, rather than deleted, the temporary administrator role, municipal role, and authority
+  membership with actor, revocation time, and effective-period history retained.
+- Verified exactly one active global platform administrator and one active Pune municipal
+  administrator after commit.
+
+### Files Modified
+
+- Updated the task, progress, decision, known-issue, deployment, Supabase setup, and changelog
+  records. No demo email, Auth UUID, token, or credential was committed.
+
+### Migrations and Tests
+
+- No migration, seed, application source, canonical governance data, or ADR was added.
+- The staging change ran in one rollback-safe operator transaction. Post-commit Auth/profile/role/
+  membership queries verified confirmation, active profiles, intended scopes, revoked temporary
+  history, and singleton active privileged-role counts.
+
+### Remaining Work
+
+- Delivered OTP, SSR session, effective-scope, admin-console, and government-dashboard browser
+  smoke tests remain open.
+- The one-time environment correction does not implement the general existing-user grant/revoke/
+  renew lifecycle tracked by `AUTH-001`.
+
+### Breaking Changes
+
+None. The change affects staging-only environment data and preserves prior access history.

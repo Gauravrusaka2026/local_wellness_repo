@@ -107,7 +107,7 @@ export const getUserFacingAuthError = (error: unknown): string => {
     }
 
     if (normalizedMessage.includes('expired') || normalizedMessage.includes('invalid')) {
-      return 'The verification code or sign-in link is invalid or expired.';
+      return 'The verification code is invalid or expired.';
     }
 
     return 'Authentication could not be completed. Please try again.';

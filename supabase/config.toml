@@ -66,6 +66,14 @@ max_frequency = "1m"
 otp_length = 6
 otp_expiry = 3600
 
+[auth.email.template.confirmation]
+subject = "Your Local Wellness verification code"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your Local Wellness verification code"
+content_path = "./supabase/templates/magic-link.html"
+
 [auth.email.template.invite]
 subject = "You are invited to Local Wellness"
 content_path = "./supabase/templates/invite.html"

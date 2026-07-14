@@ -41,6 +41,9 @@ jobs:
       - name: Check peer dependencies
         run: pnpm peers check
 
+      - name: Check Expo SDK dependency alignment
+        run: pnpm --filter @local-wellness/mobile exec expo install --check
+
       - name: Audit production dependencies
         run: pnpm audit --prod
 

@@ -5,6 +5,13 @@ export class EmailInputError extends Error {
   }
 }
 
+export class OtpInputError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = 'OtpInputError';
+  }
+}
+
 export const normalizeEmail = (value: string): string => {
   const email = value.trim().toLowerCase();
 
@@ -13,4 +20,14 @@ export const normalizeEmail = (value: string): string => {
   }
 
   return email;
+};
+
+export const normalizeOtp = (value: string): string => {
+  const otp = value.replace(/\s/gu, '');
+
+  if (!/^\d{6,8}$/u.test(otp)) {
+    throw new OtpInputError('Enter the 6-digit verification code.');
+  }
+
+  return otp;
 };

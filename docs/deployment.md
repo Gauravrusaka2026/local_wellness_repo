@@ -155,6 +155,32 @@ Phase 2 governance deployments additionally require the reviewed manifest, canon
 
 The baseline contains no pilot geometry or verified incumbents. A successful deployment therefore proves schema/import integrity only; it must not be represented as production jurisdiction coverage or a current officer directory. Redis, BullMQ, and Sentry remain absent from the V1 deployment topology.
 
+### Staging database record — 2026-07-14
+
+The owner confirmed that the connected Supabase project is dedicated staging and that its
+privileged API/database credentials are newly generated replacements. All 23 existing migrations
+through `20260714124000` and these six reviewed non-production seed files were applied successfully:
+
+- `20_phase_2_governance.generated.sql`;
+- `21_phase_2_governance_checksum.generated.sql`;
+- `30_phase_3_pilot_categories.sql`;
+- `40_governance_sync_pilot_sources.sql`;
+- `41_governance_sync_pilot_wards.sql`;
+- `roles.sql`.
+
+The existing citizen identity was reconciled by the idempotent application-profile backfill.
+Post-seed verification found 12 categories with zero operational and 11 synchronization endpoints
+with zero active. This record covers only the staging database. No application, Edge Function,
+Cron, official source or ward-scope activation, route, verified ward/geometry, complaint, or
+production deployment was performed.
+
+The first government invitation was subsequently accepted. A trusted atomic staging transaction
+then moved the two demo privileged scopes onto existing confirmed owner-controlled Auth identities,
+revoked the temporary alias assignments and membership without deleting history, and verified
+exactly one active global platform administrator plus one active Pune municipal administrator. This
+operator correction does not implement the broader existing-user access lifecycle tracked by
+`AUTH-001` and does not activate any governance or routing record.
+
 Phase 3 deployments apply the routing schema, governance-synchronization foundation, security/RPC
 migration, and engineering-category seed after the Phase 2 artifacts. The 12 category rows must
 remain draft, unverified, and non-routable in every environment until a separately reviewed data
@@ -172,10 +198,11 @@ it adds the column nullable, deterministically backfills through the trigger, an
 Apply `20260714112000_governance_sync_scope.sql` after the retrieval RPC migration, then apply
 `41_governance_sync_pilot_wards.sql` after the pilot-source seed. The scope seed selects five
 canonical Pune and five canonical Brihanmumbai wards only as draft, unverified, unapproved,
-non-routable targets. It does not activate source retrieval or routing. Keep all ten targets inactive
-until a global platform administrator reviews the canonical hierarchy and official evidence. The
-underlying wards are placeholders without verified geometry; BMC's numeric bootstrap wards also
-require a reviewed crosswalk to the official lettered ward structure.
+non-routable V1 audit targets. It does not activate source retrieval or routing. Preserve those rows
+and their placeholder ward records as bootstrap history. The replacement pilot scope is BMC's
+official administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`, only after
+authoritative identity and geometry evidence is reviewed. Never treat `BRIH-W01`–`BRIH-W05` as an
+ordinal mapping to the BMC letters; create reviewed records and a new scope version.
 
 The generic HTTPS fetch/snapshot adapter ships as the `governance-sync-fetch` Supabase Edge
 Function. A managed deployment must deploy that function, set an environment-specific
@@ -235,6 +262,13 @@ and profile-provisioning trigger before allowing signup. A successful Auth callb
 profile row is an environment/provisioning failure that the account UI reports explicitly; do not
 mask it with Auth metadata or an empty profile.
 
+The identity forward fix repairs missing application profiles/global citizen roles for existing
+Auth users during migration without overwriting existing application state. Local Auth uses the
+committed code-only confirmation and magic-link templates, so citizen emails contain a six-digit
+OTP and no sign-in URL. Configure equivalent templates in each managed project and smoke-test the
+delivered OTP, expiry/rate limits, session cookie, profile lookup, and signed-in landing page; a
+local template file does not update a hosted Supabase project automatically.
+
 Production complaint activation additionally requires:
 
 - verified, staging-tested Pune category, boundary, duplicate-policy, department/role, rule,
@@ -248,10 +282,33 @@ Production complaint activation additionally requires:
 - approved transcription and moderation/processing providers before claiming those states advance
   beyond `pending`, plus a durable expiry/retention cleanup design that does not use Redis/BullMQ.
 
-No Phase 4 migration, seed, or media object was uploaded to managed Supabase during local
-engineering. The local bootstrap exposes zero operational categories and therefore proves a safe
-unavailable state, not a production Pune complaint flow. Rollback-isolated synthetic tests are not
-deployment data.
+The Phase 4 migrations and ordinary non-production seeds are present in staging as part of the
+database record above. No media object, verified route, complaint, API/client deployment, or hosted
+workflow smoke was added. The staged bootstrap exposes zero operational categories and therefore
+proves a safe unavailable state, not a production Pune complaint flow. Rollback-isolated synthetic
+tests are not deployment data.
+
+Phase 5 deployments apply the government-workflow schema and security/RPC migrations after Phase 4,
+regenerate database types, deploy the API, and then deploy the government dashboard. The migrations
+version complaint assignments and add the capability/transition matrix, exact-replay action ledger,
+action audit, private internal records, private resolution evidence/resolutions, and data-minimized
+notification outbox inside the existing unexposed forced-RLS `complaints` schema. Do not expose that
+schema through PostgREST or grant dashboard clients direct table/Storage access.
+
+Before enabling a dashboard environment, repeat migration/RLS/RPC tests and smoke-test one role at
+each global, authority, ward, department, and read-only moderator boundary. Confirm cross-scope
+denial, stale workflow conflicts, exact idempotency replay, append-only assignment/audit/history,
+same-authority transfers, dependency closure, private evidence upload/finalization/read, resolution
+requirements, and atomic outbox persistence. The queue will remain empty with the repository's
+normal bootstrap because it contains no operational category or verified pilot route; use only
+rollback-isolated or explicitly approved non-production fixtures.
+
+Phase 5 persists outbox records but does not deliver them. Do not deploy a Redis/BullMQ consumer or
+claim citizen notification delivery. The complaint detail renders authorized coordinates as text;
+an interactive map requires a separately selected provider/key and approved coordinate-sharing
+privacy policy. The two Phase 5 migrations are present in staging as part of the database record
+above; no evidence object, dashboard/API build, workflow fixture, hosted smoke, or application
+deployment was performed.
 
 ---
 
@@ -390,6 +447,14 @@ continue to omit descriptions, exact coordinates, local file paths, object bytes
 tokens, checksums, spoof evidence, and internal duplicate/routing factors. Monitor draft and upload
 failures, media integrity mismatches, idempotency conflicts, unavailable routing, and submission
 latency through platform logs/metrics; no Sentry SDK is introduced.
+
+Phase 5 adds structured government queue/detail/action and resolution-evidence events containing
+only safe request, actor, complaint/action identifiers and aggregate outcomes. Exact coordinates,
+complaint text, private notes, contact data, evidence paths/URLs/tokens/checksums, completion notes,
+dependency details, and idempotency keys must not be logged. Monitor workflow-version conflicts,
+authorization denials, action failures, evidence integrity failures, unresolved dependencies, and
+notification-outbox growth with NestJS/Supabase/platform logs and audit tables. No Sentry SDK or
+Redis/BullMQ monitoring dependency is introduced.
 
 Governance retrieval emits structured Edge logs containing only event status, run ID, and source
 endpoint ID. PostgreSQL retains append-only sync events with safe error codes, aggregate HTTP

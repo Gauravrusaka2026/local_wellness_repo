@@ -12,18 +12,81 @@ import {
   hasPlatformAdminAccess,
   type AdminAccessScope,
 } from '../lib/api/access-scope';
-import { getSupportedEmailOtpType } from '../lib/auth/callback';
-import { EmailInputError, normalizeEmail } from '../lib/auth/input';
+import { getAdminEmailCallbackUrl, getSupportedEmailOtpType } from '../lib/auth/callback';
+import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
-import { signOutAdminSession } from '../lib/auth/service';
+import { requestAdminOtp, signOutAdminSession, verifyAdminOtp } from '../lib/auth/service';
 import { isPublicAuthRoute } from '../proxy';
 
 test('normalizes administrator email and constrains callbacks', () => {
   assert.equal(normalizeEmail(' Admin@Example.ORG '), 'admin@example.org');
+  assert.equal(normalizeOtp('123 456'), '123456');
   assert.throws(() => normalizeEmail('invalid'), EmailInputError);
+  assert.throws(() => normalizeOtp('12345'), OtpInputError);
   assert.equal(getSupportedEmailOtpType('invite'), 'invite');
   assert.equal(getSupportedEmailOtpType('recovery'), null);
   assert.equal(getSafeReturnPath('//attacker.example', '/'), '/');
+});
+
+test('uses the exact queryless administrator callback URL', () => {
+  assert.equal(
+    getAdminEmailCallbackUrl('http://localhost:3004'),
+    'http://localhost:3004/auth/callback',
+  );
+});
+
+test('requests an administrator email code without creating an account', async () => {
+  const requests: unknown[] = [];
+  const supabase = {
+    auth: {
+      signInWithOtp: async (request: unknown) => {
+        requests.push(request);
+        return { data: {}, error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  const email = await requestAdminOtp(
+    supabase,
+    ' Admin@Example.ORG ',
+    'https://admin.example.org/auth/callback',
+  );
+
+  assert.equal(email, 'admin@example.org');
+  assert.deepEqual(requests, [
+    {
+      email: 'admin@example.org',
+      options: {
+        emailRedirectTo: 'https://admin.example.org/auth/callback',
+        shouldCreateUser: false,
+      },
+    },
+  ]);
+});
+
+test('verifies an administrator email code and records successful OTP verification', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      verifyOtp: async (request: unknown) => {
+        calls.push(request);
+        return {
+          data: { session: { access_token: 'admin-access-token' } },
+          error: null,
+        };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await verifyAdminOtp(supabase, ' Admin@Example.ORG ', '123 456', async (...audit) => {
+    calls.push(audit);
+    return true;
+  });
+
+  assert.deepEqual(calls, [
+    { email: 'admin@example.org', token: '123456', type: 'email' },
+    ['admin-access-token', 'otp_verified'],
+  ]);
 });
 
 test('exempts only the exact authentication route segment from session protection', () => {

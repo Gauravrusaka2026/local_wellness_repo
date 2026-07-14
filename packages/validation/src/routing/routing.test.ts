@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   categoryIdParametersSchema,
   checkDuplicatesRequestSchema,
+  discoverRoutingAssetsRequestSchema,
   resolveJurisdictionRequestSchema,
   resolveRoutingRequestSchema,
 } from '../routing.schemas.js';
@@ -72,6 +73,19 @@ describe('routing request validation', () => {
         ...validLocation,
         categoryId,
         departmentId: '22222222-2222-4222-8222-222222222222',
+      }).success,
+      false,
+    );
+  });
+
+  it('accepts only category and location evidence for asset discovery', () => {
+    const input = { ...validLocation, categoryId };
+
+    assert.deepEqual(discoverRoutingAssetsRequestSchema.parse(input), input);
+    assert.equal(
+      discoverRoutingAssetsRequestSchema.safeParse({
+        ...input,
+        authorityId: '22222222-2222-4222-8222-222222222222',
       }).success,
       false,
     );

@@ -7,15 +7,21 @@ import {
   hasGovernmentAccess,
   type GovernmentAccessScope,
 } from '../lib/api/access-scope';
-import { getSupportedEmailOtpType } from '../lib/auth/callback';
-import { EmailInputError, normalizeEmail } from '../lib/auth/input';
+import { getGovernmentEmailCallbackUrl, getSupportedEmailOtpType } from '../lib/auth/callback';
+import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
-import { signOutGovernmentSession } from '../lib/auth/service';
+import {
+  requestGovernmentOtp,
+  signOutGovernmentSession,
+  verifyGovernmentOtp,
+} from '../lib/auth/service';
 import { isPublicAuthRoute } from '../proxy';
 
 test('normalizes official email addresses without revealing invitation state', () => {
   assert.equal(normalizeEmail(' Officer@Municipality.GOV.IN '), 'officer@municipality.gov.in');
+  assert.equal(normalizeOtp('123 456'), '123456');
   assert.throws(() => normalizeEmail('not-an-email'), EmailInputError);
+  assert.throws(() => normalizeOtp('12345'), OtpInputError);
 });
 
 test('constrains callback types and return paths', () => {
@@ -23,6 +29,73 @@ test('constrains callback types and return paths', () => {
   assert.equal(getSupportedEmailOtpType('recovery'), null);
   assert.equal(getSafeReturnPath('/?queue=new', '/'), '/?queue=new');
   assert.equal(getSafeReturnPath('//attacker.example', '/'), '/');
+});
+
+test('uses the exact queryless government callback URL for managed Auth allow-lists', () => {
+  assert.equal(
+    getGovernmentEmailCallbackUrl('http://localhost:3003'),
+    'http://localhost:3003/auth/callback',
+  );
+  assert.equal(new URL(getGovernmentEmailCallbackUrl('https://government.example.org')).search, '');
+});
+
+test('requests a government email code without creating an account', async () => {
+  const requests: unknown[] = [];
+  const supabase = {
+    auth: {
+      signInWithOtp: async (request: unknown) => {
+        requests.push(request);
+        return { data: {}, error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  const email = await requestGovernmentOtp(
+    supabase,
+    ' Officer@Municipality.GOV.IN ',
+    'https://government.example.org/auth/callback',
+  );
+
+  assert.equal(email, 'officer@municipality.gov.in');
+  assert.deepEqual(requests, [
+    {
+      email: 'officer@municipality.gov.in',
+      options: {
+        emailRedirectTo: 'https://government.example.org/auth/callback',
+        shouldCreateUser: false,
+      },
+    },
+  ]);
+});
+
+test('verifies a government email code and records successful OTP verification', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      verifyOtp: async (request: unknown) => {
+        calls.push(request);
+        return {
+          data: { session: { access_token: 'government-access-token' } },
+          error: null,
+        };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await verifyGovernmentOtp(
+    supabase,
+    ' Officer@Municipality.GOV.IN ',
+    '123 456',
+    async (...audit) => {
+      calls.push(audit);
+      return true;
+    },
+  );
+
+  assert.deepEqual(calls, [
+    { email: 'officer@municipality.gov.in', token: '123456', type: 'email' },
+    ['government-access-token', 'otp_verified'],
+  ]);
 });
 
 test('exempts only the exact authentication route segment from session protection', () => {

@@ -1,7 +1,10 @@
 import type {
   ComplaintDraft,
   ComplaintDuplicateCheckResult,
+  ComplaintLocationEvidence,
+  ComplaintLocationVerificationStatus,
   ComplaintReceipt,
+  RoutingAssetOption,
   RoutingCategory,
 } from '@local-wellness/types';
 
@@ -23,6 +26,7 @@ export type UploadState = Readonly<{
 }>;
 
 export type ComplaintCaptureState = Readonly<{
+  assetOptions: readonly RoutingAssetOption[];
   categories: readonly RoutingCategory[];
   draft: ComplaintDraft | null;
   duplicateCheck: ComplaintDuplicateCheckResult | null;
@@ -37,6 +41,7 @@ export type ComplaintCaptureState = Readonly<{
 }>;
 
 export const initialComplaintCaptureState: ComplaintCaptureState = {
+  assetOptions: [],
   categories: [],
   draft: null,
   duplicateCheck: null,
@@ -51,6 +56,8 @@ export const initialComplaintCaptureState: ComplaintCaptureState = {
 };
 
 export type ComplaintCaptureAction =
+  | Readonly<{ type: 'assets_cleared' }>
+  | Readonly<{ type: 'assets_loaded'; assets: readonly RoutingAssetOption[] }>
   | Readonly<{ type: 'busy'; value: boolean }>
   | Readonly<{ type: 'categories_loaded'; categories: readonly RoutingCategory[] }>
   | Readonly<{ type: 'draft_loaded'; draft: ComplaintDraft; step?: ComplaintCaptureStep }>
@@ -69,6 +76,10 @@ export const complaintCaptureReducer = (
   action: ComplaintCaptureAction,
 ): ComplaintCaptureState => {
   switch (action.type) {
+    case 'assets_cleared':
+      return { ...state, assetOptions: [] };
+    case 'assets_loaded':
+      return { ...state, assetOptions: action.assets, error: null };
     case 'busy':
       return { ...state, isBusy: action.value };
     case 'categories_loaded':
@@ -121,6 +132,42 @@ export const complaintCaptureReducer = (
   }
 };
 
+const acceptedLocationStatuses = new Set<ComplaintLocationVerificationStatus>([
+  'verified',
+  'partially_verified',
+]);
+
+export const isLocationEvidenceEligible = (
+  location: ComplaintLocationEvidence | null,
+): location is ComplaintLocationEvidence =>
+  location !== null && acceptedLocationStatuses.has(location.verificationStatus);
+
+export const getLocationRecaptureGuidance = (
+  location: ComplaintLocationEvidence | null,
+): string | null => {
+  if (location === null) {
+    return 'Capture your current location while you are physically at the issue.';
+  }
+
+  switch (location.verificationStatus) {
+    case 'verified':
+    case 'partially_verified':
+      return null;
+    case 'pending':
+      return 'Location verification did not finish. Wait a moment, then capture it again.';
+    case 'low_accuracy':
+      return 'Accuracy is too low. Move outdoors, enable precise location, and capture again.';
+    case 'location_mismatch':
+      return 'This location does not match the issue evidence. Return to the issue and capture again.';
+    case 'suspected_spoofing':
+      return 'The device reported an unsafe location signal. Disable mock-location tools and capture again.';
+    case 'unsupported_area':
+      return 'Verified complaint coverage is not available at this location yet.';
+    case 'manual_review':
+      return 'This location needs manual review and cannot advance in the capture flow. Capture again with a clearer signal.';
+  }
+};
+
 export type DraftReadiness = Readonly<{
   isReady: boolean;
   missing: readonly ('category' | 'description' | 'location' | 'media')[];
@@ -135,10 +182,7 @@ export const getDraftReadiness = (draft: ComplaintDraft | null): DraftReadiness 
   if (draft.categoryId === null) missing.push('category');
   if (draft.description === null || draft.description.trim().length === 0)
     missing.push('description');
-  if (
-    draft.location === null ||
-    !['verified', 'partially_verified'].includes(draft.location.verificationStatus)
-  ) {
+  if (!isLocationEvidenceEligible(draft.location)) {
     missing.push('location');
   }
   if (!draft.media.some((media) => media.uploadStatus === 'finalized')) missing.push('media');

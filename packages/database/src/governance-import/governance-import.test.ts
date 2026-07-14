@@ -232,6 +232,43 @@ describe('governance CSV import pipeline', () => {
     assert.equal(model.emergencyContacts.length, 14);
     assert.equal(model.routingReferences.length, 18);
     assert.equal(report.counts.quarantinedRecords, 98);
+    assert.equal(report.schemaVersion, 2);
+    assert.equal(report.recordClassification.totals.sourceRecords, 901);
+    assert.equal(report.recordClassification.totals.rejected, 0);
+    assert.equal(report.recordClassification.totals.reconciled, true);
+    assert.equal(
+      report.recordClassification.files.every(
+        ({ accepted, quarantined, reconciled, rejected, sourceRecords, unverified }) =>
+          reconciled && sourceRecords === accepted + unverified + quarantined + rejected,
+      ),
+      true,
+    );
+    assert.deepEqual(
+      report.recordClassification.files.find(({ id }) => id === 'wards'),
+      {
+        id: 'wards',
+        path: 'resources/governance/csv/Wards.csv',
+        sourceRecords: 70,
+        accepted: 0,
+        unverified: 0,
+        quarantined: 70,
+        rejected: 0,
+        reconciled: true,
+      },
+    );
+    assert.deepEqual(
+      report.recordClassification.files.find(({ id }) => id === 'readme'),
+      {
+        id: 'readme',
+        path: 'resources/governance/csv/README.csv',
+        sourceRecords: 14,
+        accepted: 14,
+        unverified: 0,
+        quarantined: 0,
+        rejected: 0,
+        reconciled: true,
+      },
+    );
     assert.equal(report.normalizedRecords.officers, 0);
     assert.equal(report.normalizedRecords.officerAssignments, 0);
 

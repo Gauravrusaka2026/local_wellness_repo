@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  description: 'Scoped government operations access for Local Wellness.',
+  description: 'Access-scoped civic complaint operations for authorized municipal staff.',
   title: 'Local Wellness Government',
 };
 

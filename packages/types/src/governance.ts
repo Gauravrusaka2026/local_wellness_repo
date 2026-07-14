@@ -129,8 +129,22 @@ export interface GovernanceSourceFileReport {
   disposition: GovernanceDatasetDisposition | 'human_reference';
 }
 
+export interface GovernanceRecordClassificationCounts {
+  sourceRecords: number;
+  accepted: number;
+  unverified: number;
+  quarantined: number;
+  rejected: number;
+  reconciled: boolean;
+}
+
+export interface GovernanceFileRecordClassification extends GovernanceRecordClassificationCounts {
+  id: GovernanceDatasetId | 'workbook';
+  path: string;
+}
+
 export interface GovernanceValidationReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   datasetVersion: string;
   manifestPath: string;
   manifestSha256: string;
@@ -145,6 +159,10 @@ export interface GovernanceValidationReport {
     warnings: number;
   };
   sourceFiles: GovernanceSourceFileReport[];
+  recordClassification: {
+    files: GovernanceFileRecordClassification[];
+    totals: GovernanceRecordClassificationCounts;
+  };
   diagnostics: GovernanceDiagnostic[];
   normalizedRecords: {
     referenceSources: number;

@@ -22,6 +22,7 @@ import {
   getDraftReadiness,
   getSelectedCategory,
   initialComplaintCaptureState,
+  isLocationEvidenceEligible,
   type ComplaintCaptureState,
   type ComplaintCaptureStep,
 } from './capture-state';
@@ -29,6 +30,7 @@ import {
   checkComplaintDuplicates,
   createComplaintDraft,
   createMediaUploadIntent,
+  discoverRoutingAssets,
   discardComplaintDraft,
   finalizeComplaintMedia,
   getComplaintDraft,
@@ -69,8 +71,10 @@ type ComplaintContextValue = Readonly<{
   clearError: () => void;
   discardDraft: () => Promise<void>;
   goToStep: (step: ComplaintCaptureStep) => Promise<void>;
+  loadNearbyAssets: () => Promise<void>;
   refresh: () => Promise<void>;
   retryPendingUpload: () => Promise<void>;
+  selectAsset: (assetId: string) => Promise<void>;
   startDraft: () => Promise<void>;
   state: ComplaintCaptureState;
   submit: () => Promise<void>;
@@ -92,6 +96,22 @@ const clearPendingMediaArtifacts = async (resume: ComplaintResumeRecord): Promis
   if (resume.pendingMedia === null) return;
   await clearMediaCaptureLocation(resume.pendingMedia.idempotencyKey);
   deletePreparedMedia(resume.pendingMedia.localUri);
+};
+
+const loadAssetOptions = async (
+  accessToken: string,
+  categories: ComplaintCaptureState['categories'],
+  draft: NonNullable<ComplaintCaptureState['draft']>,
+) => {
+  const category = categories.find((candidate) => candidate.id === draft.categoryId);
+  if (category?.requiresAsset !== true || !isLocationEvidenceEligible(draft.location)) return [];
+
+  const result = await discoverRoutingAssets(accessToken, category.id, draft.location);
+  if (result.categoryId !== category.id) {
+    throw new Error('The nearby asset response did not match the selected category.');
+  }
+
+  return result.assets;
 };
 
 export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }>) => {
@@ -154,6 +174,10 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
             draft,
             step: mustReviewDuplicatesAgain ? 'duplicates' : resume.step,
             type: 'draft_loaded',
+          });
+          dispatch({
+            assets: await loadAssetOptions(session.accessToken, categories, draft),
+            type: 'assets_loaded',
           });
           if (mustReviewDuplicatesAgain) {
             const duplicateCheck = await checkComplaintDuplicates(session.accessToken, draft.id);
@@ -228,6 +252,14 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
             step: mustReviewDuplicatesAgain ? 'duplicates' : existingResume.step,
             type: 'draft_loaded',
           });
+          dispatch({
+            assets: await loadAssetOptions(
+              activeSession.accessToken,
+              state.categories,
+              resumedDraft,
+            ),
+            type: 'assets_loaded',
+          });
           if (mustReviewDuplicatesAgain) {
             const duplicateCheck = await checkComplaintDuplicates(
               activeSession.accessToken,
@@ -277,7 +309,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     } finally {
       dispatch({ type: 'busy', value: false });
     }
-  }, [persistResume, requireSession, state.draft]);
+  }, [persistResume, requireSession, state.categories, state.draft]);
 
   const refresh = useCallback(async (): Promise<void> => {
     const activeSession = requireSession();
@@ -286,12 +318,16 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     try {
       const refreshed = await getComplaintDraft(activeSession.accessToken, draft.id);
       dispatch({ draft: refreshed, type: 'draft_loaded' });
+      dispatch({
+        assets: await loadAssetOptions(activeSession.accessToken, state.categories, refreshed),
+        type: 'assets_loaded',
+      });
     } catch (error) {
       dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
     } finally {
       dispatch({ type: 'busy', value: false });
     }
-  }, [requireDraft, requireSession]);
+  }, [requireDraft, requireSession, state.categories]);
 
   const updateDetails = useCallback(
     async (input: UpdateComplaintDraftInput): Promise<void> => {
@@ -299,8 +335,21 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       const draft = requireDraft();
       dispatch({ type: 'busy', value: true });
       try {
-        const updated = await updateComplaintDraft(activeSession.accessToken, draft.id, input);
+        const categoryChanged =
+          input.categoryId !== undefined && input.categoryId !== draft.categoryId;
+        const updated = await updateComplaintDraft(
+          activeSession.accessToken,
+          draft.id,
+          categoryChanged ? { ...input, assetId: null } : input,
+        );
         dispatch({ draft: updated, type: 'draft_loaded' });
+        if (categoryChanged) {
+          dispatch({ type: 'assets_cleared' });
+          dispatch({
+            assets: await loadAssetOptions(activeSession.accessToken, state.categories, updated),
+            type: 'assets_loaded',
+          });
+        }
       } catch (error) {
         dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
         throw error;
@@ -308,7 +357,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         dispatch({ type: 'busy', value: false });
       }
     },
-    [requireDraft, requireSession],
+    [requireDraft, requireSession, state.categories],
   );
 
   const captureLocation = useCallback(async (): Promise<void> => {
@@ -320,13 +369,45 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       const location = await captureCurrentLocation();
       const updated = await setComplaintLocation(activeSession.accessToken, draft.id, location);
       dispatch({ draft: updated, type: 'draft_loaded' });
+      dispatch({ type: 'assets_cleared' });
+      dispatch({
+        assets: await loadAssetOptions(activeSession.accessToken, state.categories, updated),
+        type: 'assets_loaded',
+      });
     } catch (error) {
       dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
       throw error;
     } finally {
       dispatch({ type: 'busy', value: false });
     }
-  }, [requireDraft, requireSession]);
+  }, [requireDraft, requireSession, state.categories]);
+
+  const loadNearbyAssets = useCallback(async (): Promise<void> => {
+    const activeSession = requireSession();
+    const draft = requireDraft();
+    dispatch({ type: 'busy', value: true });
+    try {
+      dispatch({
+        assets: await loadAssetOptions(activeSession.accessToken, state.categories, draft),
+        type: 'assets_loaded',
+      });
+    } catch (error) {
+      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+      throw error;
+    } finally {
+      dispatch({ type: 'busy', value: false });
+    }
+  }, [requireDraft, requireSession, state.categories]);
+
+  const selectAsset = useCallback(
+    async (assetId: string): Promise<void> => {
+      if (!state.assetOptions.some((asset) => asset.id === assetId)) {
+        throw new Error('Choose a verified nearby asset from the current results.');
+      }
+      await updateDetails({ assetId });
+    },
+    [state.assetOptions, updateDetails],
+  );
 
   const performUpload = useCallback(
     async (
@@ -420,7 +501,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       mediaLocation: ComplaintLocationCapture,
     ): Promise<void> => {
       const draft = requireDraft();
-      if (draft.location === null)
+      if (!isLocationEvidenceEligible(draft.location))
         throw new Error('Verify the complaint location before adding media.');
       const distance = assessMediaDistance(draft.location, mediaLocation);
       if (!distance.isAcceptable) {
@@ -492,7 +573,10 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       throw new Error(`Complete the required fields: ${readiness.missing.join(', ')}.`);
     }
     const category = getSelectedCategory(state);
-    if (category?.requiresAsset === true && draft.assetId === null) {
+    if (
+      category?.requiresAsset === true &&
+      !state.assetOptions.some((asset) => asset.id === draft.assetId)
+    ) {
       throw new Error('This category requires a verified asset selection before submission.');
     }
     if (state.duplicateCheck === null) {
@@ -553,6 +637,18 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
 
   const goToStep = useCallback(
     async (step: ComplaintCaptureStep): Promise<void> => {
+      if (
+        state.step === 'location' &&
+        step === 'media' &&
+        !isLocationEvidenceEligible(state.draft?.location ?? null)
+      ) {
+        dispatch({
+          message: 'Capture a verified or partially verified location before continuing.',
+          type: 'error',
+        });
+        return;
+      }
+
       try {
         await persistResume({ step });
         dispatch({ step, type: 'step_changed' });
@@ -560,7 +656,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
       }
     },
-    [persistResume],
+    [persistResume, state.draft?.location, state.step],
   );
 
   const value = useMemo<ComplaintContextValue>(
@@ -574,8 +670,10 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       clearError: () => dispatch({ message: null, type: 'error' }),
       discardDraft,
       goToStep,
+      loadNearbyAssets,
       refresh,
       retryPendingUpload,
+      selectAsset,
       startDraft,
       state,
       submit,
@@ -587,8 +685,10 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       checkDuplicates,
       discardDraft,
       goToStep,
+      loadNearbyAssets,
       refresh,
       retryPendingUpload,
+      selectAsset,
       startDraft,
       state,
       submit,

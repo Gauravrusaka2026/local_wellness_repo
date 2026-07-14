@@ -57,6 +57,22 @@ export interface ResolveRoutingRequest extends LocationEvidence {
   assetId?: string | undefined;
 }
 
+export interface DiscoverRoutingAssetsRequest extends LocationEvidence {
+  categoryId: string;
+}
+
+export interface RoutingAssetOption {
+  id: string;
+  displayName: string;
+  assetTypeName: string;
+  distanceMeters: number;
+}
+
+export interface RoutingAssetDiscoveryResult {
+  categoryId: string;
+  assets: RoutingAssetOption[];
+}
+
 export interface CheckDuplicatesRequest extends ResolveRoutingRequest {
   description?: string | undefined;
   mediaHashes?: string[] | undefined;

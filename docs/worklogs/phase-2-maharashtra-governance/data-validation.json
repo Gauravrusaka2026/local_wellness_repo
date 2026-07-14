@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "datasetVersion": "MH_MASTER_GOVERNANCE_DATA_v1",
   "manifestPath": "resources/governance/manifests/phase-2-baseline.v1.json",
   "manifestSha256": "3b03c6baf79153d0a4a6ce4d21b98df14d71f1fbead06b54fbbc619b5033c7f3",
@@ -148,6 +148,208 @@
       "disposition": "human_reference"
     }
   ],
+  "recordClassification": {
+    "files": [
+      {
+        "id": "complaint_routing",
+        "path": "resources/governance/csv/Complaint_Routing.csv",
+        "sourceRecords": 18,
+        "accepted": 0,
+        "unverified": 18,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "current_officers",
+        "path": "resources/governance/csv/Current_Officers.csv",
+        "sourceRecords": 4,
+        "accepted": 0,
+        "unverified": 0,
+        "quarantined": 4,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "departments",
+        "path": "resources/governance/csv/Departments.csv",
+        "sourceRecords": 16,
+        "accepted": 0,
+        "unverified": 16,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "districts",
+        "path": "resources/governance/csv/Districts.csv",
+        "sourceRecords": 36,
+        "accepted": 0,
+        "unverified": 36,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "emergency_contacts",
+        "path": "resources/governance/csv/Emergency_Contacts.csv",
+        "sourceRecords": 12,
+        "accepted": 9,
+        "unverified": 2,
+        "quarantined": 1,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "gram_panchayats",
+        "path": "resources/governance/csv/Gram_Panchayats.csv",
+        "sourceRecords": 71,
+        "accepted": 0,
+        "unverified": 0,
+        "quarantined": 71,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "municipal_corporations",
+        "path": "resources/governance/csv/Municipal_Corporations.csv",
+        "sourceRecords": 29,
+        "accepted": 0,
+        "unverified": 29,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "municipal_councils",
+        "path": "resources/governance/csv/Municipal_Councils.csv",
+        "sourceRecords": 115,
+        "accepted": 0,
+        "unverified": 115,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "nagar_panchayats",
+        "path": "resources/governance/csv/Nagar_Panchayats.csv",
+        "sourceRecords": 46,
+        "accepted": 0,
+        "unverified": 46,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "officer_roles",
+        "path": "resources/governance/csv/Officer_Roles.csv",
+        "sourceRecords": 23,
+        "accepted": 0,
+        "unverified": 23,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "offices",
+        "path": "resources/governance/csv/Offices.csv",
+        "sourceRecords": 38,
+        "accepted": 1,
+        "unverified": 37,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "readme",
+        "path": "resources/governance/csv/README.csv",
+        "sourceRecords": 14,
+        "accepted": 14,
+        "unverified": 0,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "reference_links",
+        "path": "resources/governance/csv/Reference_Links.csv",
+        "sourceRecords": 16,
+        "accepted": 16,
+        "unverified": 0,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "state_overview",
+        "path": "resources/governance/csv/State_Overview.csv",
+        "sourceRecords": 1,
+        "accepted": 1,
+        "unverified": 0,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "talukas",
+        "path": "resources/governance/csv/Talukas.csv",
+        "sourceRecords": 359,
+        "accepted": 0,
+        "unverified": 359,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "utilities",
+        "path": "resources/governance/csv/Utilities.csv",
+        "sourceRecords": 10,
+        "accepted": 0,
+        "unverified": 10,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "villages",
+        "path": "resources/governance/csv/Villages.csv",
+        "sourceRecords": 23,
+        "accepted": 0,
+        "unverified": 0,
+        "quarantined": 23,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "wards",
+        "path": "resources/governance/csv/Wards.csv",
+        "sourceRecords": 70,
+        "accepted": 0,
+        "unverified": 0,
+        "quarantined": 70,
+        "rejected": 0,
+        "reconciled": true
+      },
+      {
+        "id": "workbook",
+        "path": "resources/governance/MH_MASTER_GOVERNANCE_DATA_v1.xlsx",
+        "sourceRecords": 0,
+        "accepted": 0,
+        "unverified": 0,
+        "quarantined": 0,
+        "rejected": 0,
+        "reconciled": true
+      }
+    ],
+    "totals": {
+      "sourceRecords": 901,
+      "accepted": 41,
+      "unverified": 691,
+      "quarantined": 169,
+      "rejected": 0,
+      "reconciled": true
+    }
+  },
   "diagnostics": [
     {
       "severity": "warning",

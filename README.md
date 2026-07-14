@@ -167,18 +167,21 @@ local-wellness/
 
 Before implementing any feature, contributors and coding agents should read:
 
-1. `AGENTS.md`
-2. `README.md`
-3. `PROJECT_OVERVIEW.md`
-4. `PLAN.md`
-5. `docs/architecture.md`
-6. `docs/database.md`
-7. `docs/authentication.md`
-8. `docs/api.md`
-9. `docs/deployment.md`
-10. `docs/supabase-setup.md`
-11. applicable ADRs in `docs/adr/`
-12. `docs/TASKS.md`
+1. `README.md`
+2. `PROJECT_OVERVIEW.md`
+3. `PLAN.md`
+4. `docs/architecture.md`
+5. `docs/database.md`
+6. `docs/authentication.md`
+7. `docs/api.md`
+8. `docs/deployment.md`
+9. `docs/supabase-setup.md`
+10. applicable ADRs in `docs/adr/`
+11. `docs/TASKS.md`
+12. `docs/PROGRESS.md`
+13. `docs/CHANGELOG.md`
+14. `docs/DECISIONS.md`
+15. `docs/KNOWN_ISSUES.md`
 
 ---
 
@@ -254,7 +257,10 @@ docker compose --file infrastructure/docker/compose.dev.yml config --quiet
 pnpm audit --prod
 ```
 
-The local Auth test always validates email magic-link sign-in when Supabase is running. Its phone case is intentionally provider-gated: configure a local SMS provider and set `LOCAL_SUPABASE_SMS_ENABLED=true` before expecting that case to run.
+The local Auth test validates delivery and verification of a six-digit, code-only citizen email OTP
+when Supabase is running. The committed confirmation and magic-link templates intentionally contain
+no sign-in link. Its phone case is provider-gated: configure a local SMS provider and set
+`LOCAL_SUPABASE_SMS_ENABLED=true` before expecting that case to run.
 
 ---
 
@@ -338,6 +344,11 @@ No production schema change should be performed only through the Supabase dashbo
 
 Phase 2 governance data is generated from the hash-pinned canonical CSVs. Use `pnpm governance:data:validate` for a read-only audit, `pnpm governance:data:generate` after an intentionally reviewed source/manifest change, and `pnpm governance:data:check` in ordinary development and CI. Never hand-edit the canonical CSVs, the generated main seed, its checksum companion or the machine report; see `docs/governance-data.md`.
 
+The validation report now includes a per-file outcome matrix. The current 901-row canonical bundle
+classifies 41 rows as accepted, 691 as unverified, 169 as quarantined, and zero as rejected.
+Accepted means structurally importable, not automatically production-verified; placeholders and
+incomplete evidence remain explicitly non-routable.
+
 Phase 3 adds the private `routing` schema and a review-gated governance-synchronization
 foundation. A local reset seeds the 12 pilot taxonomy records as draft, unverified, and
 non-routable engineering data. This is intentional: the authenticated routing API returns no
@@ -350,17 +361,27 @@ snapshots, source audit events, immutable contact versions, and a pure contact n
 reset registers ten PMC/BMC official endpoints only as draft, unverified, inactive definitions.
 It also selects five canonical Pune and five canonical Brihanmumbai ward records in a service-only
 synchronization scope. Those ten rows and their underlying wards remain draft/unverified,
-placeholder-backed, unapproved, and non-routable; the numeric BMC bootstrap wards still require an
-official crosswalk to BMC's lettered ward structure.
+placeholder-backed, unapproved, and non-routable. They are retained as V1 bootstrap/audit history,
+not promoted as official identities. The reviewed pilot direction is BMC administrative wards
+`A`–`E` and Pune's current official numeric wards `1`–`5`; both require official evidence and new
+reviewed scope records before activation. Never infer an ordinal mapping from `BRIH-W01`–`BRIH-W05`
+to BMC's lettered wards.
 Nothing is fetched on a schedule, published, made routable, approved for complaint delivery, or
-deployed to hosted Supabase by that seed. Current source contracts are SHA-256 pinned and require an
-active global platform-administrator's exact-hash approval. Each dispatch can claim one source and
+activated by that seed. Current source contracts are SHA-256 pinned and require an active global
+platform-administrator's exact-hash approval. Each dispatch can claim one source and
 uses a heartbeat-protected lease around immutable private Storage. Failed or ambiguous snapshot
 finalization retains content-addressed bytes for grace-period reconciliation rather than risking an
 eager-delete race. Source-specific parsers, entity matching, review APIs/UI, transactional
 publishers, DNS-resolution hardening, snapshot reconciliation, environment secrets, and Cron
 activation remain required. See
 `docs/governance-synchronization.md` and ADR-0012.
+
+The dedicated Supabase staging project was initialized on 2026-07-14 with all 23 migrations through
+`20260714124000` and the six reviewed non-production seed files. The existing citizen identity was
+reconciled by the profile backfill. Staging contains 12 categories with zero operational categories
+and 11 synchronization endpoints (the repository bootstrap plus ten PMC/BMC contracts) with zero
+active endpoints. This is a database-only staging deployment: no application, Edge Function, Cron,
+source, route, ward, complaint, or production deployment/activation is implied.
 
 Phase 4 adds the local mobile complaint-capture flow and authenticated complaint API. For local
 engineering, run the API and mobile workspaces after starting and resetting Supabase:
@@ -370,12 +391,33 @@ pnpm --filter @local-wellness/api dev
 pnpm --filter @local-wellness/mobile dev
 ```
 
-The flow captures exact location evidence, uploads media through private signed Storage targets,
-shows advisory duplicate suggestions, and completes submission through an idempotent server-side
-operation. The current bootstrap intentionally exposes zero verified routable categories, so a
-valid production-style submission remains blocked until reviewed pilot routing data is activated.
-Speech transcription, media moderation, physical-device verification, and hosted-environment
-verification remain pending. No hosted deployment is part of the current repository state.
+The flow captures exact location evidence, discovers database-driven nearby assets when a category
+requires one, uploads media through private signed Storage targets, shows advisory duplicate
+suggestions, and completes submission through an idempotent server-side operation. The mobile flow
+advances only with `verified` or `partially_verified` location evidence. Asset discovery and routing
+both exclude inactive, unverified, placeholder, non-routable, or out-of-jurisdiction records.
+
+Phase 5 adds a server-rendered government queue and complaint workspace. Start it beside the API:
+
+```bash
+pnpm --filter @local-wellness/api dev
+pnpm --filter @local-wellness/government-dashboard dev
+```
+
+The dashboard reads only the current user's database-authorized scope and exposes only server-
+calculated actions. It supports filtered queues, complaint detail, versioned assignment/transfer,
+acknowledgement and status changes, private notes, inspections, work references, external
+dependencies, private resolution evidence, and resolution submission. Every mutation is
+idempotent, workflow-version checked, scope/capability checked, and audited. Status changes append a
+data-minimized notification outbox record in the same transaction; Phase 5 does not deliver those
+records. Exact coordinates are rendered as authorized text only because no external map provider or
+coordinate-sharing policy has been selected.
+
+The current bootstrap intentionally exposes zero verified routable categories, so a valid
+production-style submission and a real government queue remain blocked until reviewed pilot
+routing data is activated. Speech transcription, media moderation, physical-device verification,
+hosted-environment verification, and outbox delivery remain pending. No hosted deployment is part
+of the current repository state.
 
 ---
 
@@ -451,16 +493,35 @@ Current stage:
 - citizen web account rendering now shows authenticated identity and explicit onboarding,
   provisioning, profile-unavailable, API-error, and complete states; the web client and API must
   still target the same fully migrated Supabase environment;
+- an idempotent local migration repairs missing application profiles and global citizen roles for
+  existing Supabase Auth users without overwriting profile data or reactivating a revoked citizen
+  role; local citizen email templates now deliver a six-digit OTP without a sign-in link;
+- routing activation validation reports overlapping operational rule/policy conflicts, and the
+  authenticated nearby-asset endpoint returns only current verified, owned, jurisdiction-matching
+  database assets; the mobile capture flow uses that picker and its database verification result;
+- the Phase 2 governance audit now records a per-file accepted/unverified/quarantined/rejected
+  outcome matrix while leaving the canonical CSV and workbook unchanged;
+- Phase 5 government-workflow engineering adds private forced-RLS workflow tables, database-
+  enforced scope/capability/transition checks, versioned complaint assignments, exact-replay action
+  requests, append-only audit/history, inspections, work references, dependency closure, private
+  resolution evidence, versioned resolutions, a transaction outbox, NestJS APIs, and a scoped
+  government dashboard queue/detail workspace;
+- Phase 5 does not activate placeholder pilot data, deliver notification outbox records, expose an
+  external map, or claim application deployment; verified Pune/BMC data and environment validation
+  remain separate gates;
 - Pune Municipal Corporation is the generic architecture and test reference only; no
   municipality-specific routing logic exists, and verified Pune boundaries, ownership mappings,
   officer-role assignments, confidence policy, and fallback records remain required before an
   operational route can be activated;
 - local Supabase configuration, migration tests, RLS tests, API tests, and client build validation are part of CI;
 - Redis, BullMQ, and Sentry are intentionally outside the V1 topology;
-- previously exposed development credentials still require owner rotation before hosted integration;
+- the connected Supabase project is confirmed as dedicated staging, and its privileged/database
+  credentials are newly generated replacements; production credentials and production deployment
+  remain separate and are not present in this repository;
 - phone delivery, hosted callbacks, MFA enforcement, device-bound session invalidation, complaint
-  transcription and moderation providers, physical-device behavior, and hosted verification remain
-  documented pre-launch follow-ups; no hosted application deployment has been performed;
+  transcription and moderation providers, physical-device behavior, and hosted application
+  verification remain documented pre-launch follow-ups; the staging database is migrated and
+  seeded, but no hosted application or production deployment has been performed;
 - verified Pune LGD identifiers, selected ward geometry, and operational ownership mappings remain
   required before the reference pilot can claim real jurisdiction-routing coverage.
 

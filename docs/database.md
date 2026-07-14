@@ -67,6 +67,13 @@ Phase 1 keeps these tables in `public` because the Supabase data API must enforc
 
 Access-lifecycle actor references use restrictive deletion semantics so an administrator identity cannot be deleted while it remains the recorded inviter, approver, grantor or revoker. Deactivate such identities instead of erasing provenance. Revoked memberships preserve any prior approval actor and timestamp.
 
+The identity forward-fix migration adds the private, non-client-executable
+`backfill_missing_auth_identities` operation. It idempotently creates a missing application profile
+and non-privileged global citizen role for an existing `auth.users` row, normalizes only bounded
+Auth identity metadata, never overwrites an existing profile, and does not reactivate a revoked
+citizen-role record. The migration invokes it once so identities created before the profile trigger
+can be repaired during upgrade.
+
 Phase 2 adds restrictive foreign keys from `authority_memberships`, non-global `user_roles`, and authority-attributed audit events to `governance.authorities`. The forward fix first preserves any older arbitrary identifier as a `placeholder`/`other` authority with routing disabled, so an upgrade does not discard access history or misrepresent a legacy UUID as verified governance data. Placeholder authority scopes are retained for remediation but excluded from effective access. Scoped role writes additionally validate authority, ward, and authority-department ownership.
 
 ### Governance
@@ -97,6 +104,13 @@ Phase 2 adds restrictive foreign keys from `authority_memberships`, non-global `
 The Phase 2 tables live in an unexposed `governance` schema. `authorities` is the common identity used by access control; typed tables preserve the actual hierarchy. Nullable `lgd_code` fields are distinct from synthetic/source codes, retain leading zeroes as text, and use partial unique indexes only when a real code exists. A local body may cover more than one district through `local_body_districts`.
 
 Every normalized source-backed row points to an immutable import record and, where available, an official reference URL. Verification status, last-verified date, placeholder state, and routing eligibility are separate fields. Database checks make routing eligibility possible only for active, verified, non-placeholder rows. The baseline intentionally creates no named officer, officer assignment, or boundary version because the canonical files contain no safely verified incumbent or geometry.
+
+The machine validation report includes a per-file outcome matrix instead of only aggregate issue
+counts. For the current 901 canonical rows, it records 41 accepted, 691 unverified, 169 quarantined,
+and zero rejected outcomes. `accepted` means the row can enter the normalized structural baseline;
+it does not promote the row to verified/routable state. Missing official evidence remains
+unverified, and placeholder/template records remain quarantined or normalized to null/non-routable
+fields. The pipeline does not rewrite the canonical CSV files or workbook.
 
 Officer roles are durable definitions. Incumbency belongs to versioned `officer_assignments`. Boundary geometry and complaint-routing references are versioned independently with half-open UTC effective periods. Routing rows from the baseline remain `draft`, `unresolved`, and non-routable; they are reference evidence for Phase 3, not executable rules.
 
@@ -167,9 +181,11 @@ and keeps target identity immutable. Active scope requires attributed review by 
 `platform_admin`. Even a reviewed active synchronization target remains non-routable unless the
 referenced canonical entity is independently active, verified, non-placeholder, and routing
 eligible. The pilot seed resolves `PUNE-W01`–`PUNE-W05` and `BRIH-W01`–`BRIH-W05` from the canonical
-ward import; all ten scope rows and their placeholder ward records remain non-routable. The BMC
-numeric placeholders require an official crosswalk to the municipality's lettered ward structure
-before production activation.
+ward import; all ten scope rows and their placeholder ward records remain non-routable V1 audit
+history. They are not official pilot identities. The reviewed replacement scope is BMC
+administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`, after authoritative
+identity and geometry evidence is available. `BRIH-W01`–`BRIH-W05` must never be ordinal-mapped to
+the lettered wards; create reviewed records and a new scope version instead.
 
 Snapshot finalization validates the exact `storage.objects` row, size, MIME type, source-bound
 content-addressed path, and digest. Referenced snapshot objects cannot be materially updated,
@@ -237,8 +253,63 @@ moderation states are modeled but no provider automatically advances them in Pha
 Duplicate checks select exactly one current verified, non-placeholder, routing-eligible policy;
 use PostGIS distance, time, category, text similarity, media hashes, and asset evidence; cap the
 candidate set; and retain the scored advisory result. They never merge or automatically reject a
-complaint. Future supporters, feedback, reopen requests, resolution evidence, and public complaint
-visibility require later migrations.
+complaint. Future supporters, feedback, reopen requests, and public complaint visibility require
+later migrations.
+
+Phase 5 extends the same private schema with:
+
+- `government_role_capabilities`;
+- `government_status_transition_rules`;
+- `government_action_requests`;
+- `government_action_audit_events`;
+- `complaint_internal_notes`;
+- `complaint_inspections`;
+- `complaint_work_references`;
+- `complaint_external_dependencies`;
+- `complaint_resolution_evidence`;
+- `complaint_resolutions`;
+- `complaint_resolution_evidence_links`;
+- `notification_outbox`.
+
+It also adds `workflow_version` to complaints and turns `complaint_assignments` into versioned
+history. Exactly one assignment may be active; assignment/transfer closes that version and appends
+the next one with its actor, effective period, reason, and predecessor. The original routing
+decision remains immutable. A government mutation supplies the expected workflow version and an
+idempotency key whose hash and request fingerprint are stored in `government_action_requests`.
+Exact retries replay the completed response; stale workflow versions and conflicting key reuse fail
+closed. Every successful action appends a data-minimized audit event.
+
+Role capabilities and the transition graph are database data, not client claims. Trusted RPCs
+reauthorize the current profile, role, membership, authority/ward/department scope, capability,
+assignment, and verified governance hierarchy before reading or mutating. `platform_admin` has
+global operational scope; authority roles remain within their authority; ward and department roles
+remain within their exact current scope; `moderator` is read-only. Assignment choices must be
+active, verified, non-placeholder, routable governance assignments, and transfers cannot cross the
+complaint's authority.
+
+Internal notes, inspection results, work references, dependency details, completion notes, and
+original resolution evidence are private government records. Resolution evidence is reserved at a
+server-owned `resolution-evidence-private` path, uploaded with a transient signed token, and
+finalized only after server-side MIME/size/SHA-256 verification. A complaint's current assignment
+may retain at most 20 unlinked reserved/finalized evidence rows; linked and superseded-assignment
+evidence is excluded from that allowance and remains immutable history. Detail responses derive
+`availableForResolution`: only finalized,
+unlinked evidence owned by the current complaint assignment is true, so prior-resolution and
+superseded-assignment evidence cannot be reused.
+
+The evidence locator returns upload status/expiry and current complaint workflow version for a
+pre-download authorization and concurrency check. Expired reservations and stale versions fail
+before object download. An exact replay of a completed finalization uses its stored observed
+metadata and workflow response rather than reading Storage again. A resolution must reference at
+least one available finalized evidence row and cannot be submitted while an external dependency is
+active. When multiple dependencies are active, resolving one preserves the current waiting status;
+the final closure advances the complaint to `work_in_progress`. Resolution rows and evidence links
+are append-only and versioned. Only a bounded optional public message is copied into citizen-visible
+status history.
+
+Service-only bounded functions mark elapsed reservations `expired` or a reserved row `failed`; they
+do not delete evidence history. No schedule or private Storage reconciliation/removal job is wired
+in Phase 5.
 
 ### Routing
 
@@ -277,6 +348,18 @@ retains exact location evidence and selected entity/version identifiers for audi
 builds metadata only from routing evidence, and a database check rejects known contact, officer-email,
 complaint-text, and description keys at the metadata boundary. No routing table is a direct client
 API.
+
+The service-only `report_routing_confidence_policy_conflicts` activation report identifies
+overlapping operational rule versions for the same viable category/scope/asset context when they
+reference different confidence-policy versions. It is an operator validation gate; runtime
+candidate loading continues to reject conflicting applicable policy versions independently.
+
+The service-only `discover_routing_assets` function supports the mobile picker. It first requires a
+single independently resolved PostGIS jurisdiction, then returns at most 50 sanitized asset IDs,
+display/type names, and measured distances. The category, asset type, asset/version, ownership,
+owner authority and optional office/department/role relationships must all be current, verified,
+non-placeholder, and routing-eligible. Ambiguous/unsupported jurisdiction or missing ownership
+returns no selectable asset rather than weakening routing validation.
 
 ### Communication
 
@@ -366,13 +449,19 @@ A complaint status update must:
 5. create audit event;
 6. commit as one transaction.
 
-Phase 4 implements the first transition only. `public.submit_complaint` validates the actor-owned
+Phase 4 implements the first transition. `public.submit_complaint` validates the actor-owned
 active draft, verified or partially verified location and spoof state, active verified category,
 required asset and attributes, finalized media count and capture distance, duplicate
 acknowledgement, emergency acknowledgement, and exact routed-decision evidence. It then creates the
 complaint, initial routed assignment, first `draft -> submitted` history row, terminal draft
-transition, and stored replay response in one transaction. Later status-transition,
-notification-outbox, and government-action functions remain future work.
+transition, and stored replay response in one transaction.
+
+Phase 5 database rules add the bounded government transition graph. The service-only action RPC
+locks the current complaint/assignment, verifies actor scope/capability and the expected workflow
+version, and performs the action, status-history append, action audit, and data-minimized
+`notification_outbox` append in one transaction. Non-status actions are also audited and advance
+the workflow version. Outbox rows are append-only persistence; no delivery behavior is implemented
+in Phase 5.
 
 ---
 
@@ -597,6 +686,22 @@ search path and enforce actor ownership, active profile state, lifecycle, cross-
 append-only rules. Citizens therefore cannot use the Supabase Data API to read exact complaint
 coordinates or mutate an official assignment even when they own the underlying complaint.
 
+Phase 5 enables and forces RLS on all 12 added government-workflow/outbox tables and preserves the
+same no-direct-table-access rule, including for `service_role`. Only the reviewed public wrappers
+are executable by the server credential. Those functions treat the service role as transport, not
+authorization: they require the verified actor UUID and recheck active identity, effective role,
+authority membership, optional selected role assignment, exact scope, capability, workflow state,
+current version, current assignment, and verified/non-placeholder governance targets. Audit,
+internal-note, work-reference, resolution, evidence-link, and outbox history is append-only;
+assignment and mutable lifecycle rows have guarded transitions.
+
+Read authorization uses the complaint's stored scope plus an active verified authority, membership,
+and role. It does not require a historical officer tenure to remain active: current summaries hide a
+stale incumbent, while superseded complaint-assignment history preserves that provenance and an
+authority/global operator can reassign to a fully current verified target. Ward/department roles
+cannot assign or transfer. Scheduled inspections and active dependencies block transfer/manual
+status exit until their own completion/closure action resolves the child workflow.
+
 ---
 
 ## Storage Metadata
@@ -625,8 +730,22 @@ Phase 4 creates `complaint-originals-private`, `voice-recordings-private`,
 allow-lists. It creates no anonymous/authenticated object policy and no public-media bucket. The API
 chooses an owner/draft/media-scoped object path, returns a transient signed-upload token, then
 verifies the stored object's MIME type, byte size, and SHA-256 before database finalization. The
-token is never persisted in complaint metadata. Thumbnail processing and resolution-evidence use
-are not implemented merely because their private buckets exist.
+token is never persisted in complaint metadata. Thumbnail processing is not implemented merely
+because its private bucket exists.
+
+Phase 5 uses `resolution-evidence-private` for government completion evidence. The API reserves the
+complaint/evidence-scoped path, issues a transient signed upload, and verifies the object before
+finalization. Verification retains the 50 MiB maximum and exact object-size and SHA-256 checks, and
+uses bounded parsing to derive the MIME type from accepted JPEG, PNG, WebP, HEIC/HEIF, MP4,
+QuickTime, and WebM binary signatures. Storage metadata must match. A signature/MIME, size, or
+checksum mismatch removes the reserved object and fails closed.
+
+Authorized viewing returns a five-minute, forced-download signed URL only after a separate scope
+and `view` capability check. All government-workspace responses set `Cache-Control: private,
+no-store`, and evidence access is logged with safe identifiers rather than private paths/URLs. There
+is no public evidence object or direct Storage policy for dashboard clients. Binary signatures are
+not full media decoding, malware scanning, or moderation; those providers/policies and scheduled
+cleanup of expired/failed Storage objects remain pre-production work.
 
 ---
 
@@ -710,8 +829,31 @@ deterministic source-contract hash before `NOT NULL` enforcement.
 
 Synthetic verified Phase 4 fixtures are rolled back. The actual reset bootstrap still has zero
 operational categories and cannot create a production complaint from placeholder or unverified
-evidence. Hosted migration/RLS/Storage verification, verified Pune data, and a physical-device
-media submission remain pending; see the Phase 4 testing worklog.
+evidence. The dedicated staging project now has the schema and non-production seeds, but hosted
+RLS/RPC/Storage workflow smokes, verified Pune data, and a physical-device media submission remain
+pending; see the Phase 4 testing worklog.
+
+The identity/routing forward fixes add pgTAP plans 019–021 for legacy Auth profile repair,
+confidence-policy conflict reporting, and verified PostGIS asset discovery. The governance import
+unit suite also verifies the per-file outcome matrix and aggregate disposition totals. Phase 5 adds
+two forward migrations plus plan `022_government_workflow_schema_and_acl.test.sql` for the private
+workflow schema, versioned assignment constraints, forced RLS/ACL denial, capability/transition
+data, action idempotency/audit, dependency and resolution gates, private evidence, and outbox
+behavior, including multiple-dependency waiting, the 20-row active-unlinked evidence cap, expired
+reservation replay, finalized replay, retained linked evidence, and bounded cleanup RPCs. API,
+validation, store-adapter, Storage-gateway, and dashboard tests cover strict contracts, private/no-
+store responses, scope-aware queue/detail behavior, action inputs, workflow conflicts, pre-download
+checks, bounded binary signature/MIME rejection, object removal, forced-download reads, and
+identifier-only access logging. Exact aggregate results are recorded in the current progress
+tracker and Phase 5 testing worklog after the complete repository gate; no hosted-environment or
+verified-pilot result is implied by local fixtures.
+
+The managed staging deployment recorded on 2026-07-14 applied all 23 migrations through
+`20260714124000` and all six reviewed non-production seed files. The existing citizen Auth identity
+was reconciled by the idempotent profile backfill. Post-seed checks found 12 category records with
+zero operational and 11 synchronization endpoints with zero active. No official ward or geometry,
+operational route, complaint, application, Edge Function, Cron, source/scope activation, or
+production deployment was created by that database operation.
 
 Required:
 

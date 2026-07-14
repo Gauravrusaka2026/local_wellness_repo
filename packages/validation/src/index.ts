@@ -91,5 +91,6 @@ export type RecordAuthAuditEventRequest = z.infer<typeof recordAuthAuditEventSch
 export type CreateGovernmentInvitationRequest = z.infer<typeof createGovernmentInvitationSchema>;
 
 export * from './complaint.schemas.js';
+export * from './government-complaint.schemas.js';
 export * from './governance/index.js';
 export * from './routing.schemas.js';

@@ -2,18 +2,20 @@ import { ConfigurationError } from '@local-wellness/config';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
-import { EmailInputError, normalizeEmail } from './input';
+import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from './input';
 
 type SignOutAuditRecorder = (
   accessToken: string,
   eventType: 'sign_out_succeeded',
 ) => Promise<boolean>;
 
-export const requestAdminMagicLink = async (
+type OtpAuditRecorder = (accessToken: string, eventType: 'otp_verified') => Promise<boolean>;
+
+export const requestAdminOtp = async (
   supabase: SupabaseClient,
   emailInput: string,
   emailRedirectTo: string,
-): Promise<void> => {
+): Promise<string> => {
   const email = normalizeEmail(emailInput);
 
   // The generic result prevents account and role enumeration on the public login route.
@@ -24,6 +26,29 @@ export const requestAdminMagicLink = async (
       shouldCreateUser: false,
     },
   });
+
+  return email;
+};
+
+export const verifyAdminOtp = async (
+  supabase: SupabaseClient,
+  emailInput: string,
+  tokenInput: string,
+  recordAuditEvent: OtpAuditRecorder = recordAuthAuditEventSafely,
+): Promise<void> => {
+  const result = await supabase.auth.verifyOtp({
+    email: normalizeEmail(emailInput),
+    token: normalizeOtp(tokenInput),
+    type: 'email',
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.data.session?.access_token) {
+    await recordAuditEvent(result.data.session.access_token, 'otp_verified');
+  }
 };
 
 export const signOutAdminSession = async (
@@ -44,9 +69,25 @@ export const signOutAdminSession = async (
 };
 
 export const getAdminLoginError = (error: unknown): string => {
-  if (error instanceof EmailInputError || error instanceof ConfigurationError) {
+  if (
+    error instanceof EmailInputError ||
+    error instanceof OtpInputError ||
+    error instanceof ConfigurationError
+  ) {
     return error.message;
   }
 
-  return 'The sign-in request could not be sent. Please try again.';
+  if (error instanceof Error) {
+    const normalizedMessage = error.message.toLowerCase();
+
+    if (normalizedMessage.includes('rate') || normalizedMessage.includes('too many')) {
+      return 'Too many attempts. Wait a moment before trying again.';
+    }
+
+    if (normalizedMessage.includes('expired') || normalizedMessage.includes('invalid')) {
+      return 'The verification code is invalid or expired.';
+    }
+  }
+
+  return 'Authentication could not be completed. Please try again.';
 };

@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import type {
   JurisdictionResolution,
   RoutingCandidate,
+  RoutingAssetOption,
   RoutingCategory,
   RoutingPolicy,
   RoutingResolutionInput,
@@ -29,6 +30,8 @@ import {
 } from '../data/routing.store.js';
 import { CategoriesController } from '../routing/categories.controller.js';
 import { CategoriesService } from '../routing/categories.service.js';
+import { AssetsController } from '../routing/assets.controller.js';
+import { AssetsService } from '../routing/assets.service.js';
 import { JurisdictionsController } from '../routing/jurisdictions.controller.js';
 import { JurisdictionsService } from '../routing/jurisdictions.service.js';
 import { RoutingController } from '../routing/routing.controller.js';
@@ -165,6 +168,7 @@ const policy: RoutingPolicy = {
 const routingIdempotencyKey = 'routing-request-000000000001';
 
 class FakeRoutingStore extends RoutingStore {
+  public assets: RoutingAssetOption[] = [];
   public category: RoutingCategory | null = category;
   public context: RoutingContext = { policy, candidates: [candidate] };
   public decisionRecords: RecordRoutingDecisionInput[] = [];
@@ -183,6 +187,10 @@ class FakeRoutingStore extends RoutingStore {
       throw new RoutingDataAccessError('list routing categories');
     }
     return this.category ? [this.category] : [];
+  }
+
+  public async discoverRoutingAssets(): Promise<RoutingAssetOption[]> {
+    return this.assets;
   }
 
   public async loadRoutingContext(
@@ -236,8 +244,14 @@ describe('API routing contract', () => {
   beforeEach(async () => {
     routingStore = new FakeRoutingStore();
     const testingModule = await Test.createTestingModule({
-      controllers: [CategoriesController, JurisdictionsController, RoutingController],
+      controllers: [
+        AssetsController,
+        CategoriesController,
+        JurisdictionsController,
+        RoutingController,
+      ],
       providers: [
+        AssetsService,
         CategoriesService,
         JurisdictionsService,
         RoutingService,
@@ -267,6 +281,75 @@ describe('API routing contract', () => {
       .expect(200);
 
     assert.deepEqual(response.body.data, [category]);
+  });
+
+  it('returns only the sanitized nearby-asset contract for an authenticated request', async () => {
+    routingStore.category = { ...category, requiresAsset: true };
+    routingStore.assets = [
+      {
+        id: ids.asset,
+        displayName: 'Verified light pole 24',
+        assetTypeName: 'Streetlight',
+        distanceMeters: 8.25,
+      },
+    ];
+
+    const response = await request(application.getHttpServer())
+      .post('/api/v1/routing/assets/nearby')
+      .set('authorization', 'Bearer valid-access-token')
+      .send({
+        categoryId: ids.category,
+        latitude: 18.5204,
+        longitude: 73.8567,
+        accuracyMeters: 8,
+        capturedAt: '2026-07-13T09:59:00+00:00',
+      })
+      .expect(200);
+
+    assert.deepEqual(response.body.data, {
+      categoryId: ids.category,
+      assets: routingStore.assets,
+    });
+    assert.equal(JSON.stringify(response.body).includes('ownership'), false);
+    assert.equal(JSON.stringify(response.body).includes('phone'), false);
+    assert.equal(JSON.stringify(response.body).includes('latitude'), false);
+  });
+
+  it('rejects asset discovery for categories that do not require an asset', async () => {
+    const response = await request(application.getHttpServer())
+      .post('/api/v1/routing/assets/nearby')
+      .set('authorization', 'Bearer valid-access-token')
+      .send({
+        categoryId: ids.category,
+        latitude: 18.5204,
+        longitude: 73.8567,
+        accuracyMeters: 8,
+        capturedAt: '2026-07-13T09:59:00+00:00',
+      })
+      .expect(400);
+
+    assert.equal(response.body.error.code, 'ROUTING_ASSET_NOT_REQUIRED');
+  });
+
+  it('requires authentication and rejects client-selected asset-discovery scope', async () => {
+    routingStore.category = { ...category, requiresAsset: true };
+    const body = {
+      categoryId: ids.category,
+      latitude: 18.5204,
+      longitude: 73.8567,
+      accuracyMeters: 8,
+      capturedAt: '2026-07-13T09:59:00+00:00',
+    };
+
+    await request(application.getHttpServer())
+      .post('/api/v1/routing/assets/nearby')
+      .send(body)
+      .expect(401);
+    await request(application.getHttpServer())
+      .post('/api/v1/routing/assets/nearby')
+      .set('authorization', 'Bearer valid-access-token')
+      .send({ ...body, wardId: ids.localBody })
+      .expect(400);
   });
 
   it('resolves and records a deterministic routing decision', async () => {

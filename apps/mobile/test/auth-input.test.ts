@@ -54,7 +54,7 @@ test('accepts only PKCE codes and hashed email tokens in mobile callbacks', () =
         access_token: 'raw-access-token',
         refresh_token: 'raw-refresh-token',
       } as unknown as MobileAuthCallbackParameters),
-    /sign-in link is incomplete/i,
+    /authentication callback is incomplete/i,
   );
 });
 

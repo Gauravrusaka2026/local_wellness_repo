@@ -135,7 +135,7 @@ const getMailpitMessage = async (email) => {
   return null;
 };
 
-const waitForInvitationMessage = async (email) => {
+const waitForEmailMessage = async (email) => {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     const message = (await getInbucketMessage(email)) ?? (await getMailpitMessage(email));
 
@@ -146,7 +146,17 @@ const waitForInvitationMessage = async (email) => {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
-  throw new Error('The local invitation email was not delivered.');
+  throw new Error('The local authentication email was not delivered.');
+};
+
+const getEmailOtp = (html) => {
+  const token = html.match(/\b(\d{6})\b/)?.[1];
+
+  if (!token) {
+    throw new Error('The local authentication email did not contain a 6-digit code.');
+  }
+
+  return token;
 };
 
 const getInvitationUrl = (html) => {
@@ -160,7 +170,7 @@ const getInvitationUrl = (html) => {
 };
 
 test(
-  'local Supabase supports a citizen email magic-link session',
+  'local Supabase sends a code-only citizen email and verifies its OTP',
   { skip: hasLocalConfiguration ? false : 'Local Supabase environment is not running.' },
   async () => {
     const { adminClient, publicClient } = createLocalClients();
@@ -169,25 +179,22 @@ test(
     try {
       const email = `phase1-${Date.now()}@localwellness.test`;
       const redirectTo = 'http://localhost:3000/auth/callback';
-      const { error: requestEmailLinkError } = await publicClient.auth.signInWithOtp({
+      const { error: requestEmailOtpError } = await publicClient.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: redirectTo },
       });
-      assert.equal(requestEmailLinkError, null);
+      assert.equal(requestEmailOtpError, null);
 
-      const { data: generatedLink, error: generatedLinkError } =
-        await adminClient.auth.admin.generateLink({
-          email,
-          options: { redirectTo },
-          type: 'magiclink',
-        });
-      assert.equal(generatedLinkError, null);
-      assert.ok(generatedLink.properties?.hashed_token);
+      const authenticationMessage = await waitForEmailMessage(email);
+      assert.equal(authenticationMessage.subject, 'Your Local Wellness verification code');
+      assert.doesNotMatch(authenticationMessage.html, /href\s*=|https?:\/\//i);
+      const token = getEmailOtp(authenticationMessage.html);
 
       const { data: emailVerification, error: emailVerificationError } =
         await publicClient.auth.verifyOtp({
-          token_hash: generatedLink.properties.hashed_token,
-          type: 'magiclink',
+          email,
+          token,
+          type: 'email',
         });
       assert.equal(emailVerificationError, null);
       assert.ok(emailVerification.session?.access_token);
@@ -314,7 +321,7 @@ test(
       assert.ok(provisionedAccess?.[0]?.membership_id);
       assert.ok(provisionedAccess?.[0]?.role_assignment_id);
 
-      const invitationMessage = await waitForInvitationMessage(email);
+      const invitationMessage = await waitForEmailMessage(email);
       assert.equal(invitationMessage.subject, 'You are invited to Local Wellness');
 
       const invitationUrl = getInvitationUrl(invitationMessage.html);

@@ -3,6 +3,7 @@ import type {
   LocationEvidence,
   RoutingCategory,
   RoutingDecision,
+  RoutingAssetOption,
   RoutingResolutionInput,
 } from '@local-wellness/types';
 import type {
@@ -24,6 +25,13 @@ export interface RecordedRoutingDecision extends RecordRoutingDecisionInput {
   id: string;
 }
 
+export interface RoutingAssetDiscoveryQuery {
+  categoryId: string;
+  location: Readonly<{ latitude: number; longitude: number }>;
+  accuracyMeters: number;
+  resolvedAt: string;
+}
+
 export class RoutingDataAccessError extends Error {
   public constructor(operation: string) {
     super(`Routing persistence operation failed: ${operation}.`);
@@ -42,6 +50,10 @@ export abstract class RoutingStore implements JurisdictionResolver, RoutingDataP
   public abstract findRoutingCategory(categoryId: string): Promise<RoutingCategory | null>;
 
   public abstract listRoutingCategories(): Promise<RoutingCategory[]>;
+
+  public abstract discoverRoutingAssets(
+    query: RoutingAssetDiscoveryQuery,
+  ): Promise<RoutingAssetOption[]>;
 
   public abstract loadRoutingContext(
     input: RoutingResolutionInput,

@@ -17,5 +17,5 @@ export const resolveMobileAuthCallback = (
     return { tokenHash: parameters.tokenHash, type: 'email_otp' };
   }
 
-  throw new Error('The sign-in link is incomplete.');
+  throw new Error('The authentication callback is incomplete.');
 };

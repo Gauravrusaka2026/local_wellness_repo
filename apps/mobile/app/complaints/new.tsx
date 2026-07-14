@@ -12,7 +12,12 @@ import {
 
 import { useAuth } from '../../src/auth/auth-context';
 import { ComplaintCameraCapture } from '../../src/complaints/camera-capture';
-import { getDraftReadiness, getSelectedCategory } from '../../src/complaints/capture-state';
+import {
+  getDraftReadiness,
+  getLocationRecaptureGuidance,
+  getSelectedCategory,
+  isLocationEvidenceEligible,
+} from '../../src/complaints/capture-state';
 import { useComplaintCapture } from '../../src/complaints/complaint-context';
 import { ComplaintVoiceCapture } from '../../src/complaints/voice-capture';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
@@ -67,6 +72,9 @@ export default function NewComplaintScreen() {
 
   const category = getSelectedCategory(capture.state);
   const readiness = getDraftReadiness(draft);
+  const locationEligible = isLocationEvidenceEligible(draft.location);
+  const selectedAsset =
+    capture.state.assetOptions.find((asset) => asset.id === draft.assetId) ?? null;
 
   const saveDetails = async (): Promise<void> => {
     try {
@@ -139,12 +147,6 @@ export default function NewComplaintScreen() {
                 ))}
               </View>
             )}
-            {category?.requiresAsset === true ? (
-              <Text accessibilityRole="alert" style={styles.warning}>
-                This category requires a verified asset selection. Asset selection is not available
-                in this client yet, so it cannot be submitted safely.
-              </Text>
-            ) : null}
             <Text style={styles.label}>Description</Text>
             <TextInput
               accessibilityLabel="Complaint description"
@@ -160,10 +162,7 @@ export default function NewComplaintScreen() {
             <Text style={styles.counter}>{description.trim().length} / 4,000</Text>
             <PrimaryAction
               disabled={
-                capture.state.isBusy ||
-                draft.categoryId === null ||
-                description.trim().length === 0 ||
-                category?.requiresAsset === true
+                capture.state.isBusy || draft.categoryId === null || description.trim().length === 0
               }
               label="Save and verify location"
               loading={capture.state.isBusy}
@@ -185,12 +184,19 @@ export default function NewComplaintScreen() {
               <Text style={styles.muted}>No current location has been accepted.</Text>
             ) : (
               <View style={styles.successCard}>
-                <Text style={styles.successTitle}>Location evidence received</Text>
+                <Text style={styles.successTitle}>
+                  {locationEligible ? 'Location evidence accepted' : 'Location needs recapture'}
+                </Text>
                 <Text style={styles.successText}>
                   Accuracy: {Math.round(draft.location.accuracyMeters)} m · Server status:{' '}
                   {draft.location.verificationStatus.replaceAll('_', ' ')}
                 </Text>
               </View>
+            )}
+            {getLocationRecaptureGuidance(draft.location) === null ? null : (
+              <Text accessibilityRole="alert" style={styles.warning}>
+                {getLocationRecaptureGuidance(draft.location)}
+              </Text>
             )}
             <PrimaryAction
               disabled={capture.state.isBusy || !capture.state.isOnline}
@@ -198,10 +204,50 @@ export default function NewComplaintScreen() {
               loading={capture.state.isBusy}
               onPress={() => void capture.captureLocation().catch(() => undefined)}
             />
+            {category?.requiresAsset === true && locationEligible ? (
+              <View style={styles.section}>
+                <Text style={styles.label}>Select the affected nearby asset</Text>
+                <Text style={styles.help}>
+                  Only current, verified, routable assets and ownership records are offered.
+                </Text>
+                {capture.state.assetOptions.length === 0 ? (
+                  <Text accessibilityRole="alert" style={styles.warning}>
+                    No verified nearby assets were found. Capture the location again or refresh the
+                    search. This report cannot advance without a verified asset.
+                  </Text>
+                ) : (
+                  <View style={styles.options}>
+                    {capture.state.assetOptions.map((asset) => (
+                      <Pressable
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selectedAsset?.id === asset.id }}
+                        key={asset.id}
+                        onPress={() => void capture.selectAsset(asset.id).catch(() => undefined)}
+                        style={[
+                          styles.option,
+                          selectedAsset?.id === asset.id && styles.optionSelected,
+                        ]}
+                      >
+                        <Text style={styles.optionTitle}>{asset.displayName}</Text>
+                        <Text style={styles.optionDescription}>
+                          {asset.assetTypeName} · about {Math.round(asset.distanceMeters)} m away
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+                <SecondaryAction
+                  label="Refresh nearby assets"
+                  onPress={() => void capture.loadNearbyAssets().catch(() => undefined)}
+                />
+              </View>
+            ) : null}
             <SecondaryAction label="Back" onPress={() => void capture.goToStep('details')} />
             <PrimaryAction
               disabled={
-                draft.location === null || draft.location.verificationStatus === 'unsupported_area'
+                !locationEligible ||
+                (category?.requiresAsset === true && selectedAsset === null) ||
+                capture.state.isBusy
               }
               label="Continue to evidence"
               onPress={() => void capture.goToStep('media')}
@@ -345,6 +391,9 @@ export default function NewComplaintScreen() {
               label="Evidence"
               value={`${draft.media.filter((media) => media.uploadStatus === 'finalized').length} ready`}
             />
+            {category?.requiresAsset === true ? (
+              <ReviewRow label="Asset" value={selectedAsset?.displayName ?? 'Not selected'} />
+            ) : null}
             <ReviewRow label="Routing" value="Resolved securely by the server at submission" />
 
             {hasVoice ? (

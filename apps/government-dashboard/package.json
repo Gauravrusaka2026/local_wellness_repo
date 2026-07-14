@@ -8,12 +8,14 @@
     "dev": "next dev --port 3003",
     "lint": "eslint .",
     "start": "next start",
-    "test": "node --test --import tsx test/*.test.ts",
+    "test": "node --test --experimental-test-isolation=none --import tsx test/*.test.ts test/*.test.tsx",
     "typecheck": "next typegen && tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@local-wellness/api-client": "workspace:*",
     "@local-wellness/config": "workspace:*",
     "@local-wellness/types": "workspace:*",
+    "@local-wellness/validation": "workspace:*",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "next": "catalog:",

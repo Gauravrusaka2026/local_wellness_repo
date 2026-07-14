@@ -97,7 +97,7 @@ export default function SignInScreen() {
             />
             {signIn.channel === 'email' ? (
               <Text style={styles.hint}>
-                Your email may contain both a verification code and a secure sign-in link.
+                We will email you a 6-digit verification code. No sign-in link is required.
               </Text>
             ) : null}
             <Pressable
@@ -119,8 +119,7 @@ export default function SignInScreen() {
         ) : (
           <View style={styles.form}>
             <Text accessibilityLiveRegion="polite" style={styles.successText}>
-              Check {signIn.normalizedIdentifier} for your code
-              {signIn.channel === 'email' ? ' or sign-in link' : ''}.
+              Check {signIn.normalizedIdentifier} for your 6-digit verification code.
             </Text>
             <Text style={styles.label}>Verification code</Text>
             <TextInput

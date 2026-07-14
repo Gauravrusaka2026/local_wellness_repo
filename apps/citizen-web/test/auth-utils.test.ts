@@ -56,6 +56,36 @@ test('requests phone OTP through Supabase with a normalized E.164 number', async
   assert.deepEqual(requests, [{ phone: '+919876543210' }]);
 });
 
+test('requests a code-only email OTP through Supabase with a normalized address', async () => {
+  const requests: unknown[] = [];
+  const supabase = {
+    auth: {
+      signInWithOtp: async (request: unknown) => {
+        requests.push(request);
+        return { data: {}, error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  const email = await requestCitizenOtp(
+    supabase,
+    'email',
+    ' Citizen@Example.ORG ',
+    'https://citizen.example/auth/callback',
+  );
+
+  assert.equal(email, 'citizen@example.org');
+  assert.deepEqual(requests, [
+    {
+      email: 'citizen@example.org',
+      options: {
+        emailRedirectTo: 'https://citizen.example/auth/callback',
+        shouldCreateUser: true,
+      },
+    },
+  ]);
+});
+
 test('records citizen sign-out success only after Supabase signs out', async () => {
   const calls: string[] = [];
   const supabase = {

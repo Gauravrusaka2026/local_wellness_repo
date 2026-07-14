@@ -108,3 +108,27 @@ test('government invitation emails use server-readable one-time token parameters
   );
   assert.doesNotMatch(invitationTemplate, /\.ConfirmationURL/);
 });
+
+test('citizen authentication emails contain a one-time code without sign-in URLs', async () => {
+  const authConfiguration = await readFile(resolve(repositoryRoot, 'supabase/config.toml'), 'utf8');
+  const templatePaths = [
+    'supabase/templates/confirmation.html',
+    'supabase/templates/magic-link.html',
+  ];
+
+  assert.match(authConfiguration, /\[auth\.email\.template\.confirmation\]/);
+  assert.match(authConfiguration, /\[auth\.email\.template\.magic_link\]/);
+  assert.match(authConfiguration, /content_path = "\.\/supabase\/templates\/confirmation\.html"/);
+  assert.match(authConfiguration, /content_path = "\.\/supabase\/templates\/magic-link\.html"/);
+
+  for (const templatePath of templatePaths) {
+    const template = await readFile(resolve(repositoryRoot, templatePath), 'utf8');
+
+    assert.match(template, /{{ \.Token }}/, `${templatePath} must render the email OTP`);
+    assert.doesNotMatch(
+      template,
+      /\.ConfirmationURL|\.TokenHash|\.RedirectTo|href\s*=|https?:\/\//i,
+      `${templatePath} must not render a sign-in or confirmation URL`,
+    );
+  }
+});

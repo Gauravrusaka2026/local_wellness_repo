@@ -67,7 +67,14 @@ scheduled job, no parser-specific record was published, and no hosted Supabase d
 Source-specific PMC/BMC parsers, canonical matching, change detection, review API/UI,
 transactional publishers, DNS-resolution hardening, orphan snapshot reconciliation, retention,
 monitoring, and record-specific human verification remain open. The ten ward scope targets remain
-inactive/non-routable; BMC's numeric placeholder wards require an official lettered-ward crosswalk.
+inactive/non-routable. BMC's retained numeric placeholders must not be ordinal-mapped to the selected
+official administrative wards `A`–`E`; reviewed official ward records and a new versioned scope are
+required. Pune's selected numeric wards `1`–`5` still require official identity and geometry review.
+
+The local-result statement above records the original verification run. Later on 2026-07-14, the
+same reviewed migrations and draft-only seeds were applied to the dedicated staging database. No
+source, scope, Edge Function, Cron job, official ward, geometry, parser output, or publisher was
+activated there.
 
 ## Explicit Exclusions
 

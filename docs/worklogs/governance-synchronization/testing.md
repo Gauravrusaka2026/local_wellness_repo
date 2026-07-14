@@ -43,7 +43,9 @@ The three new pgTAP plans cover:
   64-character contract SHA-256 before `NOT NULL` enforcement;
 - database lint reported only diagnostics owned by the installed PostGIS extension, not
   application-schema failures;
-- canonical CSV/workbook bytes and hosted Supabase were not changed.
+- canonical CSV/workbook bytes were not changed. This local result predated the later reviewed
+  staging deployment of the same migrations and draft-only seeds; that deployment activated no
+  source, scope, parser, Edge Function, Cron job, route, or official ward record.
 
 ## Validation Not Yet Performed
 
@@ -53,6 +55,6 @@ The three new pgTAP plans cover:
 - entity matching, disappearance/change detection, review API/UI, and transactional publication;
 - current officer/contact correctness, record-specific manual verification, and complaint-delivery
   approval;
-- official Pune ward evidence and reconciliation of the numeric BMC placeholder targets to the
-  official lettered ward structure;
+- official Pune numeric ward evidence plus new official-source-backed BMC administrative ward
+  `A`–`E` records and a versioned replacement scope; no ordinal placeholder mapping is permitted;
 - orphan snapshot reconciliation, retention/backup, alerting, and rollback in a hosted environment.

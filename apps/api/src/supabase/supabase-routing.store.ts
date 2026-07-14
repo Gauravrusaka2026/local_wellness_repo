@@ -7,6 +7,7 @@ import {
   type JurisdictionMatch,
   type JurisdictionResolution,
   type RoutingCandidate,
+  type RoutingAssetOption,
   type RoutingCategory,
   type RoutingDecision,
   type RoutingEntityEvidence,
@@ -20,6 +21,7 @@ import {
   RoutingDataAccessError,
   RoutingDecisionIdempotencyConflictError,
   RoutingStore,
+  type RoutingAssetDiscoveryQuery,
   type RecordRoutingDecisionInput,
   type RecordedRoutingDecision,
 } from '../data/routing.store.js';
@@ -61,6 +63,15 @@ const categoryRowSchema = z
     verification_status: verificationStatusSchema,
     is_placeholder: z.boolean(),
     is_routing_eligible: z.boolean(),
+  })
+  .strict();
+
+const routingAssetRowSchema = z
+  .object({
+    asset_id: uuidSchema,
+    display_name: z.string().trim().min(1).max(240),
+    asset_type_name: z.string().trim().min(1).max(160),
+    distance_meters: z.number().finite().nonnegative().max(5_000),
   })
   .strict();
 
@@ -770,6 +781,33 @@ export class SupabaseRoutingStore extends RoutingStore {
     assertPublishedCategoryRows(rows, 'list routing categories');
 
     return rows.map(decodeCategory);
+  }
+
+  public async discoverRoutingAssets(
+    query: RoutingAssetDiscoveryQuery,
+  ): Promise<RoutingAssetOption[]> {
+    const operation = 'discover routing assets';
+    const data = await this.callRpc(operation, 'discover_routing_assets', {
+      p_category_id: query.categoryId,
+      p_longitude: query.location.longitude,
+      p_latitude: query.location.latitude,
+      p_accuracy_meters: query.accuracyMeters,
+      p_resolved_at: query.resolvedAt,
+      p_limit: 25,
+    });
+    const rows = decode(z.array(routingAssetRowSchema).max(25), data, operation);
+    const identifiers = new Set(rows.map((row) => row.asset_id));
+
+    if (identifiers.size !== rows.length) {
+      throw new RoutingDataAccessError(operation);
+    }
+
+    return rows.map((row) => ({
+      id: row.asset_id,
+      displayName: row.display_name,
+      assetTypeName: row.asset_type_name,
+      distanceMeters: row.distance_meters,
+    }));
   }
 
   public async resolveJurisdiction(

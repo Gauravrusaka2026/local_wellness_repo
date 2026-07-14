@@ -1,4 +1,10 @@
-import { supportedLanguages, type Profile, type SupportedLanguage } from '@local-wellness/types';
+import {
+  profileStatuses,
+  supportedLanguages,
+  type Profile,
+  type SupportedLanguage,
+} from '@local-wellness/types';
+import { z } from 'zod';
 
 import { apiRequest } from '../api/client';
 
@@ -18,6 +24,22 @@ export class ProfileValidationError extends Error {
   }
 }
 
+const profileSchema = z
+  .object({
+    createdAt: z.iso.datetime({ offset: true }),
+    displayName: z.string().min(1).max(100).nullable(),
+    email: z.email().max(254).nullable(),
+    id: z.uuid(),
+    onboardingCompletedAt: z.iso.datetime({ offset: true }).nullable(),
+    phone: z.string().min(1).max(32).nullable(),
+    preferredLanguage: z.enum(supportedLanguages),
+    status: z.enum(profileStatuses),
+    updatedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export const decodeProfile = (value: unknown): Profile => profileSchema.parse(value) as Profile;
+
 export const validateProfileUpdate = (input: ProfileUpdate): ProfileUpdate => {
   const displayName = input.displayName.trim();
 
@@ -36,17 +58,17 @@ export const validateProfileUpdate = (input: ProfileUpdate): ProfileUpdate => {
 };
 
 export const getProfile = (accessToken: string): Promise<Profile> =>
-  apiRequest<Profile>('/api/v1/me', { accessToken });
+  apiRequest<unknown>('/api/v1/me', { accessToken }).then(decodeProfile);
 
 export const updateProfile = (accessToken: string, input: ProfileUpdate): Promise<Profile> => {
   const validInput = validateProfileUpdate(input);
 
-  return apiRequest<Profile>('/api/v1/me', {
+  return apiRequest<unknown>('/api/v1/me', {
     accessToken,
     body: {
       ...validInput,
       onboardingCompleted: true,
     },
     method: 'PATCH',
-  });
+  }).then(decodeProfile);
 };

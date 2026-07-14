@@ -87,7 +87,8 @@ create extension if not exists unaccent;
 Enable:
 
 - phone authentication;
-- email OTP or magic link.
+- email OTP for citizen clients;
+- reviewed invitation/PKCE flows for government users.
 
 Google and Apple providers are deferred until an approved product phase requests them.
 
@@ -113,17 +114,21 @@ Use a final scheme after naming is finalized.
 
 The local redirect allow-list includes the citizen web, government dashboard, admin console and mobile callback routes. Each managed environment must replace these with its exact deployed HTTPS origins while retaining only required development URLs in non-production projects.
 
-Citizen email OTP/magic-link requests use the exact queryless, same-origin `/auth/callback` URL.
-Allow-list that exact route for each citizen-web origin. Do not depend on an optional `next` query
-parameter being accepted by the provider. Verify a newly delivered hosted email, PKCE exchange,
-SSR cookie, and authenticated landing page in a real browser before enabling users.
+Citizen email requests deliver a six-digit code that the web/mobile client verifies as an `email`
+OTP. The committed local confirmation and magic-link templates contain `{{ .Token }}` and no sign-
+in link. Apply equivalent reviewed templates to every managed Supabase project; local template files
+do not update a hosted project automatically. Verify a newly delivered hosted OTP, expiry/rate
+limits, session cookie, and authenticated landing page in a real browser before enabling users.
+Keep exact callback allow-list entries for the separate government invitation and supported
+PKCE/token-hash flows.
 
 The authenticated citizen account page reads the application profile through the NestJS
 `GET /api/v1/me` endpoint; it does not read a fabricated profile from Auth metadata. Configure
 `NEXT_PUBLIC_API_URL`, start/deploy that API, and ensure the citizen web, API, and Supabase Auth URL
-all refer to the same environment. Apply the Phase 1 profile trigger before testing signup. If an
-older Auth user has no `public.profiles` row, reconcile that row through a reviewed server-side
-operation; do not weaken the API check or add a client-side fallback.
+all refer to the same environment. Apply the Phase 1 profile trigger and the idempotent identity
+backfill migration before testing signup. The backfill creates only missing profiles/global citizen
+roles, never overwrites application identity data, and does not reactivate an existing revoked
+citizen role. Do not weaken the API check or add a client-side metadata fallback.
 
 ### Government Invite Template
 
@@ -171,9 +176,11 @@ voice-recordings-private
 
 The complaint API reserves owner/draft/media-scoped object paths and returns transient signed
 upload tokens for originals or voice recordings. It inspects the stored object and verifies MIME
-type, byte size, and SHA-256 before finalization. `complaint-thumbnails` and
-`resolution-evidence-private` are created now to preserve the reviewed private topology, but no
-Phase 4 processor or resolution workflow writes them. All four remain private.
+type, byte size, and SHA-256 before finalization. `complaint-thumbnails` is reserved for a later
+processor. Phase 5 uses `resolution-evidence-private` for server-reserved government completion
+evidence, with signed upload, server integrity verification, and scope-authorized short-lived signed
+read access. All four buckets remain private; no direct anonymous/authenticated object policy is
+added.
 
 These buckets are later-phase plans and are not created by Phase 4:
 
@@ -213,6 +220,14 @@ Policies:
 
 Phase 1 migrations create the unexposed `private` helper schema and keep exposed identity tables in `public` for Supabase data-API RLS. Phase 2 creates `governance`, but intentionally leaves it out of the `[api].schemas` allow-list. Its tables use forced RLS and explicit grants as defense in depth; server-side imports and the jurisdiction resolver use trusted database/service-role access. Phase 3 creates the similarly unexposed, forced-RLS `routing` schema and adds synchronization tables to `governance`. The retrieval/contact slice keeps its leases, events, evidence, and contact versions in that same unexposed forced-RLS schema and exposes only four service-role retrieval RPCs. Phase 4 creates the unexposed, forced-RLS `complaints` schema. Narrow `public` wrappers provide service-role-only routing, synchronization, and complaint operations without granting clients any private schema. Communications, operations, analytics, integrations and audit schemas belong to later phases and must be created by their committed migrations when implemented.
 
+Phase 5 extends `complaints` rather than exposing a new schema. It adds database capability and
+transition records, exact-replay government action/audit records, versioned assignment history,
+private notes/inspections/work/dependencies, private resolution evidence and versioned resolutions,
+and the transaction notification outbox. Narrow service-only wrappers provide scoped queue/detail,
+assignment options, actions, and evidence operations. The API supplies the verified Auth actor, but
+each wrapper independently rechecks current identity, membership, role/scope, capability, workflow
+version/state, and verified governance evidence.
+
 Do not pre-create schemas only through a dashboard, and do not expose every schema automatically.
 
 ---
@@ -245,6 +260,12 @@ executable by the service role, and the NestJS API supplies the bearer-token act
 has no direct anonymous/authenticated object policy for complaint originals, voice recordings,
 thumbnails, or resolution evidence. Test both SQL/RPC ACL denial and Storage privacy in every
 managed environment; a private bucket flag alone is not a substitute for access-control review.
+
+Phase 5 enables and forces RLS on all 12 added government-workflow/outbox tables and preserves the
+same no-direct-access rule. The service role is transport only and receives execute access to the
+reviewed wrappers, not table access. Test global/authority/ward/department/read-only scope,
+cross-scope denial, inactive/revoked membership, placeholder target exclusion, workflow conflicts,
+append-only history, and signed evidence access in every managed environment.
 
 ---
 
@@ -521,7 +542,7 @@ Phase 1 local verification is complete:
 - repository-pinned CLI and committed local configuration validated;
 - identity migrations reset successfully;
 - migration, RLS and generated-type checks pass locally and are enforced by CI;
-- local email magic-link and delivered government-invite flows pass;
+- local six-digit code-only citizen email OTP and delivered government-invite flows pass;
 - phone request/verification has unit coverage and remains provider-gated for E2E.
 
 Phase 2 local verification is complete for the available baseline:
@@ -573,6 +594,41 @@ The positive complaint fixtures are synthetic and transactionally rolled back. W
 the authenticated operational-category query is still empty, so no user can submit a placeholder
 complaint. This is the required fail-closed bootstrap outcome, not verified Pune coverage.
 
+The known-issue forward fixes add safe legacy Auth profile/citizen-role backfill, a service-only
+routing confidence-policy conflict report, a verified PostGIS nearby-asset picker, and per-file
+governance import outcomes. The current canonical validation matrix covers 901 rows: 41 accepted,
+691 unverified, 169 quarantined, and zero rejected. These dispositions preserve uncertainty and do
+not verify or activate pilot records.
+
+Phase 5 adds two government-workflow migrations, private forced-RLS/ACL and RPC coverage, strict
+NestJS/validation/store tests, and government-dashboard queue/action tests. The local engineering
+surface includes scoped queue/detail/options, versioned assignment/transfer, guarded transitions,
+private notes/inspections/work/dependencies, private resolution evidence and versioned resolutions,
+action audit, and transaction-outbox persistence. Exact aggregate gate results belong in the
+current progress tracker/worklog after the full verification run. Local synthetic records do not
+constitute a hosted deployment, verified Pune/BMC workflow, notification delivery, or external map.
+
+### Dedicated staging database — 2026-07-14
+
+The connected managed project is owner-confirmed as staging, and its privileged/database
+credentials are newly generated replacements. The database now contains all 23 repository
+migrations through `20260714124000` and all six reviewed non-production seeds: the generated Phase
+2 main/checksum pair, Phase 3 categories, pilot synchronization sources, pilot ward scopes, and
+roles. The identity backfill reconciled the existing citizen application profile. Verification
+found 12 categories with zero operational and 11 synchronization endpoints with zero active.
+
+The first government invitation was accepted. Staging demo access was then reconciled onto two
+existing confirmed owner-controlled Auth identities in one trusted transaction. Temporary alias
+role/membership rows were revoked with provenance retained; verification found exactly one active
+global platform administrator and one active Pune municipal administrator. This does not replace
+the product lifecycle still tracked by `AUTH-001`.
+
+This is deliberately a database-only deployment. No application, Edge Function,
+`GOVERNANCE_SYNC_DISPATCH_SECRET`, Cron invocation, source/scope activation, official ward record or
+geometry, route, complaint, or production environment was deployed. Local reset/test commands
+remain isolated; the managed state exists only because the reviewed migrations and seeds were
+explicitly applied to staging.
+
 When `REQUIRE_LOCAL_SUPABASE=true`, the Auth E2E harness accepts only loopback API hosts. This guard
 fails before user creation if a generic environment file points at hosted Supabase. Hosted database
 migrations and seeds remain an explicit operator action; local reset and test commands do not upload
@@ -580,17 +636,20 @@ Phase 3 or Phase 4 governance, routing, complaint data, migrations, or media.
 
 Before managed identity activation, operators must:
 
-- complete credential rotation tracked by `SEC-001`;
 - create separate development, staging and production projects;
 - link only the intended non-production project from developer environments;
 - enable required extensions through reviewed migrations;
-- configure Auth providers, exact redirects and the token-hash invite template;
+- configure Auth providers, code-only citizen OTP templates, exact redirects, and the token-hash
+  government invite template;
 - configure SMS/email delivery, provider rate limits and abuse controls;
 - select secret storage and restrict production credentials;
 - configure environment-specific CI/deployment secrets;
 - review the Phase 4 private Storage bucket topology, limits, and access policies;
 - document and verify backup/restore strategy;
 - run hosted email, SMS, invite, SSR-cookie and effective-scope smoke tests.
+
+The staging credential-replacement prerequisite is satisfied for the current project. Continue to
+keep privileged keys and the database URL server-side, and never reuse them for production.
 
 Before managed routing or governance synchronization activation, operators must also:
 
@@ -607,8 +666,10 @@ Before managed routing or governance synchronization activation, operators must 
 - keep the ten PMC/BMC seed endpoints draft/unverified until each has stable fixtures, reviewed
   cardinality/layout expectations, and attributed activation approval;
 - keep the ten pilot ward scope targets draft/unverified/non-routable until each canonical hierarchy,
-  official identity, and boundary is reviewed by an active global platform administrator; reconcile
-  BMC's numeric placeholders to the official lettered wards before activation;
+  official identity, and boundary is reviewed by an active global platform administrator; preserve
+  the V1 numeric bootstrap targets as audit history, then create a new reviewed scope for BMC
+  administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`; never ordinal-map
+  `BRIH-W01`–`BRIH-W05` to the BMC letters;
 - verify that a source-authenticated value remains staged, public visibility requires attributed
   manual verification, and complaint delivery requires its separate explicit approval;
 - verify contact publication binds the target owner UUID, value, source URL, evidence-value hash,
@@ -620,7 +681,6 @@ Before managed routing or governance synchronization activation, operators must 
 
 Before managed complaint capture activation, operators must also:
 
-- rotate and audit previously exposed Supabase/database credentials before any hosted integration;
 - apply the complaint migrations first in managed development and then staging, regenerate/check
   types, and repeat forced-RLS, RPC-grant, cross-owner, private-bucket, and signed-upload tests;
 - load only reviewed verified Pune categories, polygons, duplicate policy, department/role and
@@ -633,6 +693,23 @@ Before managed complaint capture activation, operators must also:
   transcription/moderation processing before claiming those capabilities as operational;
 - provide a device-reachable reviewed API URL; never put the secret/service-role key in the mobile
   bundle.
+
+Before managed government-dashboard activation, operators must also:
+
+- apply the Phase 5 workflow/security migrations in managed development and staging, regenerate
+  types, and repeat forced-RLS/RPC/Storage checks;
+- load only reviewed verified non-placeholder pilot category, jurisdiction, routing, authority,
+  department, role, assignment, and asset evidence; the ordinary bootstrap must remain non-routable;
+- smoke-test platform, authority, ward, department, and read-only moderator access, including
+  revoked/expired/cross-scope denials and selection of one of a user's real role assignments;
+- exercise workflow-version conflicts, exact idempotency replay, assignment history, same-authority
+  transfer, transition guards, inspection/work/dependency flows, and resolution dependency closure;
+- verify private resolution-evidence signed upload, server MIME/size/SHA-256 finalization, short-
+  lived non-cacheable authorized reads, and denial of direct Storage access;
+- verify that every successful status mutation appends history, action audit, and the minimal outbox
+  event atomically, while no delivery is claimed until a later durable consumer is implemented;
+- select and review an external map provider/key plus coordinate-sharing privacy policy before
+  replacing the explicit text-only location/map placeholder.
 
 No Redis, BullMQ, Redis adapter/cache, or Sentry setup is required or permitted for this V1 path.
 

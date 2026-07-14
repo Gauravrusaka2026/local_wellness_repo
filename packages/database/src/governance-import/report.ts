@@ -1,6 +1,10 @@
 import type {
   GovernanceBaselineModel,
   GovernanceDiagnostic,
+  GovernanceFileRecordClassification,
+  GovernanceRecordClassificationCounts,
+  GovernanceRecordProvenance,
+  GovernanceSourceRecord,
   GovernanceValidationReport,
 } from '@local-wellness/types';
 
@@ -30,6 +34,163 @@ export const sortGovernanceDiagnostics = (
     return leftKey.localeCompare(rightKey, 'en');
   });
 
+type RecordClassification = 'accepted' | 'quarantined' | 'rejected' | 'unverified';
+
+const emptyClassificationCounts = (): GovernanceRecordClassificationCounts => ({
+  sourceRecords: 0,
+  accepted: 0,
+  unverified: 0,
+  quarantined: 0,
+  rejected: 0,
+  reconciled: true,
+});
+
+const normalizedProvenanceBySourceRecord = (
+  model: GovernanceBaselineModel | null,
+): ReadonlyMap<string, GovernanceRecordProvenance[]> => {
+  if (model === null) {
+    return new Map();
+  }
+
+  const records: GovernanceRecordProvenance[] = [
+    ...model.authorities,
+    ...model.states,
+    ...model.districts,
+    ...model.talukas,
+    ...model.localBodies,
+    ...model.wards,
+    ...model.departments,
+    ...model.offices,
+    ...model.officerRoles,
+    ...model.utilities,
+    ...model.emergencyContacts,
+    ...model.routingReferences,
+    ...model.referenceLinks,
+  ];
+  const bySourceRecord = new Map<string, GovernanceRecordProvenance[]>();
+  for (const record of records) {
+    const existing = bySourceRecord.get(record.rawSourceRecordId) ?? [];
+    existing.push(record);
+    bySourceRecord.set(record.rawSourceRecordId, existing);
+  }
+  return bySourceRecord;
+};
+
+const classifySourceRecord = (
+  record: GovernanceSourceRecord,
+  diagnostics: readonly GovernanceDiagnostic[],
+  model: GovernanceBaselineModel | null,
+  provenanceBySourceRecord: ReadonlyMap<string, GovernanceRecordProvenance[]>,
+): RecordClassification => {
+  const recordDiagnostics = diagnostics.filter(
+    ({ path, row }) => path === record.sourcePath && row === record.sourceRowNumber,
+  );
+  const fileHasBlockingError = diagnostics.some(
+    ({ path, row, severity }) =>
+      path === record.sourcePath && severity === 'error' && (row === undefined || row <= 2),
+  );
+  if (fileHasBlockingError || recordDiagnostics.some(({ severity }) => severity === 'error')) {
+    return 'rejected';
+  }
+
+  const normalization = model?.normalizationTargets.find(
+    ({ importRecordId }) => importRecordId === record.id,
+  );
+  if (
+    record.disposition === 'raw_only' ||
+    record.disposition === 'template_only' ||
+    normalization?.disposition === 'placeholder_preserved' ||
+    (normalization?.disposition === 'reference_only' && normalization.table === null)
+  ) {
+    return 'quarantined';
+  }
+
+  const normalizedRecords = provenanceBySourceRecord.get(record.id) ?? [];
+  if (
+    recordDiagnostics.some(({ severity }) => severity === 'warning') ||
+    normalizedRecords.length === 0 ||
+    normalizedRecords.some(({ isPlaceholder, isVerified }) => isPlaceholder || !isVerified)
+  ) {
+    return 'unverified';
+  }
+
+  return 'accepted';
+};
+
+const incrementClassification = (
+  counts: GovernanceRecordClassificationCounts,
+  classification: RecordClassification,
+): void => {
+  counts.sourceRecords += 1;
+  counts[classification] += 1;
+  counts.reconciled =
+    counts.sourceRecords ===
+    counts.accepted + counts.unverified + counts.quarantined + counts.rejected;
+};
+
+const createRecordClassificationMatrix = (
+  validated: ValidatedGovernanceSources,
+  diagnostics: readonly GovernanceDiagnostic[],
+  model: GovernanceBaselineModel | null,
+): GovernanceValidationReport['recordClassification'] => {
+  const provenanceBySourceRecord = normalizedProvenanceBySourceRecord(model);
+  const datasetsByPath = new Map(
+    validated.datasets.map((dataset) => [dataset.manifest.path, dataset]),
+  );
+  const totals = emptyClassificationCounts();
+  const files: GovernanceFileRecordClassification[] = validated.sourceFiles
+    .map((sourceFile) => {
+      const counts = emptyClassificationCounts();
+      const dataset = datasetsByPath.get(sourceFile.path);
+      if (dataset !== undefined) {
+        for (const record of dataset.records) {
+          const classification = classifySourceRecord(
+            record,
+            diagnostics,
+            model,
+            provenanceBySourceRecord,
+          );
+          incrementClassification(counts, classification);
+          incrementClassification(totals, classification);
+        }
+
+        for (const metadataRecord of dataset.metadata) {
+          const hasError = diagnostics.some(
+            ({ path, row, severity }) =>
+              path === metadataRecord.sourcePath &&
+              severity === 'error' &&
+              (row === undefined || row <= 2 || row === metadataRecord.sourceRowNumber),
+          );
+          const hasWarning = diagnostics.some(
+            ({ path, row, severity }) =>
+              path === metadataRecord.sourcePath &&
+              row === metadataRecord.sourceRowNumber &&
+              severity === 'warning',
+          );
+          const classification: RecordClassification = hasError
+            ? 'rejected'
+            : hasWarning
+              ? 'unverified'
+              : 'accepted';
+          incrementClassification(counts, classification);
+          incrementClassification(totals, classification);
+        }
+      }
+
+      return {
+        id: sourceFile.id,
+        path: sourceFile.path,
+        ...counts,
+      };
+    })
+    .sort((left, right) => left.path.localeCompare(right.path, 'en'));
+
+  totals.reconciled =
+    totals.sourceRecords ===
+    totals.accepted + totals.unverified + totals.quarantined + totals.rejected;
+  return { files, totals };
+};
+
 export const createGovernanceValidationReport = (
   loaded: LoadedGovernanceManifest,
   validated: ValidatedGovernanceSources,
@@ -58,7 +219,7 @@ export const createGovernanceValidationReport = (
     .reduce((total, dataset) => total + dataset.records.length, 0);
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     datasetVersion: loaded.manifest.datasetVersion,
     manifestPath: loaded.manifestRepositoryPath,
     manifestSha256: loaded.manifestSha256,
@@ -75,6 +236,7 @@ export const createGovernanceValidationReport = (
     sourceFiles: [...validated.sourceFiles].sort((left, right) =>
       left.path.localeCompare(right.path, 'en'),
     ),
+    recordClassification: createRecordClassificationMatrix(validated, diagnostics, model),
     diagnostics,
     normalizedRecords: {
       referenceSources: model?.referenceLinks.length ?? 0,

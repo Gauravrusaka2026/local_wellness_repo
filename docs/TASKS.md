@@ -3,14 +3,15 @@
 ## Project Status
 
 - Project: Local Wellness
-- Current phase: Phase 4 — Citizen complaint capture
-- Current sprint: Sprint 5 — Secure complaint capture and governance synchronization operational slice
-- Overall implementation progress: 42%
+- Current phase: Phase 5 — Government dashboard
+- Current sprint: Sprint 6 closeout — Staging activation and Phase 6 readiness
+- Overall implementation progress: 51%
 - Phase 0 implementation progress: 100%
 - Phase 1 implementation progress: 100%
 - Phase 2 implementation progress: 90%
 - Phase 3 implementation progress: 85%
-- Phase 4 implementation progress: 90%
+- Phase 4 implementation progress: 95%
+- Phase 5 implementation progress: 95%
 - Last updated: 2026-07-14
 
 ## Phase 0 Scope
@@ -390,38 +391,142 @@ negative-path engineering, but it cannot produce a production complaint assignme
 - [x] Update README, PLAN, architecture, database, authentication, API, deployment, Supabase setup,
       TASKS, PROGRESS, CHANGELOG, DECISIONS, KNOWN_ISSUES, and the Phase 4 worklog.
 
+## Phase 5 Execution Plan
+
+Phase 5 gives authorized municipal staff an access-scoped complaint queue and audited operational
+workflow. Supabase PostgreSQL remains the source of truth: the API may use service credentials only
+to invoke database functions that independently validate the acting Auth user, effective role,
+authority membership, ward/department scope, target assignment, and allowed status transition.
+Citizen privacy remains unchanged, and no placeholder or unverified governance record may become an
+operational recipient.
+
+### Workflow Persistence and Authorization
+
+- [x] Add versioned complaint assignment history with exactly one active assignment, transfer and
+      reassignment provenance, effective periods, actor identity, and immutable historical rows.
+- [x] Add internal notes, inspection schedules/results, work references, external dependencies,
+      resolution evidence metadata, and an append-only government-action audit/idempotency ledger.
+- [x] Add explicit status-transition rules and atomic database functions for acknowledge, assign,
+      reassign, transfer, schedule/complete inspection, record work/dependency, update status, and
+      submit resolution.
+- [x] Enforce active, verified, non-placeholder government scopes and eligible target assignments in
+      PostgreSQL; reject cross-authority, cross-ward, cross-department, expired, revoked, stale, and
+      client-selected recipient escalation attempts.
+- [x] Preserve citizen-owned complaint/location/media privacy and expose private resolution evidence
+      only through bounded signed uploads and authorized reads.
+
+### Government Complaint API
+
+- [x] Add authenticated, paginated queue and complaint-detail APIs with status/category/ward/
+      department/assignee/date/search filters and data-minimized map coordinates.
+- [x] Add validated, idempotent action endpoints for every Phase 5 workflow operation and return
+      conflict-safe current state after successful mutation or replay.
+- [x] Add resolution-evidence upload intent/finalization using the existing private Storage bucket;
+      never accept arbitrary object paths, authority IDs, or official recipient IDs from clients.
+- [x] Add shared strict contracts, schemas, typed client support, structured coordinate-free logs,
+      API contract tests, authorization tests, and database-adapter tests.
+
+### Government Dashboard
+
+- [x] Replace the access-scope placeholder with an accessible government workspace, effective-scope
+      selector, queue summary, filters, paginated table/cards, and privacy-safe location context.
+- [x] Add complaint detail with timeline, routing/assignment explanation, authorized staff actions,
+      internal notes, inspection/work/dependency forms, and resolution-evidence submission.
+- [x] Make role capabilities explicit in the UI while treating API/database authorization as
+      authoritative; include loading, empty, stale-session, forbidden, validation, and conflict states.
+- [x] Add focused dashboard unit/component coverage and unauthenticated route-level local runtime
+      smoke tests.
+- [ ] Run an authenticated dashboard smoke test with a real verified government role and operational
+      pilot complaint after the hosted/test environment and pilot routing data are available.
+
+### Verification and Traceability
+
+- [x] Add migration, RLS, scope-isolation, transition, assignment-history, audit, idempotency,
+      resolution-evidence, API, and dashboard tests.
+- [x] Regenerate database types and run clean reset/lint/pgTAP, formatting, lint, type-check, tests,
+      builds, Compose validation, Expo alignment/export, and production dependency audit.
+- [x] Create the Phase 5 workflow ADR and worklog; update all required architecture, database, API,
+      authentication, deployment, setup, tracker, changelog, decision, and known-issue documents.
+
+## Staging Activation and Demo Identity Closeout
+
+- [x] Confirm the hosted target is a dedicated staging project using newly generated privileged and
+      database credentials stored outside source control.
+- [x] Establish an IPv4-compatible Supavisor session-pooler connection because the project's direct
+      database hostname is IPv6-only from the current development environment.
+- [x] Run a non-mutating migration/seed dry run, then apply all 23 reviewed migrations and six
+      non-production seed files to the previously empty staging database.
+- [x] Verify the migration ledger, canonical Pune authority, fail-closed taxonomy/source state, and
+      existing citizen profile/role through read-only staging queries.
+- [x] Provision the first platform administrator through the audited one-time bootstrap and invite
+      one Pune-scoped `municipal_admin` through the guarded government invitation persistence path.
+- [x] Complete inbox-side municipal invitation acceptance and verify the resulting confirmed Auth
+      identity, active profile, Pune membership, and municipal role.
+- [x] Reconcile the staging-only privileged roles to the owner's two existing confirmed Auth
+      identities in one operator transaction, revoking the temporary alias assignments while
+      preserving their effective-dated membership, role, and audit history.
+- [ ] Run authenticated account/admin/government OTP and dashboard browser smoke tests against the
+      staging-configured applications.
+- [x] Align government and platform-administrator sign-in with the code-only email OTP template by
+      adding explicit OTP verification instead of relying on a missing magic-link UI.
+- [x] Record BMC A–E administrative wards and Pune's officially current numeric model as pilot
+      selections while keeping every placeholder ward and route non-routable pending official
+      identity, provenance, and geometry review.
+
 ## Automatically Discovered Tasks
 
-- [ ] Rotate the exposed Supabase privileged credential, database credential, and Redis token before any environment integration.
-- [ ] Review the affected provider audit logs and run remote repository secret scanning before using those services.
+- [x] Confirm the active staging Supabase privileged/database credentials are newly generated
+      replacements and remain outside source control (owner-confirmed 2026-07-14).
+- [ ] Complete the historical provider-log review, remote/all-branch secret scan, and revoke any
+      legacy Redis token if it still exists; Redis remains unused and deferred (`SEC-001`).
 - [x] Install and validate the repository-pinned Supabase CLI.
 - [x] Initialize and validate local Supabase configuration and invite template.
-- [ ] Activate separate hosted identity environments, providers, exact redirects, invite templates, rate limits, backups, and secret storage after `SEC-001` is complete.
+- [ ] Complete hosted identity configuration for the confirmed staging project: exact redirects,
+      code-only OTP and token-hash invite templates, email/SMS providers, rate limits, backups, and
+      managed secret storage (`ENV-002`).
 - [ ] Add audited existing-user government assignment plus expire, revoke, renew, and additional-scope lifecycle operations before broader government onboarding (`AUTH-001`).
 - [ ] Enforce privileged MFA/AAL with enrollment and recovery UX before pilot launch (`AUTH-002`).
 - [ ] Bind device revocation to provider sessions before representing revocation as forced logout (`AUTH-003`).
 - [ ] Add PostgreSQL/platform-backed audit, invitation, and device quotas without Redis (`AUTH-004`).
 - [ ] Run hosted callback, real SMS, Expo development-build deep-link, OS SecureStore, and SSR-cookie smoke tests (`AUTH-005`).
 - [x] Use the exact allow-listed same-origin citizen callback and cover URL construction; delivered hosted-link and SSR-cookie smoke remains under `AUTH-005`/`ENV-002` (`AUTH-006`).
-- [ ] Verify citizen web Auth and the NestJS API use the same fully migrated Supabase environment,
-      then smoke account onboarding/profile reads in local and hosted configurations (`ENV-004`).
+- [x] Apply all 23 existing migrations through `20260714124000` and the six reviewed
+      non-production seed files to the dedicated staging Supabase project; verify 12 seeded
+      categories with zero operational rows and 11 synchronization sources with zero active rows.
+- [ ] Smoke citizen web Auth, NestJS profile reads, SSR cookies, onboarding, and account rendering
+      against the now fully migrated staging environment (`ENV-004`, `AUTH-005`).
+- [x] Verify the staging citizen identity has an active application profile and citizen role.
+- [x] Create a distinct staging-only administrator identity and grant the first global
+      `platform_admin` role through the audited one-time bootstrap RPC.
+- [x] Invite a distinct staging-only government identity as `municipal_admin` with `authority`
+      scope for Pune Municipal Corporation through the Auth invitation plus guarded persistence RPC.
+- [x] Accept and verify the municipal-admin invitation, then reconcile the temporary privileged
+      aliases to existing confirmed owner-controlled Auth identities with one active global
+      `platform_admin` and one active Pune-scoped `municipal_admin` after the change.
+- [ ] Smoke the platform-admin and government OTP login, effective scope, admin console, and
+      government dashboard with the reconciled controlled inboxes.
 - [x] Add the authority foreign key after Phase 2 creates the canonical governance entity (`DB-001`).
 - [ ] Obtain official LGD codes for all districts, talukas, local bodies, Gram Panchayats, villages, and wards before promoting affected records to verified routing data (`DATA-002`).
 - [ ] Replace template Gram Panchayat/village records and synthetic ward rows with complete official datasets (`DATA-002`, `DATA-003`).
 - [ ] Import verified pilot municipality and ward polygons so a real pilot coordinate can satisfy the Phase 2 spatial exit criterion (`DATA-004`).
 - [ ] Resolve the Vasai-Virar ward/local-body name mismatch and all composite routing department/role/agency labels through an explicit reviewed crosswalk (`DATA-005`).
 - [ ] Obtain record-specific sources and current verification for local-body, office, ward, utility, department, role, and officer contact data (`DATA-003`, `DATA-006`).
-- [ ] Reconcile the selected `BRIH-W01`–`BRIH-W05` numeric bootstrap placeholders to BMC's official
-      lettered ward structure before activating any Brihanmumbai synchronization scope (`DATA-003`,
-      `DATA-005`).
+- [x] Record the BMC pilot identity decision as administrative wards A, B, C, D, and E; never infer
+      an ordinal mapping from `BRIH-W01`–`BRIH-W05`.
+- [ ] Create reviewed official-source-backed BMC A–E records, retire the immutable V1 numeric scope
+      targets, and create a versioned V2 synchronization scope while preserving canonical
+      placeholders as non-routable history (`DATA-003`, `DATA-005`).
+- [x] Record that the Pune pilot will use the officially current numeric ward model.
+- [ ] Reconcile `PUNE-W01`–`PUNE-W05` to official effective-dated numeric identities and geometry;
+      the selected model does not verify the bootstrap placeholders (`DATA-003`, `DATA-004`).
 - [ ] Implement a reviewed delta-refresh operator workflow before importing a replacement governance bundle; the current generator intentionally supports the pinned baseline only (`DATA-008`).
-- [ ] Extend governance reporting with complete per-file outcome matrices and strengthen official LGD/contact/source-specificity review checks before pilot promotion (`DATA-006`).
+- [x] Extend governance reporting with a reconciled per-file accepted/unverified/quarantined/rejected outcome matrix (`DATA-006`); official LGD/contact/source-specificity evidence remains a separate pilot-promotion gate.
 - [ ] Add an audited mapping/revocation workflow for any retained legacy placeholder authority scopes before existing-account onboarding (`AUTH-001`, `DATA-008`).
 - [x] Re-run `pnpm audit --prod` with registry connectivity; no known vulnerabilities were reported.
 - [x] Make the Husky pre-commit hook invoke the repository-pinned pnpm through Corepack so it works without a global `pnpm` shim.
 - [x] Make local-required Supabase Auth E2E reject non-loopback API URLs before creating test users.
-- [ ] Reconcile the documentation lifecycle's root-level tracker names with the current `docs/` locations in a documentation-only change.
-- [ ] Remove the empty stray file `docs/architecture.md,` after the owner confirms it is unintentional.
+- [x] Reconcile `AGENTS.md` documentation lifecycle references with the canonical tracker files under `docs/`.
+- [x] Remove the empty stray file `docs/architecture.md,` after confirming the canonical file is `docs/architecture.md`.
 - [ ] Optimize production container contents after the runtime dependency graph is implemented.
 - [ ] Acquire, review, and publish the verified Pune pilot polygons, authority/department/role mappings, asset ownership, confidence policy, routing rules, and fallbacks required for operational routing (`ROUTING-001`).
 - [x] Implement the PostgreSQL lease, scheduled Edge retrieval, immutable snapshot, audit, and
@@ -431,41 +536,65 @@ negative-path engineering, but it cannot produce a production complaint assignme
 - [ ] Add DNS resolution/rebinding protection and orphaned snapshot reconciliation before any
       source is activated (`GOVSYNC-002`, `GOVSYNC-003`).
 - [x] Connect the duplicate-detection framework to privacy-safe complaint candidate persistence and explicit, non-merging citizen review semantics (`ROUTING-002`).
-- [ ] Add an activation-time validation report that rejects simultaneously applicable routing rules using conflicting confidence-policy versions; the runtime currently fails closed (`ROUTING-003`).
+- [x] Add a service-only activation report for simultaneously applicable routing rules using conflicting confidence-policy versions; the runtime continues to fail closed (`ROUTING-003`).
 - [x] Add a distinct routing idempotency key and stored-result replay before Phase 4 clients use automatic retries (`ROUTING-004`).
 - [ ] Configure approved speech-to-text and media moderation/processing providers, then add normalized-description confirmation and processing lifecycle tests without exposing original media (`COMPLAINT-001`).
 - [ ] Run complete camera/video/voice/location, interrupted-upload, protected-storage, deep-link, and callback smoke tests on representative physical Android/iOS devices (`COMPLAINT-002`, `AUTH-005`).
 - [ ] Add a PostgreSQL/platform-scheduled cleanup path for expired upload reservations and orphaned private Storage objects without Redis or BullMQ (`COMPLAINT-003`).
+- [x] Backfill missing Auth profiles and baseline citizen roles idempotently without altering existing privileged or revoked assignments; add local OTP-only email templates and delivered-code E2E coverage.
+- [x] Add authenticated, data-driven nearby-asset discovery and a mobile verified-asset picker that rejects placeholder, inactive, unverified, expired, unowned, and non-routable assets.
+- [x] Prevent the mobile complaint flow from advancing past location capture unless evidence is verified or partially verified, and strictly decode profile responses.
+- [x] Reject stale, expired, spoofed, oversized, or MIME-mismatched government resolution evidence
+      before workflow finalization; cap active unlinked reservations and force signed reads to
+      download rather than render inline.
+- [x] Keep evidence linked to an earlier resolution visible as immutable history while exposing only
+      finalized, unlinked evidence as eligible for a new resolution submission.
+- [ ] Add scheduled private resolution-evidence object cleanup plus full decode, malware scanning,
+      and moderation before the public pilot (`GOVDASH-002`).
 
 ## Current Blockers
 
 - The citizen callback now uses the exact queryless same-origin route with regression coverage; hosted delivered-link/SSR-cookie validation remains environment-gated under `AUTH-005`/`ENV-002`.
 - Citizen account failures now render explicitly, but a working profile still requires the citizen
   web Auth client and API to target the same fully migrated Supabase environment (`ENV-004`).
-- Hosted identity activation remains blocked on owner credential rotation/audit (`SEC-001`) and operator-managed provider/environment configuration (`ENV-002`).
+- The dedicated staging project now uses owner-confirmed replacement credentials and contains all
+  23 migrations plus reviewed non-production seeds. Hosted identity validation remains gated on
+  exact provider/template/redirect configuration and browser/device smoke tests (`ENV-002`,
+  `AUTH-005`); the invitation is accepted and the historical security audit remains under
+  `SEC-001`.
 - Phone OTP E2E requires an explicitly configured SMS provider; the code path and dispatch behavior are otherwise covered.
 - Phase 2 schema, validation, safe baseline import, security, generated types, and local verification are complete.
 - The `PLAN.md` Phase 2 pilot-coordinate exit criterion remains blocked by pilot selection and absent verified boundary geometry (`DATA-004`).
 - Workbook-to-CSV visual/cell parity remains blocked by the unavailable approved spreadsheet runtime (`DATA-007`).
 - Rendered application inspection remains blocked by the unavailable in-app browser; route-level runtime smoke checks passed (`ENV-003`).
 - Phase 3 engineering has no implementation blocker, but production routing remains intentionally disabled until verified Pune geometry and complete reviewed routing evidence are available (`ROUTING-001`).
-- Governance synchronization now has locally verified PostgreSQL claiming/leasing, Edge retrieval,
-  immutable snapshot/audit, contact-version, normalization, and generic pilot-scope primitives. It
-  is not deployed or active: all ten ward targets remain draft/unverified/non-routable; BMC ward
-  identity reconciliation, source-specific parsers, entity matching, review/publishing, environment
-  Cron/secrets, DNS-resolution hardening, and grace-period snapshot reconciliation remain open
-  (`DATA-003`, `DATA-005`, `GOVSYNC-001` through `GOVSYNC-003`).
+- Governance synchronization persistence and draft source/scope seeds are now present in staging,
+  but the Edge Function, Cron, dispatch secret, and every source remain undeployed/inactive. BMC A–E
+  and Pune's numeric model are selected only as intended pilot identities; official canonical rows,
+  geometry, source-specific parsers, matching, review/publishing, DNS hardening, and grace-period
+  reconciliation remain open (`DATA-003` through `DATA-005`, `GOVSYNC-001` through `GOVSYNC-003`).
 - Phase 4 engineering is locally complete, but the canonical bootstrap exposes zero verified routable categories, so a production complaint cannot submit until reviewed Pune geometry and routing evidence are activated (`ROUTING-001`).
 - Automatic voice transcription/media moderation and physical-device capture/resume validation require approved providers and devices (`COMPLAINT-001`, `COMPLAINT-002`).
+- Phase 5 government-workflow schema/API/UI engineering is implemented and the schema is deployed to
+  staging. The platform administrator and Pune-scoped municipal administrator now use confirmed
+  owner-controlled Auth identities; authenticated dashboard smoke remains pending. An operational
+  complaint queue still requires current verified pilot governance, routing, officer assignment,
+  and complaint records.
+- A real interactive map remains gated on provider, billing/key, and coordinate-sharing decisions
+  (`GOVDASH-001`); the implemented dashboard uses authorized textual location context.
+- Resolution evidence has checksum, size, signature, content-type, expiry, and private-access gates,
+  but full decoding, malware scanning/moderation, and scheduled Storage-object cleanup remain
+  pre-pilot work (`GOVDASH-002`).
 
 ## Technical Debt
 
 - Production Node images currently copy the verified workspace from the build stage, including development dependencies and source. This favors a correct Phase 0 build; pruning and image-size optimization are tracked for a later infrastructure task.
-- Documentation trackers currently live under `docs/` while `AGENTS.md` refers to root-level tracker names.
 - Existing-account government access lifecycle, privileged MFA, device-session binding, append-path quotas, and hosted/real-device validation remain explicitly tracked pre-launch work.
 - Expired private upload reservations and orphaned Storage objects need a PostgreSQL/platform-scheduled cleanup path before public operation (`COMPLAINT-003`).
 - Raw governance snapshot Storage needs orphan reconciliation after partial upload/finalization
   failures (`GOVSYNC-003`).
+- Private resolution evidence needs scheduled expired/orphan object cleanup and provider-backed
+  full media decoding/malware moderation before public operation (`GOVDASH-002`).
 
 ## ADRs Created
 
@@ -481,34 +610,26 @@ negative-path engineering, but it cannot produce a production complaint assignme
 - ADR-0010 — Use review-gated governance synchronization.
 - ADR-0011 — Use server-orchestrated complaint submission and private signed media uploads.
 - ADR-0012 — Use Supabase Cron, Edge Functions, and PostgreSQL leases for governance retrieval.
+- ADR-0013 — Use database-enforced government complaint workflows.
 
 ## Files Modified This Session
 
-- Shared complaint contracts/validation and the reusable typed API client under `packages/types`,
-  `packages/validation`, and `packages/api-client`.
-- Complaint draft, media, duplicate, submission, history, replay, and strict Supabase adapters under
-  `apps/api`, plus the exact citizen email callback fix under `apps/citizen-web`.
-- Accessible citizen mobile home, live photo/video/voice capture, location evidence, private upload,
-  duplicate review, emergency warning, receipt/history, protected resume state, and focused tests
-  under `apps/mobile`.
-- Mobile dependency alignment to Expo SDK 54.0.33, React Native 0.81.5, React 19.1, compatible SDK
-  54 modules, and TypeScript 5.9.3; `expo install --check`, type-check, and Android export passed.
-- Two additive Phase 4 complaint migrations, four Phase 4 pgTAP plans, regenerated four-schema
-  database types, ADR-0011, and the Phase 4 complaint-capture worklog.
-- Three additive governance synchronization migrations, the draft-only PMC/BMC source and ward
-  scope seeds, Edge fetch/snapshot runtime, contact normalizer/versioning, three pgTAP plans,
-  ADR-0012, and the governance synchronization worklog.
-- Citizen account rendering now distinguishes authenticated identity, missing/provisioning profile,
-  API/environment failure, onboarding, and complete profile states; OTP completion uses a full-page
-  transition and has regression coverage.
-- Canonical CSV/workbook bytes and hosted Supabase were not changed. Redis, BullMQ, Redis adapters,
-  caching, and Sentry remain absent.
+- Government-dashboard and admin-console code-only OTP login forms and focused authentication tests.
+- Staging/deployment, ward-identity, authentication, governance, database, architecture, and project
+  tracking documentation, including reconciliation of the governance synchronization worklog.
+- No canonical CSV/workbook, generated governance artifact, migration, seed, or ADR was created or
+  modified for the staging activation. Existing reviewed migrations/seeds were deployed unchanged.
+- Staging-only Auth identities, access assignments, and audit records were created through trusted
+  provider/RPC/operator boundaries. Temporary privileged aliases were revoked rather than deleted;
+  no demo email, UUID, OTP, credential, or secret was committed.
+- Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
 
 ## Next Recommended Task
 
-Implement fixture-backed parsers for one reviewed PMC HTML source and one BMC HTML/PDF source, then
-connect their staged output to canonical entity matching and an audited review API without automatic
-publication. In parallel, obtain the official BMC lettered-ward crosswalk, begin Phase 5
-access-scoped queue/detail engineering with synthetic fixtures, and acquire reviewed Pune routing
-evidence. Keep source/scope activation, Cron deployment, and all hosted changes blocked until the
-source contracts, ward identities, and `SEC-001`/`ENV-002` gates are complete.
+Begin Phase 6 realtime and notification delivery from the transactional complaint outbox. Define
+authorized event contracts, PostgreSQL claiming/retry/replay semantics, and single-instance
+Socket.IO delivery without Redis or BullMQ; keep cross-instance scale-out deferred. In parallel,
+continue reviewed PMC/BMC parsers and acquire the verified Pune/BMC ward, contact, assignment,
+geometry, and routing evidence needed for a production-like dashboard smoke test. First complete the
+pending staging Auth/dashboard browser smoke; do not activate sources, scopes, or routing until
+`ENV-002` and the independent data-review/security gates are closed.

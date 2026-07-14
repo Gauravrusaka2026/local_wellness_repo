@@ -337,5 +337,76 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   routing eligible.
 - The first scope seed resolves five Pune and five Brihanmumbai canonical ward codes only as draft,
   unverified, unapproved, non-routable engineering targets. Their underlying wards remain
-  placeholders; numeric BMC rows require a reviewed crosswalk to the official lettered ward
-  structure.
+  placeholders. The numeric BMC rows are not an ordinal crosswalk to the official lettered ward
+  structure; reviewed official records and a new scope version are required.
+
+## 2026-07-14 — Phase 5 Government Complaint Operations Conventions
+
+- Government complaint queues and actions use a separate API/store boundary from citizen-owned
+  complaint reads. Both share domain contracts, but an operational endpoint never falls back to a
+  citizen-ownership query.
+- Current database role and membership scope is authoritative on every read and mutation. The UI
+  may hide unavailable controls, but it never derives permission from cached role labels.
+- Moderators are read-only. Platform administrators operate globally; municipal administrators and
+  government operators operate within an authority; ward and department officers operate only in
+  their exact current scope.
+- Complaint assignments are append-and-close versions with one active row. Manual transfer stays
+  inside the current verified authority until a reviewed cross-authority policy exists.
+- Government mutations require an optimistic workflow version plus a purpose-scoped idempotency
+  key. Exact replay returns the stored result; changed key reuse fails.
+- Status transition, status history, data-minimized audit, current projection, and notification
+  outbox persistence commit in one PostgreSQL transaction. Notification delivery remains Phase 6.
+- Internal notes and operational records stay private. Only an explicitly bounded public status
+  message may enter the citizen-visible timeline.
+- Resolution evidence uses a server-allocated path and short-lived signed upload in the private
+  bucket. Finalization checks workflow/expiry before download, verifies a bounded binary signature,
+  size and SHA-256, marks rejected reservations terminal, and forces authorized signed reads to
+  download. Only finalized evidence from the current assignment that is not already linked to a
+  resolution may be submitted.
+- A changing or expired governance incumbent does not make an existing complaint disappear. The
+  current assignment remains authority-recoverable, its stale officer is no longer presented as a
+  current verified recipient, and an authorized authority/global operator may reassign it to a
+  current verified target.
+- Transfers and manual status exits must not strand scheduled inspections or active external
+  dependencies. Operators complete the inspection or resolve every active dependency before moving
+  the complaint out of that child workflow state.
+- All government workspace responses, including signed-upload/read metadata, use
+  `Cache-Control: private, no-store`; queue responses never include exact coordinates.
+- Queue responses omit coordinates. Exact complaint coordinates are available only on an
+  authorized detail response and are not sent to an external map/tile service.
+- The pnpm global virtual store is explicitly disabled in workspace configuration so local and CI
+  dependency-state verification use the same deterministic node_modules layout.
+
+## 2026-07-14 — Staging Identity and Pilot Ward Conventions
+
+### Environment and Demo Identities
+
+- The owner-confirmed hosted target is staging, not production. Its newly generated privileged and
+  database credentials remain untracked; staging deployment does not weaken production separation.
+- Demo identities are environment records, never committed seeds. Citizens use ordinary Auth
+  provisioning, the first platform administrator uses the audited one-time bootstrap, and a
+  government municipality user is a `municipal_admin` with `authority` scope created through the
+  invitation plus guarded persistence boundary.
+- Repository documents must not retain demo email addresses, Auth UUIDs, OTPs, invitation tokens,
+  database connection strings, or access credentials.
+- Code-only OTP templates require an explicit OTP verification step in citizen, government, and
+  administrator clients. Government invitation acceptance remains the separate token-hash callback
+  flow.
+- Staging demo-role corrections preserve identity/access history: grant the replacement confirmed
+  identity, revoke rather than delete the temporary role/membership rows with actor/time/effective
+  bounds, and verify singleton active privileged scopes. A trusted one-time environment correction
+  does not replace the still-required audited application lifecycle for existing-user assignment,
+  renewal, and revocation.
+
+### Pilot Ward Identity
+
+- The BMC pilot means the official administrative wards A, B, C, D, and E. It does not mean
+  electoral ward numbers and must never be implemented as `BRIH-W01 = A` or another ordinal
+  conversion of the canonical placeholders.
+- The Pune pilot uses the officially current numeric ward model, initially targeting wards 1–5 only
+  after record-specific official identity and effective-date review.
+- Existing V1 synchronization target identities are immutable. Preserve the numeric bootstrap rows
+  and V1 target records as non-routable provenance; create reviewed official ward rows and a new
+  versioned synchronization scope rather than repointing history.
+- Ward-model selection is not verification. No selected ward becomes active, routable, or suitable
+  for complaint delivery without official provenance and reviewed geometry.

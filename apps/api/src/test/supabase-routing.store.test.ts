@@ -494,6 +494,77 @@ describe('Supabase routing jurisdiction resolution', () => {
   });
 });
 
+describe('Supabase routing asset discovery', () => {
+  const assetRow = {
+    asset_id: identifiers.asset,
+    display_name: 'Verified asset 24',
+    asset_type_name: 'Streetlight',
+    distance_meters: 8.25,
+  } as const;
+
+  it('uses the bounded service-role PostGIS RPC and maps only public-safe fields', async () => {
+    const calls: RpcCall[] = [];
+    const store = createStore(async (functionName, arguments_) => {
+      calls.push({ functionName, arguments_ });
+      return { data: [assetRow], error: null };
+    });
+
+    const assets = await store.discoverRoutingAssets({
+      categoryId: identifiers.category,
+      location: routingInput.location,
+      accuracyMeters: routingInput.accuracyMeters,
+      resolvedAt,
+    });
+
+    assert.deepEqual(assets, [
+      {
+        id: identifiers.asset,
+        displayName: 'Verified asset 24',
+        assetTypeName: 'Streetlight',
+        distanceMeters: 8.25,
+      },
+    ]);
+    assert.deepEqual(calls, [
+      {
+        functionName: 'discover_routing_assets',
+        arguments_: {
+          p_category_id: identifiers.category,
+          p_longitude: 73.8567,
+          p_latitude: 18.5204,
+          p_accuracy_meters: 12,
+          p_resolved_at: resolvedAt,
+          p_limit: 25,
+        },
+      },
+    ]);
+  });
+
+  it('fails closed on duplicate, malformed, or oversized RPC results', async () => {
+    const duplicateStore = createStore(async () => ({ data: [assetRow, assetRow], error: null }));
+    const malformedStore = createStore(async () => ({
+      data: [{ ...assetRow, owner_phone: 'must-not-cross-the-boundary' }],
+      error: null,
+    }));
+    const oversizedStore = createStore(async () => ({
+      data: Array.from({ length: 26 }, (_, index) => ({
+        ...assetRow,
+        asset_id: `10000000-0000-4000-8000-${String(index + 100).padStart(12, '0')}`,
+      })),
+      error: null,
+    }));
+    const query = {
+      categoryId: identifiers.category,
+      location: routingInput.location,
+      accuracyMeters: routingInput.accuracyMeters,
+      resolvedAt,
+    };
+
+    await assert.rejects(duplicateStore.discoverRoutingAssets(query), RoutingDataAccessError);
+    await assert.rejects(malformedStore.discoverRoutingAssets(query), RoutingDataAccessError);
+    await assert.rejects(oversizedStore.discoverRoutingAssets(query), RoutingDataAccessError);
+  });
+});
+
 describe('Supabase routing candidate context', () => {
   it('decodes a consistent versioned policy, routing target, signals, and evidence', async () => {
     const calls: RpcCall[] = [];

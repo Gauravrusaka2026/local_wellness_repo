@@ -4,3 +4,6 @@ const supportedTypes: readonly EmailOtpType[] = ['invite', 'magiclink', 'email']
 
 export const getSupportedEmailOtpType = (value: string | null): EmailOtpType | null =>
   supportedTypes.includes(value as EmailOtpType) ? (value as EmailOtpType) : null;
+
+export const getAdminEmailCallbackUrl = (origin: string): string =>
+  new URL('/auth/callback', origin).toString();

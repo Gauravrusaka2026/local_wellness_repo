@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../auth/auth.module.js';
+import { AssetsController } from './assets.controller.js';
+import { AssetsService } from './assets.service.js';
 import { CategoriesController } from './categories.controller.js';
 import { CategoriesService } from './categories.service.js';
 import { JurisdictionsController } from './jurisdictions.controller.js';
@@ -10,8 +12,8 @@ import { RoutingService } from './routing.service.js';
 
 @Module({
   imports: [AuthModule],
-  controllers: [CategoriesController, JurisdictionsController, RoutingController],
-  providers: [CategoriesService, JurisdictionsService, RoutingService],
+  controllers: [AssetsController, CategoriesController, JurisdictionsController, RoutingController],
+  providers: [AssetsService, CategoriesService, JurisdictionsService, RoutingService],
   exports: [RoutingService],
 })
 // Nest uses the decorated class itself as the module token.

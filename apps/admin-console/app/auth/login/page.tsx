@@ -1,5 +1,5 @@
 import { getSafeReturnPath } from '../../../lib/auth/return-path';
-import { MagicLinkForm } from './magic-link-form';
+import { OtpSignInForm } from './otp-sign-in-form';
 
 type LoginPageProperties = Readonly<{
   searchParams: Promise<Readonly<{ error?: string | string[]; next?: string | string[] }>>;
@@ -14,7 +14,7 @@ export default async function LoginPage({ searchParams }: LoginPageProperties) {
 
   return (
     <main className="centered-page">
-      <MagicLinkForm
+      <OtpSignInForm
         callbackError={firstValue(parameters.error) === 'callback'}
         nextPath={nextPath}
       />

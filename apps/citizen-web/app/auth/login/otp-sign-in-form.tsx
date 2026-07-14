@@ -19,7 +19,7 @@ export const OtpSignInForm = ({
 }: Readonly<{ callbackError: boolean; nextPath: string }>) => {
   const [channel, setChannel] = useState<AuthChannel>('phone');
   const [error, setError] = useState<string | null>(
-    callbackError ? 'The sign-in link is invalid or expired. Request a new one.' : null,
+    callbackError ? 'The authentication request is invalid or expired. Request a new code.' : null,
   );
   const [identifier, setIdentifier] = useState('');
   const [isPending, setIsPending] = useState(false);
@@ -127,7 +127,7 @@ export const OtpSignInForm = ({
           />
           {channel === 'email' ? (
             <p className="field-hint">
-              Your email may contain both a verification code and a secure magic link.
+              We will email you a 6-digit verification code. No sign-in link is required.
             </p>
           ) : (
             <p className="field-hint">Include the country code. Standard SMS charges may apply.</p>
@@ -139,8 +139,7 @@ export const OtpSignInForm = ({
       ) : (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
           <p aria-live="polite" className="success-notice">
-            Check <strong>{normalizedIdentifier}</strong> for your code
-            {channel === 'email' ? ' or secure sign-in link' : ''}.
+            Check <strong>{normalizedIdentifier}</strong> for your 6-digit verification code.
           </p>
           <label htmlFor="otp">Verification code</label>
           <input

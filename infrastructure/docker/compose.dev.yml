@@ -18,6 +18,8 @@ services:
       API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3003,http://localhost:3004}
     ports:
       - '${API_PORT:-3001}:3001'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     init: true
     stop_grace_period: 10s
 

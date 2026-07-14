@@ -53,6 +53,11 @@ different actor, operation, or payload fails closed. `X-Request-Id` is for corre
 never substituted for this header. Media finalization is independently exact-replay safe against
 the verified object evidence.
 
+Every Phase 5 government mutation also requires `Idempotency-Key` plus an
+`expectedWorkflowVersion` in its strict body. Exact actor/key/action/payload retries replay the
+stored response. A conflicting key returns `COMPLAINT_ACTION_IDEMPOTENCY_CONFLICT`; a stale workflow
+version returns `COMPLAINT_WORKFLOW_VERSION_CONFLICT` so the dashboard reloads current state.
+
 ---
 
 ## Response Format
@@ -128,6 +133,19 @@ Representative current and later-phase contract codes:
 - `MEDIA_INTEGRITY_MISMATCH`
 - `MEDIA_FINALIZATION_CONFLICT`
 - `OFFICER_ASSIGNMENT_REQUIRED`
+- `OFFICER_ASSIGNMENT_INVALID`
+- `GOVERNMENT_ACCESS_REQUIRED`
+- `COMPLAINT_INSPECTION_NOT_FOUND`
+- `COMPLAINT_EXTERNAL_DEPENDENCY_NOT_FOUND`
+- `COMPLAINT_WORKFLOW_VERSION_CONFLICT`
+- `COMPLAINT_ACTION_IDEMPOTENCY_CONFLICT`
+- `COMPLAINT_ACTION_IN_PROGRESS`
+- `RESOLUTION_EVIDENCE_NOT_FOUND`
+- `RESOLUTION_EVIDENCE_NOT_READY`
+- `RESOLUTION_EVIDENCE_UPLOAD_EXPIRED`
+- `RESOLUTION_EVIDENCE_LIMIT_REACHED`
+- `RESOLUTION_EVIDENCE_INTEGRITY_MISMATCH`
+- `GOVERNMENT_COMPLAINT_REQUEST_INVALID`
 - `RATE_LIMITED`
 - `INTERNAL_ERROR`
 
@@ -182,6 +200,7 @@ routing audit record but creates no complaint or official assignment:
 ```text
 GET  /api/v1/routing/categories
 GET  /api/v1/routing/categories/:categoryId
+POST /api/v1/routing/assets/nearby
 POST /api/v1/jurisdictions/resolve
 POST /api/v1/routing/resolve
 ```
@@ -205,8 +224,9 @@ GET    /api/v1/complaints/:complaintId
 GET    /api/v1/complaints/:complaintId/timeline
 ```
 
-Maps, public complaint views, government workflows, realtime, governance administration, and
-human review/publication routes remain planned contracts for later phases.
+Phase 5 adds the authenticated, scope-aware government queue, detail, assignment and workflow
+surface documented below. Maps, public complaint views, realtime, governance administration,
+analytics, and human review/publication routes remain later-phase contracts.
 
 ## Governance Synchronization Runtime Boundary
 
@@ -293,6 +313,21 @@ Both routes require a valid bearer token and return only database categories who
 category are active, verified, non-placeholder, and routing-eligible. The Phase 3 seed therefore
 returns an empty list, and identifier lookup returns `ROUTING_CATEGORY_NOT_FOUND`, for its 12
 taxonomy records: they are intentionally draft, unverified, and non-routable.
+
+### Nearby Routing Assets
+
+```text
+POST /api/v1/routing/assets/nearby
+```
+
+The strict request accepts only `categoryId`, latitude/longitude, `accuracyMeters`, and offset
+`capturedAt`. The category must be an operational category that requires asset selection. A
+service-only PostGIS query independently resolves one jurisdiction and returns sanitized nearby
+options containing only asset ID, display/type name, and measured distance. Asset type, current
+spatial version, ownership, owner authority, and any configured office/department/role relationship
+must be current, verified, non-placeholder, and routing-eligible. Ambiguous jurisdiction, missing
+ownership, placeholder evidence, or no in-radius match produces no selectable option; clients cannot
+supply ownership or a routing target.
 
 ### Jurisdiction Check
 
@@ -587,14 +622,36 @@ GET /api/v1/government/access-scope
 
 Only current, active, non-expired government roles backed by an active authority membership are returned.
 
-### Planned: Queue
+### Queue and Detail
 
 ```text
 GET /api/v1/government/complaints
 GET /api/v1/government/complaints/:complaintId
+GET /api/v1/government/complaints/:complaintId/assignment-options
 ```
 
-### Planned: Complaint Actions
+Every route requires an active government access scope and returns only complaints intersecting the
+actor's current authority/ward/department role. `scopeRoleAssignmentId` may select one of the
+actor's own effective role rows when they have multiple scopes. The queue supports cursor/limit,
+named queues, status, category, ward, authority-department, officer-assignment, submitted-time, and
+complaint-number search filters. It returns no description, exact location, media, notes, or contact
+data.
+
+Authorized detail includes private description, exact verified location, submitted-media metadata,
+routing summary, versioned assignment history, status timeline, internal notes, inspections, work
+references, external dependencies, and resolution-evidence metadata. It also returns
+`workflowVersion`, current state-aware `allowedActions`, and `allowedStatusTransitions`. Assignment
+options contain only current verified, non-placeholder, routable officer assignments inside the
+complaint authority and indicate whether each can be used for assign and/or transfer. A missing,
+inactive, or cross-scope complaint is not disclosed.
+
+Each evidence item includes `availableForResolution`. It is true only for finalized evidence from
+the complaint's current assignment that is not already linked to a resolution. Evidence from a
+superseded assignment and linked items remain visible as retained history but are not offered for
+reuse. Every queue, detail, option, action, and evidence response sets `Cache-Control: private,
+no-store`.
+
+### Complaint Actions
 
 ```text
 POST /api/v1/government/complaints/:complaintId/acknowledge
@@ -602,9 +659,56 @@ POST /api/v1/government/complaints/:complaintId/assign
 POST /api/v1/government/complaints/:complaintId/transfer
 POST /api/v1/government/complaints/:complaintId/status
 POST /api/v1/government/complaints/:complaintId/internal-notes
-POST /api/v1/government/complaints/:complaintId/inspection
+POST /api/v1/government/complaints/:complaintId/inspections
+POST /api/v1/government/complaints/:complaintId/inspections/:inspectionId/complete
+POST /api/v1/government/complaints/:complaintId/work-references
+POST /api/v1/government/complaints/:complaintId/external-dependencies
+POST /api/v1/government/complaints/:complaintId/external-dependencies/:dependencyId/resolve
+POST /api/v1/government/complaints/:complaintId/resolution-evidence/upload-intents
+POST /api/v1/government/complaints/:complaintId/resolution-evidence/:evidenceId/finalize
+POST /api/v1/government/complaints/:complaintId/resolution-evidence/:evidenceId/access
 POST /api/v1/government/complaints/:complaintId/resolution
 ```
+
+All mutation bodies are strict and include `expectedWorkflowVersion`; all mutations require an
+idempotency key. The server derives the actor and rechecks current scope/capability/transition
+inside the database. Assignment/transfer appends a version and transfer cannot cross authority.
+Private notes never enter the citizen timeline. Status operations may include only a bounded
+explicit public message. Inspection completion and dependency resolution require the exact resource
+ID from the authorized detail. A resolution is rejected while a dependency is active or unless at
+least one finalized evidence item belongs to the current complaint/assignment.
+
+Assignment and transfer require an authority/global capability; ward and department scopes cannot
+widen their jurisdiction. If a referenced incumbent tenure expires, the detail treats the complaint
+as currently unassigned while retaining the former officer in assignment history. A scheduled
+inspection or active dependency suppresses transfer and manual status transitions until its exact
+completion/resolve action succeeds.
+
+Adding another dependency while already waiting preserves the current waiting state. Resolving one
+of multiple active dependencies also preserves it; only closure of the final active dependency
+advances the complaint to `work_in_progress`.
+
+Resolution-evidence intent returns a transient signed upload for the server-owned
+`resolution-evidence-private` path. The database permits at most 20 active, unlinked
+reserved/finalized evidence records for the current complaint assignment; linked or
+superseded-assignment evidence remains history and does not consume that allowance. Replaying an
+expired reservation does not mint a new token.
+
+Before downloading for finalization, the API checks the authorized locator's current complaint
+workflow version, reservation status/expiry, and declared size/checksum. Exact replay of an already
+completed finalization uses stored observed metadata without another download. A first finalization
+downloads at most 50 MiB and verifies exact size, SHA-256, Storage content type, and bounded binary
+signature detection for JPEG, PNG, WebP, HEIC/HEIF, MP4, QuickTime, or WebM. Content-type/signature,
+size, or checksum mismatch removes the reserved object and returns
+`RESOLUTION_EVIDENCE_INTEGRITY_MISMATCH`.
+
+Authorized read access returns a five-minute signed URL forced to download rather than render
+inline; it never returns a direct public object. Structured access logging records actor,
+complaint, and evidence identifiers without the signed URL or object path. Signature detection is
+not full decoding, malware scanning, or moderation. Service-only database cleanup functions can
+mark expired/failed reservation rows, but scheduled private Storage reconciliation/removal remains
+follow-up work. Successful state transitions append status history, audit, and a data-minimized
+notification-outbox event atomically. Phase 5 has no outbox delivery endpoint or worker.
 
 ### Planned: Analytics
 
@@ -698,6 +802,18 @@ signed tokens, checksums, object bytes, spoof evidence, and internal duplicate/r
 Original media and voice recordings stay in private Storage. Signed upload targets are short-lived
 and scoped to a server-reserved path; successful upload alone is not finalization. There is no
 public complaint or original-media response in Phase 4.
+
+Phase 5 government controllers apply the bearer guard to every queue, detail, option, action, and
+evidence route. The server passes the verified actor to private-schema service wrappers that
+reauthorize current profile, role, membership, scope, capability, workflow state/version, and
+verified assignment evidence. The dashboard may choose only a current role-assignment ID or an
+assignment option returned by the server; it cannot widen authority/ward/department scope. Private
+notes, exact coordinates, original media, evidence object locators, completion notes, dependencies,
+and audit metadata are excluded from logs and unauthorized responses. Signed evidence reads are
+short-lived, forced-download, and non-cacheable. All government-workspace responses are private and
+non-cacheable. Evidence access emits a structured identifier-only log; signed URLs and paths are
+never logged. Structured NestJS logging and the action audit/outbox tables are the implemented
+observability boundary; Redis, BullMQ, and Sentry are not used.
 
 The following list is the V1 security target across all later endpoint groups. Endpoint rate limits and quotas remain tracked in `AUTH-004` rather than being claimed as a Phase 1 control.
 

@@ -6,6 +6,7 @@ import { CommonModule } from './common/common.module.js';
 import { ComplaintsModule } from './complaints/complaints.module.js';
 import { ConfigurationModule } from './configuration.module.js';
 import { IdentityModule } from './identity/identity.module.js';
+import { GovernmentComplaintsModule } from './government-complaints/government-complaints.module.js';
 import { RoutingModule } from './routing/routing.module.js';
 import { SupabaseModule } from './supabase/supabase.module.js';
 
@@ -19,6 +20,7 @@ import { SupabaseModule } from './supabase/supabase.module.js';
     AdminModule,
     RoutingModule,
     ComplaintsModule,
+    GovernmentComplaintsModule,
   ],
 })
 // Nest uses the decorated class itself as the application module token.

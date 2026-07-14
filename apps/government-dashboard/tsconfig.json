@@ -12,6 +12,7 @@
     "lib/**/*.ts",
     "lib/**/*.tsx",
     "test/**/*.ts",
+    "test/**/*.tsx",
     "proxy.ts",
     ".next/types/**/*.ts"
   ],

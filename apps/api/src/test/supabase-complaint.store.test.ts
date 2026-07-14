@@ -249,6 +249,10 @@ type RpcHandler = (
 ) => Promise<Readonly<{ data: unknown; error: unknown }>>;
 
 class FakeRoutingStore extends RoutingStore {
+  public async discoverRoutingAssets(): Promise<never[]> {
+    throw new Error('Unexpected routing asset discovery.');
+  }
+
   public replay: RecordedRoutingDecision | null = recordedRoutingDecision;
   public replayCalls: Array<{ actorUserId: string; requestId: string }> = [];
 

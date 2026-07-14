@@ -180,6 +180,13 @@ is present in the engine, and the current bootstrap does not provide the verifie
 department/role crosswalks, assignments, asset ownership, confidence policy, or fallback rules
 needed for an operational route. Synthetic test records do not change that data-readiness state.
 
+The canonical `Wards.csv` records for Pune and Brihanmumbai remain immutable placeholder evidence.
+The selected pilot direction is Pune's current official numeric wards `1`–`5` and BMC's official
+administrative wards `A`–`E`, after authoritative identifiers and geometry are reviewed. Do not
+rename or promote `PUNE-W01`–`PUNE-W05` or ordinal-map `BRIH-W01`–`BRIH-W05` to the BMC letters.
+Preserve those rows and the V1 scope seed as audit history; publish reviewed canonical records and a
+new scope version when official evidence is available.
+
 ## Refresh Process
 
 The following remains the required operator workflow for a replacement repository bundle; it is not
@@ -215,5 +222,8 @@ foundation does not yet implement connectors, scheduling, parsing, review UI, or
 - Pune Municipal Corporation has no verified pilot ward geometry, operational category ownership,
   asset-owner mapping, current assignment set, confidence policy, or fallback route in the current
   bootstrap.
+- BMC administrative wards `A`–`E` and Pune's current numeric wards `1`–`5` still require official
+  identity and boundary evidence; the existing numeric placeholder rows are not an approved
+  crosswalk.
 
 These gaps are expected inputs to quarantine and later refresh work. They must not be hidden by marking the corresponding records verified.

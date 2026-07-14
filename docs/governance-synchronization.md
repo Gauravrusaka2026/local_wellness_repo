@@ -61,19 +61,19 @@ All ten rows retain their official URL, authority scope, parser key/version, exp
 exact host allowlist, and daily candidate cadence. They are intentionally `draft`, `unverified`,
 and not approved, so they cannot be claimed by the scheduler.
 
-The pilot target seed separately selects wards 1–5 for each municipality through the service-only
-`governance.sync_scope_targets` registry. The rows resolve existing canonical local-body and ward
-records by source ward code (`PUNE-W01`–`PUNE-W05` and `BRIH-W01`–`BRIH-W05`); no ward identity is
-invented in application code. All ten scope rows are `draft`, `unverified`, unapproved, and
-non-routable. A scope can become active only after an active global `platform_admin` reviews it,
-and selecting a target for synchronization never grants routing eligibility. The database permits
-that final routing gate only when the referenced canonical entity is independently active,
-verified, non-placeholder, and routing eligible.
+The V1 pilot target seed separately records five placeholder targets for each municipality through
+the service-only `governance.sync_scope_targets` registry. It resolves the bootstrap source codes
+`PUNE-W01`–`PUNE-W05` and `BRIH-W01`–`BRIH-W05`; all ten scope rows and their canonical ward rows are
+`draft`, `unverified`, unapproved, without geometry, and non-routable. Preserve them unchanged as
+bootstrap/audit history rather than promoting or silently relabelling them.
 
-The selected canonical ward rows are engineering placeholders without verified polygons or
-contacts. In particular, the numeric Brihanmumbai bootstrap rows have not been reconciled to BMC's
-official lettered ward structure. They must remain inactive for production synchronization and
-non-routable until that official identity crosswalk and the required evidence are reviewed.
+The reviewed operational synchronization direction is BMC administrative wards `A`–`E` and Pune's
+current official numeric wards `1`–`5`. The BMC letters are not an ordinal translation of
+`BRIH-W01`–`BRIH-W05`. After authoritative identity and boundary evidence is obtained, create
+reviewed canonical ward records and a new scope version. A scope can become active only after an
+active global `platform_admin` reviews it, and selecting a target for synchronization never grants
+routing eligibility. The referenced entity must independently be active, verified,
+non-placeholder, and routing eligible.
 
 Pune and Brihanmumbai are source-adapter pilots, not application branches. Source records bind to a
 database authority and dataset kind; fetch, normalization, matching, versioning, and review contain
@@ -294,6 +294,13 @@ Redis, BullMQ, Redis adapters, Redis caching, and Sentry are prohibited for this
 - focused tests for allowed transitions, terminal outcomes, provenance, explicit verification, routing enablement, ambiguity, validation errors, and placeholder quarantine;
 - package subpath export and this operating contract.
 
+The dedicated staging database was initialized on 2026-07-14 with all 23 migrations through
+`20260714124000` and the six reviewed non-production seed files. It contains 11 synchronization
+endpoints—the repository bootstrap plus ten PMC/BMC contracts—with zero active endpoints. It also
+contains 12 categories with zero operational. No Edge Function, Cron, dispatch secret, source or
+scope activation, official ward/geometry, route, complaint, application, or production deployment
+was performed.
+
 The retrieval and immutable-snapshot slice is implemented but intentionally inactive. The Edge
 function stops at `snapshot_preserved`; it does not parse, match, review, or publish. Source-specific
 PMC/BMC parsers, candidate persistence/orchestration, entity matching, repeated-disappearance
@@ -317,7 +324,8 @@ Every official source still requires operator review of:
 - retrieval cadence and freshness expectations;
 - official matching identifiers and reviewed crosswalks;
 - field-level source specificity;
-- LGD identifiers and Pune jurisdiction geometry;
+- LGD identifiers and official geometry/identity evidence for BMC administrative wards `A`–`E`
+  and Pune's current numeric wards `1`–`5`;
 - current office contacts and named incumbents;
 - department, officer-role, utility, asset-ownership, and routing mappings.
 

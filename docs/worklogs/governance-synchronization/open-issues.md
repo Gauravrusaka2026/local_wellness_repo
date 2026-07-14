@@ -21,8 +21,8 @@
 - confirm current official PMC/BMC page/API/PDF endpoints and terms/operational stability;
 - verify source-specific result counts, layouts, identifiers, effective dates, contacts and
   incumbent names against record-level evidence;
-- verify Pune ward identities and reconcile the selected BMC numeric placeholder codes to the
-  municipality's official lettered ward structure before scope activation;
+- verify Pune's current numeric ward identities and create official-source-backed BMC
+  administrative ward `A`–`E` records; never ordinal-map the retained numeric BMC placeholders;
 - review conflicts between official sources and the canonical bootstrap without rewriting either;
 - approve publication separately from routing activation and complaint-delivery use;
 - acquire verified Pune ward geometry and complete ownership/routing evidence independently of
@@ -30,7 +30,8 @@
 
 ## Environment Gates
 
-- rotate/audit previously exposed credentials before hosted integration (`SEC-001`);
+- use only the owner-confirmed replacement staging credentials and complete the historical
+  provider-log, remote/all-branch secret, and any legacy Redis-token audit (`SEC-001`);
 - keep all ten pilot source endpoints draft, unverified, and inactive until parser/security/data
   reviews pass;
 - keep all ten pilot ward scope targets draft, unverified, and non-routable until canonical identity,

@@ -5,7 +5,9 @@ import type { ComplaintDraft, ComplaintLocationCapture } from '@local-wellness/t
 import {
   complaintCaptureReducer,
   getDraftReadiness,
+  getLocationRecaptureGuidance,
   initialComplaintCaptureState,
+  isLocationEvidenceEligible,
 } from '../src/complaints/capture-state';
 import { formatComplaintIdempotencyKey } from '../src/complaints/idempotency-format';
 import {
@@ -116,6 +118,34 @@ describe('complaint capture reducer and readiness', () => {
       value: true,
     });
     assert.equal(acknowledged.duplicatesAcknowledged, true);
+  });
+
+  it('allows only verified location states to advance and gives status-specific guidance', () => {
+    const evidence = {
+      ...location(),
+      id: '33333333-3333-4333-8333-333333333333',
+      verificationScore: 0.8,
+      verificationStatus: 'partially_verified' as const,
+    };
+
+    assert.equal(isLocationEvidenceEligible(evidence), true);
+    assert.equal(isLocationEvidenceEligible({ ...evidence, verificationStatus: 'verified' }), true);
+    assert.equal(
+      isLocationEvidenceEligible({ ...evidence, verificationStatus: 'manual_review' }),
+      false,
+    );
+    assert.match(
+      getLocationRecaptureGuidance({ ...evidence, verificationStatus: 'low_accuracy' }) ?? '',
+      /outdoors/u,
+    );
+    assert.match(
+      getLocationRecaptureGuidance({ ...evidence, verificationStatus: 'suspected_spoofing' }) ?? '',
+      /mock-location/u,
+    );
+    assert.match(
+      getLocationRecaptureGuidance({ ...evidence, verificationStatus: 'unsupported_area' }) ?? '',
+      /not available/u,
+    );
   });
 });
 

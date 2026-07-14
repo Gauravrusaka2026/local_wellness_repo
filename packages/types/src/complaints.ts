@@ -20,7 +20,9 @@ export const complaintStatuses = [
   'work_order_created',
   'work_in_progress',
   'resolution_submitted',
+  'citizen_verification_pending',
   'resolved',
+  'closed',
   'transferred',
   'waiting_for_material',
   'waiting_for_external_agency',
@@ -58,15 +60,20 @@ export const complaintMediaCaptureSources = [
 export type ComplaintMediaCaptureSource = (typeof complaintMediaCaptureSources)[number];
 
 export const complaintMediaMimeTypes = [
+  'image/heic',
+  'image/heif',
   'image/jpeg',
   'image/png',
   'image/webp',
   'video/mp4',
   'video/quicktime',
+  'video/webm',
+  'audio/aac',
   'audio/mp4',
   'audio/mpeg',
   'audio/wav',
   'audio/webm',
+  'audio/x-wav',
 ] as const;
 export type ComplaintMediaMimeType = (typeof complaintMediaMimeTypes)[number];
 

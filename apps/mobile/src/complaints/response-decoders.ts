@@ -21,6 +21,7 @@ import {
   type ComplaintMediaUploadIntent,
   type ComplaintReceipt,
   type ComplaintTimeline,
+  type RoutingAssetDiscoveryResult,
   type RoutingCategory,
 } from '@local-wellness/types';
 import { z } from 'zod';
@@ -188,6 +189,29 @@ const categorySchema = z
   })
   .strict();
 
+const routingAssetDiscoverySchema = z
+  .object({
+    assets: z
+      .array(
+        z
+          .object({
+            assetTypeName: z.string().trim().min(1).max(160),
+            displayName: z.string().trim().min(1).max(240),
+            distanceMeters: z.number().finite().nonnegative().max(5_000),
+            id: z.uuid(),
+          })
+          .strict(),
+      )
+      .max(25),
+    categoryId: z.uuid(),
+  })
+  .strict()
+  .superRefine((result, context) => {
+    if (new Set(result.assets.map((asset) => asset.id)).size !== result.assets.length) {
+      context.addIssue({ code: 'custom', message: 'Asset identifiers must be unique.' });
+    }
+  });
+
 const listResultSchema = z
   .object({
     hasMore: z.boolean(),
@@ -237,6 +261,8 @@ const timelineSchema = z
 
 export const decodeRoutingCategories = (value: unknown): RoutingCategory[] =>
   z.array(categorySchema).parse(value) as RoutingCategory[];
+export const decodeRoutingAssetDiscovery = (value: unknown): RoutingAssetDiscoveryResult =>
+  routingAssetDiscoverySchema.parse(value) as RoutingAssetDiscoveryResult;
 export const decodeComplaintDraft = (value: unknown): ComplaintDraft =>
   draftSchema.parse(value) as ComplaintDraft;
 export const decodeComplaintMedia = (value: unknown): ComplaintMedia =>

@@ -44,8 +44,10 @@ approval.
 
 `supabase/seed/41_governance_sync_pilot_wards.sql` resolves `PUNE-W01`–`PUNE-W05` and
 `BRIH-W01`–`BRIH-W05` from the canonical bootstrap. The ten scope targets are draft, unverified,
-unapproved, placeholder-backed, and non-routable. The BMC numeric rows require a reviewed crosswalk
-to the official lettered ward structure before activation.
+unapproved, placeholder-backed, and non-routable. Preserve the BMC numeric rows as V1 evidence; they
+must not be ordinal-mapped to official administrative wards `A`–`E`. Reviewed official ward records
+and a new scope version are required before activation. Pune's selected numeric model likewise
+requires record-specific identity, effective-date, and geometry evidence.
 
 ## Edge Retrieval Runtime
 

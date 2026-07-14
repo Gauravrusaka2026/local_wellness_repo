@@ -10,6 +10,13 @@ import {
 } from '../data/complaint.store.js';
 import { ComplaintMediaGatewayError } from '../data/complaint-media.gateway.js';
 import {
+  GovernmentComplaintAccessDeniedError,
+  GovernmentComplaintConflictError,
+  GovernmentComplaintDataAccessError,
+  GovernmentComplaintNotFoundError,
+} from '../data/government-complaint.store.js';
+import { ResolutionEvidenceGatewayError } from '../data/resolution-evidence.gateway.js';
+import {
   DeviceBlockedError,
   DeviceRevokedError,
   IdentityDataAccessError,
@@ -127,6 +134,39 @@ export class ApiExceptionFilter implements ExceptionFilter {
       error = {
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'Complaint data or private media storage is temporarily unavailable.',
+      };
+    } else if (exception instanceof GovernmentComplaintAccessDeniedError) {
+      status = HttpStatus.FORBIDDEN;
+      error = {
+        code: 'GOVERNMENT_ACCESS_REQUIRED',
+        message: 'Verified government complaint access is required.',
+      };
+    } else if (exception instanceof GovernmentComplaintNotFoundError) {
+      status = HttpStatus.NOT_FOUND;
+      error = {
+        code: {
+          complaint: 'COMPLAINT_NOT_FOUND',
+          dependency: 'COMPLAINT_EXTERNAL_DEPENDENCY_NOT_FOUND',
+          evidence: 'RESOLUTION_EVIDENCE_NOT_FOUND',
+          inspection: 'COMPLAINT_INSPECTION_NOT_FOUND',
+        }[exception.resource],
+        message: 'The requested government complaint resource was not found.',
+      };
+    } else if (exception instanceof GovernmentComplaintConflictError) {
+      status = HttpStatus.CONFLICT;
+      error = {
+        code: exception.marker,
+        message: 'The government complaint request conflicts with the current workflow state.',
+      };
+    } else if (
+      exception instanceof GovernmentComplaintDataAccessError ||
+      exception instanceof ResolutionEvidenceGatewayError
+    ) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message:
+          'Government complaint data or private evidence storage is temporarily unavailable.',
       };
     } else if (exception instanceof RoutingDecisionIdempotencyConflictError) {
       status = HttpStatus.CONFLICT;

@@ -76,8 +76,11 @@ Responsibilities:
 Phase 4 implements the signed-in home, resumable complaint draft, current-location evidence, live
 photo/video/voice capture, private upload, duplicate review, submission receipt, and owned
 complaint history slice. Maps, notifications, feedback, reopening, background synchronization, and
-public complaint views remain later-phase work. Asset-dependent categories fail closed until a
-database-driven asset picker is implemented.
+public complaint views remain later-phase work. Asset-dependent categories now use an authenticated,
+database-driven nearby-asset picker and remain unavailable unless the category, jurisdiction,
+asset/version, ownership, and owner scope are current, verified, non-placeholder, and routable.
+The client advances only when server-derived location evidence is `verified` or
+`partially_verified`.
 
 ### Citizen Web
 
@@ -108,6 +111,20 @@ Responsibilities:
 - resolution evidence;
 - SLA monitoring;
 - KPI dashboards.
+
+Phase 5 implements the authenticated, server-rendered complaint queue and detail workspace. Queue
+filters and cursor pagination are evaluated inside the actor's current role assignment. The detail
+view includes private complaint/location/media evidence, routing and assignment summaries, immutable
+timeline/history, inspections, work references, dependencies, internal notes, and private
+resolution evidence. The UI renders only the actions returned by the server for the selected current
+role/scope and workflow state.
+
+Actions cover acknowledgement, versioned assignment or same-authority transfer, approved status
+transitions, private notes, inspection scheduling/completion, work references, external dependency
+creation/closure, private evidence upload/finalization, and resolution submission. Exact coordinates
+are shown only to an authorized government user as text. The interactive map remains an explicit
+placeholder until a provider, key, and coordinate-sharing/privacy policy are reviewed. SLA/KPI
+analytics and notification delivery remain later work.
 
 ### Admin Console
 
@@ -231,8 +248,11 @@ targets with immutable hierarchy. Activation requires an active global platform-
 review. Routing eligibility remains a separate gate and can become true only when the referenced
 canonical entity is independently active, verified, non-placeholder, and routable. The bootstrap
 selects five Pune and five Brihanmumbai ward targets only as draft/unverified/non-routable
-engineering scope. Their canonical ward rows remain placeholders, and BMC's numeric rows require a
-reviewed crosswalk to its official lettered ward structure before activation.
+engineering scope. Their canonical ward rows and V1 scope rows remain placeholder audit history.
+The next reviewed pilot scope must use official BMC administrative wards `A`–`E` and Pune's current
+official numeric wards `1`–`5`, each backed by authoritative identity and geometry evidence. The
+system must never ordinal-map `BRIH-W01`–`BRIH-W05` to BMC's lettered wards; reviewed records and a
+new scope version are required.
 
 ---
 
@@ -384,6 +404,13 @@ scheduled or claimable. The Edge function stops after `snapshot_preserved`; sour
 HTML/PDF parsers, candidate orchestration, matching, publisher, review API/UI, and Storage-orphan
 reconciliation are pending.
 
+As of 2026-07-14, the dedicated staging database contains all 23 migrations through
+`20260714124000` and all six reviewed non-production seeds. Its fail-closed state is 12 categories
+with zero operational and 11 synchronization endpoints with zero active. This validates only the
+managed database baseline: applications, the Edge Function, Cron, source/scope activation,
+official ward records or geometry, routes, complaints, and production remain undeployed or
+inactive.
+
 ### Complaint Domain
 
 - resumable complaint draft;
@@ -394,7 +421,8 @@ reconciliation are pending.
 - append-only status history;
 - durable submission replay record;
 - append-only duplicate-check run and matches;
-- resolution evidence, feedback, and reopen request in later phases.
+- private resolution evidence and versioned government resolution records;
+- feedback and citizen reopen request in later phases.
 
 Phase 4 stores complaint capture state in an unexposed, forced-RLS `complaints` schema. Clients do
 not receive schema access and use authenticated NestJS endpoints only. Narrow service-role RPCs
@@ -402,10 +430,13 @@ revalidate actor ownership and lifecycle relationships; the client cannot choose
 visibility, complaint number, storage path, authority, ward, department, officer role or
 assignment, routing rule, or routing decision.
 
-Every Phase 4 complaint is private. Exact coordinates, descriptions, original media, checksums,
-spoof signals, duplicate evidence, signed-upload tokens, and internal routing evidence are not
-public contracts. Public visibility, processed public derivatives, maps, government workflow,
-feedback, and reopening are not implemented by this phase.
+Every complaint remains private. Exact coordinates, descriptions, original media, checksums, spoof
+signals, duplicate evidence, signed-upload tokens, internal notes, and internal routing evidence are
+not public contracts. Phase 5 extends the same private boundary with versioned assignments,
+capability/transition rules, exact-replay action requests, append-only action audit, inspections,
+work references, dependencies, private resolution evidence, versioned resolution records, and a
+data-minimized notification outbox. Public visibility, processed public derivatives, maps,
+feedback, and reopening are not implemented.
 
 ### Routing Domain
 
@@ -456,10 +487,10 @@ municipality / ward / department / officer role
 Complaint, initial assignment, first history event, and receipt commit atomically
         |
         v
-Later phases: officer handles complaint
+Authorized officer handles complaint through the Phase 5 workflow
         |
         v
-Later phases: resolution evidence submitted
+Private resolution evidence finalized and resolution submitted
         |
         v
 Later phases: citizen confirms or reopens
@@ -542,6 +573,14 @@ The engine can be exercised with rollback-isolated synthetic verified records, b
 no production route from placeholder data. Engineering completion therefore remains separate from
 pilot-data validation.
 
+Before an operational routing bundle is activated, the service-only
+`report_routing_confidence_policy_conflicts` report detects overlapping eligible rule versions that
+would apply different confidence-policy versions to the same category/scope/asset context. Runtime
+routing still fails closed independently. Asset-dependent complaint capture calls a separate
+service-only PostGIS discovery function through `POST /api/v1/routing/assets/nearby`; it returns only
+sanitized identifiers, labels, and measured distances for current verified assets with verified
+ownership inside the independently resolved jurisdiction.
+
 ---
 
 ## Complaint Capture Architecture
@@ -599,6 +638,76 @@ pending.
 
 ---
 
+## Government Complaint Workflow Architecture
+
+Phase 5 keeps the dashboard, NestJS orchestration, private database state, and private Storage as
+separate trust boundaries:
+
+```text
+government dashboard + verified Supabase session
+        |
+        v
+NestJS strict request validation + bearer actor
+        |
+        v
+service-only security-definer RPC
+        |
+        +--> current role + membership + authority/ward/department scope
+        +--> role capability + current status transition
+        +--> expected workflow version + idempotency fingerprint
+        +--> current verified non-placeholder assignment evidence
+        |
+        v
+workflow mutation + status history + audit + outbox commit atomically
+```
+
+The private, forced-RLS `complaints` schema remains outside the Data API allow-list. The service key
+does not bypass business authorization: each public wrapper receives the actor from the verified
+session and rechecks the active profile, role assignment, authority membership, scope, capability,
+current assignment, and workflow state. A `platform_admin` may operate globally; municipal roles are
+authority-scoped; ward and department roles are restricted to their exact current scope; moderators
+are read-only. Placeholder, unverified, inactive, or non-routable governance evidence cannot become
+a government workflow target.
+
+Assignment changes close the previous row and append a new version, preserving the original routing
+decision and every later transfer. Transfers remain inside the complaint's authority and select
+only current verified officer assignments returned by the database. If an incumbent tenure ends,
+the complaint stays visible in its stored authorized scope, the stale officer is hidden from the
+current recipient summary, and authority/global operators can reassign it; historical assignment
+versions retain the former officer provenance. A scheduled inspection or active dependency blocks
+transfer and manual status exit so its child workflow cannot be stranded. Dependencies must be
+closed before resolution. Resolving one of several active dependencies keeps the complaint in its
+current waiting state; only the final closure advances it to work in progress. Resolution submission
+requires one or more finalized, integrity-checked private evidence objects and appends a versioned
+resolution/evidence relationship. Evidence linked to a prior resolution or uploaded under a
+superseded assignment remains in history with `availableForResolution: false` and cannot be selected
+again. Bounded public messages may enter citizen-visible status history; internal notes and
+completion notes remain private.
+
+Every mutation requires an `Idempotency-Key` and the detail's `workflowVersion`. Exact retries replay
+the prior response, conflicting reuse fails, and stale versions force a reload. Successful status
+changes append a minimal `notification_outbox` event in the same transaction. Phase 5 deliberately
+provides persistence only: no delivery worker, Redis, BullMQ, Redis adapter, or cache is present.
+Structured NestJS logs and append-only database audit events provide the current observability
+boundary; Sentry remains deferred.
+
+Every government-workspace response is explicitly `private, no-store`. Resolution evidence uses a
+15-minute reservation and a complaint-level cap of 20 current unlinked reservations/finalized
+objects. Before downloading, the API rechecks the authorized locator's workflow version, upload
+status, expiry, and declared size/checksum. An exact replay of an already completed finalization
+uses its stored verification result without downloading again.
+
+For a first finalization, the API downloads at most 50 MiB and verifies exact size, SHA-256, Storage
+content type, and a dependency-free, bounded binary signature for JPEG, PNG, WebP, HEIC/HEIF, MP4,
+QuickTime, or WebM. A mismatch removes the reserved object and fails closed. Signature checks reduce
+content-type spoofing but are not full decoding, malware scanning, or moderation. Authorized reads
+are five-minute signed URLs forced to download, and a structured access log records safe actor,
+complaint, and evidence identifiers without logging the URL or object path. Bounded service-only
+database functions can expire or fail reservation rows; scheduling and reconciling/removing expired
+private Storage objects remain follow-up work.
+
+---
+
 ## Realtime Architecture
 
 Socket.IO is used for realtime delivery.
@@ -649,7 +758,15 @@ Background work must be:
 
 ## Security Architecture
 
-This is the V1 target security architecture. Phase 1 implements the identity, current-scope authorization, RLS, audit, request-correlation, and secret-isolation controls. Phase 4 adds forced-RLS complaint persistence, owner-scoped server orchestration, exact-replay idempotency, and private signed media uploads with server-side object verification. Rate limits and broader device-risk enforcement remain tracked hardening work.
+This is the V1 target security architecture. Phase 1 implements identity, current-scope
+authorization, RLS, audit, request correlation, and secret isolation. The identity forward fix also
+backfills missing application profiles/global citizen roles for existing Auth identities without
+overwriting existing profile state or reactivating a revoked role. Phase 4 adds forced-RLS complaint
+persistence, owner-scoped server orchestration, exact-replay idempotency, and private signed media
+uploads with server-side object verification. Phase 5 adds database-enforced government scope,
+capability and transition checks, optimistic workflow versions, exact-replay action ledgers,
+append-only audit, private resolution evidence, and transaction-outbox persistence. Rate limits and
+broader device-risk enforcement remain tracked hardening work.
 
 - Supabase Auth for identity;
 - JWT verification at API;
