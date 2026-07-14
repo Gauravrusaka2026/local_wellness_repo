@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getSupportedEmailOtpType } from '../lib/auth/callback';
+import { getCitizenEmailCallbackUrl, getSupportedEmailOtpType } from '../lib/auth/callback';
 import { AuthInputError, normalizeEmail, normalizeOtp, normalizePhone } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
 import { requestCitizenOtp, signOutCitizenSession } from '../lib/auth/service';
@@ -25,6 +25,13 @@ test('allows only sign-in-safe email callback types', () => {
   assert.equal(getSupportedEmailOtpType('invite'), null);
   assert.equal(getSupportedEmailOtpType('recovery'), null);
   assert.equal(getSupportedEmailOtpType(null), null);
+});
+
+test('uses the exact allow-listed citizen email callback without query parameters', () => {
+  assert.equal(
+    getCitizenEmailCallbackUrl('http://localhost:3000'),
+    'http://localhost:3000/auth/callback',
+  );
 });
 
 test('requests phone OTP through Supabase with a normalized E.164 number', async () => {

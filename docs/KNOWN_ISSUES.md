@@ -30,6 +30,11 @@ Natural names must remain scoped by their parent jurisdiction until official ide
 
 All 70 ward rows are synthetic five-ward placeholders for 14 corporations and have pending zone, contact, and GIS fields. All corporation, municipal-council, and nagar-panchayat phone/email fields are extraction placeholders. The `Current_Officers.csv` file contains zero named people: its four `Officer Name` values are office/role descriptions or explicit incumbent placeholders.
 
+The synchronization pilot deliberately selects the five numeric Pune and five numeric Brihanmumbai
+bootstrap ward rows only as draft, unverified, non-routable targets. In particular,
+`BRIH-W01`–`BRIH-W05` are not an official BMC ward model and must be reconciled to BMC's official
+lettered ward structure through reviewed source evidence before activation.
+
 Phase 2 must not create verified officers or assignments from those labels. Placeholder rows may be retained only with an explicit placeholder/unverified state and raw-source provenance. Production-facing officer names and contacts require record-specific official verification.
 
 ### DATA-004 — No jurisdiction geometry is available
@@ -46,7 +51,7 @@ The canonical CSV corpus contains no coordinates, WKT, GeoJSON, or boundary file
 - Status: Open data-mapping task
 - Discovered: 2026-07-13
 
-Five ward rows refer to `Vasai-Virar City Municipal Corporation`, while the corporation table uses `Vasai-Virar Municipal Corporation`. Brihanmumbai is represented by one slash-delimited two-district value and therefore requires a local-body-to-district join rather than one district foreign key.
+Five ward rows refer to `Vasai-Virar City Municipal Corporation`, while the corporation table uses `Vasai-Virar Municipal Corporation`. Brihanmumbai is represented by one slash-delimited two-district value and therefore requires a local-body-to-district join rather than one district foreign key. Its five numeric pilot ward placeholders also require an explicit crosswalk to the official lettered ward structure.
 
 Only 6 of 18 routing primary department/agency labels exactly match a department row. Officer destinations are mostly composite free-text labels: only 1 of 18 first-recipient, 2 of 18 first-escalation, and 0 of 18 second-escalation values exactly match a durable officer role. All 18 routing notes state that official department/local-body mapping is required despite a source status of `Active`.
 
@@ -84,15 +89,188 @@ The committed governance generator intentionally reproduces the hash-pinned Phas
 
 Do not overwrite the current canonical bundle or use the baseline generator as an unreviewed in-place refresh. Before importing a replacement dataset, implement a reviewed delta workflow that reports additions, removals, hierarchy/identifier changes and version closures, then applies the accepted change through an additive seed/version artifact or migration.
 
+### GOVSYNC-001 — Governance synchronization is not yet production-operational
+
+- Severity: High for sustained production routing accuracy
+- Status: Retrieval/versioning slice implemented; parsing, review, publication, and deployment open
+- Discovered: 2026-07-13
+
+The hash-pinned Phase 2 importer is a reproducible bootstrap pipeline, not a permanent government-source synchronization service. Phase 3 now supplies typed stage ports, the enforced run lifecycle, deterministic publication gates, a forced-RLS source/run/snapshot/candidate/change/review persistence model, append-only review events, and a private raw-snapshot Storage bucket.
+
+The 2026-07-14 operational slice adds exact SHA-256 source-contract approval, one-source PostgreSQL
+claims, heartbeat-protected short leases, bounded retry state, service-only lifecycle RPCs, a
+dispatch-secret-protected Edge fetcher, conditional HTTP 304 handling, immutable content-addressed
+Storage writes, structured audit events, durable review-bound versioned contact channels, and a pure
+contact normalizer. Ten official PMC/BMC endpoints are registered only as draft, unverified,
+inactive source definitions. No source was scheduled or activated, and no retrieved data was
+published or applied to hosted Supabase.
+
+The slice also adds generic service-only synchronization scope targets and selects five canonical
+ward placeholders per pilot municipality. All ten targets remain draft, unverified, unapproved, and
+non-routable. Scope activation requires active-global-platform-admin review and never bypasses the
+referenced entity's independent routing gate.
+
+The production subsystem still needs source-specific PMC/BMC HTML/API/PDF parsers, retained parser
+fixtures, canonical entity matching, change detection, an operator review API/UI, transactional
+append/close publishers for every supported entity/version type, disappearance/conflict policy,
+retention/reconciliation, environment Cron/secrets, and operational monitoring. Those capabilities
+must be exercised against reviewed official sources before synchronization is described as
+operational. Automated jobs must never overwrite the canonical CSV bootstrap files or promote
+placeholder, unverified, conflicting, stale, or merely source-verified records.
+
+The publisher must transactionally reload and bind the persisted run, change set, proposals,
+candidate matches and latest reviews rather than trusting application-supplied arrays. The Phase 3
+eligibility helper validates match-to-candidate identity and exact placeholder quarantine invariants,
+but authoritative run/change-set binding belongs to that not-yet-implemented publisher.
+
+### GOVSYNC-002 — Official-source fetches need DNS-resolution and rebinding enforcement
+
+- Severity: High before activating remote sources
+- Status: Open security hardening task
+- Discovered: 2026-07-14
+
+The Edge fetcher rejects non-HTTPS URLs, credentials, non-standard ports, IP literals, local/internal
+host suffixes, and redirects outside each source's exact host allowlist. It does not yet resolve the
+hostname and reject loopback, private, link-local, reserved, or changed DNS answers before and after
+connection. A compromised or misconfigured DNS record could therefore bypass string-level host
+validation.
+
+Keep all source endpoints inactive until the runtime performs resolver-backed address checks at
+each redirect/connection boundary or the platform provides an equivalent reviewed egress policy.
+Retain the current URL/host controls as defense in depth, and add deterministic tests for IPv4,
+IPv6, rebinding, CNAME, redirect, and resolver-failure cases.
+
+### GOVSYNC-003 — Partial snapshot persistence needs orphan reconciliation
+
+- Severity: Medium before scheduled retrieval
+- Status: Open operational hardening task
+- Discovered: 2026-07-14
+
+Raw snapshot bytes are written to private content-addressed Storage before the database completion
+RPC records and links them. If Storage succeeds and database finalization fails, a safe retry can
+reuse the same verified object, but a permanently failed run can leave an object without a database
+reference. The Edge function intentionally retains a newly created object when finalization fails or
+its outcome is ambiguous: eager deletion could race a late commit that has already linked the object.
+The current implementation has no periodic grace-period reconciliation or retention process.
+
+Add an idempotent scheduled reconciler that lists only the dedicated private bucket, verifies the
+content-addressed path/digest, waits an approved grace period, rechecks for late committed snapshot
+links, preserves referenced snapshots, quarantines or removes aged true orphans under an approved
+retention policy, and records every action in synchronization audit tables. Do not introduce Redis
+or BullMQ.
+
+### ROUTING-001 — Verified Pune pilot routing data is unavailable
+
+- Severity: High for operational Phase 3 routing
+- Status: Engineering implemented; data validation pending
+- Discovered: 2026-07-13
+
+The generic routing schema, PostGIS queries, deterministic evaluator, authenticated API contracts,
+confidence/fallback behavior, and decision-audit boundary can be tested with rollback-isolated
+synthetic verified fixtures. That engineering does not make the bootstrap production-routable.
+
+Pune Municipal Corporation still requires reviewed municipality and selected-ward polygons,
+current LGD identifiers where applicable, authority-department availability, durable officer roles,
+current officer assignments where safely verified, asset types/assets/owners for asset-dependent
+categories, operational category records, confidence-policy versions, route-rule versions, and
+complete fallback paths. The 12 seeded categories are draft, unverified, and non-routable, and all
+Phase 2 placeholder records remain excluded. Until those inputs pass record-specific official-source
+review, a real Pune coordinate must not produce a production route.
+
+### ROUTING-003 — Conflicting applicable confidence policies need activation-time validation
+
+- Severity: Medium for operational routing configuration
+- Status: Runtime fails closed; activation tooling pending
+- Discovered: 2026-07-13
+
+Each route-rule version references one verified confidence-policy version. It is still possible for
+two otherwise applicable rules in the same category/jurisdiction context to reference different
+policy versions. The API adapter rejects that context rather than silently comparing scores produced
+under different policies, so the condition cannot generate an automatic route, but it appears as an
+unavailable configuration at request time.
+
+Before activating Pune routing data, add a reviewed configuration report or publication-time check
+that detects simultaneously applicable rules with conflicting policy versions across authority,
+local-body, ward, asset and effective-time scope. Retain the runtime fail-closed guard as defense in
+depth.
+
+### COMPLAINT-001 — Transcription and media moderation providers are not configured
+
+- Severity: Medium before public pilot
+- Status: Engineering fallback complete; provider integration pending
+- Discovered: 2026-07-14
+
+Phase 4 records private voice evidence and explicit processing/moderation states, but no approved
+speech-to-text or media-moderation provider has been selected. The mobile client therefore states
+that transcription is unavailable, never invents text, and requires the citizen to type and confirm
+the complaint description. Media remains pending rather than being represented as automatically
+reviewed.
+
+Select providers only after privacy, retention, regional processing, cost, failure, and deletion
+requirements are approved. Implement processing without Redis or BullMQ, preserve the original
+private evidence, require user confirmation of normalized text, and add retry/audit/provider-failure
+coverage before claiming automatic transcription or moderation.
+
+### COMPLAINT-002 — Complete complaint capture needs physical-device and hosted smoke tests
+
+- Severity: High before pilot launch
+- Status: Local engineering verified; device/environment validation pending
+- Discovered: 2026-07-14
+
+The mobile unit suites and Android Expo export pass, and database/API integration covers the secure
+submission path with rollback-isolated verified fixtures. This environment had no connected physical
+device or in-app browser target. Camera, video, microphone, foreground GPS, mock-location behavior,
+OS protected storage, interrupted upload recovery, deep links, delivered email callbacks, and
+network transitions therefore still require representative Android/iOS and managed-environment
+testing. The canonical bootstrap also exposes zero operational categories, so production-like
+submission must wait for reviewed Pune routing evidence rather than activating placeholders.
+
+### COMPLAINT-003 — Expired private upload reservations need scheduled cleanup
+
+- Severity: Medium before sustained public use
+- Status: Open operational hardening task
+- Discovered: 2026-07-14
+
+Upload reservations expire and cannot be submitted after their lifecycle window, while failed
+integrity checks remove the mismatched object immediately. A client that abandons an upload after
+object transfer can still leave an expired reservation or orphaned private object. Phase 4 does not
+yet run a cleanup scheduler.
+
+Add an idempotent PostgreSQL/platform-scheduled cleanup operation that claims expired reservations,
+removes only their exact private object locators, records the outcome, and tolerates missing objects.
+Do not introduce Redis or BullMQ for this task.
+
 ### ENV-003 — Rendered application smoke test needs an in-app browser session
 
 - Severity: Low
 - Status: Open validation-environment follow-up
 - Discovered: 2026-07-13
 
-The citizen web, government dashboard and admin console started successfully and their public/auth routes, protected redirects and visible server-rendered copy were verified over HTTP. The approved in-app browser had no connected browser target during the recovery session, so viewport layout, interaction and screenshot inspection could not be completed.
+The citizen web and API started successfully during Phase 3 verification. Citizen `/` and
+`/auth/login`, the expected API root 404 envelope, unauthenticated category rejection, and an
+authenticated zero-operational-category response were verified over HTTP. The approved in-app
+browser had no connected target, so viewport layout, interaction, and screenshot inspection could
+not be completed.
 
-Repeat the visual smoke test when the in-app browser is connected. This is not evidence of an application runtime failure and Phase 2 intentionally adds no new governance UI.
+Repeat the visual smoke test when the in-app browser is connected. This is not evidence of an
+application runtime failure, and Phase 3 intentionally adds no routing UI.
+
+### ENV-004 — Citizen account data requires one aligned migrated environment
+
+- Severity: Medium for local and hosted account testing
+- Status: UI failure handling resolved; environment alignment and hosted validation pending
+- Discovered: 2026-07-14
+
+The citizen account route authenticates with Supabase and reads its profile through the NestJS API.
+If the browser Auth client and API target different Supabase environments, the API is stopped, or
+the selected database has not applied the Phase 1 profile trigger/migrations, a valid Auth session
+cannot produce the expected `public.profiles` response. This was previously experienced as an empty
+account surface.
+
+The route now validates the API response and visibly distinguishes signed-in identity, onboarding,
+profile provisioning/unavailability, and API failure, with retry and sign-out actions. Operators
+must still configure the citizen web and API against the same fully migrated local or hosted
+Supabase environment and complete delivered-link/SSR-cookie testing under `AUTH-005`/`ENV-002`.
 
 ### SEC-001 — Exposed environment credentials require rotation
 
@@ -176,16 +354,6 @@ Authenticated clients can submit unlimited client-reported session events and ca
 
 Local email and delivered-invite flows pass, and phone paths have unit coverage. Real SMS delivery, Expo development-build deep links, OS SecureStore behavior, browser cookie attributes and hosted callback URLs still require device/environment smoke tests.
 
-### AUTH-006 — Citizen email magic links fall back to the landing page
-
-- Severity: High for citizen browser sign-in
-- Status: Open defect
-- Discovered: 2026-07-13
-
-The citizen web client requests a query-bearing `/auth/callback?next=/account` redirect, while the local Supabase allow-list contains only the exact queryless callback. Supabase therefore falls back to the configured site URL, so the PKCE authorization code reaches the static landing page and is never exchanged for a session. When sign-in begins on `localhost` but the fallback uses `127.0.0.1`, the host-scoped PKCE verifier is also unavailable.
-
-Use the exact same-origin queryless callback for the current citizen flow, which already defaults safely to `/account`, and add a regression test that follows a delivered email through the Next.js callback and SSR cookie creation. Apply the equivalent exact callback configuration and smoke test to every managed environment before activation.
-
 ### OPS-001 — Production container images are not pruned
 
 - Severity: Low
@@ -207,6 +375,53 @@ Evaluate pnpm deployment pruning or service-specific production dependency packa
 Resolve both in a documentation-only change after confirming the intended canonical locations; do not create duplicate trackers.
 
 ## Resolved Issues
+
+### MOB-001 — Mobile Expo SDK was incompatible with the current Android Expo Go client
+
+- Severity: High for local mobile testing
+- Status: Resolved locally; physical-device smoke remains under `COMPLAINT-002`
+- Discovered: 2026-07-14
+- Resolved: 2026-07-14
+
+The mobile workspace previously targeted an unsupported newer Expo SDK and could not open in the
+user's Android Expo Go client, which supports SDK 54. The workspace is now aligned to Expo SDK
+54.0.33, React Native 0.81.5, React 19.1, compatible SDK 54 native modules, and TypeScript 5.9.3.
+`expo install --check`, mobile strict type-check, and the Android export passed (1,202 modules).
+Camera, microphone, GPS, SecureStore, deep-link, and interruption behavior still require the
+separate representative physical-device test tracked by `COMPLAINT-002`.
+
+### AUTH-006 — Citizen email magic links used a non-allow-listed callback
+
+- Severity: Previously high for citizen browser sign-in
+- Status: Resolved in code on 2026-07-14
+
+The citizen web client now requests the exact queryless same-origin `/auth/callback` URL already
+handled by the PKCE callback route, whose safe default destination is `/account`. Unit regression
+coverage prevents query parameters from being reintroduced into the provider redirect. Delivered
+hosted-link, cookie, and cross-device behavior remains an environment validation task under
+`AUTH-005` and `ENV-002`, not a known callback-construction defect.
+
+### ROUTING-002 — Duplicate detection was not connected to complaints
+
+- Severity: Previously medium for Phase 4 complaint capture
+- Status: Resolved on 2026-07-14
+
+Phase 4 adds versioned duplicate-policy selection, bounded private candidate retrieval, deterministic
+scoring, persisted result evidence, and an authenticated citizen suggestion API. Responses expose
+only complaint number/category/status/time, approximate distance, and score; they omit identity,
+description, exact location, and media. Suggestions require explicit acknowledgement and are never
+merged automatically.
+
+### ROUTING-004 — Routing HTTP retries were not replay-idempotent
+
+- Severity: Previously medium before automatic client retries
+- Status: Resolved on 2026-07-14
+
+Routing now accepts a distinct `Idempotency-Key`, reloads the actor-scoped stored decision before
+evaluation, returns the original sanitized response across clock/configuration changes, and rejects
+key reuse with different category, asset, location, accuracy, or capture time. Complaint submission
+uses its own replay record and returns the stored receipt without recomputing routing or creating a
+second complaint.
 
 ### DB-001 — Authority scope has no governance foreign key
 

@@ -73,6 +73,12 @@ Responsibilities:
 - reopening;
 - nearby complaint map.
 
+Phase 4 implements the signed-in home, resumable complaint draft, current-location evidence, live
+photo/video/voice capture, private upload, duplicate review, submission receipt, and owned
+complaint history slice. Maps, notifications, feedback, reopening, background synchronization, and
+public complaint views remain later-phase work. Asset-dependent categories fail closed until a
+database-driven asset picker is implemented.
+
 ### Citizen Web
 
 Responsibilities:
@@ -82,6 +88,12 @@ Responsibilities:
 - account access;
 - locality map;
 - public transparency pages.
+
+The current account slice treats Supabase Auth and the application profile as separate boundaries.
+The SSR callback establishes the session; the page then loads the validated profile through the
+NestJS API. It renders explicit onboarding, missing-profile, and API-unavailable states rather than
+showing a blank account or trusting Auth metadata as application state. Web, API, and Auth must use
+the same Supabase environment.
 
 ### Government Dashboard
 
@@ -169,6 +181,59 @@ Responsibilities:
 - government portal synchronization;
 - contact data refresh jobs.
 
+These are target responsibilities, not a claim that each worker exists. Phase 4 performs its capped
+duplicate evaluation synchronously through PostgreSQL plus the pure routing package;
+transcription, media processing/moderation, cleanup, and notifications are not operational. The
+governance retrieval slice runs separately through a Supabase Scheduled Edge Function rather than
+this worker process; its source schedule is not active by default. No Redis, BullMQ, or Sentry
+dependency backs either boundary.
+
+### Governance Synchronization
+
+The permanent synchronization subsystem uses this review-gated topology:
+
+```text
+official government source
+  -> Supabase Cron
+  -> custom-secret governance-sync-fetch Edge Function
+  -> PostgreSQL FOR UPDATE SKIP LOCKED claim + short lease
+  -> exact-host allowlisted HTTPS retrieval
+  -> immutable content-addressed private Storage snapshot
+  -> source-specific parser
+  -> pure normalizer and validator
+  -> entity matching and change detection
+  -> attributed human review
+  -> versioned production record
+```
+
+The implemented Edge function owns only claim, fetch, and snapshot preservation. PostgreSQL is the
+coordination and audit source of truth: it permits exactly one source claim per dispatch, prevents
+concurrent claims, fails and backs off expired leases without immediately reclaiming them, links
+conditional `304` responses to prior evidence, and records bounded retry backoff. Edge leases are
+300–900 seconds (300 by default), the trusted database boundary permits 180–900 seconds, and the
+function heartbeats before and after Storage persistence.
+
+Each source contract has a deterministic SHA-256. Activation requires exact approval of the current
+hash by an active global platform administrator; supported MIME types, HTTPS port 443, no fragments,
+and exact hosts are database invariants. Snapshot finalization verifies the corresponding
+`storage.objects` size/MIME metadata, referenced objects become immutable, and the Edge adapter
+retains content-addressed bytes after a failed or ambiguous finalization. Grace-period reconciliation
+checks for a late database commit before removing a true orphan, avoiding an eager-delete race. The
+source-contract hash is introduced with nullable/backfill/`NOT NULL` migration sequencing so
+populated databases upgrade safely. The environment-specific Cron job and dispatch secret are
+deployment configuration. No pilot source is active in the repository seed, and DNS/private
+resolved-address enforcement, reconciliation, parsers, matching, review API/UI, and publication
+remain production gates.
+
+Pilot synchronization coverage is database data, not an application branch. The service-only,
+forced-RLS `governance.sync_scope_targets` registry selects canonical authority, local-body, or ward
+targets with immutable hierarchy. Activation requires an active global platform-administrator
+review. Routing eligibility remains a separate gate and can become true only when the referenced
+canonical entity is independently active, verified, non-placeholder, and routable. The bootstrap
+selects five Pune and five Brihanmumbai ward targets only as draft/unverified/non-routable
+engineering scope. Their canonical ward rows remain placeholders, and BMC's numeric rows require a
+reviewed crosswalk to its official lettered ward structure before activation.
+
 ---
 
 ## Monorepo Boundaries
@@ -187,14 +252,16 @@ Business logic should not be implemented directly inside React components.
 - database helpers;
 - migration utilities;
 - query abstractions;
-- test fixtures.
+- test fixtures;
+- governance-synchronization stage, lifecycle, publication-eligibility, and pure contact-normalizer
+  contracts.
 
 #### `packages/api-client`
 
-- typed HTTP client;
-- generated API models;
-- authentication interceptors;
-- error normalization.
+- platform-neutral authenticated HTTP client;
+- injected token and fetch boundaries;
+- strict response decoders supplied by each consumer;
+- idempotency-key propagation, cancellation, and safe error normalization.
 
 #### `packages/types`
 
@@ -212,12 +279,14 @@ Business logic should not be implemented directly inside React components.
 
 #### `packages/routing-engine`
 
-- jurisdiction matching;
-- category routing;
-- asset ownership matching;
-- officer-role resolution;
-- fallback rules;
-- routing explanation.
+- GIS and routing data-provider abstractions;
+- evidence eligibility;
+- category and asset-ownership routing;
+- department, officer-role, and assignment resolution;
+- database-materialized fallback candidate ranking;
+- confidence and ambiguity evaluation;
+- routing explanation;
+- configurable duplicate scoring.
 
 #### `packages/design-system`
 
@@ -281,29 +350,78 @@ State, state-agency, district, local-body, and utility identities reference the 
 
 Boundary, assignment, and routing-reference versions retain UTC effective periods and append history instead of replacing it. PostgreSQL temporal exclusion constraints prevent overlapping non-draft versions, and PostGIS `MultiPolygon` geometry uses SRID 4326, valid longitude/latitude bounds and GiST indexing. Because the supplied data has no usable polygons, the baseline seed creates no boundary version and therefore cannot claim real jurisdiction routing.
 
+Phase 3 establishes the permanent governance-synchronization foundation without turning source
+retrieval into automatic publication. The current operational slice adds reviewed-source claims,
+short PostgreSQL leases, safe generic HTTPS retrieval through a custom-secret Supabase Edge
+Function, immutable raw Storage snapshots, conditional `304` reuse, bounded retry scheduling, and
+append-only events/evidence. Source definitions, runs, normalized candidates, detected changes,
+review items, contact versions, and review events remain inside the private governance boundary.
+The typed `@local-wellness/database/governance-sync` contracts keep retrieval, preservation,
+normalization, matching, change detection, review, and transactional publication as separate ports.
+
+Synchronization follows a mandatory review gate:
+
+```text
+queued -> retrieving -> snapshot_preserved -> normalizing -> matching
+       -> detecting_changes -> awaiting_review -> approved -> publishing -> published
+```
+
+Rejected and failed runs are terminal; a retry creates a new run. Source claims and matching scores
+cannot verify data automatically. Placeholder evidence may only remain quarantined and
+non-routable. The repository CSV bootstrap stays immutable and separate from official-source
+snapshots.
+
+Official contact identity is separated from changing values. `contact_channels` binds one durable
+authority, local body, ward, department, office, role, officer, assignment, utility, or emergency
+contact to a channel type, visibility, and intended use. `contact_channel_versions` append values
+with effective periods and exact snapshot/record provenance. Source verification only stages a
+value. Public visibility requires an active, non-placeholder, manually reviewed published version;
+complaint delivery additionally requires a separately approved public-official complaint-intake
+channel. Existing contact columns are migration-only and cannot be overwritten.
+
+The seed registers ten PMC/BMC pilot endpoints as draft/unverified contracts. No source is
+scheduled or claimable. The Edge function stops after `snapshot_preserved`; source-specific
+HTML/PDF parsers, candidate orchestration, matching, publisher, review API/UI, and Storage-orphan
+reconciliation are pending.
+
 ### Complaint Domain
 
-- complaint;
-- category;
-- subcategory;
-- media;
-- location evidence;
-- status history;
-- assignment;
-- resolution evidence;
-- feedback;
-- reopen request.
+- resumable complaint draft;
+- append-only exact-location evidence;
+- private media reservation and verified finalization;
+- submitted private complaint;
+- server-derived initial assignment;
+- append-only status history;
+- durable submission replay record;
+- append-only duplicate-check run and matches;
+- resolution evidence, feedback, and reopen request in later phases.
+
+Phase 4 stores complaint capture state in an unexposed, forced-RLS `complaints` schema. Clients do
+not receive schema access and use authenticated NestJS endpoints only. Narrow service-role RPCs
+revalidate actor ownership and lifecycle relationships; the client cannot choose official status,
+visibility, complaint number, storage path, authority, ward, department, officer role or
+assignment, routing rule, or routing decision.
+
+Every Phase 4 complaint is private. Exact coordinates, descriptions, original media, checksums,
+spoof signals, duplicate evidence, signed-upload tokens, and internal routing evidence are not
+public contracts. Public visibility, processed public derivatives, maps, government workflow,
+feedback, and reopening are not implemented by this phase.
 
 ### Routing Domain
 
-- jurisdiction boundary;
-- asset;
-- asset owner;
-- routing rule;
-- routing decision;
-- fallback route;
-- SLA policy;
-- escalation rule.
+- issue domain, category hierarchy, and aliases;
+- category-to-asset requirements;
+- stable assets with versioned spatial records;
+- versioned asset ownership;
+- stable routing rules with versioned scope, targets, and fallback paths;
+- versioned confidence and duplicate-detection policies;
+- append-only routing decisions;
+- SLA and escalation rules in later phases.
+
+Phase 3 stores these records in a private, forced-RLS `routing` schema. The 12 pilot taxonomy rows
+are engineering records only: draft, unverified, and non-routable. Pune Municipal Corporation is a
+reference municipality for architecture and tests, not an application branch or verified routing
+dataset.
 
 ### Communication Domain
 
@@ -319,76 +437,165 @@ Boundary, assignment, and routing-reference versions retain UTC effective period
 ## Core Workflow
 
 ```text
-Citizen captures media
+Citizen selects a database-driven category and describes the issue
         |
         v
-GPS location verified
+Current GPS evidence verified against PostGIS/category thresholds
         |
         v
-Complaint category selected
+Live media uploads privately and passes server integrity checks
         |
         v
-Duplicate check
+Citizen reviews advisory duplicate suggestions
         |
         v
-Complaint submitted
+Server claims an idempotent submission and resolves routing:
+municipality / ward / department / officer role
         |
         v
-Routing engine resolves:
-municipality
-ward
-department
-officer role
-SLA
+Complaint, initial assignment, first history event, and receipt commit atomically
         |
         v
-Complaint assigned
+Later phases: officer handles complaint
         |
         v
-Officer handles complaint
+Later phases: resolution evidence submitted
         |
         v
-Resolution evidence submitted
-        |
-        v
-Citizen confirms or reopens
+Later phases: citizen confirms or reopens
 ```
 
 ---
 
 ## Routing Architecture
 
-Routing must use:
+Phase 3 splits spatial and relational evidence loading from deterministic evaluation:
 
-1. GPS point;
-2. municipality polygon;
-3. ward polygon;
-4. category;
-5. subcategory;
-6. asset type;
-7. asset ownership;
-8. active routing rule;
-9. department;
-10. officer role;
-11. officer assignment;
-12. SLA and escalation rule.
-
-Routing must return an explanation record.
-
-Example:
-
-```json
-{
-  "municipalityId": "uuid",
-  "wardId": "uuid",
-  "departmentId": "uuid",
-  "officerRoleId": "uuid",
-  "officerAssignmentId": "uuid",
-  "routingRuleId": "uuid",
-  "confidence": 0.94,
-  "fallbackUsed": false
-}
+```text
+authenticated location + category request
+        |
+        v
+service-only PostGIS jurisdiction RPC
+        |
+        v
+service-only current routing-candidate RPC
+        |
+        v
+pure @local-wellness/routing-engine evaluator
+        |
+        +--> routed
+        +--> manual_review
+        +--> mapping_required
+        +--> unsupported_area
+        |
+        v
+append-only decision evidence + sanitized API result
 ```
+
+The `governance` and `routing` schemas are not exposed through PostgREST. Narrow `public` RPCs are
+executable only by the server service role. `ST_Covers` supplies exact boundary inclusion, while
+accuracy-aware `ST_DWithin` queries treat all verified boundaries within the reported uncertainty
+radius as evidence. Multiple viable jurisdictions remain ambiguous instead of being resolved by an
+arbitrary ordering. Location evidence above 5,000 metres is rejected before database access. GiST
+geography indexes support jurisdiction-radius and asset-radius queries.
+
+Candidate loading resolves all identifiers from current database records:
+
+1. verified state, optional district/taluka, municipality and optional ward boundary versions;
+2. verified category and optional required asset type/asset;
+3. current spatial asset version and asset-owner version;
+4. current authority and authority-department availability;
+5. durable department and officer role;
+6. optional current verified officer assignment;
+7. current rule version, confidence policy, priority, and fallback path.
+
+The service adapter requires the candidate's full hierarchy and five-level boundary-version vector
+to equal the independently resolved jurisdiction. Asset candidates retain the exact asset version,
+distance and ownership version. SQL caps candidate output at 100 rows using a stable ordering to
+bound runtime work; conflicting policy versions for one applicable context fail closed.
+
+The evaluator independently rejects inactive, expired, unverified, placeholder, or non-routable
+evidence. It prefers direct rules before fallbacks, then more specific asset/ward scope, configured
+priority, and confidence. A database-provided weighted policy determines automatic, manual-review,
+and mapping-required thresholds. Competing targets inside the configured ambiguity delta require
+manual review; a stable identifier is used only for deterministic output ordering.
+
+Every decision retains the actor, request ID, exact point, accuracy, capture/resolution times, full
+state/district/taluka/local-body/ward context and boundary versions, exact asset version/distance,
+selected target/version identifiers, confidence, fallback depth, ambiguity count, and sanitized
+explanation metadata. The API requires a real `Idempotency-Key`; an exact actor/key/input replay
+returns the stored decision and a conflicting reuse is rejected. A complaint submission owns a
+stable routing request ID and reuses the same stored routing decision across an exact submission
+retry. Exact coordinates and internal candidate evaluations remain service-only. Citizen-facing
+responses contain the selected target, score band, reason, policy/version, boundary versions,
+selected rule/version, and fallback summary, but no officer contact or candidate rejection graph.
+
+The duplicate-detection package scores configurable category, distance, time, text-similarity,
+media-hash, and asset evidence. Phase 4 connects it to capped, versioned-policy candidate loading,
+append-only run/match persistence, and an authenticated advisory endpoint. The response exposes
+only a complaint reference, category, coarse distance, public status, timestamp, and aggregate
+score. Suggestions are acknowledged before a separate submission; no record is merged or promoted
+automatically.
+
+The bootstrap has no verified Pune polygons, assignments, operational rules, or confidence policy.
+The engine can be exercised with rollback-isolated synthetic verified records, but it must return
+no production route from placeholder data. Engineering completion therefore remains separate from
+pilot-data validation.
+
+---
+
+## Complaint Capture Architecture
+
+Phase 4 keeps client capture, private object transfer, routing, and official persistence as separate
+trust boundaries:
+
+```text
+signed-in mobile client
+        |
+        +--> resumable server draft + exact location evidence
+        |
+        +--> signed upload intent --> private Storage object
+        |                              |
+        |                              v
+        |                     API size/MIME/SHA-256 verification
+        |
+        +--> advisory duplicate check
+        |
+        v
+durable submission claim + stable routing request ID
+        |
+        v
+stored routing decision
+        |
+        v
+atomic complaint + assignment + first history event + replay receipt
+```
+
+Draft creation, media reservation, routing, and submission use operation-specific idempotency
+keys. The API stores a SHA-256 of each raw key plus a separate operation-scoped canonical request
+fingerprint; exact retries replay and conflicting reuse fails closed. Request-correlation
+identifiers are not substituted for idempotency keys. Complaint creation succeeds only when the
+stored draft, verified or partially verified PostGIS location evidence, active verified category,
+finalized media, duplicate acknowledgements, optional emergency acknowledgement, and routed
+decision all agree.
+
+The API reserves owner/draft/media-scoped opaque paths and returns a transient private signed-upload
+token. It then downloads/inspects the stored object and compares MIME type, byte size, and SHA-256
+with both reservation and finalization evidence before marking it finalized. Original photo/video
+and voice objects remain private. Processing and moderation states exist, but transcription,
+moderation, public derivatives, thumbnails in Storage, and retention cleanup are not operational.
+
+Mobile SQLite stores only workflow pointers, non-secret idempotency keys, pending local-file
+metadata, and checksums. It stores no bearer token, signed-upload token, complaint description, or
+exact coordinate. An interrupted upload's capture location is held separately in device-only
+SecureStore. Offline resume is supported, but network operations run only while the app is active
+and connected.
+
+The local bootstrap exposes zero operational categories because verified Pune polygons, routes,
+duplicate policies, and related governance evidence are unavailable. Rollback-isolated synthetic
+tests prove the positive workflow without making placeholder data routable. Hosted activation,
+physical-device capture, provider-backed processing, and final operational policy validation remain
+pending.
 
 ---
 
@@ -442,7 +649,7 @@ Background work must be:
 
 ## Security Architecture
 
-This is the V1 target security architecture. Phase 1 implements the identity, current-scope authorization, RLS, audit, request-correlation, and secret-isolation controls. Rate limits and broader device-risk enforcement remain tracked hardening work.
+This is the V1 target security architecture. Phase 1 implements the identity, current-scope authorization, RLS, audit, request-correlation, and secret-isolation controls. Phase 4 adds forced-RLS complaint persistence, owner-scoped server orchestration, exact-replay idempotency, and private signed media uploads with server-side object verification. Rate limits and broader device-risk enforcement remain tracked hardening work.
 
 - Supabase Auth for identity;
 - JWT verification at API;

@@ -21,6 +21,10 @@ export class ApiException extends HttpException {
     return new ApiException(HttpStatus.FORBIDDEN, 'ACCESS_DENIED', message);
   }
 
+  public static badRequest(code: string, message: string): ApiException {
+    return new ApiException(HttpStatus.BAD_REQUEST, code, message);
+  }
+
   public static notFound(code: string, message: string): ApiException {
     return new ApiException(HttpStatus.NOT_FOUND, code, message);
   }

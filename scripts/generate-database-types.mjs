@@ -11,6 +11,7 @@ const run = (command, args, options = {}) => {
   const result = spawnSync(command, args, {
     cwd: repositoryRoot,
     encoding: 'utf8',
+    env: { ...process.env, CI: process.env.CI ?? 'true' },
     ...options,
   });
 
@@ -41,7 +42,7 @@ try {
     'typescript',
     '--local',
     '--schema',
-    'public,governance',
+    'public,governance,routing,complaints',
   ]);
 
   if (!generation.stdout.trim()) {

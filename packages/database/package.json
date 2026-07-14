@@ -19,6 +19,11 @@
       "types": "./dist/governance-import/index.d.ts",
       "import": "./dist/governance-import/index.js",
       "default": "./dist/governance-import/index.js"
+    },
+    "./governance-sync": {
+      "types": "./dist/governance-sync/index.d.ts",
+      "import": "./dist/governance-sync/index.js",
+      "default": "./dist/governance-sync/index.js"
     }
   },
   "scripts": {

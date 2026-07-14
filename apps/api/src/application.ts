@@ -13,7 +13,7 @@ export const configureApiApplication = (application: INestApplication): void => 
 
   application.setGlobalPrefix('api/v1');
   application.enableCors({
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key', 'X-Request-Id'],
     exposedHeaders: ['X-Request-Id'],
     methods: ['GET', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     origin: [...configuration.allowedOrigins],

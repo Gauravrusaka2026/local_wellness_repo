@@ -20,7 +20,7 @@
     "build": "tsc --build tsconfig.json",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "lint": "eslint src --max-warnings=0",
-    "test": "node --test --import tsx src/**/*.test.ts"
+    "test": "node --test --import tsx src/*.test.ts src/**/*.test.ts"
   },
   "dependencies": {
     "@local-wellness/types": "workspace:*",

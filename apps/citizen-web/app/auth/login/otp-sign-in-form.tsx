@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
 import {
@@ -8,6 +7,7 @@ import {
   requestCitizenOtp,
   verifyCitizenOtp,
 } from '../../../lib/auth/service';
+import { getCitizenEmailCallbackUrl } from '../../../lib/auth/callback';
 import type { AuthChannel } from '../../../lib/auth/input';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
@@ -17,7 +17,6 @@ export const OtpSignInForm = ({
   callbackError,
   nextPath,
 }: Readonly<{ callbackError: boolean; nextPath: string }>) => {
-  const router = useRouter();
   const [channel, setChannel] = useState<AuthChannel>('phone');
   const [error, setError] = useState<string | null>(
     callbackError ? 'The sign-in link is invalid or expired. Request a new one.' : null,
@@ -43,13 +42,11 @@ export const OtpSignInForm = ({
     setIsPending(true);
 
     try {
-      const callbackUrl = new URL('/auth/callback', window.location.origin);
-      callbackUrl.searchParams.set('next', nextPath);
       const normalizedValue = await requestCitizenOtp(
         createBrowserSupabaseClient(),
         channel,
         identifier,
-        callbackUrl.toString(),
+        getCitizenEmailCallbackUrl(window.location.origin),
       );
       setNormalizedIdentifier(normalizedValue);
       setStep('verify');
@@ -67,8 +64,7 @@ export const OtpSignInForm = ({
 
     try {
       await verifyCitizenOtp(createBrowserSupabaseClient(), channel, normalizedIdentifier, otp);
-      router.replace(nextPath);
-      router.refresh();
+      window.location.assign(nextPath);
     } catch (verificationError) {
       setError(getUserFacingAuthError(verificationError));
       setIsPending(false);

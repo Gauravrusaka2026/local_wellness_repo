@@ -1,5 +1,7 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
+
 import { getUserFacingApiError, getVerifiedAccessToken } from '../../lib/api/client';
 import {
   preferredLanguages,
@@ -45,6 +47,7 @@ export const updateProfileAction = async (
     const supabase = await createServerSupabaseClient();
     const accessToken = await getVerifiedAccessToken(supabase);
     const profile = await saveProfile(accessToken, { displayName, preferredLanguage });
+    revalidatePath('/account');
 
     return {
       message: 'Your profile and language preference have been saved.',

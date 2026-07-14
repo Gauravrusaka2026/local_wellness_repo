@@ -72,8 +72,8 @@ select is(
   0,
   'the hash-pinned baseline has no rejected structural rows'
 );
-select is((select count(*)::integer from governance.reference_sources), 22, 'all distinct source URLs are catalogued');
-select is((select count(distinct url)::integer from governance.reference_sources), 22, 'source URLs are unique');
+select is((select count(*)::integer from governance.reference_sources), 32, 'all bootstrap and pilot source URLs are catalogued');
+select is((select count(distinct url)::integer from governance.reference_sources), 32, 'source URLs are unique');
 select is(
   (
     select count(*)::integer from governance.reference_sources

@@ -182,7 +182,37 @@ The Phase 1 mobile adapter stores the Supabase session only in Expo SecureStore.
 
 Use the official Supabase SSR PKCE integration and cookies shared by browser and server clients. Authenticated pages are dynamic and validate the current user or claims rather than trusting an unverified cookie payload.
 
+The citizen email request uses the exact, queryless, same-origin `/auth/callback` URL. This avoids
+depending on a query-string variant that may not match a managed Supabase redirect allow-list. The
+callback still validates PKCE or supported token-hash evidence and writes the SSR session cookie;
+it must never accept raw access/refresh tokens from a URL. Each managed environment must allow-list
+its exact callback origin and verify a newly delivered link in a real browser before launch.
+
+After callback completion, the citizen account page still depends on the application profile API.
+Citizen web, NestJS API, and Supabase Auth must target the same environment; the API configured by
+`NEXT_PUBLIC_API_URL` must be reachable and that database must include the Phase 1 Auth-to-profile
+trigger. A valid Auth session with no matching `public.profiles` row is a provisioning error, not an
+empty profile. The page renders explicit signed-in, onboarding, profile-unavailable, and
+API-unavailable states and offers retry/sign-out; it never trusts Auth metadata as a replacement for
+the server-authorized profile.
+
 Avoid storing privileged tokens in local storage.
+
+### Governance synchronization machine boundary
+
+The `governance-sync-fetch` Edge Function is not user authentication. Supabase Cron calls it with a
+dedicated high-entropy `x-governance-sync-secret`, which is compared in constant time before any
+source claim. `verify_jwt = false` is scoped to this function because Cron does not present a user
+session; the dispatch secret and service credential remain environment-only server secrets.
+Anonymous/authenticated database roles cannot execute the claim/finalization RPCs or read the
+private governance tables. Lease tokens are single-run database capabilities and are neither logged
+nor returned to the caller.
+
+Synchronization scope targets are also service-only and forced-RLS. An authenticated user cannot
+read or activate them directly; activation/manual verification is accepted only when the attributed
+reviewer has a current global `platform_admin` role. That approval selects future synchronization
+work only and does not grant routing eligibility or change the referenced authority/ward's access
+state.
 
 ---
 
@@ -254,11 +284,23 @@ Registry revocation prevents the same installation identifier from silently re-r
 
 ### Complaints
 
-- citizen reads own private complaints;
-- public reads public complaints;
-- officer reads scoped complaints;
-- client cannot assign official department;
-- client cannot set resolution status.
+- Phase 4 complaint drafts, exact locations, originals, duplicate evidence, submissions, and
+  history are private and available only through bearer-authenticated NestJS endpoints;
+- the unexposed `complaints` schema has forced RLS and grants no direct table access even to an
+  authenticated owner;
+- service-only RPCs receive the actor ID from the verified session and recheck active profile,
+  ownership, lifecycle, and evidence scope;
+- the client cannot assign an authority, ward, department, officer role/assignment, rule, official
+  status, visibility, complaint number, bucket, or object path;
+- citizen list/detail/timeline routes return only complaints owned by the session user;
+- every Phase 4 complaint remains private; public and scoped government complaint reads require
+  later policies and endpoints rather than a permissive Phase 4 exception.
+
+Media upload-intent and finalization endpoints require the same bearer session. The transient
+signed-upload token targets only the server-reserved private object path. Finalization downloads or
+inspects the object server-side and verifies its MIME type, size, and SHA-256; tokens, original
+media, exact coordinates, and internal spoof/duplicate/routing evidence are not exposed in public
+contracts or logs.
 
 ### Messages
 
@@ -273,6 +315,20 @@ Registry revocation prevents the same installation identifier from silently re-r
 - authenticated users can read person/assignment data only when current authority scope permits it;
 - service-side imports and future reviewed administration flows must validate office, department, district, taluka, local-body, and ward ownership;
 - officer roles remain durable while incumbent assignments append versions with non-overlapping effective periods.
+
+### Routing Resolution
+
+- Phase 3 category, jurisdiction, and routing endpoints require a valid Supabase bearer session;
+- routing resolution and Phase 4 complaint submission additionally require a validated
+  `Idempotency-Key`; the raw key is not persisted;
+- the client supplies only category, location evidence, and an optional asset identifier and cannot
+  choose an authority, department, officer role, officer assignment, confidence policy, or fallback;
+- the API resolves those targets through service-only database functions and records the acting Auth
+  user plus request identifier in the append-only routing decision audit;
+- ordinary authenticated and anonymous database roles have no direct access to private routing or
+  governance-synchronization tables, functions, raw snapshots, or exact-location decision evidence.
+- a complaint retry reuses its server-owned stable routing request ID and exact stored decision;
+  conflicting key or evidence reuse fails closed.
 
 ---
 
@@ -376,3 +432,11 @@ Required tests:
 Phase 1 implements local migration and pgTAP coverage for the identity tables, including self-access, cross-user and cross-authority denial, expired and revoked assignments, sensitive device-column isolation, anonymous denial, audit immutability and direct escalation attempts. The local email magic-link flow is automated. Phone OTP is provider-gated because the local Supabase Auth service disables phone sign-in without a real SMS provider. Hosted delivery, redirect URLs, device/session revocation, and real-device SecureStore behavior still require environment-specific validation before launch.
 
 Phase 2 extends those tests with canonical-authority foreign keys, safe legacy placeholder backfill, ward/department ownership checks, and governance RLS isolation. The invitation E2E uses the deterministic seeded Maharashtra authority, so arbitrary client-supplied UUIDs can no longer create government access scope.
+
+Phase 4 adds database and API coverage for anonymous/ordinary-authenticated complaint-schema
+denial, cross-user ownership denial, inactive actors, append-only records, strict mass-assignment
+rejection, private signed media reservation/finalization, exact idempotency replay/conflicts,
+duplicate acknowledgement, and actor-owned complaint history. The mobile flow and callback helper
+also have focused tests. Hosted email delivery/SSR-cookie behavior, real SMS, physical-device
+SecureStore/location/camera/microphone behavior, and verified Pune positive submission remain
+environment-gated and are not claimed as production-validated.

@@ -28,12 +28,11 @@ V1 validates the complete lifecycle in one municipality before wider rollout.
 
 ## Recommended pilot
 
-Choose one:
-
-- Pune Municipal Corporation;
-- Brihanmumbai Municipal Corporation;
-- Thane Municipal Corporation;
-- Pimpri-Chinchwad Municipal Corporation.
+Pune Municipal Corporation is the Phase 3 architecture and test reference municipality. This
+selection does not make the current Pune bootstrap records production-ready and does not permit
+Pune-specific branches in application code. Routing remains generic and resolves municipality,
+ward, department, role, assignment, asset ownership, policy, and fallback only from current
+database records.
 
 Limit initial coverage to:
 
@@ -171,10 +170,80 @@ Create structured categories and deterministic routing.
 
 ## Exit criteria
 
-- pilot categories route correctly;
-- each decision is explainable;
-- every route has a fallback;
-- known ward test cases pass.
+Engineering completion and pilot-data readiness are separate gates.
+
+Engineering completion requires:
+
+- deterministic, data-driven jurisdiction, category, asset-owner, department, role, assignment,
+  confidence, ambiguity, and fallback resolution;
+- service-only PostGIS and routing query boundaries;
+- append-only, privacy-restricted routing-decision evidence;
+- duplicate-scoring primitives ready for the complaint phase;
+- unit, integration, migration, and RLS coverage for synthetic verified fixtures and rejected
+  placeholder evidence.
+
+Pilot-data readiness additionally requires:
+
+- verified Pune Municipal Corporation and ward polygons;
+- reviewed category, authority-department, officer-role, assignment, asset-ownership, confidence,
+  and fallback records;
+- pilot categories activated only after their source-specific ownership is confirmed;
+- known Pune coordinate and ward cases to pass without placeholder evidence.
+
+Phase 3 engineering may be complete while the pilot-data gate remains pending.
+
+# Cross-cutting workstream — Governance synchronization
+
+## Goals
+
+Continuously maintain current, provenance-backed governance structure, officer assignments, office
+contacts, wards, departments, utilities, emergency contacts, and complaint-delivery channels from
+official sources. This is a permanent statewide capability layered on the Phase 2 canonical
+bootstrap and Phase 3 review gate, not a one-time import or a replacement product phase.
+
+## Architecture and tasks
+
+- database-backed official source registry, refresh cadence, due-source claiming, leases, retry and
+  immutable import audit;
+- Supabase Cron invoking a bounded Edge retrieval function with environment-owned secrets;
+- official API/CSV/JSON/HTML/PDF/contact-directory retrieval through exact reviewed source records;
+- private content-addressed raw snapshots and field-level source evidence;
+- source-specific parsers, normalization, validation, entity matching and change detection;
+- review queues for additions, removals, conflicts, stale data and ambiguous matches;
+- append-and-close officer assignments, office/contact versions, ward/boundary versions and routing
+  records rather than in-place history loss;
+- separate source verification, manual verification, publication, routing activation and
+  complaint-delivery approval;
+- generic service-only synchronization scope targets for authorities, local bodies, and wards, with
+  immutable canonical hierarchy and review-gated activation independent from routing eligibility;
+- structured logs and synchronization audit tables without Redis, BullMQ or Sentry.
+
+PMC and BMC are the initial retrieval/parser targets. The architecture must remain source- and
+entity-driven so municipal corporations, councils, Nagar Panchayats, Gram Panchayats, districts,
+talukas, rural offices, utilities and emergency authorities can be added without redesign or
+municipality-specific application branches.
+
+The current engineering slice implements exact-hash-approved source contracts, single-source
+PostgreSQL claims, heartbeat-protected leases/lifecycle RPCs, bounded Edge fetch and immutable
+snapshot preservation, review-bound contact versions, a pure contact normalizer, and draft-only
+PMC/BMC source registration. It also registers five Pune and five Brihanmumbai canonical ward
+targets as draft, unverified, non-routable synchronization scope—not verified ward coverage. It
+does not deploy Cron, activate a source or scope, parse municipality-specific content, publish a
+candidate, or update hosted data. DNS/private resolved-address enforcement and grace-period orphan
+reconciliation remain activation gates.
+
+## Exit criteria
+
+- at least one reviewed PMC source and one reviewed BMC source complete scheduled retrieval,
+  snapshot, parser, normalization, validation, matching, change, review and publication paths;
+- empty, malformed, unexpected-count, layout-changed, placeholder, conflicting and stale source
+  results fail closed without deleting or activating canonical records;
+- published assignments and contacts preserve prior effective-dated versions, raw snapshot/field
+  provenance and reviewer attribution;
+- no source-derived record becomes routable or eligible for complaint delivery without the required
+  independent manual approvals;
+- DNS/private-network controls, orphan snapshot reconciliation, secrets, retention, monitoring,
+  rollback and hosted-environment tests pass before scheduled production operation.
 
 # Phase 4 — Citizen complaint capture
 
@@ -225,11 +294,32 @@ Build the complete mobile submission flow.
 
 ## Exit criteria
 
-- valid complaint submits successfully;
-- unsupported-area complaint is blocked;
-- low GPS accuracy is handled;
-- failed upload resumes;
-- idempotency prevents duplicate complaints.
+Engineering completion and operational pilot readiness are separate gates.
+
+Engineering completion requires:
+
+- the mobile flow to capture exact-location evidence and private media without allowing the client
+  to select an official assignment;
+- unsupported areas and insufficient location evidence to be blocked or held for review;
+- signed private-media upload, integrity validation, retry, and draft recovery;
+- advisory duplicate suggestions without automatic merging;
+- one server-orchestrated, idempotent submission transaction that prevents duplicate complaints;
+- local migration, RLS, API, package, and mobile validation.
+
+Operational pilot readiness additionally requires:
+
+- at least one verified routable category and its reviewed jurisdiction, ownership, department,
+  officer-role, assignment, confidence, and fallback evidence;
+- production transcription and media-moderation providers;
+- physical-device validation of permissions, location accuracy, camera, upload recovery, and poor
+  connectivity behavior;
+- hosted-environment authentication, Storage, API, and submission verification.
+
+The current bootstrap intentionally exposes zero verified routable categories, so the
+valid-submission production exit remains data-gated even though the local Phase 4 engineering path
+is implemented. Transcription, moderation, physical-device, and hosted checks remain pending, and
+no hosted deployment has been performed. Redis, BullMQ, and Sentry remain excluded under the V1
+technology constraints.
 
 # Phase 5 — Government dashboard
 

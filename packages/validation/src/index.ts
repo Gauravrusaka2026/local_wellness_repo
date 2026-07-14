@@ -90,4 +90,6 @@ export type DeviceIdParameters = z.infer<typeof deviceIdParametersSchema>;
 export type RecordAuthAuditEventRequest = z.infer<typeof recordAuthAuditEventSchema>;
 export type CreateGovernmentInvitationRequest = z.infer<typeof createGovernmentInvitationSchema>;
 
+export * from './complaint.schemas.js';
 export * from './governance/index.js';
+export * from './routing.schemas.js';

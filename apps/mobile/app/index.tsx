@@ -14,5 +14,5 @@ export default function Index() {
     return <ErrorScreen message={state.message} title="App configuration required" />;
   }
 
-  return <Redirect href={state.status === 'signed-in' ? '/profile' : '/auth'} />;
+  return <Redirect href={state.status === 'signed-in' ? '/home' : '/auth'} />;
 }

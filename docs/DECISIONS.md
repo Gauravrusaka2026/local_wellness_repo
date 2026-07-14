@@ -15,7 +15,8 @@ These implementation conventions supplement the Phase 0 ADRs and do not replace 
 
 - Node.js 22 is the foundation runtime major.
 - pnpm 11.11.0 is pinned through the root `packageManager` field and provisioned with Corepack.
-- TypeScript 6.0.3 is pinned because the current `typescript-eslint` supports TypeScript versions below 6.1; the registry's TypeScript 7 release is not yet compatible.
+- TypeScript 5.9.3 is pinned across the workspace so Expo SDK 54's supported toolchain and the
+  current `typescript-eslint` range share one strict compiler version.
 - ESLint 10.6.0 is used instead of the newly published 10.7.0 so pnpm's release-age supply-chain protection does not require an exception.
 
 ### TypeScript Project Layout
@@ -104,6 +105,9 @@ These conventions implement ADR-0006 and ADR-0007.
 - Next.js project-reference builds include application, library and proxy sources so the root TypeScript solution validates the complete runtime boundary; test sources remain in the normal no-emit checks.
 - TypeScript test scripts use Node's test runner with `--import tsx`, avoiding a separate `tsx` command-process dependency while preserving the same test semantics.
 - Repository Git hooks invoke `corepack pnpm` so the pinned package-manager version works even when no global `pnpm` shim is installed. Staged ESLint checks suppress notices only for files already excluded by the repository ESLint configuration; real lint warnings still fail the hook.
+- Integration harnesses marked as requiring local Supabase must reject non-loopback API hosts before
+  creating fixtures, even if generic environment variables contain otherwise valid hosted
+  credentials.
 
 ## 2026-07-13 — Phase 2 Maharashtra Governance Conventions
 
@@ -131,4 +135,207 @@ These conventions implement ADR-0008 and do not activate Phase 3 complaint routi
 - Placeholder, unverified and unresolved rows are never promoted to verified public-safe or routing-eligible records merely because source text says `Active`.
 - Effective API access is loaded through service-only database functions that enforce active canonical authority state, membership validity and ward/department ownership. The API does not read raw role/membership rows as an alternate authorization path.
 - Jurisdiction lookup is a service-only `ST_Covers` database function over active, verified, current SRID 4326 `MultiPolygon` versions; it returns evidence and does not assign complaints.
-- Database types are generated atomically for `public` and `governance`, with drift checks and application-schema database lint enforced in CI.
+- Database types are generated atomically for `public`, `governance`, and `routing`, with drift checks and application-schema database lint enforced in CI.
+
+## 2026-07-13 — Phase 3 Routing and Governance Synchronization Conventions
+
+These conventions implement ADR-0009 and ADR-0010.
+
+### Routing Evidence and Evaluation
+
+- Operational routing configuration lives in the private `routing` schema. Application source
+  contains no municipality, ward, category, department, officer, ownership, confidence, or fallback
+  mapping.
+- Pune Municipal Corporation is the architecture and synthetic-test reference only. Supporting a
+  different authority must be a database-data change, not a municipality-specific code branch.
+- PostGIS and relational SQL materialize current eligible jurisdiction and routing candidates,
+  including fallback depth/path. The pure routing engine ranks those candidates; it does not walk a
+  database fallback graph or perform I/O itself.
+- Eligibility is defense in depth: activation constraints, candidate queries, and the evaluator all
+  reject inactive, expired, unverified, placeholder, or non-routable evidence.
+- Direct candidates sort before fallbacks. Within a level, asset and ward specificity, configured
+  priority, confidence, and a stable identifier give reproducible ordering. A stable identifier
+  cannot resolve materially different targets inside the policy's ambiguity delta; that outcome
+  requires manual review.
+- Confidence weights, thresholds, required signals, ambiguity delta, and per-level fallback penalty
+  are versioned database data. Category or city names do not affect the scoring algorithm.
+- Candidate context must match the independently resolved state/district/taluka/local-body/ward
+  hierarchy and exact boundary-version vector. Asset matches retain the exact asset version,
+  distance, and ownership version. Candidate output is deterministically capped at 100 rows.
+
+### API, Audit, and Privacy
+
+- `governance` and `routing` remain outside PostgREST. The NestJS server alone may execute narrow
+  `public` category, jurisdiction, candidate, and decision-recording RPCs with its service role.
+- Routing request schemas are strict and accept location/category/optional-asset evidence only.
+  Clients cannot select an authority, ward, department, role, assignment, rule, or confidence.
+- Internal decision evidence retains candidate eligibility/rejections and confidence factors for
+  explainability. The citizen response is a sanitized summary and does not expose the complete
+  candidate graph, exact-location audit, officer contacts, or raw-source evidence.
+- Routing decisions are append-only and duplicate-protected by actor plus request ID. Exact stored
+  payloads return the existing row, conflicting reuse fails, and transparent HTTP replay is tracked
+  separately under `ROUTING-004`. Exact coordinates,
+  accuracy, capture/resolution timestamps, and selected version IDs are sensitive service-only
+  audit fields and are omitted from structured application logs.
+
+### Pilot Taxonomy and Duplicates
+
+- The 12 pilot taxonomy records are deterministic seed data for engineering, with status `draft`,
+  verification `unverified`, and routing disabled. They are not production placeholders, but they
+  cannot become operational merely because a linked Phase 2 reference says `Active`.
+- The `Blocked drain` to `Storm-water blockage` bridge is an explicit unverified alias record; the
+  canonical CSV label is not modified.
+- Duplicate detection is a pure configurable scoring framework and versioned policy model. It is
+  not connected to complaint persistence, a candidate query, an API, or automatic merging until
+  the complaint phase supplies those boundaries.
+
+### Governance Synchronization
+
+- Synchronization is a permanent staged capability, not an extension of the one-time bootstrap
+  generator. Retrieval, immutable snapshot preservation, normalization, matching, change
+  detection, review, and transactional publication remain separate ports.
+- Source and run metadata, snapshot references, candidates, changes, reviews, and append-only review
+  events live inside the forced-RLS governance boundary. Exact raw bytes belong in the private,
+  content-addressed `governance-raw-snapshots` bucket.
+- A source claim or match score never verifies a record automatically. Placeholder evidence may
+  only remain quarantined and non-routable; verification and routing activation require separate,
+  attributed reviewer decisions plus record-specific provenance.
+- Match evidence must identify the proposal candidate, and placeholder state is a symmetric
+  invariant across candidate marker, requested status, quarantine operation/disposition, routing
+  disablement, and review decisions. A future publisher must reload all run/change/review evidence
+  transactionally before applying it.
+- The Phase 3 foundation intentionally selected no connector, scraper, scheduler, queue, cache, or
+  error-reporting vendor. ADR-0012 and the 2026-07-14 conventions below now select Supabase Cron,
+  one bounded Edge retrieval function, and PostgreSQL leases for the retrieval slice. Redis,
+  BullMQ, Redis adapters/caching, and Sentry remain absent.
+
+## 2026-07-14 — Phase 4 Citizen Complaint Capture Conventions
+
+These conventions implement ADR-0011 and do not activate unverified Pune routing data.
+
+### Complaint Ownership and Submission
+
+- Complaint drafts, exact location evidence, media metadata, duplicate evidence, complaints,
+  assignments, status history, and mutation replay records live in the unexposed, forced-RLS
+  `complaints` schema. The citizen never receives direct table mutation access.
+- The NestJS API owns complaint orchestration. Clients may supply issue evidence and explicit user
+  acknowledgements, but cannot select a municipality, ward, department, officer role, officer,
+  assignment, routing rule, confidence result, or official complaint status.
+- Draft creation, media reservation, routing, and final submission use purpose-scoped idempotency
+  identities. Raw client idempotency keys are not persisted, and successful routing/submission
+  retries return stored evidence instead of recomputing against changed configuration.
+- Submission is atomic only after the current server-side evidence passes location, media,
+  duplicate-policy, route, and acknowledgement checks. Unsupported, ambiguous, placeholder, or
+  unverified routes fail closed and create no submitted complaint.
+
+### Private Media and Location
+
+- Original photo, video, and voice files use private Storage buckets. The API reserves one narrow
+  object path and returns a short-lived signed upload token; bucket-wide upload permission and
+  public object URLs are never issued.
+- Finalization reads the private object through the trusted server boundary and verifies byte size,
+  MIME type, and SHA-256 against the reservation before marking it ready. A mismatched object is
+  removed and cannot be submitted.
+- Exact complaint/media coordinates and signed-upload credentials are omitted from structured logs
+  and public duplicate results. Submitted location and initial routing evidence become immutable.
+- Mobile SQLite persists only an allow-listed opaque resume record. Bearer/session tokens, signed
+  upload credentials, descriptions, and coordinates are excluded; retry-only media coordinates use
+  device-protected SecureStore and are deleted after finalize, discard, or stale cleanup.
+
+### Citizen Capture UX
+
+- Categories come only from the verified, active, routing-eligible database catalog. With the
+  current non-routable bootstrap the app displays an explicit unavailable state instead of a
+  hardcoded or placeholder category list.
+- Phase 4 accepts live camera photo/video and live microphone evidence. Gallery import is excluded
+  from this V1 evidence flow so the capture-source assertion remains meaningful.
+- Device location evidence is freshness-, accuracy-, mock-location-, and media-distance-checked;
+  final submission additionally requires the database to return `verified` or
+  `partially_verified` location evidence.
+- Duplicate matches are privacy-safe advisory suggestions and are never merged automatically.
+  Suggestions and emergency-category warnings require explicit citizen acknowledgement.
+- Voice remains private evidence until an approved speech-to-text/moderation provider is selected.
+  The client never fabricates a transcript and requires the citizen to type and confirm the
+  description.
+- Citizen web email sign-in uses the exact queryless same-origin `/auth/callback` redirect. The
+  callback owns the safe default destination rather than encoding `next` into the provider
+  allow-list URL.
+- Citizen account rendering validates the profile API response and always shows the authenticated
+  identity plus an explicit onboarding, provisioning, unavailable, API-error, or complete-profile
+  state. It does not fabricate a profile when Auth and the API/database environment are misaligned.
+- The mobile toolchain targets Expo SDK 54.0.33, React Native 0.81.5, React 19.1, and SDK-compatible
+  native modules so it remains loadable by the current Android Expo Go SDK 54 client. TypeScript
+  5.9.3 is the repository compiler compatibility point; future Expo upgrades must run
+  `expo install --check`, strict type-checking, and an Android export before acceptance.
+
+## 2026-07-14 — Governance Synchronization Retrieval and Contact Conventions
+
+These conventions implement ADR-0012 while retaining ADR-0010's human-review publication gate.
+
+### Source Activation and Scheduling
+
+- Source endpoints are database records, not hardcoded application branches. Official PMC/BMC
+  records are seeded as draft, unverified, inactive definitions so parser and cardinality contracts
+  can be reviewed before any network work is scheduled.
+- Supabase Cron is the environment-owned trigger; it invokes one private Edge dispatcher. Cron
+  definitions, dispatch authorization, service credentials, and source activation are deployment
+  configuration and are never committed as working secrets or silently enabled by a seed.
+- PostgreSQL is the work coordinator. A service-only claim function uses row locking and short
+  leases, records each run, and applies bounded retry/freshness state. Exactly one source is claimed
+  per dispatch; expired work is failed and backed off without same-call reclamation. The Edge lease
+  is 300–900 seconds (300 by default), while the trusted RPC allows 180–900 seconds. No Redis queue,
+  BullMQ worker, Redis adapter/cache, or Sentry integration is used.
+
+### Retrieval and Raw Evidence
+
+- Every fetch uses an exact per-source HTTPS host allowlist, manual redirect validation, a bounded
+  timeout, response-size and MIME limits, conditional request headers, and safe fixed failure codes.
+  DNS/private-address enforcement remains a required source-activation hardening gate.
+- Every source contract receives a deterministic SHA-256. Activation requires exact approval of
+  the current hash by an active global `platform_admin`; only supported MIME types and HTTPS port
+  443 URLs without fragments are accepted.
+- Successful bytes are SHA-256-addressed in the private `governance-raw-snapshots` bucket and then
+  linked to the run through a lease-checked RPC. The Edge function heartbeats after fetch and after
+  Storage, and the RPC checks the exact `storage.objects` size/MIME record. HTTP 304 reuses the
+  previous snapshot rather than manufacturing empty evidence. Referenced snapshot objects are
+  immutable. Failed or ambiguous finalization retains content-addressed bytes for grace-period
+  reconciliation; eager deletion is forbidden because it could race a late commit.
+- New required columns on populated synchronization tables use nullable creation, deterministic
+  backfill, then constraint enforcement. `source_contract_sha256` follows this sequence and the root
+  migration-safety test protects it.
+- Edge logs expose only safe run/source identifiers and lifecycle outcomes. Lease tokens, dispatch
+  secrets, service credentials, response bodies, and extracted contact values are excluded;
+  database synchronization events provide the durable audit trail.
+
+### Contact History, Verification, and Delivery
+
+- A contact channel is a durable typed relationship to exactly one governance owner. Contact values
+  are immutable effective-dated versions with source snapshot/locator, verification status,
+  visibility, reviewer attribution, and append/close history rather than mutable fields.
+- A parser/normalizer may produce at most `source_verified`, staged evidence. It cannot claim manual
+  verification, publish a value, approve complaint delivery, update canonical entities, activate a
+  route, or overwrite the canonical CSV bootstrap.
+- Official-source trust in the contact normalizer requires the current source contract to be
+  approved and every record-specific URL to use one of that contract's approved hosts.
+- Publication requires a separately attributed manual review linked to the proposed change.
+  Complaint delivery requires an additional explicit approval and is permitted only for a current,
+  published, manually verified, public-official complaint-intake channel.
+- Publication binds the owner UUID, channel/value, source URL, evidence-value hash, and delivery
+  decision to the approved candidate/proposal. Each review item is single-use.
+- Placeholder, malformed, duplicate, empty, conflicting, stale, layout-drifted, or unexpected-count
+  results remain quarantined/non-routable. An empty or changed official page never implies that
+  existing officers, assignments, offices, wards, or contacts should be removed.
+
+### Synchronization Scope
+
+- Pilot and future statewide synchronization targets are records in the service-only, forced-RLS
+  `governance.sync_scope_targets` registry, not municipality-specific application branches.
+- Target identity and authority/local-body/ward hierarchy are immutable. Activation and manual
+  verification require attribution to an active global `platform_admin`.
+- Selection for synchronization never implies routing eligibility. The routing flag remains false
+  unless the selected canonical entity is independently active, verified, non-placeholder, and
+  routing eligible.
+- The first scope seed resolves five Pune and five Brihanmumbai canonical ward codes only as draft,
+  unverified, unapproved, non-routable engineering targets. Their underlying wards remain
+  placeholders; numeric BMC rows require a reviewed crosswalk to the official lettered ward
+  structure.

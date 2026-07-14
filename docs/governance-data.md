@@ -167,9 +167,27 @@ A reviewed promotion should supply:
 
 Phase 2 promotion never makes a complaint-routing reference operational. Operational routing requires Phase 3 behavior and tests.
 
+## Phase 3 Engineering Overlay
+
+The routing schema and engine consume normalized database records, never the CSV files directly at
+request time. `supabase/seed/30_phase_3_pilot_categories.sql` links the 12 owner-approved taxonomy
+labels to available bootstrap routing-reference evidence where possible, but keeps the domain,
+categories, and one `Blocked drain`/`Storm-water blockage` alias draft, unverified, and non-routable.
+It does not alter the canonical CSV, promote its `Active` text, or create an operational mapping.
+
+Pune Municipal Corporation is the Phase 3 architecture and test reference. No Pune-specific logic
+is present in the engine, and the current bootstrap does not provide the verified Pune polygons,
+department/role crosswalks, assignments, asset ownership, confidence policy, or fallback rules
+needed for an operational route. Synthetic test records do not change that data-readiness state.
+
 ## Refresh Process
 
-The following is the required future operator workflow, not a capability of the current baseline generator. The committed command reproduces only the pinned baseline; it does not diff replacement bundles or close temporal versions automatically (`DATA-008`).
+The following remains the required operator workflow for a replacement repository bundle; it is not
+a capability of the current baseline generator. The committed command reproduces only the pinned
+baseline and does not diff replacement bundles or close temporal versions automatically
+(`DATA-008`). Phase 3 separately establishes the permanent official-source synchronization
+persistence and typed stage contracts described in `docs/governance-synchronization.md`. That
+foundation does not yet implement connectors, scheduling, parsing, review UI, or publication.
 
 1. Add the reviewed replacement source bundle without editing the previous canonical files in place.
 2. Record source origin, retrieval date and expected version outside sensitive configuration.
@@ -194,5 +212,8 @@ The following is the required future operator workflow, not a capability of the 
 - Utilities have no verification status or last-verified date; the generic city-water/sewer row has no URL source.
 - Complaint-routing priorities and ownership rules are free text, and catalog references are mostly non-exact.
 - There are no verified named officer assignments and no usable jurisdiction polygons.
+- Pune Municipal Corporation has no verified pilot ward geometry, operational category ownership,
+  asset-owner mapping, current assignment set, confidence policy, or fallback route in the current
+  bootstrap.
 
 These gaps are expected inputs to quarantine and later refresh work. They must not be hidden by marking the corresponding records verified.

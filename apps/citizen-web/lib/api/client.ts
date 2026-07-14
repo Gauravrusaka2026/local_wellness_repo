@@ -8,6 +8,15 @@ type ApiRequestOptions = Readonly<{
   method?: 'GET' | 'PATCH' | 'POST';
 }>;
 
+export type VerifiedCitizenSession = Readonly<{
+  accessToken: string;
+  identity: Readonly<{
+    email: string | null;
+    phone: string | null;
+    userId: string;
+  }>;
+}>;
+
 export class AuthenticationRequiredError extends Error {
   public constructor() {
     super('A verified session is required.');
@@ -45,10 +54,13 @@ const getRequestId = (payload: unknown): string | null => {
   return typeof payload['meta']['requestId'] === 'string' ? payload['meta']['requestId'] : null;
 };
 
-export const getVerifiedAccessToken = async (supabase: SupabaseClient): Promise<string> => {
+export const getVerifiedCitizenSession = async (
+  supabase: SupabaseClient,
+): Promise<VerifiedCitizenSession> => {
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
 
-  if (claimsError || typeof claimsData?.claims?.sub !== 'string') {
+  if (claimsError || typeof claims?.sub !== 'string') {
     throw new AuthenticationRequiredError();
   }
 
@@ -58,8 +70,18 @@ export const getVerifiedAccessToken = async (supabase: SupabaseClient): Promise<
     throw new AuthenticationRequiredError();
   }
 
-  return sessionData.session.access_token;
+  return {
+    accessToken: sessionData.session.access_token,
+    identity: {
+      email: typeof claims.email === 'string' ? claims.email : null,
+      phone: typeof claims.phone === 'string' ? claims.phone : null,
+      userId: claims.sub,
+    },
+  };
 };
+
+export const getVerifiedAccessToken = async (supabase: SupabaseClient): Promise<string> =>
+  (await getVerifiedCitizenSession(supabase)).accessToken;
 
 export const apiRequest = async <T>(path: `/${string}`, options: ApiRequestOptions): Promise<T> => {
   let response: Response;

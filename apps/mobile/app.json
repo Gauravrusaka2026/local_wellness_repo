@@ -5,7 +5,30 @@
     "version": "0.0.0",
     "scheme": "localwellness",
     "platforms": ["ios", "android"],
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Local Wellness to capture evidence for your complaint.",
+          "microphonePermission": "Allow Local Wellness to record sound with complaint videos.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Local Wellness to verify where the civic issue is being reported."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Local Wellness to record a private voice description for your complaint."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

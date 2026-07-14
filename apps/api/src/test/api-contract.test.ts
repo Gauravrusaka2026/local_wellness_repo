@@ -137,11 +137,16 @@ describe('API identity contract', () => {
       .options('/api/v1/me')
       .set('origin', 'https://citizen.example.com')
       .set('access-control-request-method', 'GET')
+      .set('access-control-request-headers', 'authorization,idempotency-key')
       .expect(204);
 
     assert.equal(
       allowedResponse.headers['access-control-allow-origin'],
       'https://citizen.example.com',
+    );
+    assert.match(
+      String(allowedResponse.headers['access-control-allow-headers']),
+      /Idempotency-Key/u,
     );
 
     const deniedResponse = await request(application.getHttpServer())

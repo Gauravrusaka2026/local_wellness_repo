@@ -28,7 +28,7 @@ export default function AuthCallbackScreen() {
         });
 
         if (isCurrent) {
-          router.replace('/profile');
+          router.replace('/home');
         }
       } catch (callbackError) {
         if (isCurrent) {

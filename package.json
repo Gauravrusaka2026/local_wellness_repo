@@ -14,7 +14,7 @@
     "build": "turbo run build",
     "changeset": "changeset",
     "database:reset": "supabase db reset",
-    "database:lint": "supabase db lint --local --schema public,private,governance --level warning --fail-on error",
+    "database:lint": "supabase db lint --local --schema public,private,governance,routing,complaints --level warning --fail-on error",
     "database:start": "supabase start",
     "database:stop": "supabase stop",
     "database:test": "supabase test db",

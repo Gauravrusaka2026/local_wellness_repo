@@ -1,12 +1,23 @@
 import { Catch, HttpException, HttpStatus, Logger, type ExceptionFilter } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
+import { RoutingConfigurationError } from '@local-wellness/routing-engine';
 import type { ApiErrorBody, ApiErrorResponse } from '@local-wellness/types';
 
+import {
+  ComplaintConflictError,
+  ComplaintDataAccessError,
+  ComplaintNotFoundError,
+} from '../data/complaint.store.js';
+import { ComplaintMediaGatewayError } from '../data/complaint-media.gateway.js';
 import {
   DeviceBlockedError,
   DeviceRevokedError,
   IdentityDataAccessError,
 } from '../data/identity.store.js';
+import {
+  RoutingDataAccessError,
+  RoutingDecisionIdempotencyConflictError,
+} from '../data/routing.store.js';
 import { ApiException } from './api-exception.js';
 import type { RequestContext, ResponseContext } from './request-context.js';
 
@@ -92,6 +103,48 @@ export class ApiExceptionFilter implements ExceptionFilter {
       error = {
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'Identity data is temporarily unavailable.',
+      };
+    } else if (exception instanceof ComplaintNotFoundError) {
+      status = HttpStatus.NOT_FOUND;
+      error = {
+        code:
+          exception.resource === 'complaint'
+            ? 'COMPLAINT_NOT_FOUND'
+            : `COMPLAINT_${exception.resource.toUpperCase()}_NOT_FOUND`,
+        message: 'The requested complaint resource was not found.',
+      };
+    } else if (exception instanceof ComplaintConflictError) {
+      status = HttpStatus.CONFLICT;
+      error = {
+        code: exception.marker,
+        message: 'The complaint request conflicts with its current state or prior request.',
+      };
+    } else if (
+      exception instanceof ComplaintDataAccessError ||
+      exception instanceof ComplaintMediaGatewayError
+    ) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Complaint data or private media storage is temporarily unavailable.',
+      };
+    } else if (exception instanceof RoutingDecisionIdempotencyConflictError) {
+      status = HttpStatus.CONFLICT;
+      error = {
+        code: 'ROUTING_IDEMPOTENCY_CONFLICT',
+        message: 'This request identifier was already used for a different routing decision.',
+      };
+    } else if (exception instanceof RoutingDataAccessError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Routing data is temporarily unavailable.',
+      };
+    } else if (exception instanceof RoutingConfigurationError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'ROUTING_CONFIGURATION_UNAVAILABLE',
+        message: 'A verified routing configuration is unavailable.',
       };
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();

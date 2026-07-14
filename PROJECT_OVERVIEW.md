@@ -47,6 +47,12 @@ Recommended pilot size:
 - verified department ownership;
 - verified officer-role and escalation mapping.
 
+Pune Municipal Corporation is the Phase 3 reference municipality for architecture and synthetic
+integration testing. It is not hardcoded into the routing engine, and it is not an activated pilot
+until official ward geometry, ownership, department, officer-role, assignment, confidence, and
+fallback evidence has passed review. The same data-driven engine must support any later selected
+authority without an application release containing municipality-specific routing branches.
+
 ## Core problems addressed
 
 - fragmented complaint portals;
@@ -402,7 +408,21 @@ This provides rapid delivery while preserving future service boundaries.
 - offices;
 - officer roles;
 - officers;
-- officer assignments.
+- officer assignments;
+- utilities and emergency contacts;
+- official source registry and immutable snapshots;
+- staged synchronization candidates, changes, evidence and reviews;
+- versioned official contact channels.
+
+Governance synchronization is a permanent backend capability, distinct from the hash-pinned CSV
+bootstrap. The implemented operational slice can claim due reviewed sources with PostgreSQL leases,
+fetch bounded official HTTPS evidence through an Edge Function, preserve exact raw snapshots,
+normalize contact candidates, and retain effective-dated contact history. PMC and BMC are the first
+source-registry targets, but their ten seeded endpoints remain draft, unverified, and inactive.
+Source-specific parsers, entity matching, review surfaces, transactional publication, hosted Cron,
+and production data verification remain pending. An official response can establish provenance but
+never automatically establish manual verification, routing eligibility, or complaint-delivery
+approval.
 
 ### Complaints
 
@@ -415,6 +435,18 @@ This provides rapid delivery while preserving future service boundaries.
 - feedback;
 - reopen requests.
 
+Phase 4 complaint-capture engineering is implemented locally through the mobile client, NestJS API,
+private Supabase Storage, and private complaint schema. The flow records exact-location evidence,
+uses signed private-media uploads, presents advisory duplicate suggestions, and completes complaint
+creation through an idempotent server-side submission boundary. Client input cannot choose an
+official assignment or bypass database-driven routing.
+
+Engineering completion does not activate an operational pilot. The canonical bootstrap currently
+contains zero verified routable categories, so production-valid submission remains intentionally
+data-gated. Speech transcription and media-moderation providers, physical-device validation, and
+hosted-environment validation remain pending; no hosted application deployment has been performed.
+Redis, BullMQ, and Sentry remain outside the V1 topology.
+
 ### Routing
 
 - taxonomy;
@@ -422,6 +454,12 @@ This provides rapid delivery while preserving future service boundaries.
 - asset ownership;
 - routing decisions;
 - fallback routes.
+
+The Phase 3 implementation keeps operational routing configuration in a private, forced-RLS
+schema. PostgreSQL/PostGIS supplies current verified evidence; a pure TypeScript evaluator applies
+eligibility, deterministic ranking, confidence, ambiguity, and fallback behavior; and the NestJS
+API exposes only authenticated, sanitized results. Placeholder or unverified records can support
+engineering fixtures but cannot become an operational route.
 
 ### Communication
 

@@ -79,3 +79,6 @@ max_frequency = "1m"
 # Local-only deterministic OTP. Never copy this mapping to a managed environment.
 [auth.sms.test_otp]
 12025550123 = "123456"
+
+[functions.governance-sync-fetch]
+verify_jwt = false

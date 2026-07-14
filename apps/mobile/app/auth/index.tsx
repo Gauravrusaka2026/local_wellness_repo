@@ -33,14 +33,14 @@ export default function SignInScreen() {
   }
 
   if (state.status === 'signed-in') {
-    return <Redirect href="/profile" />;
+    return <Redirect href="/home" />;
   }
 
   const handleVerify = async (): Promise<void> => {
     const isVerified = await signIn.verify();
 
     if (isVerified) {
-      router.replace('/profile');
+      router.replace('/home');
     }
   };
 

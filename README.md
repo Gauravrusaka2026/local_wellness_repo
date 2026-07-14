@@ -45,10 +45,12 @@ The initial implementation should begin with one municipality and 5 to 10 verifi
 
 ### Mobile
 
-- React Native
-- TypeScript
-- Expo development builds and Expo Router
+- React Native 0.81.5
+- TypeScript 5.9.3
+- Expo SDK 54.0.33 development builds/Expo Go and Expo Router 6
+- Expo Camera and Expo Location
 - Expo SecureStore
+- SQLite-backed complaint draft recovery
 - Supabase Auth
 
 Planned product-phase additions include:
@@ -57,9 +59,6 @@ Planned product-phase additions include:
 - Zustand
 - React Hook Form
 - Zod
-- Expo Camera
-- Expo Location
-- SQLite
 - React Native Maps
 
 ### Web
@@ -194,6 +193,9 @@ Before implementing any feature, contributors and coding agents should read:
 - Android Studio or Xcode as needed
 
 The repository pins the Supabase CLI and Expo toolchain as project dependencies.
+The mobile workspace is aligned to Expo SDK 54, React Native 0.81.5, and React 19.1 so the current
+Android Expo Go SDK 54 client can open it. After changing SDK dependencies, reinstall from the
+lockfile and restart Metro with `pnpm --filter @local-wellness/mobile dev -- --clear`.
 
 ### Initial Setup
 
@@ -284,6 +286,7 @@ SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_DB_URL
 GOVERNMENT_INVITE_REDIRECT_URL
 API_ALLOWED_ORIGINS
+GOVERNANCE_SYNC_DISPATCH_SECRET
 
 EXPO_PUBLIC_SUPABASE_URL
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -299,6 +302,8 @@ NEXT_PUBLIC_API_URL
 Only public client-safe variables may use `EXPO_PUBLIC_` or `NEXT_PUBLIC_`.
 
 Use publishable and secret keys for current Supabase projects; anon and service-role variables remain legacy fallbacks. Preferred variables may be left empty when a legacy value is intentionally used. Either server credential must exist only in trusted server or worker environments.
+`GOVERNANCE_SYNC_DISPATCH_SECRET` is a separate high-entropy server/Edge secret used only by the
+environment scheduler; never expose it to a browser/mobile bundle, source registry row, or log.
 
 ### First Platform Administrator
 
@@ -332,6 +337,45 @@ pnpm database:types:check
 No production schema change should be performed only through the Supabase dashboard.
 
 Phase 2 governance data is generated from the hash-pinned canonical CSVs. Use `pnpm governance:data:validate` for a read-only audit, `pnpm governance:data:generate` after an intentionally reviewed source/manifest change, and `pnpm governance:data:check` in ordinary development and CI. Never hand-edit the canonical CSVs, the generated main seed, its checksum companion or the machine report; see `docs/governance-data.md`.
+
+Phase 3 adds the private `routing` schema and a review-gated governance-synchronization
+foundation. A local reset seeds the 12 pilot taxonomy records as draft, unverified, and
+non-routable engineering data. This is intentional: the authenticated routing API returns no
+operational category or route until verified database evidence is reviewed and activated. See
+`docs/governance-synchronization.md` before adding or refreshing an official source.
+
+The permanent governance synchronization workstream now includes database-backed due-source
+claims/leases, a bounded `governance-sync-fetch` Edge Function, private content-addressed raw
+snapshots, source audit events, immutable contact versions, and a pure contact normalizer. A local
+reset registers ten PMC/BMC official endpoints only as draft, unverified, inactive definitions.
+It also selects five canonical Pune and five canonical Brihanmumbai ward records in a service-only
+synchronization scope. Those ten rows and their underlying wards remain draft/unverified,
+placeholder-backed, unapproved, and non-routable; the numeric BMC bootstrap wards still require an
+official crosswalk to BMC's lettered ward structure.
+Nothing is fetched on a schedule, published, made routable, approved for complaint delivery, or
+deployed to hosted Supabase by that seed. Current source contracts are SHA-256 pinned and require an
+active global platform-administrator's exact-hash approval. Each dispatch can claim one source and
+uses a heartbeat-protected lease around immutable private Storage. Failed or ambiguous snapshot
+finalization retains content-addressed bytes for grace-period reconciliation rather than risking an
+eager-delete race. Source-specific parsers, entity matching, review APIs/UI, transactional
+publishers, DNS-resolution hardening, snapshot reconciliation, environment secrets, and Cron
+activation remain required. See
+`docs/governance-synchronization.md` and ADR-0012.
+
+Phase 4 adds the local mobile complaint-capture flow and authenticated complaint API. For local
+engineering, run the API and mobile workspaces after starting and resetting Supabase:
+
+```bash
+pnpm --filter @local-wellness/api dev
+pnpm --filter @local-wellness/mobile dev
+```
+
+The flow captures exact location evidence, uploads media through private signed Storage targets,
+shows advisory duplicate suggestions, and completes submission through an idempotent server-side
+operation. The current bootstrap intentionally exposes zero verified routable categories, so a
+valid production-style submission remains blocked until reviewed pilot routing data is activated.
+Speech transcription, media moderation, physical-device verification, and hosted-environment
+verification remain pending. No hosted deployment is part of the current repository state.
 
 ---
 
@@ -388,10 +432,36 @@ Current stage:
 - Phase 0 pnpm/Turborepo foundation implemented and verified;
 - Phase 1 identity schema, RLS, passwordless Auth clients, secure sessions, profile setup, audited device registration, scoped government access, and invitation APIs implemented and locally verified against its exit criteria;
 - Phase 2 governance schema, PostGIS/versioning, canonical CSV validation, deterministic normalized seed, governance RLS, canonical authority links, and migration/seed/routing-data tests implemented locally; the supplied baseline remains non-routable where identifiers, contacts, assignments, or geometry are unverified;
+- Phase 3 routing schema, deterministic routing and duplicate-scoring packages, authenticated
+  routing contracts, accuracy-aware PostGIS candidate queries, append-only decision evidence, and
+  review-gated governance-synchronization foundations are implemented and locally verified;
+  verified pilot-data activation remains a separate pending milestone;
+- governance synchronization retrieval engineering now includes PostgreSQL leases/retry state,
+  service-only lifecycle RPCs, a bounded Edge fetch/snapshot function, immutable source evidence,
+  versioned contacts, and normalization tests. Ten PMC/BMC endpoints remain draft, unverified, and
+  inactive. Ten pilot ward scope targets (five per municipality) are also service-only, draft,
+  unverified, placeholder-backed, and non-routable; no parser output, record, contact, route, or
+  complaint-delivery target is automatically verified or published;
+- Phase 4 mobile complaint capture, exact-location evidence, private signed media upload,
+  duplicate suggestions, and idempotent server-orchestrated submission are implemented for local
+  engineering; the bootstrap contains zero verified routable categories, so the valid-submission
+  production exit remains data-gated;
+- the mobile dependency set is aligned to Expo SDK 54.0.33, React Native 0.81.5, React 19.1, and
+  TypeScript 5.9.3; the SDK compatibility check, strict type-check, and Android export pass locally;
+- citizen web account rendering now shows authenticated identity and explicit onboarding,
+  provisioning, profile-unavailable, API-error, and complete states; the web client and API must
+  still target the same fully migrated Supabase environment;
+- Pune Municipal Corporation is the generic architecture and test reference only; no
+  municipality-specific routing logic exists, and verified Pune boundaries, ownership mappings,
+  officer-role assignments, confidence policy, and fallback records remain required before an
+  operational route can be activated;
 - local Supabase configuration, migration tests, RLS tests, API tests, and client build validation are part of CI;
 - Redis, BullMQ, and Sentry are intentionally outside the V1 topology;
 - previously exposed development credentials still require owner rotation before hosted integration;
-- phone delivery, hosted callbacks, MFA enforcement, device-bound session invalidation, and real-device behavior remain documented pre-launch follow-ups;
-- pilot municipality selection plus verified LGD identifiers and ward geometry remain required before Phase 2 can claim real jurisdiction-routing coverage.
+- phone delivery, hosted callbacks, MFA enforcement, device-bound session invalidation, complaint
+  transcription and moderation providers, physical-device behavior, and hosted verification remain
+  documented pre-launch follow-ups; no hosted application deployment has been performed;
+- verified Pune LGD identifiers, selected ward geometry, and operational ownership mappings remain
+  required before the reference pilot can claim real jurisdiction-routing coverage.
 
 See `PLAN.md` for implementation phases.

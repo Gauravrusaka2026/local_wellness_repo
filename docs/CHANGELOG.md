@@ -271,3 +271,217 @@ Updated the execution backlog, progress blockers, changelog, and known-issue reg
 ### Breaking Changes
 
 None.
+
+## 2026-07-13 — Phase 3 Data-Driven Routing Engineering
+
+### Summary
+
+Implemented and locally verified the generic Phase 3 routing engine, PostGIS/database boundary,
+authenticated routing APIs, duplicate-detection framework, and review-gated governance
+synchronization foundation. The implementation remains deliberately non-operational with the
+current bootstrap: every pilot category is unverified and non-routable, and no Pune-specific logic
+or placeholder production route was introduced.
+
+### Feature
+
+- Added versioned routing taxonomy, aliases, assets, ownership, confidence policies, direct and
+  fallback rules, duplicate policies, and append-only routing decision evidence in a private,
+  forced-RLS schema.
+- Added accuracy-aware PostGIS jurisdiction and candidate resolution using complete governance
+  hierarchy, exact boundary versions, asset ownership, department, durable role, optional current
+  assignment, and deterministic fallback evidence.
+- Added strict shared contracts, request validation, deterministic confidence/ranking/ambiguity
+  logic, citizen-safe explanations, and configurable duplicate scoring.
+- Added authenticated category, jurisdiction, and route-resolution APIs with narrow service-only
+  RPCs, runtime response decoding, coordinate-free structured logging, and duplicate-safe audit
+  recording.
+- Added governance synchronization contracts and persistence for official sources, retrieval runs,
+  immutable raw snapshots, normalized candidates, matching, change sets, review events, and
+  explicit publication gates. Network retrieval, scheduling, review UI, and transactional
+  publishers remain tracked operational work.
+- Seeded the 12 approved pilot category labels as deterministic draft, unverified, non-routable
+  engineering records. No municipality, ward, department, officer, assignment, ownership, policy,
+  or route was hardcoded.
+- Added a fail-closed Auth E2E guard and regression so `REQUIRE_LOCAL_SUPABASE=true` refuses hosted
+  API URLs before creating fixtures.
+
+### Files Modified
+
+- Routing contracts and validation under `packages/types` and `packages/validation`.
+- Routing engine, GIS/data-provider abstractions, confidence, fallback, eligibility, ambiguity, and
+  duplicate scoring under `packages/routing-engine`.
+- Governance synchronization lifecycle and publication eligibility under `packages/database`.
+- Routing controllers, services, Supabase repository boundary, exception mapping, and API tests
+  under `apps/api`.
+- Phase 3 migrations, seed, database types, and pgTAP plans under `supabase/`.
+- Auth E2E harness and local-target safety regression under `tests/`.
+- Phase 3 ADRs, worklog, governance synchronization guide, architecture/database/API/authentication/
+  deployment/Supabase documentation, and all required tracking documents.
+
+### Migrations Created
+
+- `20260713200000_phase_3_routing_schema.sql`
+- `20260713201000_governance_synchronization_foundation.sql`
+- `20260713202000_phase_3_routing_security_and_rpc.sql`
+
+### Seeds Created
+
+- `30_phase_3_pilot_categories.sql`
+
+### Tests Added and Verification
+
+- Added routing-engine unit coverage, governance synchronization lifecycle/publication coverage,
+  API/controller/store coverage, and three Phase 3 pgTAP plans.
+- Clean local Supabase reset and database lint passed; all 450 pgTAP assertions passed across 11
+  plans, including 102 Phase 3 assertions. Generated `public`, `governance`, and `routing` types are
+  drift-clean.
+- Focused suites passed 28 of 28 routing-engine tests, 28 of 28 database-package tests, and 59 of 59
+  API tests, including 14 of 14 routing API cases. All 25 Turbo test tasks and all five root test
+  files passed.
+- Governance validation passed over 19 source files with 0 errors, 2,343 explicit warnings, 789
+  operational/reference records, and 98 quarantined records. Canonical CSV and workbook bytes were
+  unchanged.
+- Frozen install, formatting, all 16 workspace lint/type-check/build tasks, Compose validation,
+  production dependency audit, local Auth E2E, and authenticated routing HTTP smoke passed.
+- Rendered viewport inspection remains an environment follow-up because no in-app browser target
+  was connected; Phase 3 adds no routing UI.
+
+### Documentation Updated
+
+- Updated `README.md`, `PLAN.md`, `PROJECT_OVERVIEW.md`, and the architecture, database,
+  authentication, API, deployment, governance-data, Supabase setup, tracking, and Phase 3 worklog
+  documents.
+- Added ADR-0009 for database-evidence deterministic routing, ADR-0010 for review-gated governance
+  synchronization, and `docs/governance-synchronization.md`.
+
+### Data and Hosted Environment Status
+
+- Engineering is complete; verified Pune pilot geometry, official identifiers, ownership and
+  recipient mappings, current assignments, operational confidence/rule versions, and complete
+  fallback paths remain data-validation work.
+- No Phase 3 migration, seed, governance, or routing data was applied to hosted Supabase. During
+  verification, a mis-targeted Auth E2E briefly created disposable hosted Auth users; its `finally`
+  cleanup removed them. The new loopback guard prevents that local-test configuration mistake from
+  recurring.
+- Redis, BullMQ, Redis adapters/caching, and Sentry were not introduced.
+
+### Breaking Changes
+
+None. All database changes are additive, and current bootstrap data remains non-routable.
+
+## 2026-07-14 — Phase 4 Complaint Capture and Governance Synchronization Retrieval
+
+### Summary
+
+Implemented the local Phase 4 citizen complaint-capture path and the first operational engineering
+slice of the permanent governance synchronization subsystem. Complaint submission remains gated by
+verified routing evidence. Governance retrieval remains inactive until source-specific parsers,
+review/publication, security hardening, environment secrets, and Cron deployment are complete.
+
+### Feature
+
+- Added private, forced-RLS complaint drafts, exact-location evidence, media reservations,
+  submitted complaints, initial assignments, status history, duplicate evidence, and replay-safe
+  routing/submission persistence.
+- Added authenticated complaint draft/media/duplicate/submission/receipt/history APIs and an Expo
+  citizen workflow for live photo/video/voice evidence, GPS validation, private signed uploads,
+  retry/resume, duplicate review, emergency acknowledgement, receipt, and owned history.
+- Fixed citizen email callback construction and account rendering: OTP completion now performs a
+  reliable full-page transition, while `/account` validates profile responses and shows explicit
+  signed-in identity, onboarding, provisioning, API-error, and profile-complete states.
+- Extended governance synchronization with PostgreSQL due-source claims, short leases, bounded
+  retry/freshness state, HTTP 304 reuse, append-only audit/evidence, and service-only lifecycle RPCs.
+  Each dispatch claims one source; Edge leases are heartbeat-protected and expired work backs off
+  without immediate reclamation.
+- Added deterministic SHA-256 source contracts. Activation requires exact current-hash approval by
+  an active global platform administrator and rejects unsupported MIME contracts, fragments, and
+  non-443 remote endpoints.
+- Added a dispatch-secret-protected Edge fetcher with exact HTTPS host allowlists, manual redirects,
+  time/size/MIME bounds, private content-addressed snapshot Storage, conditional requests, and safe
+  structured logging. Snapshot finalization validates exact Storage size/MIME metadata, referenced
+  objects are immutable, and failed or ambiguous finalization retains content-addressed bytes for
+  grace-period reconciliation instead of risking an eager-delete race with a late commit.
+- Made the required source-contract hash safe for populated upgrades by adding it nullable,
+  deterministically backfilling existing endpoints through the trigger, and then applying
+  `NOT NULL`; added a root migration-safety regression.
+- Added durable contact channels and immutable effective-dated contact versions with source/manual
+  verification, visibility, publication review, and separate complaint-delivery approval. Each
+  publication consumes one review and binds its owner UUID, value, URL, evidence hash, and delivery
+  decision.
+- Added a pure contact normalizer and registered ten official PMC/BMC endpoints only as draft,
+  unverified, inactive source definitions. No source data is automatically verified, published,
+  routable, or approved for complaint delivery.
+- Added a generic service-only, forced-RLS synchronization-scope registry with immutable canonical
+  hierarchy, global-platform-admin review-gated activation, and routing eligibility independently
+  gated by the referenced entity. Seeded five Pune and five Brihanmumbai ward targets only as draft,
+  unverified, unapproved, placeholder-backed, and non-routable engineering scope.
+- Aligned mobile dependencies with Expo SDK 54.0.33, React Native 0.81.5, React 19.1, compatible SDK
+  54 modules, and TypeScript 5.9.3 so the current Android Expo Go SDK 54 client can load the app.
+
+### Files Modified
+
+- Complaint contracts, validation, API client, NestJS modules/adapters, mobile capture workflow, and
+  citizen-web authentication/account behavior under `packages/` and `apps/`.
+- Complaint and governance synchronization migrations, draft-only source seed, Edge Function,
+  private Storage configuration, database tests, and regenerated database types under `supabase/`.
+- Governance synchronization lifecycle/contact normalization and tests under
+  `packages/database/src/governance-sync/`.
+- ADR-0011, ADR-0012, complaint/governance worklogs, architecture/database/API/authentication/
+  deployment/Supabase documentation, and all required project trackers.
+
+### Migrations Created
+
+- `20260714100000_phase_4_complaint_capture.sql`
+- `20260714101000_phase_4_complaint_security_and_rpc.sql`
+- `20260714110000_governance_sync_scheduling_and_contacts.sql`
+- `20260714111000_governance_sync_service_rpc.sql`
+- `20260714112000_governance_sync_scope.sql`
+
+### Seeds Created
+
+- `40_governance_sync_pilot_sources.sql` — four PMC and six BMC endpoint definitions, all draft,
+  unverified, and inactive.
+- `41_governance_sync_pilot_wards.sql` — five Pune and five Brihanmumbai canonical ward selections,
+  all draft, unverified, unapproved, placeholder-backed, and non-routable.
+
+### Tests Added and Verification
+
+- Added four Phase 4 complaint pgTAP plans and three governance synchronization pgTAP plans. A clean
+  local reset applied all migrations/seeds, and all 657 assertions passed across 18 plans; plans
+  016–018 contribute 100 assertions (`44 + 26 + 30`).
+- Added eleven Edge fetch/helper tests and nine contact-normalizer tests; all passed, along with all
+  three database-package test files and the root migration-safety regression. The populated upgrade
+  fixture backfilled its existing source endpoint with a 64-character contract SHA-256.
+- Added citizen account/profile regression coverage plus complaint API, adapter, validation,
+  API-client, mobile capture/resume, and callback coverage. The API suite passed 86 tests, and the
+  Expo Android export completed.
+- `expo install --check`, mobile strict type-check, and the SDK 54 Android export passed (1,202
+  modules).
+- Database lint reported only diagnostics owned by the installed PostGIS extension. Canonical CSV
+  and workbook bytes were unchanged.
+
+### Documentation Updated
+
+- Updated `README.md`, `PROJECT_OVERVIEW.md`, `PLAN.md`, all required tracking documents, and the
+  applicable architecture, database, API, authentication, deployment, and Supabase setup guides.
+- Added ADR-0012 and `docs/worklogs/governance-synchronization/`; retained the ADR-0010 human-review
+  gate and ADR-0007 exclusion of Redis, BullMQ, and Sentry.
+
+### Hosted Environment and Data Status
+
+- No new migration, seed, source activation, raw snapshot, contact, routing, complaint, or media
+  data was applied to hosted Supabase.
+- All ten pilot source endpoints remain inactive. Source-specific PMC/BMC parsers, matching,
+  review API/UI, transactional publishers, Cron/secrets, DNS-resolution hardening, orphan snapshot
+  grace-period reconciliation after ambiguous finalization, and record-specific verification remain
+  pending.
+- All ten pilot ward scope targets remain inactive and non-routable. Their canonical wards are
+  placeholders without verified geometry; `BRIH-W01`–`BRIH-W05` must be reconciled to BMC's official
+  lettered ward structure before any production scope activation.
+- Verified Pune geometry and complete reviewed routing evidence are still required before a real
+  complaint can be routed or submitted.
+
+### Breaking Changes
+
+None. Database changes are additive, prior versions remain queryable, and unverified data continues
+to fail closed.

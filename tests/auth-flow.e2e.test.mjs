@@ -32,6 +32,24 @@ if (requiresLocalConfiguration && !hasLocalConfiguration) {
     'REQUIRE_LOCAL_SUPABASE=true, but the local API URL, public key, or server secret key is missing.',
   );
 }
+
+if (requiresLocalConfiguration && supabaseUrl) {
+  let hostname;
+
+  try {
+    hostname = new URL(supabaseUrl).hostname;
+  } catch {
+    throw new Error('REQUIRE_LOCAL_SUPABASE=true, but the Supabase API URL is invalid.');
+  }
+
+  const loopbackHosts = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+
+  if (!loopbackHosts.has(hostname)) {
+    throw new Error(
+      `REQUIRE_LOCAL_SUPABASE=true refuses the non-loopback Supabase host ${hostname}.`,
+    );
+  }
+}
 const localMailUrl =
   firstEnvironmentValue('MAILPIT_URL', 'INBUCKET_URL', 'LOCAL_SUPABASE_MAIL_URL') ??
   'http://127.0.0.1:54324';

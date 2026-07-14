@@ -113,6 +113,18 @@ Use a final scheme after naming is finalized.
 
 The local redirect allow-list includes the citizen web, government dashboard, admin console and mobile callback routes. Each managed environment must replace these with its exact deployed HTTPS origins while retaining only required development URLs in non-production projects.
 
+Citizen email OTP/magic-link requests use the exact queryless, same-origin `/auth/callback` URL.
+Allow-list that exact route for each citizen-web origin. Do not depend on an optional `next` query
+parameter being accepted by the provider. Verify a newly delivered hosted email, PKCE exchange,
+SSR cookie, and authenticated landing page in a real browser before enabling users.
+
+The authenticated citizen account page reads the application profile through the NestJS
+`GET /api/v1/me` endpoint; it does not read a fabricated profile from Auth metadata. Configure
+`NEXT_PUBLIC_API_URL`, start/deploy that API, and ensure the citizen web, API, and Supabase Auth URL
+all refer to the same environment. Apply the Phase 1 profile trigger before testing signup. If an
+older Auth user has no `public.profiles` row, reconcile that row through a reviewed server-side
+operation; do not weaken the API check or add a client-side fallback.
+
 ### Government Invite Template
 
 Administrator invitations do not create a PKCE verifier, so their default fragment-based link cannot be completed by the server-side dashboard callback. Local Auth uses the committed `supabase/templates/invite.html`. In every managed Supabase project, set the **Invite user** email template to the equivalent token-hash link:
@@ -148,24 +160,50 @@ The committed local configuration reserves one development-only phone/OTP mappin
 
 ## 7. Configure Storage Buckets
 
-Create:
+Phase 4 migrations create and maintain these private buckets:
 
 ```text
 complaint-originals-private
-complaint-public-media
 complaint-thumbnails
 resolution-evidence-private
 voice-recordings-private
+```
+
+The complaint API reserves owner/draft/media-scoped object paths and returns transient signed
+upload tokens for originals or voice recordings. It inspects the stored object and verifies MIME
+type, byte size, and SHA-256 before finalization. `complaint-thumbnails` and
+`resolution-evidence-private` are created now to preserve the reviewed private topology, but no
+Phase 4 processor or resolution workflow writes them. All four remain private.
+
+These buckets are later-phase plans and are not created by Phase 4:
+
+```text
+complaint-public-media
 profile-images
 government-documents-private
 ```
+
+Never create `complaint-public-media` or publish an original merely to make a client preview work.
+Public derivatives require a later privacy/moderation decision and migration.
+
+Phase 3 migrations also create:
+
+```text
+governance-raw-snapshots
+```
+
+This bucket is private and reserved for immutable, content-addressed official-source snapshots. It
+is not a client upload surface and does not replace the read-only repository bootstrap CSVs. No
+retrieval is activated by creating the bucket. The `governance-sync-fetch` Edge Function implements
+the generic reviewed HTTPS fetch/Storage adapter, but the ten PMC/BMC pilot sources are seeded as
+draft and unverified and there is no committed Cron job.
 
 Policies:
 
 - originals private;
 - voice private;
 - resolution evidence private until processed;
-- public media contains only approved processed copies;
+- any future public media contains only separately approved processed copies;
 - signed URLs for private access;
 - object path must include authorized owner or complaint context.
 
@@ -173,7 +211,7 @@ Policies:
 
 ## 8. Configure Database Schemas
 
-Phase 1 migrations create the unexposed `private` helper schema and keep exposed identity tables in `public` for Supabase data-API RLS. Phase 2 creates `governance`, but intentionally leaves it out of the `[api].schemas` allow-list. Its tables use forced RLS and explicit grants as defense in depth; server-side imports and the jurisdiction resolver use trusted database/service-role access. Complaints, communications, operations, analytics, integrations and audit schemas belong to later phases and must be created by their committed migrations when implemented.
+Phase 1 migrations create the unexposed `private` helper schema and keep exposed identity tables in `public` for Supabase data-API RLS. Phase 2 creates `governance`, but intentionally leaves it out of the `[api].schemas` allow-list. Its tables use forced RLS and explicit grants as defense in depth; server-side imports and the jurisdiction resolver use trusted database/service-role access. Phase 3 creates the similarly unexposed, forced-RLS `routing` schema and adds synchronization tables to `governance`. The retrieval/contact slice keeps its leases, events, evidence, and contact versions in that same unexposed forced-RLS schema and exposes only four service-role retrieval RPCs. Phase 4 creates the unexposed, forced-RLS `complaints` schema. Narrow `public` wrappers provide service-role-only routing, synchronization, and complaint operations without granting clients any private schema. Communications, operations, analytics, integrations and audit schemas belong to later phases and must be created by their committed migrations when implemented.
 
 Do not pre-create schemas only through a dashboard, and do not expose every schema automatically.
 
@@ -200,6 +238,13 @@ using (true)
 ```
 
 unless the table is intentionally public.
+
+Phase 4 grants no direct complaint-schema access to `anon`, `authenticated`, or `service_role`.
+All nine tables have RLS enabled and forced. Only reviewed `public` security-definer wrappers are
+executable by the service role, and the NestJS API supplies the bearer-token actor ID. Storage also
+has no direct anonymous/authenticated object policy for complaint originals, voice recordings,
+thumbnails, or resolution evidence. Test both SQL/RPC ACL denial and Storage privacy in every
+managed environment; a private bucket flag alone is not a substitute for access-control review.
 
 ---
 
@@ -289,7 +334,7 @@ pnpm governance:data:check
 
 ## 13. Database Types
 
-Generate the current local `public` and `governance` schema types with the repository script:
+Generate the current local `public`, `governance`, `routing`, and `complaints` schema types with the repository script:
 
 ```bash
 pnpm database:types
@@ -301,7 +346,7 @@ For remote development project:
 ```bash
 pnpm exec supabase gen types typescript \
   --project-id <project-ref> \
-  --schema public,governance \
+  --schema public,governance,routing,complaints \
   > packages/database/src/database.types.ts
 ```
 
@@ -322,6 +367,58 @@ Examples:
 
 Do not place the entire backend inside Edge Functions if NestJS is the primary API.
 
+### Governance retrieval
+
+Deploy `supabase/functions/governance-sync-fetch`. It is deliberately limited to claiming reviewed
+due sources, safe HTTPS retrieval, immutable private Storage preservation, and snapshot/failure RPC
+finalization. It does not parse, match, review, publish, or send complaints.
+
+The committed local configuration sets:
+
+```toml
+[functions.governance-sync-fetch]
+verify_jwt = false
+```
+
+Keep that exception scoped to this function. It validates a dedicated high-entropy dispatch secret
+in constant time before it can call the claim RPC. Test POST rejection with no/incorrect secret,
+method rejection, body limits, and an empty claim result before activating a schedule.
+
+After deploying the migrations and function in a non-production project:
+
+1. create a unique `GOVERNANCE_SYNC_DISPATCH_SECRET` of at least 32 characters;
+2. store it as a Supabase Edge Function secret;
+3. store the Cron caller copy in the managed environment's encrypted secret/Vault facility, not in
+   a migration, source row, shell history, or committed SQL;
+4. create a Supabase Cron HTTP POST to the deployed `governance-sync-fetch` URL with
+   `x-governance-sync-secret` and an optional `{"limit":1,"leaseSeconds":300}` body;
+5. keep the Cron job disabled until at least one source has completed endpoint/parser/cardinality,
+   retention, and security review;
+6. activate sources one at a time with attributed approval and a future `next_sync_at`, then verify
+   claim, snapshot, `304`, failure/backoff, and audit behavior in development and staging.
+
+The server key is supplied by the Edge runtime (`SUPABASE_SECRET_KEY`, with the legacy
+`SUPABASE_SERVICE_ROLE_KEY` fallback). Never provide either key in the Cron request. The function
+claims exactly one source per dispatch and accepts a 300–900 second lease, defaulting to 300; the
+trusted database RPC accepts 180–900 seconds. It heartbeats after retrieval and after a Storage
+write. Expired claims are failed and backed off rather than reclaimed in the same call. The function
+accepts only exact allowlisted HTTPS port 443 hosts without fragments and manually validates every
+redirect, expected supported MIME, timeout, and response-size limit. Raw objects use
+`<source-endpoint-id>/<sha256>.<extension>` in `governance-raw-snapshots` with no overwrite.
+
+The database computes a deterministic SHA-256 for every source contract. Source activation requires
+the stored approval hash to match the current contract exactly and attributes approval to a user
+with a current global `platform_admin` role. Snapshot finalization checks the exact
+`storage.objects` size and MIME metadata; referenced objects are immutable. The Edge function
+retains newly uploaded bytes after a failed or ambiguous finalization because eager deletion could
+race a late commit. Operators must run grace-period orphan reconciliation that rechecks database
+links before removal.
+
+The migration introduces `source_contract_sha256` using nullable/backfill/`NOT NULL` sequencing:
+existing endpoint rows are deterministically hashed by the trigger before the constraint is applied.
+Keep the root migration-safety regression in the release gate for upgrades from a populated Phase 3
+database.
+
 ---
 
 ## 15. Configure Secrets
@@ -331,6 +428,10 @@ Set function secrets:
 ```bash
 supabase secrets set KEY=value
 ```
+
+For governance retrieval, set `GOVERNANCE_SYNC_DISPATCH_SECRET` independently in every managed
+environment. Rotate both the Edge secret and encrypted Cron caller value together. A rotation must
+not edit source registry rows or expose either value in synchronization audit events.
 
 Use environment-specific secrets.
 
@@ -404,6 +505,7 @@ NEXT_PUBLIC_API_URL=
 
 GOVERNMENT_INVITE_REDIRECT_URL=
 API_ALLOWED_ORIGINS=
+GOVERNANCE_SYNC_DISPATCH_SECRET=
 
 EXPO_PUBLIC_API_URL=
 ```
@@ -433,6 +535,49 @@ Phase 2 local verification is complete for the available baseline:
 
 These checks pass locally: seven Phase 2 migrations, two generated governance seed files, 22 forced-RLS governance tables and all 194 Phase 2 pgTAP assertions. The canonical source, generated seeds and validation report are reviewed artifacts. Follow `docs/governance-data.md` for refreshes; never modify the CSVs or generated SQL in place.
 
+Phase 3 adds three migrations, the engineering-category seed, routing/synchronization package tests,
+API tests, and pgTAP plans for routing schema/security, placeholder exclusion, synchronization
+lifecycle, PostGIS candidates, fallback behavior, and decision auditing. The clean reset, database
+lint, generated-type drift check, and repository-wide validation passed locally. All 450 assertions
+passed across 11 pgTAP plans, including 102 Phase 3 assertions, and the generated types cover
+`public`, `governance`, and `routing`. Exact observed results are recorded in
+`docs/worklogs/phase-3-routing/testing.md`.
+
+The expected post-reset bootstrap state remains deliberately non-operational: 12 draft/unverified
+categories, zero operational categories, no verified Pune rule set, and no route sourced from a
+placeholder. Synthetic verified fixtures used by database tests must run inside rolled-back test
+transactions and must not survive as seed data.
+
+Phase 4 adds two complaint migrations, four private Storage buckets, generated complaint-schema
+types, authenticated complaint API tests, and four pgTAP plans. The clean local reset and schema
+lint passed. All 557 assertions passed across 15 plans; the four Phase 4 plans contribute 107
+assertions covering schema/storage, forced RLS/ACL, rollback-isolated routed submission, exact
+replay, duplicate checks, and malformed/placeholder/location/media rejection. The generated types
+cover `public`, `governance`, `routing`, and `complaints`. Exact observed results are recorded in
+`docs/worklogs/phase-4-complaint-capture/testing.md`.
+
+The governance retrieval/contact/scope slice adds three forward migrations, the draft-only pilot
+source and ward-scope seeds, database plans 016–018, Edge fetch-helper tests, and pure
+contact-normalizer tests. A reset shows ten PMC/BMC endpoint contracts with zero active/claimable
+scheduled sources plus ten service-only ward targets (five per municipality), all draft,
+unverified, unapproved, and non-routable. The final clean run passed 657 assertions across 18 pgTAP
+plans; plans 016–018 contribute 100 assertions (`44 + 26 + 30`). Eleven Edge helper cases, nine
+contact-normalizer cases, all three database-package test files, and the root migration-safety
+regression passed. The populated upgrade fixture backfilled its existing source endpoint to a
+64-character SHA-256 before `NOT NULL` enforcement.
+Database lint reported only PostGIS extension-owned diagnostics. Repeat the clean reset, schema
+lint, all pgTAP plans, generated-type drift check, and Edge/package tests after any migration,
+contract, or function change.
+
+The positive complaint fixtures are synthetic and transactionally rolled back. With the real seed,
+the authenticated operational-category query is still empty, so no user can submit a placeholder
+complaint. This is the required fail-closed bootstrap outcome, not verified Pune coverage.
+
+When `REQUIRE_LOCAL_SUPABASE=true`, the Auth E2E harness accepts only loopback API hosts. This guard
+fails before user creation if a generic environment file points at hosted Supabase. Hosted database
+migrations and seeds remain an explicit operator action; local reset and test commands do not upload
+Phase 3 or Phase 4 governance, routing, complaint data, migrations, or media.
+
 Before managed identity activation, operators must:
 
 - complete credential rotation tracked by `SEC-001`;
@@ -443,9 +588,53 @@ Before managed identity activation, operators must:
 - configure SMS/email delivery, provider rate limits and abuse controls;
 - select secret storage and restrict production credentials;
 - configure environment-specific CI/deployment secrets;
-- plan required Storage buckets for the phase that introduces media;
+- review the Phase 4 private Storage bucket topology, limits, and access policies;
 - document and verify backup/restore strategy;
 - run hosted email, SMS, invite, SSR-cookie and effective-scope smoke tests.
+
+Before managed routing or governance synchronization activation, operators must also:
+
+- verify Pune Municipal Corporation and selected ward geometry against approved official sources;
+- review category ownership, departments, officer roles, current assignments, assets, confidence
+  policy, rules, and fallback records;
+- approve each source endpoint, retrieval cadence, parser contract, secret reference, and raw
+  snapshot retention/access policy, storing the exact current contract SHA-256 through an active
+  global platform-administrator approval;
+- deploy and test the custom-secret Edge retrieval/snapshot adapter, PostgreSQL claim leases,
+  `304` reuse, failure backoff, and private content-addressed Storage;
+- implement and test source-specific parsing, candidate persistence, matching, review, and
+  transactional publication adapters without changing the canonical bootstrap files;
+- keep the ten PMC/BMC seed endpoints draft/unverified until each has stable fixtures, reviewed
+  cardinality/layout expectations, and attributed activation approval;
+- keep the ten pilot ward scope targets draft/unverified/non-routable until each canonical hierarchy,
+  official identity, and boundary is reviewed by an active global platform administrator; reconcile
+  BMC's numeric placeholders to the official lettered wards before activation;
+- verify that a source-authenticated value remains staged, public visibility requires attributed
+  manual verification, and complaint delivery requires its separate explicit approval;
+- verify contact publication binds the target owner UUID, value, source URL, evidence-value hash,
+  and delivery decision and that each approved review can be consumed only once;
+- run hosted service-role routing smoke tests and confirm that anon/authenticated roles cannot call
+  the database RPCs directly;
+- confirm that exact routing coordinates and raw snapshots are excluded from logs and client
+  responses.
+
+Before managed complaint capture activation, operators must also:
+
+- rotate and audit previously exposed Supabase/database credentials before any hosted integration;
+- apply the complaint migrations first in managed development and then staging, regenerate/check
+  types, and repeat forced-RLS, RPC-grant, cross-owner, private-bucket, and signed-upload tests;
+- load only reviewed verified Pune categories, polygons, duplicate policy, department/role and
+  routing/fallback evidence; confirm that placeholder or unverified records still cannot route;
+- run an authenticated exact-replay draft/upload/routing/submission smoke and a conflicting-key
+  negative smoke without logging raw keys, tokens, coordinates, descriptions, or checksums;
+- validate camera, short video, microphone, foreground GPS/mock indication, SecureStore, SQLite
+  resume, network interruption, and deep links in an Expo development build on physical devices;
+- approve capture/location/media/retention/privacy/emergency/duplicate policies and select
+  transcription/moderation processing before claiming those capabilities as operational;
+- provide a device-reachable reviewed API URL; never put the secret/service-role key in the mobile
+  bundle.
+
+No Redis, BullMQ, Redis adapter/cache, or Sentry setup is required or permitted for this V1 path.
 
 ---
 

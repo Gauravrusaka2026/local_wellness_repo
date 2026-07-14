@@ -19,6 +19,11 @@
   "scripts": {
     "build": "tsc --build tsconfig.json",
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
   }
 }

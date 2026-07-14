@@ -227,4 +227,6 @@ export interface GovernmentInvitation {
   roleStatus: 'active';
 }
 
+export * from './complaints.js';
 export * from './governance.js';
+export * from './routing.js';
