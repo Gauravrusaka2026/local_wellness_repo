@@ -17,6 +17,9 @@ export default function Page() {
           <Link className="secondary-link" href="/account">
             Open your account
           </Link>
+          <Link className="secondary-link" href="/transparency">
+            Explore reviewed public reports
+          </Link>
         </div>
         <p className="emergency-note">
           Local Wellness is not an emergency service. For immediate danger, call 112.

@@ -1,30 +1,38 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { completeAuthCallback, getUserFacingAuthError } from '../../src/auth/auth-service';
 import { ErrorScreen, LoadingScreen } from '../../src/ui/screen';
 
-const firstParameter = (value: string | string[] | undefined): string | undefined =>
-  Array.isArray(value) ? value[0] : value;
-
 export default function AuthCallbackScreen() {
   const parameters = useLocalSearchParams<{
     code?: string | string[];
+    error?: string | string[];
+    error_code?: string | string[];
+    error_description?: string | string[];
     token_hash?: string | string[];
+    type?: string | string[];
   }>();
   const router = useRouter();
+  const started = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (started.current) return;
+    started.current = true;
     let isCurrent = true;
 
     const complete = async (): Promise<void> => {
       try {
-        const code = firstParameter(parameters.code);
-        const tokenHash = firstParameter(parameters.token_hash);
         await completeAuthCallback({
-          ...(code === undefined ? {} : { code }),
-          ...(tokenHash === undefined ? {} : { tokenHash }),
+          ...(parameters.code === undefined ? {} : { code: parameters.code }),
+          ...(parameters.error === undefined ? {} : { error: parameters.error }),
+          ...(parameters.error_code === undefined ? {} : { errorCode: parameters.error_code }),
+          ...(parameters.error_description === undefined
+            ? {}
+            : { errorDescription: parameters.error_description }),
+          ...(parameters.token_hash === undefined ? {} : { tokenHash: parameters.token_hash }),
+          ...(parameters.type === undefined ? {} : { type: parameters.type }),
         });
 
         if (isCurrent) {
@@ -42,7 +50,15 @@ export default function AuthCallbackScreen() {
     return () => {
       isCurrent = false;
     };
-  }, [parameters.code, parameters.token_hash, router]);
+  }, [
+    parameters.code,
+    parameters.error,
+    parameters.error_code,
+    parameters.error_description,
+    parameters.token_hash,
+    parameters.type,
+    router,
+  ]);
 
   return error === null ? (
     <LoadingScreen label="Completing your secure sign-in…" />

@@ -96,8 +96,8 @@ select is(
     where tgrelid = 'complaints.complaint_status_history'::regclass
       and not tgisinternal
   ),
-  2,
-  'status history has an append-only trigger'
+  3,
+  'status history retains append-only and derived-event triggers'
 );
 
 select * from finish();

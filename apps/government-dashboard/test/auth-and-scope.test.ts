@@ -7,7 +7,12 @@ import {
   hasGovernmentAccess,
   type GovernmentAccessScope,
 } from '../lib/api/access-scope';
-import { getGovernmentEmailCallbackUrl, getSupportedEmailOtpType } from '../lib/auth/callback';
+import {
+  completeEmailAuthCallback,
+  getGovernmentEmailCallbackUrl,
+  getSupportedEmailOtpType,
+  resolveEmailAuthCallback,
+} from '../lib/auth/callback';
 import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
 import {
@@ -37,6 +42,98 @@ test('uses the exact queryless government callback URL for managed Auth allow-li
     'http://localhost:3003/auth/callback',
   );
   assert.equal(new URL(getGovernmentEmailCallbackUrl('https://government.example.org')).search, '');
+});
+
+test('accepts a one-time PKCE callback and rejects ambiguous government links', async () => {
+  assert.deepEqual(
+    resolveEmailAuthCallback('https://government.example.org/auth/callback?code=pkce-code'),
+    { code: 'pkce-code', method: 'pkce' },
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://government.example.org/auth/callback?code=pkce&token_hash=hash&type=email',
+    ),
+  );
+
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      exchangeCodeForSession: async (code: string) => {
+        calls.push(code);
+        return {
+          data: { session: { access_token: 'government-access-token' } },
+          error: null,
+        };
+      },
+      setSession: async () => {
+        throw new Error('Implicit session must not run for PKCE.');
+      },
+      verifyOtp: async () => {
+        throw new Error('OTP verification must not run for PKCE.');
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  assert.equal(
+    await completeEmailAuthCallback(
+      supabase,
+      'https://government.example.org/auth/callback?code=pkce-code',
+    ),
+    'government-access-token',
+  );
+  assert.deepEqual(calls, ['pkce-code']);
+});
+
+test('accepts only a complete default fragment session for a government invitation', async () => {
+  assert.deepEqual(
+    resolveEmailAuthCallback(
+      'https://government.example.org/auth/callback#access_token=access&refresh_token=refresh&type=invite',
+    ),
+    {
+      accessToken: 'access',
+      method: 'implicit',
+      refreshToken: 'refresh',
+      type: 'invite',
+    },
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://government.example.org/auth/callback#access_token=access&refresh_token=refresh&type=magiclink',
+    ),
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://government.example.org/auth/callback#access_token=access&type=invite',
+    ),
+  );
+
+  const sessions: unknown[] = [];
+  const supabase = {
+    auth: {
+      exchangeCodeForSession: async () => {
+        throw new Error('PKCE must not run for an invitation fragment.');
+      },
+      setSession: async (session: unknown) => {
+        sessions.push(session);
+        return {
+          data: { session: { access_token: 'government-access-token' } },
+          error: null,
+        };
+      },
+      verifyOtp: async () => {
+        throw new Error('Token hash verification must not run for an invitation fragment.');
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  assert.equal(
+    await completeEmailAuthCallback(
+      supabase,
+      'https://government.example.org/auth/callback#access_token=access&refresh_token=refresh&type=invite',
+    ),
+    'government-access-token',
+  );
+  assert.deepEqual(sessions, [{ access_token: 'access', refresh_token: 'refresh' }]);
 });
 
 test('requests a government email code without creating an account', async () => {

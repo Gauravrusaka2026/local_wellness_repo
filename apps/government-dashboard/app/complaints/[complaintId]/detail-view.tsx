@@ -5,12 +5,14 @@ import {
   type GovernmentComplaintAssignmentOption,
   type GovernmentComplaintAccountability,
   type GovernmentComplaintDetail,
+  type GovernmentComplaintSlaSummary,
   type ComplaintMessage,
 } from '@local-wellness/types';
 
 import { formatBytes, formatDateTime, getStatusLabel } from '../../../lib/complaints/presentation';
 import { GovernmentActionForms } from './action-forms';
 import { ConversationPanel } from './conversation-panel';
+import { ComplaintSlaPanel } from './sla-panel';
 
 const DefinitionList = ({
   items,
@@ -33,6 +35,8 @@ export const ComplaintDetailView = ({
   complaint,
   messages,
   queueHref = '/',
+  sla = null,
+  slaError = null,
 }: Readonly<{
   accountability?: GovernmentComplaintAccountability | null;
   accountabilityError?: string | null;
@@ -41,6 +45,8 @@ export const ComplaintDetailView = ({
   complaint: GovernmentComplaintDetail;
   messages: ComplaintMessage[];
   queueHref?: string;
+  sla?: GovernmentComplaintSlaSummary | null;
+  slaError?: string | null;
 }>) => {
   const assignment = complaint.currentAssignment;
   const operationKeys = Object.fromEntries(
@@ -80,6 +86,8 @@ export const ComplaintDetailView = ({
               ]}
             />
           </section>
+
+          <ComplaintSlaPanel error={slaError} summary={sla} />
 
           <section aria-labelledby="location-heading" className="content-card location-card">
             <div className="section-heading compact-heading">

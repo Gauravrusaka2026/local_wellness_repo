@@ -38,12 +38,14 @@ import {
   getUserFacingComplaintError,
   listRoutingCategories,
   setComplaintLocation,
+  shouldRotateSubmitIdempotencyKeyAfterError,
   submitComplaintDraft,
   updateComplaintDraft,
 } from './complaint-service';
 import { createComplaintIdempotencyKey, createComplaintIdempotencyKeys } from './idempotency';
+import { rotateComplaintSubmitIdempotencyKey } from './idempotency-format';
 import { assessMediaDistance } from './location-evidence';
-import { captureCurrentLocation } from './location-service';
+import { captureCurrentLocation, requiresLocationPermissionSettings } from './location-service';
 import {
   clearMediaCaptureLocation,
   loadMediaCaptureLocation,
@@ -72,6 +74,7 @@ type ComplaintContextValue = Readonly<{
   discardDraft: () => Promise<void>;
   goToStep: (step: ComplaintCaptureStep) => Promise<void>;
   loadNearbyAssets: () => Promise<void>;
+  reloadCategories: () => Promise<void>;
   refresh: () => Promise<void>;
   retryPendingUpload: () => Promise<void>;
   selectAsset: (assetId: string) => Promise<void>;
@@ -126,6 +129,22 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     await saveComplaintResume(next);
     resumeRef.current = next;
   }, []);
+
+  const persistWithRotatedSubmitKey = useCallback(
+    async (overrides: Partial<ComplaintResumeRecord> = {}): Promise<void> => {
+      const resume = resumeRef.current;
+      if (resume === null) {
+        throw new Error('The resumable submission state is unavailable.');
+      }
+      await persistResume({
+        ...overrides,
+        submitIdempotencyKey: rotateComplaintSubmitIdempotencyKey(resume.submitIdempotencyKey, () =>
+          createComplaintIdempotencyKey('submit'),
+        ),
+      });
+    },
+    [persistResume],
+  );
 
   useEffect(() => {
     const subscription = NetInfo.addEventListener((network) => {
@@ -219,6 +238,21 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     if (state.draft === null) throw new Error('Start a complaint draft first.');
     return state.draft;
   }, [state.draft]);
+
+  const reloadCategories = useCallback(async (): Promise<void> => {
+    const activeSession = requireSession();
+    dispatch({ message: null, type: 'error' });
+    dispatch({ type: 'busy', value: true });
+    try {
+      const categories = await listRoutingCategories(activeSession.accessToken);
+      dispatch({ categories, type: 'categories_loaded' });
+    } catch (error) {
+      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+      throw error;
+    } finally {
+      dispatch({ type: 'busy', value: false });
+    }
+  }, [requireSession]);
 
   const startDraft = useCallback(async (): Promise<void> => {
     if (state.draft !== null) return;
@@ -342,6 +376,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
           draft.id,
           categoryChanged ? { ...input, assetId: null } : input,
         );
+        await persistWithRotatedSubmitKey();
         dispatch({ draft: updated, type: 'draft_loaded' });
         if (categoryChanged) {
           dispatch({ type: 'assets_cleared' });
@@ -357,7 +392,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         dispatch({ type: 'busy', value: false });
       }
     },
-    [requireDraft, requireSession, state.categories],
+    [persistWithRotatedSubmitKey, requireDraft, requireSession, state.categories],
   );
 
   const captureLocation = useCallback(async (): Promise<void> => {
@@ -368,6 +403,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     try {
       const location = await captureCurrentLocation();
       const updated = await setComplaintLocation(activeSession.accessToken, draft.id, location);
+      await persistWithRotatedSubmitKey();
       dispatch({ draft: updated, type: 'draft_loaded' });
       dispatch({ type: 'assets_cleared' });
       dispatch({
@@ -375,12 +411,16 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         type: 'assets_loaded',
       });
     } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+      dispatch({
+        locationSettingsRequired: requiresLocationPermissionSettings(error),
+        message: getUserFacingComplaintError(error),
+        type: 'error',
+      });
       throw error;
     } finally {
       dispatch({ type: 'busy', value: false });
     }
-  }, [requireDraft, requireSession, state.categories]);
+  }, [persistWithRotatedSubmitKey, requireDraft, requireSession, state.categories]);
 
   const loadNearbyAssets = useCallback(async (): Promise<void> => {
     const activeSession = requireSession();
@@ -420,7 +460,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       const finishUpload = async (): Promise<void> => {
         const updated = await getComplaintDraft(activeSession.accessToken, draft.id);
         await clearMediaCaptureLocation(pending.idempotencyKey);
-        await persistResume({ pendingMedia: null });
+        await persistWithRotatedSubmitKey({ pendingMedia: null });
         deletePreparedMedia(media.localUri);
         dispatch({ draft: updated, type: 'draft_loaded' });
         dispatch({ type: 'upload_changed', upload: null });
@@ -492,7 +532,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       if (!finalizedAfterExistingUpload) await finalize();
       await finishUpload();
     },
-    [persistResume, requireDraft, requireSession],
+    [persistResume, persistWithRotatedSubmitKey, requireDraft, requireSession],
   );
 
   const uploadMedia = useCallback(
@@ -553,7 +593,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     try {
       const duplicateCheck = await checkComplaintDuplicates(activeSession.accessToken, draft.id);
       dispatch({ duplicateCheck, type: 'duplicates_loaded' });
-      await persistResume({ step: 'duplicates' });
+      await persistWithRotatedSubmitKey({ step: 'duplicates' });
       dispatch({ step: 'duplicates', type: 'step_changed' });
     } catch (error) {
       dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
@@ -561,18 +601,18 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     } finally {
       dispatch({ type: 'busy', value: false });
     }
-  }, [persistResume, requireDraft, requireSession]);
+  }, [persistWithRotatedSubmitKey, requireDraft, requireSession]);
 
   const submit = useCallback(async (): Promise<void> => {
     const activeSession = requireSession();
     const draft = requireDraft();
     const resume = resumeRef.current;
     if (resume === null) throw new Error('The resumable submission state is unavailable.');
-    const readiness = getDraftReadiness(draft);
+    const category = getSelectedCategory(state);
+    const readiness = getDraftReadiness(draft, category);
     if (!readiness.isReady) {
       throw new Error(`Complete the required fields: ${readiness.missing.join(', ')}.`);
     }
-    const category = getSelectedCategory(state);
     if (
       category?.requiresAsset === true &&
       !state.assetOptions.some((asset) => asset.id === draft.assetId)
@@ -607,12 +647,20 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       resumeRef.current = null;
       dispatch({ receipt, type: 'receipt_loaded' });
     } catch (error) {
+      if (shouldRotateSubmitIdempotencyKeyAfterError(error)) {
+        try {
+          await persistWithRotatedSubmitKey();
+        } catch (rotationError) {
+          dispatch({ message: getUserFacingComplaintError(rotationError), type: 'error' });
+          throw rotationError;
+        }
+      }
       dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
       throw error;
     } finally {
       dispatch({ type: 'busy', value: false });
     }
-  }, [requireDraft, requireSession, state]);
+  }, [persistWithRotatedSubmitKey, requireDraft, requireSession, state]);
 
   const discardDraft = useCallback(async (): Promise<void> => {
     const activeSession = requireSession();
@@ -671,6 +719,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       discardDraft,
       goToStep,
       loadNearbyAssets,
+      reloadCategories,
       refresh,
       retryPendingUpload,
       selectAsset,
@@ -686,6 +735,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       discardDraft,
       goToStep,
       loadNearbyAssets,
+      reloadCategories,
       refresh,
       retryPendingUpload,
       selectAsset,

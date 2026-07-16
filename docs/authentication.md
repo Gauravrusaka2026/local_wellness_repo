@@ -15,13 +15,13 @@ Supabase Auth is the V1 identity provider.
 Authentication options:
 
 - phone OTP;
-- email OTP.
+- email OTP;
+- secure email magic link.
 
-Citizen, government and administrator interactive email sign-in uses code entry. The committed
-local confirmation and magic-link templates contain the six-digit `Token` and no clickable sign-in
-URL, preventing provider template defaults from changing those flows back to a link. Managed
-projects require the equivalent reviewed templates. Government invitations remain a separate,
-one-time token-hash link flow.
+Citizen, government and administrator email sign-in accepts either the six-digit `Token`, a secure
+link, or an email containing both. This keeps the clients compatible with reviewed code-first
+templates and Supabase's default magic-link template. Government invitations remain one-time and
+must still pass the application membership and role checks after authentication.
 
 Google and Apple sign-in are not part of Phase 1.
 
@@ -145,6 +145,22 @@ Profile created or loaded
 Device registered
 ```
 
+### Mobile Passwordless Modes
+
+The Expo client presents three explicit modes for phone or passwordless email verification:
+
+- **Sign in** requests a code with `shouldCreateUser: false`;
+- **Create account** is the only mode allowed to request an OTP that can provision a new Auth
+  identity;
+- **Recover account** requests an existing-account OTP with `shouldCreateUser: false`.
+
+Recovery does not reset a password because citizen authentication is passwordless. It restores
+access by proving control of the configured phone or email. Email delivery may contain a code, a
+secure link, or both; the code form remains available whenever the delivered template includes a
+token. Request responses stay generic so the client does not reveal whether an identifier exists.
+OTPs/tokens are never logged, and a user cannot select a privileged application role during
+registration.
+
 ### Government Invitation
 
 ```text
@@ -168,11 +184,15 @@ Current role and membership scope evaluated
 
 The trusted API creates invitations through Supabase Auth, then persists the invited authority membership and scoped role assignment. The caller must already hold active `platform_admin` access or active `municipal_admin` access for the same authority. Client applications cannot submit `granted_by`, membership status, or privileged role state.
 
-Supabase administrator invitations do not originate a PKCE verifier. The invite email therefore
-links to the government callback with a one-time `token_hash` and `type=invite`; the server verifies
-that hash and writes the SSR session cookies. Subsequent government and administrator sign-in
-requests keep `shouldCreateUser` disabled, send a code through the reviewed magic-link template,
-and verify it in the requesting application with the `email` OTP type.
+Supabase administrator invitations do not originate a PKCE verifier. The government callback—the
+only configured destination for this invitation workflow—therefore supports the reviewed one-time
+`token_hash` invite link and a complete default Supabase fragment only when its provider type is
+exactly `invite`. Citizen and administrator callbacks reject fragment sessions. Callback completion
+establishes only the Supabase session: it does not create an authority membership, assign a role,
+or bypass the database access gate. The invitation workflow must persist the reviewed membership
+and role before the recipient can enter the restricted application. Subsequent government and
+administrator sign-in requests keep `shouldCreateUser` disabled and accept either a delivered
+`email` OTP or PKCE secure link.
 
 ---
 
@@ -190,19 +210,62 @@ Recommended:
 - forced logout on account disable;
 - device registration.
 
-The Phase 1 mobile adapter stores the Supabase session only in Expo SecureStore. Auth callbacks accept PKCE authorization codes or supported token hashes, never raw access/refresh token pairs. The app stores a locally generated installation identifier separately and sends only its SHA-256 digest to the API for device registration.
+The Phase 1 mobile adapter stores the Supabase session only in Expo SecureStore. Auth callbacks
+accept one PKCE authorization code or a reviewed `email`, `magiclink`, or `signup` token hash. They
+reject recovery/invite types, duplicate or ambiguous parameters, provider errors, and raw
+access/refresh token pairs. A PKCE link must be opened in the same installed app that requested it
+because the verifier is device-local; entering the email OTP is a portable fallback only when the
+managed template includes a token. The app
+stores a locally generated installation identifier separately and sends only its SHA-256 digest to
+the API for device registration.
+
+The stable mobile callback is `localwellness://auth/callback`. Use an installed development or
+release build for callback testing. Expo Go generates environment-specific `exp://` URLs and is not
+a reproducible authentication callback target. The native application identifier and associated
+Android/iOS link configuration must be finalized before distributable builds are released.
+
+At startup, mobile configuration checks detectable Supabase URL/public-key project alignment
+without including either configured value in an error. Native runtimes also reject loopback API or
+realtime URLs because `localhost` on a phone is the phone itself. Local Expo Go runs must inherit
+one root environment and receive a LAN-reachable API URL; app-local environment copies are not an
+approved credential source.
 
 ### Web
 
 Use the official Supabase SSR PKCE integration and cookies shared by browser and server clients. Authenticated pages are dynamic and validate the current user or claims rather than trusting an unverified cookie payload.
 
-Citizen, government and administrator email sign-in sends a six-digit code and verifies it with
-Supabase `verifyOtp` using the `email` type. Government and administrator requests set
-`shouldCreateUser` to false, so those surfaces cannot register a privileged identity. Code sign-in
-does not require a link callback. Callback routes remain available for reviewed PKCE/token-hash
-flows such as government invitations and must never accept raw access/refresh tokens from a URL.
-Each managed environment must verify its actual email template, OTP delivery, expiry/rate limits,
-session cookie, and authenticated landing page in a real browser before launch.
+Citizen, government and administrator email sign-in requests may be completed by entering a
+six-digit code or opening a secure link. Code entry uses Supabase `verifyOtp` with the `email` type;
+ordinary browser links use the SSR client's PKCE flow. Each browser callback accepts exactly one
+reviewed method and rejects incomplete, duplicate, ambiguous, unsupported, or provider-error
+callbacks. Citizen and administrator callbacks accept PKCE codes or their explicitly supported
+token-hash types and reject raw fragment sessions. The government callback additionally accepts a
+complete access/refresh fragment only for the default `invite` flow, removes it from browser history
+before establishing the session, and then reloads through the existing role/membership guard.
+Government and administrator requests set `shouldCreateUser` to false, so those surfaces cannot
+register a privileged identity; citizen creation is enabled only in the explicit create-account
+flow.
+
+Template choice is an operator setting, not an application security boundary. A managed email
+template may expose `{{ .Token }}`, `{{ .ConfirmationURL }}`, or both. Every environment must test
+its actual delivered email, expiry/rate limits, session cookie, and authenticated landing page in a
+real browser. Email security scanners can consume a one-time link before its recipient; the user
+must request the newest email when a link is expired, reused, or prefetched.
+
+### Managed redirect configuration
+
+Use exact callback URLs in the Supabase Auth redirect allow-list; do not rely on a wildcard:
+
+- citizen web development: `http://localhost:3000/auth/callback`;
+- government dashboard development: `http://localhost:3003/auth/callback`;
+- admin console development: `http://localhost:3004/auth/callback`;
+- installed mobile builds: `localwellness://auth/callback`;
+- staging and production: the corresponding exact HTTPS callback for each deployed web origin.
+
+Set the managed project's Site URL to the primary HTTPS citizen origin, then add each separate
+citizen, government, administrator, and mobile callback to the redirect allow-list. Keep local URLs
+only in non-production projects. Authentication callback success never implies authorization: the
+API, RLS, active account state, invitation membership, role, and scope checks remain authoritative.
 
 After callback completion, the citizen account page still depends on the application profile API.
 Citizen web, NestJS API, and Supabase Auth must target the same environment; the API configured by
@@ -495,6 +558,10 @@ Citizen recovery:
 - phone OTP;
 - email OTP.
 
+The mobile “Recover account” action is this passwordless existing-user OTP flow. It deliberately
+keeps account creation disabled and returns a generic request result to resist identifier
+enumeration; it is not a password-reset form.
+
 Government recovery:
 
 - verified official channel;
@@ -518,7 +585,7 @@ Required tests:
 - MFA-required operation rejected without MFA (pre-launch coverage tracked by `AUTH-002`);
 - anonymous user blocked from private complaint.
 
-Phase 1 implements local migration and pgTAP coverage for the identity tables, including self-access, cross-user and cross-authority denial, expired and revoked assignments, sensitive device-column isolation, anonymous denial, audit immutability and direct escalation attempts. The local code-only citizen email OTP flow is automated, including profile provisioning; focused service tests cover non-registering government and administrator OTP requests and verification. The identity forward-fix test covers safe repair of a missing profile/citizen role and preservation of revoked access. Phone OTP is provider-gated because the local Supabase Auth service disables phone sign-in without a real SMS provider. Hosted delivery, templates, privileged account access, device/session revocation, and real-device SecureStore behavior still require environment-specific validation before launch.
+Phase 1 implements local migration and pgTAP coverage for the identity tables, including self-access, cross-user and cross-authority denial, expired and revoked assignments, sensitive device-column isolation, anonymous denial, audit immutability and direct escalation attempts. The local code-only citizen email OTP flow is automated, including profile provisioning; focused client tests cover code entry, PKCE completion, strict callback rejection, default government-invite fragment handling, and non-registering government/administrator requests. The identity forward-fix test covers safe repair of a missing profile/citizen role and preservation of revoked access. Phone OTP is provider-gated because the local Supabase Auth service disables phone sign-in without a real SMS provider. Hosted delivery, redirect allow-lists, privileged account access, device/session revocation, and real-device SecureStore behavior still require environment-specific validation before launch.
 
 Phase 2 extends those tests with canonical-authority foreign keys, safe legacy placeholder backfill, ward/department ownership checks, and governance RLS isolation. The invitation E2E uses the deterministic seeded Maharashtra authority, so arbitrary client-supplied UUIDs can no longer create government access scope.
 
@@ -550,3 +617,21 @@ complaint-owner isolation, current-policy failure, stale workflow versions, exac
 private evidence authorization/integrity, rating bounds, immutable feedback, policy windows and
 attempt limits, and database-derived reopen/escalation. Synthetic approved policies are rolled back
 inside tests and do not activate a managed environment.
+
+The mobile completion suite additionally verifies that sign-in/recovery disable user creation,
+create-account permits it, errors remain generic, detectable Supabase project mismatch fails without
+echoing values, and a native runtime rejects loopback service URLs. Delivered hosted OTPs and the
+physical-device session/profile transition remain environment-gated.
+
+## Anonymous Transparency Reads
+
+Phase 8 permits anonymous access only to the four bounded transparency HTTP reads documented in
+`docs/api.md`. Anonymous access does not grant Supabase schema/table access and does not weaken the
+existing bearer-authenticated citizen, government, or administrator routes. NestJS calls narrow
+service-role functions whose return types originate only from current reviewed public projections.
+
+Publication and withdrawal are privileged operations. PostgreSQL independently verifies the active
+global platform-administrator role supplied by the network-verified API actor; a client token,
+claimed role, or anonymous request cannot publish. Reviewer Auth UUIDs remain audit data and never
+appear in public responses. RLS/direct-ACL tests must continue to prove that anonymous users cannot
+read private complaints, exact geometry, identities, media, comments, or projection tables.

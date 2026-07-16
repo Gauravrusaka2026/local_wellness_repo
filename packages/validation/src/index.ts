@@ -92,7 +92,10 @@ export type CreateGovernmentInvitationRequest = z.infer<typeof createGovernmentI
 
 export * from './complaint.schemas.js';
 export * from './complaint-resolution.schemas.js';
+export * from './accountability.schemas.js';
 export * from './communication.schemas.js';
 export * from './government-complaint.schemas.js';
+export * from './governance-directory.schemas.js';
 export * from './governance/index.js';
 export * from './routing.schemas.js';
+export * from './transparency.schemas.js';

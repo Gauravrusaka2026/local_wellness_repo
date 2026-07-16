@@ -136,6 +136,7 @@ const draft: ComplaintDraft = {
   status: 'active',
   visibility: 'private',
   categoryId: ids.category,
+  customAttributes: {},
   assetId: null,
   description: 'Broken streetlight beside the bus stop.',
   location: locationEvidence,
@@ -644,7 +645,11 @@ describe('API complaint capture contract', () => {
         .post('/api/v1/complaints/drafts')
         .set('authorization', 'Bearer valid-access-token')
         .set('idempotency-key', idempotencyKey)
-        .send({ categoryId: ids.category, description: 'Broken streetlight' })
+        .send({
+          categoryId: ids.category,
+          customAttributes: { hazard_level: 'high' },
+          description: 'Broken streetlight',
+        })
         .expect(201);
     }
 
@@ -653,6 +658,9 @@ describe('API complaint capture contract', () => {
       complaintStore.createdDrafts.map(({ actorUserId }) => actorUserId),
       [activeProfile.id, activeProfile.id],
     );
+    assert.deepEqual(complaintStore.createdDrafts[0]?.input.customAttributes, {
+      hazard_level: 'high',
+    });
     assert.deepEqual(
       complaintStore.createdDrafts[0]?.identity,
       complaintStore.createdDrafts[1]?.identity,
@@ -861,7 +869,11 @@ describe('API complaint capture contract', () => {
       .send({})
       .expect(503);
 
-    assert.equal(response.body.error.code, 'DEPENDENCY_UNAVAILABLE');
+    assert.equal(response.body.error.code, 'COMPLAINT_ROUTE_UNAVAILABLE');
+    assert.equal(
+      response.body.error.message,
+      'A verified complaint route is not currently available for this location and category.',
+    );
     assert.equal(complaintStore.completedSubmissions.length, 0);
   });
 

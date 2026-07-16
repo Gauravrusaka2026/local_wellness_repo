@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
+import { KpiCalculationWorker } from './kpi-calculation-worker.js';
 import { NotificationOutboxWorker } from './notification-outbox-worker.js';
+import { SlaEscalationWorker } from './sla-escalation-worker.js';
+import { SupabaseKpiCalculationStore } from './supabase-kpi-calculation.store.js';
 import { SupabaseNotificationOutboxStore } from './supabase-notification-outbox.store.js';
+import { SupabaseSlaEscalationStore } from './supabase-sla-escalation.store.js';
 import { loadWorkerConfiguration } from './worker-configuration.js';
 import { JsonWorkerLogger } from './worker-logger.js';
 
@@ -17,13 +21,27 @@ export const startWorkerProcess = async (): Promise<void> => {
       persistSession: false,
     },
   });
-  const store = new SupabaseNotificationOutboxStore(client);
-  const worker = new NotificationOutboxWorker(store, logger, {
-    batchSize: configuration.batchSize,
-    leaseSeconds: configuration.leaseSeconds,
-    pollIntervalMilliseconds: configuration.pollIntervalMilliseconds,
-    workerId: configuration.workerId,
-  });
+  const notificationWorker = new NotificationOutboxWorker(
+    new SupabaseNotificationOutboxStore(client),
+    logger,
+    {
+      batchSize: configuration.batchSize,
+      leaseSeconds: configuration.leaseSeconds,
+      pollIntervalMilliseconds: configuration.pollIntervalMilliseconds,
+      workerId: configuration.workerId,
+    },
+  );
+  const slaEscalationWorker = new SlaEscalationWorker(
+    new SupabaseSlaEscalationStore(client),
+    logger,
+    configuration.slaEscalation,
+  );
+  const kpiCalculationWorker = new KpiCalculationWorker(
+    new SupabaseKpiCalculationStore(client),
+    logger,
+    configuration.kpiCalculation,
+  );
+  const workers = [notificationWorker, slaEscalationWorker, kpiCalculationWorker] as const;
   let stopping = false;
 
   const stop = async (signal: string): Promise<void> => {
@@ -32,9 +50,9 @@ export const startWorkerProcess = async (): Promise<void> => {
     }
 
     stopping = true;
-    logger.info('notification_worker_stopping', { signal });
-    await worker.stop();
-    logger.info('notification_worker_stopped');
+    logger.info('worker_process_stopping', { signal });
+    await Promise.all(workers.map(async (worker) => worker.stop()));
+    logger.info('worker_process_stopped');
   };
 
   process.once('SIGINT', () => {
@@ -44,14 +62,20 @@ export const startWorkerProcess = async (): Promise<void> => {
     void stop('SIGTERM');
   });
 
-  logger.info('notification_worker_starting', {
+  logger.info('worker_process_starting', {
     batchSize: configuration.batchSize,
+    kpiBatchSize: configuration.kpiCalculation.batchSize,
+    kpiLeaseSeconds: configuration.kpiCalculation.leaseSeconds,
+    kpiPollIntervalMilliseconds: configuration.kpiCalculation.pollIntervalMilliseconds,
     leaseSeconds: configuration.leaseSeconds,
     pollIntervalMilliseconds: configuration.pollIntervalMilliseconds,
+    slaBatchSize: configuration.slaEscalation.batchSize,
+    slaLeaseSeconds: configuration.slaEscalation.leaseSeconds,
+    slaPollIntervalMilliseconds: configuration.slaEscalation.pollIntervalMilliseconds,
     workerId: configuration.workerId,
   });
 
-  await worker.start();
+  await Promise.all(workers.map(async (worker) => worker.start()));
 };
 
 await startWorkerProcess();

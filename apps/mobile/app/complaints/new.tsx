@@ -2,6 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +32,8 @@ const stepLabels = {
   submitted: 'Receipt',
 } as const;
 
+const orderedSteps = ['details', 'location', 'media', 'duplicates', 'review', 'submitted'] as const;
+
 export default function NewComplaintScreen() {
   const auth = useAuth();
   const capture = useComplaintCapture();
@@ -39,6 +42,9 @@ export default function NewComplaintScreen() {
   const [descriptionEdit, setDescriptionEdit] = useState<
     Readonly<{ draftId: string | null; value: string }>
   >({ draftId: draft?.id ?? null, value: draft?.description ?? '' });
+  const [attributeEdit, setAttributeEdit] = useState<
+    Readonly<{ draftId: string | null; values: Record<string, boolean | number | string> }>
+  >({ draftId: draft?.id ?? null, values: draft?.customAttributes ?? {} });
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const hasVoice =
     draft?.media.some(
@@ -46,6 +52,8 @@ export default function NewComplaintScreen() {
     ) ?? false;
   const description =
     descriptionEdit.draftId === draft?.id ? descriptionEdit.value : (draft?.description ?? '');
+  const customAttributes =
+    attributeEdit.draftId === draft?.id ? attributeEdit.values : (draft?.customAttributes ?? {});
   const reviewRevision =
     draft === null
       ? null
@@ -71,14 +79,23 @@ export default function NewComplaintScreen() {
   }
 
   const category = getSelectedCategory(capture.state);
-  const readiness = getDraftReadiness(draft);
+  const readiness = getDraftReadiness(draft, category);
   const locationEligible = isLocationEvidenceEligible(draft.location);
   const selectedAsset =
     capture.state.assetOptions.find((asset) => asset.id === draft.assetId) ?? null;
+  const stepNumber = orderedSteps.indexOf(capture.state.step) + 1;
+  const progressWidth = `${Math.round((stepNumber / orderedSteps.length) * 100)}%` as const;
+  const finalizedEvidenceCount = draft.media.filter(
+    (media) =>
+      media.uploadStatus === 'finalized' &&
+      (media.metadata.kind === 'photo' || media.metadata.kind === 'video'),
+  ).length;
+  const minimumMediaCount = category?.minimumMediaCount ?? 1;
+  const maximumMediaCount = category?.maximumMediaCount ?? 20;
 
   const saveDetails = async (): Promise<void> => {
     try {
-      await capture.updateDetails({ description });
+      await capture.updateDetails({ customAttributes, description });
       await capture.goToStep('location');
     } catch {
       // Sanitized errors are rendered from provider state.
@@ -96,16 +113,37 @@ export default function NewComplaintScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.stepLabel}>{stepLabels[capture.state.step]}</Text>
+        <View style={styles.progressHeader}>
+          <View style={styles.progressCopy}>
+            <Text style={styles.stepLabel}>{stepLabels[capture.state.step]}</Text>
+            <Text style={styles.stepCount}>
+              Step {stepNumber} of {orderedSteps.length}
+            </Text>
+          </View>
+          <View accessibilityRole="progressbar" style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: progressWidth }]} />
+          </View>
+        </View>
         {!capture.state.isOnline ? (
           <Text accessibilityRole="alert" style={styles.warning}>
             You are offline. Your server draft reference is saved, but this step needs a connection.
           </Text>
         ) : null}
         {capture.state.error === null ? null : (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {capture.state.error}
-          </Text>
+          <View style={styles.errorPanel}>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {capture.state.error}
+            </Text>
+            {capture.state.locationSettingsRequired ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void Linking.openSettings()}
+                style={styles.settingsButton}
+              >
+                <Text style={styles.settingsButtonText}>Open location settings</Text>
+              </Pressable>
+            ) : null}
+          </View>
         )}
 
         {capture.state.step === 'details' ? (
@@ -115,10 +153,16 @@ export default function NewComplaintScreen() {
             </Text>
             <Text style={styles.help}>Only verified, currently routable categories are shown.</Text>
             {capture.state.categories.length === 0 ? (
-              <Text accessibilityRole="alert" style={styles.warning}>
-                No verified operational categories are available. Placeholder categories are never
-                offered for submission.
-              </Text>
+              <View style={styles.options}>
+                <Text accessibilityRole="alert" style={styles.warning}>
+                  No verified operational categories are available. Placeholder categories are never
+                  offered for submission.
+                </Text>
+                <SecondaryAction
+                  label="Check for available categories"
+                  onPress={() => void capture.reloadCategories().catch(() => undefined)}
+                />
+              </View>
             ) : (
               <View style={styles.options}>
                 {capture.state.categories.map((candidate) => (
@@ -126,11 +170,13 @@ export default function NewComplaintScreen() {
                     accessibilityRole="radio"
                     accessibilityState={{ checked: draft.categoryId === candidate.id }}
                     key={candidate.id}
-                    onPress={() =>
+                    onPress={() => {
+                      if (candidate.id === draft.categoryId) return;
+                      setAttributeEdit({ draftId: draft.id, values: {} });
                       void capture
-                        .updateDetails({ categoryId: candidate.id })
-                        .catch(() => undefined)
-                    }
+                        .updateDetails({ categoryId: candidate.id, customAttributes: {} })
+                        .catch(() => undefined);
+                    }}
                     style={[
                       styles.option,
                       draft.categoryId === candidate.id && styles.optionSelected,
@@ -147,6 +193,25 @@ export default function NewComplaintScreen() {
                 ))}
               </View>
             )}
+            {category?.requiredAttributes.map((attribute) => (
+              <View key={attribute} style={styles.fieldGroup}>
+                <Text style={styles.label}>{attribute.replaceAll('_', ' ')}</Text>
+                <TextInput
+                  accessibilityLabel={attribute.replaceAll('_', ' ')}
+                  editable={!capture.state.isBusy}
+                  maxLength={500}
+                  onChangeText={(value) =>
+                    setAttributeEdit({
+                      draftId: draft.id,
+                      values: { ...customAttributes, [attribute]: value },
+                    })
+                  }
+                  placeholder={`Enter ${attribute.replaceAll('_', ' ')}`}
+                  style={styles.input}
+                  value={String(customAttributes[attribute] ?? '')}
+                />
+              </View>
+            ))}
             <Text style={styles.label}>Description</Text>
             <TextInput
               accessibilityLabel="Complaint description"
@@ -264,6 +329,19 @@ export default function NewComplaintScreen() {
               Originals upload privately. Gallery files are intentionally excluded because this
               pilot requires live capture evidence.
             </Text>
+            <View style={styles.requirementCard}>
+              <Text style={styles.requirementTitle}>Evidence requirement</Text>
+              <Text style={styles.requirementText}>
+                {minimumMediaCount === 0
+                  ? `Photo or video evidence is optional; up to ${maximumMediaCount} may be attached.`
+                  : `${minimumMediaCount}–${maximumMediaCount} finalized photo or video ${minimumMediaCount === 1 ? 'item is' : 'items are'} required.`}
+              </Text>
+              {category?.recommendedMediaKinds.length ? (
+                <Text style={styles.requirementText}>
+                  Recommended: {category.recommendedMediaKinds.join(', ')}
+                </Text>
+              ) : null}
+            </View>
             {isCameraOpen ? (
               <ComplaintCameraCapture
                 onCancel={() => setIsCameraOpen(false)}
@@ -271,7 +349,11 @@ export default function NewComplaintScreen() {
               />
             ) : (
               <PrimaryAction
-                disabled={capture.state.upload !== null || draft.location === null}
+                disabled={
+                  capture.state.upload !== null ||
+                  draft.location === null ||
+                  finalizedEvidenceCount >= maximumMediaCount
+                }
                 label="Open camera"
                 onPress={() => setIsCameraOpen(true)}
               />
@@ -305,7 +387,8 @@ export default function NewComplaintScreen() {
             <SecondaryAction label="Back" onPress={() => void capture.goToStep('location')} />
             <PrimaryAction
               disabled={
-                !draft.media.some((media) => media.uploadStatus === 'finalized') ||
+                finalizedEvidenceCount < minimumMediaCount ||
+                finalizedEvidenceCount > maximumMediaCount ||
                 capture.state.upload !== null
               }
               label="Check for similar reports"
@@ -389,7 +472,7 @@ export default function NewComplaintScreen() {
             />
             <ReviewRow
               label="Evidence"
-              value={`${draft.media.filter((media) => media.uploadStatus === 'finalized').length} ready`}
+              value={`${finalizedEvidenceCount} photo/video ready${draft.media.some((media) => media.metadata.kind === 'voice' && media.uploadStatus === 'finalized') ? ' · voice note attached' : ''}`}
             />
             {category?.requiresAsset === true ? (
               <ReviewRow label="Asset" value={selectedAsset?.displayName ?? 'Not selected'} />
@@ -574,13 +657,22 @@ const styles = StyleSheet.create({
   emergencyText: { color: '#7c2d12', lineHeight: 21 },
   emergencyTitle: { color: '#9a3412', fontSize: 18, fontWeight: '800' },
   error: {
-    backgroundColor: '#fef2f2',
-    borderRadius: 10,
     color: '#991b1b',
     lineHeight: 21,
-    padding: 14,
   },
+  errorPanel: { backgroundColor: '#fef2f2', borderRadius: 10, gap: 10, padding: 14 },
+  fieldGroup: { gap: 7 },
   help: { color: '#475569', lineHeight: 22 },
+  input: {
+    backgroundColor: '#ffffff',
+    borderColor: '#94a3b8',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#0f172a',
+    fontSize: 16,
+    minHeight: 50,
+    paddingHorizontal: 14,
+  },
   label: { color: '#1e293b', fontSize: 15, fontWeight: '800' },
   mediaRow: {
     backgroundColor: '#f8fafc',
@@ -611,10 +703,17 @@ const styles = StyleSheet.create({
     padding: 13,
   },
   primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
+  progressCopy: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  progressFill: { backgroundColor: '#16a34a', borderRadius: 99, height: 6 },
+  progressHeader: { gap: 10 },
+  progressTrack: { backgroundColor: '#dcfce7', borderRadius: 99, height: 6, overflow: 'hidden' },
   receiptNumber: { color: '#14532d', fontSize: 25, fontWeight: '900' },
   reviewLabel: { color: '#64748b', fontSize: 13, fontWeight: '700' },
   reviewRow: { backgroundColor: '#f8fafc', borderRadius: 9, gap: 4, padding: 12 },
   reviewValue: { color: '#1e293b', lineHeight: 21 },
+  requirementCard: { backgroundColor: '#eef7f1', borderRadius: 12, gap: 5, padding: 14 },
+  requirementText: { color: '#42614e', lineHeight: 20 },
+  requirementTitle: { color: '#155d38', fontSize: 15, fontWeight: '800' },
   secondaryButton: {
     alignItems: 'center',
     borderColor: '#166534',
@@ -626,6 +725,8 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { color: '#166534', fontWeight: '800' },
   section: { gap: 14 },
+  settingsButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  settingsButtonText: { color: '#166534', fontWeight: '800' },
   stepLabel: {
     color: '#166534',
     fontSize: 13,
@@ -633,6 +734,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  stepCount: { color: '#64748b', fontSize: 13, fontWeight: '700' },
   successCard: {
     backgroundColor: '#ecfdf5',
     borderColor: '#86efac',

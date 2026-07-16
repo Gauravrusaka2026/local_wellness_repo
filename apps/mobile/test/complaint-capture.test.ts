@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import type { ComplaintDraft, ComplaintLocationCapture } from '@local-wellness/types';
+import type {
+  ComplaintDraft,
+  ComplaintLocationCapture,
+  RoutingCategory,
+} from '@local-wellness/types';
 
 import {
   complaintCaptureReducer,
@@ -9,7 +13,10 @@ import {
   initialComplaintCaptureState,
   isLocationEvidenceEligible,
 } from '../src/complaints/capture-state';
-import { formatComplaintIdempotencyKey } from '../src/complaints/idempotency-format';
+import {
+  formatComplaintIdempotencyKey,
+  rotateComplaintSubmitIdempotencyKey,
+} from '../src/complaints/idempotency-format';
 import {
   formatComplaintAccountabilityIdempotencyKey,
   retainStableComplaintMutationIdentity,
@@ -38,6 +45,7 @@ const draft = (overrides: Partial<ComplaintDraft> = {}): ComplaintDraft => ({
   assetId: null,
   categoryId: null,
   createdAt: '2026-07-14T10:00:00.000Z',
+  customAttributes: {},
   description: null,
   expiresAt: '2026-07-15T10:00:00.000Z',
   id: '11111111-1111-4111-8111-111111111111',
@@ -62,16 +70,20 @@ const location = (overrides: Partial<ComplaintLocationCapture> = {}): ComplaintL
 
 describe('complaint capture reducer and readiness', () => {
   it('keeps verified categories while clearing a completed draft', () => {
-    const categories = [
+    const categories: RoutingCategory[] = [
       {
         code: 'POTHOLE',
         description: null,
         id: '22222222-2222-4222-8222-222222222222',
         isEmergency: false,
+        maximumMediaCount: 5,
+        minimumMediaCount: 1,
         name: 'Pothole',
         parentCategoryId: null,
         requiresAsset: false,
         requiresLocation: true,
+        requiredAttributes: [],
+        recommendedMediaKinds: ['photo'],
       },
     ];
     const loaded = complaintCaptureReducer(initialComplaintCaptureState, {
@@ -86,6 +98,18 @@ describe('complaint capture reducer and readiness', () => {
 
     assert.equal(cleared.draft, null);
     assert.deepEqual(cleared.categories, categories);
+  });
+
+  it('offers app settings only for permanent location-permission errors', () => {
+    const denied = complaintCaptureReducer(initialComplaintCaptureState, {
+      locationSettingsRequired: true,
+      message: 'Enable location permission in settings.',
+      type: 'error',
+    });
+    assert.equal(denied.locationSettingsRequired, true);
+
+    const cleared = complaintCaptureReducer(denied, { message: null, type: 'error' });
+    assert.equal(cleared.locationSettingsRequired, false);
   });
 
   it('reports every missing server submission prerequisite', () => {
@@ -210,6 +234,20 @@ describe('resume, idempotency, and upload helpers', () => {
     assert.equal(
       formatComplaintIdempotencyKey('submit', identifier),
       `complaint-submit:${identifier}`,
+    );
+  });
+
+  it('rotates a submission identity without accepting an accidental exact replay key', () => {
+    const current = 'complaint-submit:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const next = 'complaint-submit:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+    assert.equal(
+      rotateComplaintSubmitIdempotencyKey(current, () => next),
+      next,
+    );
+    assert.throws(
+      () => rotateComplaintSubmitIdempotencyKey(current, () => current),
+      /could not be rotated/u,
     );
   });
 

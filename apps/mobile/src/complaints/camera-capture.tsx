@@ -1,9 +1,17 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  AppState,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { ComplaintLocationCapture } from '@local-wellness/types';
 
-import { captureCurrentLocation } from './location-service';
+import { captureCurrentLocation, requiresLocationPermissionSettings } from './location-service';
 import {
   prepareCapturedPhoto,
   prepareCapturedVideo,
@@ -20,34 +28,46 @@ export const ComplaintCameraCapture = ({
   onCaptured: (media: PreparedComplaintMedia, location: ComplaintLocationCapture) => Promise<void>;
 }>) => {
   const camera = useRef<CameraView>(null);
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [cameraPermission, requestCameraPermission, getCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
   const [error, setError] = useState<string | null>(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [locationSettingsRequired, setLocationSettingsRequired] = useState(false);
+  const [microphoneSettingsRequired, setMicrophoneSettingsRequired] = useState(false);
   const [mode, setMode] = useState<CameraMode>('photo');
   const videoStartedAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void getCameraPermission();
+      }
+    });
+    return () => subscription.remove();
+  }, [getCameraPermission]);
 
   const takePhoto = async (): Promise<void> => {
     if (!camera.current || !isCameraReady) return;
     setError(null);
+    setLocationSettingsRequired(false);
+    setMicrophoneSettingsRequired(false);
     setIsProcessing(true);
     try {
       const capturedAt = new Date().toISOString();
       const picture = await camera.current.takePictureAsync({ quality: 0.9, shutterSound: true });
-      const [media, location] = await Promise.all([
-        prepareCapturedPhoto({
-          capturedAt,
-          height: picture.height,
-          uri: picture.uri,
-          width: picture.width,
-        }),
-        captureCurrentLocation(),
-      ]);
+      const location = await captureCurrentLocation();
+      const media = await prepareCapturedPhoto({
+        capturedAt,
+        height: picture.height,
+        uri: picture.uri,
+        width: picture.width,
+      });
       await onCaptured(media, location);
       onCancel();
     } catch (captureError) {
+      setLocationSettingsRequired(requiresLocationPermissionSettings(captureError));
       setError(captureError instanceof Error ? captureError.message : 'Photo capture failed.');
     } finally {
       setIsProcessing(false);
@@ -57,11 +77,14 @@ export const ComplaintCameraCapture = ({
   const recordVideo = async (): Promise<void> => {
     if (!camera.current || !isCameraReady) return;
     setError(null);
+    setLocationSettingsRequired(false);
+    setMicrophoneSettingsRequired(false);
     const microphone =
       microphonePermission?.granted === true
         ? microphonePermission
         : await requestMicrophonePermission();
     if (!microphone.granted) {
+      setMicrophoneSettingsRequired(microphone.canAskAgain === false);
       setError('Microphone permission is required for a complaint video.');
       return;
     }
@@ -77,13 +100,16 @@ export const ComplaintCameraCapture = ({
       if (!recording) return;
       setIsProcessing(true);
       const durationMilliseconds = Math.max(1, Date.now() - (videoStartedAt.current ?? Date.now()));
-      const [media, location] = await Promise.all([
-        prepareCapturedVideo({ capturedAt, durationMilliseconds, uri: recording.uri }),
-        captureCurrentLocation(),
-      ]);
+      const location = await captureCurrentLocation();
+      const media = await prepareCapturedVideo({
+        capturedAt,
+        durationMilliseconds,
+        uri: recording.uri,
+      });
       await onCaptured(media, location);
       onCancel();
     } catch (captureError) {
+      setLocationSettingsRequired(requiresLocationPermissionSettings(captureError));
       setError(captureError instanceof Error ? captureError.message : 'Video capture failed.');
     } finally {
       videoStartedAt.current = null;
@@ -104,10 +130,14 @@ export const ComplaintCameraCapture = ({
         </Text>
         <Pressable
           accessibilityRole="button"
-          onPress={() => void requestCameraPermission()}
+          onPress={() =>
+            void (cameraPermission.canAskAgain ? requestCameraPermission() : Linking.openSettings())
+          }
           style={styles.primaryButton}
         >
-          <Text style={styles.primaryButtonText}>Allow camera</Text>
+          <Text style={styles.primaryButtonText}>
+            {cameraPermission.canAskAgain ? 'Allow camera' : 'Open camera settings'}
+          </Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onCancel} style={styles.secondaryButton}>
           <Text style={styles.secondaryButtonText}>Cancel</Text>
@@ -151,6 +181,17 @@ export const ComplaintCameraCapture = ({
           {error}
         </Text>
       )}
+      {locationSettingsRequired || microphoneSettingsRequired ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void Linking.openSettings()}
+          style={styles.settingsButton}
+        >
+          <Text style={styles.settingsButtonText}>
+            Open {locationSettingsRequired ? 'location' : 'microphone'} settings
+          </Text>
+        </Pressable>
+      ) : null}
       <View style={styles.actionRow}>
         <Pressable
           accessibilityRole="button"
@@ -232,6 +273,8 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   secondaryButtonText: { color: '#166534', fontWeight: '700' },
+  settingsButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
+  settingsButtonText: { color: '#166534', fontWeight: '800' },
   stopButton: {
     alignItems: 'center',
     backgroundColor: '#991b1b',

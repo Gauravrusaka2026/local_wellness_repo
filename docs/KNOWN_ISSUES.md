@@ -2,6 +2,78 @@
 
 ## Open Issues
 
+### SLA-001 — Operational calendars, targets, and escalation rules are not approved
+
+- Severity: High before automatic SLA enforcement is activated
+- Status: Engineering complete; operational policy/data/deployment pending
+- Discovered: 2026-07-16
+
+Phase 9 implements reviewed effective-dated calendars, policies, category overrides, materialized
+clocks, external-dependency pauses, escalation rules/events, PostgreSQL-leased work, and
+scope-authorized reads. It deliberately seeds no active target or escalation chain. Before pilot
+activation, owners must approve official Pune business hours/holidays, acknowledgement/inspection/
+resolution targets, completion states, pause behavior, category overrides, escalation delays,
+actions, and verified target roles. The two migrations, trusted worker settings, monitoring,
+runbooks, and rollback-isolated staging smoke must then be deployed and reviewed. Missing or
+ambiguous policy continues to fail closed and must not be replaced with demo values.
+
+### SLA-002 — Existing-complaint adoption and sustained lease behavior need an approved rollout
+
+- Severity: Medium before migrating an environment with live complaint history
+- Status: Open rollout and load-validation task
+- Discovered: 2026-07-16
+
+New routing assignments and later complaint cycles initialize immutable SLA evidence. Complaints
+and assignments that predate the Phase 9 migration are intentionally not given fabricated clocks;
+they report `not_materialized` until an explicit reviewed adoption/backfill policy exists. Decide
+whether historical cases remain excluded or receive an audited prospective clock anchored to a
+defined event. Also load-test bounded sequential batches against the configured lease durations and
+add lease renewal or smaller batch guidance if a run can outlive its lease. Idempotent execution and
+expired-lease recovery prevent duplicate evidence, but they do not replace operational sizing.
+
+### KPI-001 — KPI scheduling, retention, and managed-scale validation remain
+
+- Severity: Medium before organizational KPI reporting is represented as current
+- Status: Engineering complete; operations and policy pending
+- Discovered: 2026-07-16
+
+Phase 9 stores versioned definitions and immutable municipality/ward/department snapshots with
+cutoff, window, numerator, denominator, exclusions, segmentation, algorithm version, and input
+fingerprint. No managed schedule, approved reporting cadence/window, retention policy, late-data
+correction process, freshness alert, or production-volume benchmark exists yet. Configure
+Supabase/PostgreSQL scheduling, supervise the trusted worker, define stale/failed-run behavior, and
+validate query/API bounds before presenting snapshots as an operational dashboard. Individual-
+officer rankings remain intentionally unsupported.
+
+### TRANSPARENCY-001 — Public visibility and coordinate-generalization policy is not approved
+
+- Severity: High before any complaint becomes public
+- Status: Open product, privacy, moderation, and retention decision; Phase 8 engineering fails closed
+- Discovered: 2026-07-16
+
+Phase 8 requires explicit policy values for eligible categories/statuses, sensitive-category
+handling, minimum coordinate generalization, minimum hotspot cohort size, public-summary rules,
+publication/revocation authority, processed-media moderation, duplicate-group visibility, retention,
+and abuse response. None are approved operational values. The implementation must therefore store
+effective-dated reviewed policies, seed no active policy, publish no complaint automatically, and
+return an empty public dataset until an authorized review creates a compliant projection. Private
+complaints, exact coordinates, citizen identity, original media, private evidence, internal notes,
+and unmoderated text must never be used as the public read model.
+
+### TRANSPARENCY-002 — External basemap provider and outbound-coordinate policy are unresolved
+
+- Severity: Medium for the full interactive map experience
+- Status: Open provider, billing, key-management, and privacy decision
+- Discovered: 2026-07-16
+
+The repository has no approved map provider, API key/billing arrangement, domain or application
+restrictions, tile-retention terms, accessibility baseline, or decision on whether even generalized
+coordinates may leave Local Wellness infrastructure. Phase 8 may implement provider-neutral spatial
+contracts, server-side PostGIS queries, an accessible list, and a first-party coordinate plot that
+makes no external requests. Selecting MapLibre/Google or loading third-party tiles remains blocked
+until the owner records the provider and privacy decision. This extends the government-dashboard
+constraint tracked by `GOVDASH-001` rather than weakening it.
+
 ### RESOLUTION-001 — Operational resolution and reopening policy values are not approved
 
 - Severity: High before citizen reopening is activated
@@ -225,6 +297,25 @@ complete fallback paths. The 12 seeded categories are draft, unverified, and non
 Phase 2 placeholder records remain excluded. Until those inputs pass record-specific official-source
 review, a real Pune coordinate must not produce a production route.
 
+### GOVDIR-001 — Verified governance directory is engineered but not verified active in staging
+
+- Severity: High for real Nearby governing-body results
+- Status: Engineering complete; managed ledger reconciliation and verified data pending
+- Discovered: 2026-07-16
+
+The authenticated NestJS endpoint, strict shared/mobile contracts, service-role-only PostGIS
+projection, accuracy/ambiguity handling, placeholder/official-source gates, and migration/API/mobile
+tests are implemented locally. The projection returns no internal IDs, geometry, officers, contact
+channels, or private office data.
+
+The current managed migration ledger has not been reconciled with
+`20260716104000_verified_governing_body_projection.sql`, and no reviewed official pilot boundary
+geometry is documented as active. Reconcile/apply the additive migration through the incremental
+workflow, then load and review current non-placeholder geometry and entity provenance before
+expecting Nearby to resolve. Until then, dependency/unsupported output is correct. Never use the
+34-migration master file as an upgrade, copy synthetic pgTAP fixtures into staging, or hardcode
+Pune/BMC names to close this issue.
+
 ### COMPLAINT-001 — Transcription and media moderation providers are not configured
 
 - Severity: Medium before public pilot
@@ -271,6 +362,40 @@ Add an idempotent PostgreSQL/platform-scheduled cleanup operation that claims ex
 removes only their exact private object locators, records the outcome, and tolerates missing objects.
 Do not introduce Redis or BullMQ for this task.
 
+### COMPLAINT-004 — Finalized draft attachments cannot be removed or replaced individually
+
+- Severity: Medium for complaint-capture usability
+- Status: Core private upload/submission complete; attachment lifecycle follow-up open
+- Discovered: 2026-07-16
+
+Citizens can capture, upload, finalize, and submit private evidence, or discard the entire draft.
+The draft UI and API do not yet offer an authorized per-attachment remove/replace operation after
+finalization. This does not weaken current private upload integrity or submission checks, but it can
+force a citizen to discard otherwise valid draft work after capturing an unwanted item.
+
+Add an idempotent owner/draft-scoped operation with revision/concurrency checks. It must reject
+foreign, submitted, or already-linked evidence; remove only the exact server-owned private object;
+retain a non-secret audit/lifecycle record; tolerate exact retries and missing objects; and keep
+bucket/object paths out of responses/logs. Add mobile confirmation/error/retry behavior and
+database/API/Storage tests. Do not grant direct client Storage deletion.
+
+### COMPLAINT-005 — Original submitted complaint evidence has no citizen signed-read view
+
+- Severity: Medium for citizen review and trust
+- Status: Core private upload/submission complete; owner read surface open
+- Discovered: 2026-07-16
+
+Complaint detail currently returns safe media metadata/counts, but the citizen cannot request a
+short-lived read target for their finalized original photo/video/voice evidence. Phase 7 has a
+separate owner-authorized resolution/reopen-evidence read path; it must not be treated as permission
+to expose original complaint media or object locators.
+
+Add an authenticated owner-only endpoint that rechecks complaint/media ownership and finalized
+state, resolves the private locator server-side, returns a short-lived non-cacheable signed target,
+and logs only bounded identifiers. Add a mobile viewer/player with expiry/error/retry states and
+cross-owner, unfinalized, missing-object, path/token leakage, and replay tests. Do not create a
+public bucket, persistent URL, or direct Data API/Storage policy.
+
 ### ENV-003 — Rendered application smoke test needs an in-app browser session
 
 - Severity: Low
@@ -289,7 +414,7 @@ application runtime failure, and Phase 3 intentionally adds no routing UI.
 ### ENV-004 — Citizen account data requires one aligned migrated environment
 
 - Severity: Medium for local and hosted account testing
-- Status: Staging schema/profile alignment resolved; browser/API validation pending
+- Status: Code resolved; replacement-target schema/profile and browser/API validation pending
 - Discovered: 2026-07-14
 
 The citizen account route authenticates with Supabase and reads its profile through the NestJS API.
@@ -302,10 +427,10 @@ The route now validates the API response and visibly distinguishes signed-in ide
 profile provisioning/unavailability, and API failure, with retry and sign-out actions. Operators
 must still configure the citizen web and API against the same fully migrated local or hosted
 Supabase environment and complete delivered-link/SSR-cookie testing under `AUTH-005`/`ENV-002`.
-The dedicated staging project now contains the identity trigger/backfill migration, and a read-only
-check confirmed the existing citizen Auth identity has an active profile and citizen role. A real
-browser session against a reachable staging-configured API is still required before this issue can
-be closed completely.
+The previous staging target contained the identity trigger/backfill migration, and a read-only
+check confirmed its citizen Auth identity had an active profile and citizen role. That does not
+prove the replacement target's state. Reconcile its migrations and verify the current citizen
+profile/role before a real browser session against its reachable API can close this issue.
 
 ### GOVDASH-001 — Interactive complaint map needs a provider and coordinate-sharing policy
 
@@ -373,27 +498,37 @@ credential may be reused, and production remains separately gated.
 ### ENV-002 — Hosted identity environments require activation
 
 - Severity: High for hosted integration; not blocking local Phase 1 completion
-- Status: Staging database activated; provider/application smoke configuration remains open
+- Status: Current staging target and provider/application activation remain unverified
 - Discovered: 2026-07-13
 
-The dedicated staging project and replacement credentials are confirmed. All 23 repository
-migrations through Phase 5 and all six reviewed non-production seed files were applied successfully
-on 2026-07-14. The project still needs fully reviewed SMS/email provider settings, exact redirects,
-hosted OTP/invite templates, rate limits, backup settings, managed secrets, and application smoke
-tests. Separate development and production projects remain operator-managed inputs.
+The owner has selected a replacement staging project, confirmed replacement credentials, and
+reports loading a generated master SQL file. The exact artifact revision, migration ledger, seeds,
+Auth identities, profiles, and privileged assignments were not independently verified because a
+working database connection was unavailable. The successful 2026-07-14 deployment of 23 migrations
+and six seeds applies to the previous staging target and is historical evidence only.
+
+The current target still needs fully reviewed SMS/email provider settings, exact redirects,
+delivered code/link/invite behavior, rate limits, backup settings, managed secrets, and application
+smoke tests. Separate development and production projects remain operator-managed inputs. Custom
+email-template access is no longer required: the clients accept Supabase's default link templates
+as well as delivered codes.
 
 Before completing hosted identity activation:
 
 - finish the historical security audit under `SEC-001` without reusing prior values;
-- configure the exact token-hash government invite template in every project;
+- reconcile the current target against all 34 migrations and verify its seed/Auth/profile/role
+  state before starting managed workers or treating privileged access as active;
+- configure exact citizen, government, administrator, and installed-mobile callback allow-list
+  entries; custom token/code templates are optional;
 - configure and verify email and Indian SMS delivery;
 - smoke-test OTP delivery, redirects, SSR cookies, and effective government scope in the browser;
 - repeat migration/RLS smoke in development where used, and never promote to production without an
   independently reviewed production project/deployment.
 
-The first staging government invitation has been accepted and the demo privileges were reconciled
-to confirmed owner-controlled Auth identities with the temporary alias assignments revoked. This
-proves the stored staging identity state, not the remaining delivered-OTP/browser session checks.
+The invitation and demo-role reconciliation completed on the previous staging target prove that
+historical environment only. Current-target identities and assignments must be verified or
+recreated through the audited workflows; they must not be inferred from email addresses or copied
+from Auth metadata.
 
 ### AUTH-001 — Existing-user assignment and role renewal are incomplete
 
@@ -441,7 +576,14 @@ Authenticated clients can submit unlimited client-reported session events and ca
 - Status: Open validation task
 - Discovered: 2026-07-13
 
-Local email and delivered-invite flows pass, and phone paths have unit coverage. Real SMS delivery, Expo development-build deep links, OS SecureStore behavior, browser cookie attributes and hosted callback URLs still require device/environment smoke tests.
+Local email and delivered-invite flows pass, and phone paths have unit coverage. The clients now
+support code entry and provider-default PKCE links without requiring managed template edits; the
+government callback narrowly supports a complete default `invite` fragment while citizen,
+administrator, and mobile callbacks reject raw fragments. Real SMS delivery, exact managed
+redirect allow-lists, delivered link expiry/prefetch/reuse, Expo development-build deep links, OS
+SecureStore behavior, browser cookie attributes, and hosted callback URLs still require device/
+environment smoke tests. Expo Go's temporary `exp://` callback is not a stable substitute for an
+installed-build test.
 
 ### NOTIFY-001 — Push and email notification providers and user preferences are not configured
 
@@ -452,7 +594,10 @@ Local email and delivered-invite flows pass, and phone paths have unit coverage.
 Phase 6 now implements PostgreSQL-backed notification persistence, in-app history, retry and
 deduplication, authenticated single-instance Socket.IO delivery, and inert provider-channel state.
 No approved push/email provider, credentials, consent/preference model, channel fallback policy,
-or privacy-reviewed external payload template exists yet. Push and email therefore remain
+or privacy-reviewed external payload template exists yet. The mobile app consequently does not
+install `expo-notifications` or register an OS push token. Closing this issue requires an owned
+Expo/EAS project, Android FCM and iOS APNs credentials, user consent/preferences, verified
+destinations, and approved retention/retry/fallback behavior. Push and email therefore remain
 explicitly `unsupported`; they must never be marked sent or silently dropped.
 
 Provider selection and production credentials require owner input. Any external payload must remain
@@ -486,6 +631,19 @@ complaint policy, moderation lifecycle, reporting and abuse controls, retention/
 safe public media derivatives, and an explicit architectural/privacy decision. The structural
 table must not be mistaken for an operational public feature.
 
+### NOTIFY-004 — Mobile notification history currently shows only the newest 100 records
+
+- Severity: Low for early pilot; grows with account history
+- Status: Open client-pagination follow-up; durable server history remains intact
+- Discovered: 2026-07-16
+
+The notification API exposes cursor pagination, but the mobile client currently performs one
+`limit=100` request. Older durable notifications are not deleted or lost; they are simply not
+reachable from the current screen. Add load-more/infinite-scroll behavior using the server cursor,
+merge pages by stable notification ID, retain newest-page pull-to-refresh and Socket.IO
+reconciliation, and cover duplicate/out-of-order/empty-page/read-state behavior. Do not replace
+durable history with an in-memory cache or introduce Redis.
+
 ### OPS-001 — Production container images are not pruned
 
 - Severity: Low
@@ -497,6 +655,38 @@ The production images copy the verified workspace from the build stage. They run
 Evaluate pnpm deployment pruning or service-specific production dependency packaging after real runtime dependencies exist. Any optimization must preserve reproducible builds and non-root execution.
 
 ## Resolved Issues
+
+### MOB-003 — Mobile refresh, permanent-permission, and capture processing edge cases
+
+- Severity: Previously medium for physical-device reliability
+- Status: Resolved locally; physical-device validation remains under `COMPLAINT-002`
+- Discovered: 2026-07-16
+- Resolved: 2026-07-16
+
+Home previously loaded only on initial mount, permanently denied camera/microphone/location
+permissions did not consistently offer a settings recovery path, location and derived-file
+preparation could race and leave a prepared local file when location failed, and a completed voice
+URI could be processed again after effect dependency changes. Home now reloads on route focus;
+permanent denials link to OS settings and recheck supported permission state; capture obtains
+location before generating the derived prepared file; and voice processing locks each completed URI
+until its one processing attempt finishes. Focused reducer/unit coverage passes. The representative
+Android/iOS permission, app-background/return, file cleanup, and recording smoke remains correctly
+tracked under `COMPLAINT-002` rather than claimed here.
+
+### MOB-002 — A stale mobile environment override could split Auth and API projects
+
+- Severity: Previously high for mobile sign-in/profile behavior
+- Status: Resolved locally; physical-device validation remains under `COMPLAINT-002`/`AUTH-005`
+- Discovered: 2026-07-16
+- Resolved: 2026-07-16
+
+An ignored app-local environment file could override the repository's current staging values and
+point Expo at a different Supabase project while the API used the root environment. The stale file
+was removed from Expo's load path and local operation now uses the root `.env` as the single source.
+Startup diagnostics reject detectable Supabase URL/public-key project mismatch and native loopback
+API/realtime URLs without including configured values in errors. Focused tests cover both guards;
+the final LAN-based Expo Go sign-in/profile smoke remains an environment test, not a code defect
+claimed complete here.
 
 ### AUTH-009 — Privileged clients could request a code-only email without offering code entry
 
@@ -531,8 +721,10 @@ managed projects must apply the migration before hosted legacy accounts benefit.
 
 Local confirmation and magic-link templates now render the delivered six-digit token only and do
 not include a sign-in URL. Auth E2E extracts and verifies the code and rejects link-bearing email
-content. Hosted Supabase projects retain their own operator-managed templates and must update both
-confirmation and magic-link/OTP templates before hosted behavior changes.
+content. Hosted Supabase projects retain their own operator-managed templates; updating confirmation
+and magic-link templates is necessary only when a code-only presentation is desired. The clients
+also accept provider-default links, while exact redirect configuration and delivered-flow
+validation remain required under `AUTH-005`/`ENV-002`.
 
 ### DOC-001 — Tracking-document locations were inconsistent
 

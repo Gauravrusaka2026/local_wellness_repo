@@ -25,6 +25,7 @@ import {
   type RoutingCategory,
 } from '@local-wellness/types';
 import { z } from 'zod';
+import { complaintCustomAttributesSchema } from '@local-wellness/validation';
 
 const timestamp = z.string().datetime({ offset: true });
 const nullableUuid = z.uuid().nullable();
@@ -81,6 +82,7 @@ const draftSchema = z
     assetId: nullableUuid,
     categoryId: nullableUuid,
     createdAt: timestamp,
+    customAttributes: complaintCustomAttributesSchema,
     description: z.string().nullable(),
     expiresAt: timestamp,
     id: z.uuid(),
@@ -182,12 +184,19 @@ const categorySchema = z
     description: z.string().nullable(),
     id: z.uuid(),
     isEmergency: z.boolean(),
+    maximumMediaCount: z.number().int().min(0).max(20),
+    minimumMediaCount: z.number().int().min(0).max(20),
     name: z.string().min(1),
     parentCategoryId: nullableUuid,
     requiresAsset: z.boolean(),
     requiresLocation: z.boolean(),
+    requiredAttributes: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u)).max(20),
+    recommendedMediaKinds: z.array(z.enum(complaintMediaKinds)).max(3),
   })
-  .strict();
+  .strict()
+  .refine((category) => category.maximumMediaCount >= category.minimumMediaCount, {
+    message: 'Category media limits are inconsistent.',
+  });
 
 const routingAssetDiscoverySchema = z
   .object({

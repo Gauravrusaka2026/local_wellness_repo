@@ -19,7 +19,9 @@ export const OtpSignInForm = ({
 }: Readonly<{ callbackError: boolean; nextPath: string }>) => {
   const [channel, setChannel] = useState<AuthChannel>('phone');
   const [error, setError] = useState<string | null>(
-    callbackError ? 'The authentication request is invalid or expired. Request a new code.' : null,
+    callbackError
+      ? 'The authentication request is invalid or expired. Request a new verification email.'
+      : null,
   );
   const [identifier, setIdentifier] = useState('');
   const [isPending, setIsPending] = useState(false);
@@ -76,7 +78,8 @@ export const OtpSignInForm = ({
       <p className="eyebrow">Citizen account</p>
       <h1 id="sign-in-heading">Sign in to Local Wellness</h1>
       <p className="lede">
-        Use a one-time code. We never ask citizens to create or remember a password.
+        Use a one-time code or secure email link. We never ask citizens to create or remember a
+        password.
       </p>
 
       <fieldset className="channel-picker" disabled={isPending}>
@@ -127,19 +130,24 @@ export const OtpSignInForm = ({
           />
           {channel === 'email' ? (
             <p className="field-hint">
-              We will email you a 6-digit verification code. No sign-in link is required.
+              Your email may contain a 6-digit verification code, a secure sign-in link, or both.
             </p>
           ) : (
             <p className="field-hint">Include the country code. Standard SMS charges may apply.</p>
           )}
           <button className="primary-button" disabled={isPending} type="submit">
-            {isPending ? 'Sending…' : 'Send verification code'}
+            {isPending
+              ? 'Sending…'
+              : channel === 'email'
+                ? 'Send verification email'
+                : 'Send verification code'}
           </button>
         </form>
       ) : (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
           <p aria-live="polite" className="success-notice">
-            Check <strong>{normalizedIdentifier}</strong> for your 6-digit verification code.
+            Check <strong>{normalizedIdentifier}</strong>. Enter the verification code below or open
+            the newest secure sign-in link in this browser.
           </p>
           <label htmlFor="otp">Verification code</label>
           <input

@@ -1,3 +1,5 @@
+import type { ComplaintMediaKind } from './complaints.js';
+
 export const routingDecisionStatuses = [
   'routed',
   'manual_review',
@@ -87,6 +89,10 @@ export interface RoutingCategory {
   requiresAsset: boolean;
   requiresLocation: boolean;
   isEmergency: boolean;
+  minimumMediaCount: number;
+  maximumMediaCount: number;
+  requiredAttributes: string[];
+  recommendedMediaKinds: ComplaintMediaKind[];
 }
 
 export interface RoutingResolutionInput {

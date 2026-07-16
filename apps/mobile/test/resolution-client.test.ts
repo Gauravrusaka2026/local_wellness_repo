@@ -9,6 +9,7 @@ import {
   getComplaintResolutionContext,
   getUserFacingComplaintError,
   reopenComplaint,
+  shouldRotateSubmitIdempotencyKeyAfterError,
   submitComplaintResolutionFeedback,
 } from '../src/complaints/complaint-service';
 
@@ -283,4 +284,50 @@ test('maps current and legacy policy conflicts to a safe citizen message', () =>
       'Resolution feedback or reopening is not available under the current policy.',
     );
   }
+});
+
+test('classifies routing terminal errors separately from ambiguous submission outcomes', () => {
+  const routeUnavailable = new ApiClientError({
+    code: 'COMPLAINT_ROUTE_UNAVAILABLE',
+    message: 'server route detail',
+    status: 503,
+  });
+  const unsupportedArea = new ApiClientError({
+    code: 'COMPLAINT_UNSUPPORTED_AREA',
+    message: 'server boundary detail',
+    status: 422,
+  });
+
+  assert.equal(
+    getUserFacingComplaintError(routeUnavailable),
+    'Verified routing is not available for this category and location yet.',
+  );
+  assert.equal(shouldRotateSubmitIdempotencyKeyAfterError(routeUnavailable), true);
+  assert.equal(shouldRotateSubmitIdempotencyKeyAfterError(unsupportedArea), true);
+
+  for (const code of [
+    'NETWORK_ERROR',
+    'REQUEST_ABORTED',
+    'INVALID_RESPONSE',
+    'DEPENDENCY_UNAVAILABLE',
+    'ROUTING_CONFIGURATION_UNAVAILABLE',
+  ]) {
+    assert.equal(
+      shouldRotateSubmitIdempotencyKeyAfterError(
+        new ApiClientError({ code, message: 'ambiguous outcome', status: 0 }),
+      ),
+      false,
+    );
+  }
+
+  assert.equal(
+    getUserFacingComplaintError(
+      new ApiClientError({
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'internal dependency detail',
+        status: 503,
+      }),
+    ),
+    'Local Wellness is temporarily unavailable. Please try again shortly.',
+  );
 });

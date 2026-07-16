@@ -75,7 +75,9 @@ export class ComplaintsService {
     }
 
     if (routing.result.status !== 'routed') {
-      throw ApiException.dependencyUnavailable(
+      throw new ApiException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        'COMPLAINT_ROUTE_UNAVAILABLE',
         'A verified complaint route is not currently available for this location and category.',
       );
     }

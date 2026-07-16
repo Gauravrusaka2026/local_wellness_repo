@@ -114,13 +114,12 @@ Use a final scheme after naming is finalized.
 
 The local redirect allow-list includes the citizen web, government dashboard, admin console and mobile callback routes. Each managed environment must replace these with its exact deployed HTTPS origins while retaining only required development URLs in non-production projects.
 
-Citizen email requests deliver a six-digit code that the web/mobile client verifies as an `email`
-OTP. The committed local confirmation and magic-link templates contain `{{ .Token }}` and no sign-
-in link. Apply equivalent reviewed templates to every managed Supabase project; local template files
-do not update a hosted project automatically. Verify a newly delivered hosted OTP, expiry/rate
-limits, session cookie, and authenticated landing page in a real browser before enabling users.
-Keep exact callback allow-list entries for the separate government invitation and supported
-PKCE/token-hash flows.
+The committed local confirmation and magic-link templates contain `{{ .Token }}` for deterministic
+code-entry tests. Managed Supabase templates may contain `{{ .Token }}`, `{{ .ConfirmationURL }}`,
+or both: web and mobile clients retain code verification and support provider-default PKCE links.
+Template editing is therefore optional, but exact callback allow-list entries are required. Verify
+the actual hosted email, expiry/rate limits, session cookie, and authenticated landing page before
+enabling users. Local template files do not update a hosted project automatically.
 
 The authenticated citizen account page reads the application profile through the NestJS
 `GET /api/v1/me` endpoint; it does not read a fabricated profile from Auth metadata. Configure
@@ -132,13 +131,20 @@ citizen role. Do not weaken the API check or add a client-side metadata fallback
 
 ### Government Invite Template
 
-Administrator invitations do not create a PKCE verifier, so their default fragment-based link cannot be completed by the server-side dashboard callback. Local Auth uses the committed `supabase/templates/invite.html`. In every managed Supabase project, set the **Invite user** email template to the equivalent token-hash link:
+Administrator invitations do not create a PKCE verifier. Local Auth keeps the committed
+`supabase/templates/invite.html` token-hash link for deterministic coverage:
 
 ```html
 <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=invite"> Accept invitation </a>
 ```
 
-Add the exact government dashboard callback to that project's redirect allow-list. Smoke-test the actual hosted invitation email, one-time `invite` verification, SSR cookie creation and effective access scope before enabling government users. Do not substitute `{{ .ConfirmationURL }}` unless the callback is changed to handle the provider's fragment response safely.
+Managed projects may keep the default **Invite user** template with `{{ .ConfirmationURL }}`. The
+government callback accepts a complete fragment only when the provider type is exactly `invite`,
+removes it from browser history before session persistence, and then applies the same current
+membership/role/API/RLS checks. Citizen and admin callbacks reject fragment sessions. Add the exact
+government dashboard callback to the project's redirect allow-list and smoke-test the delivered
+invitation, one-time verification, SSR cookie creation, and effective access scope before enabling
+government users.
 
 ---
 
@@ -218,7 +224,18 @@ Policies:
 
 ## 8. Configure Database Schemas
 
-Phase 1 migrations create the unexposed `private` helper schema and keep exposed identity tables in `public` for Supabase data-API RLS. Phase 2 creates `governance`, but intentionally leaves it out of the `[api].schemas` allow-list. Its tables use forced RLS and explicit grants as defense in depth; server-side imports and the jurisdiction resolver use trusted database/service-role access. Phase 3 creates the similarly unexposed, forced-RLS `routing` schema and adds synchronization tables to `governance`. The retrieval/contact slice keeps its leases, events, evidence, and contact versions in that same unexposed forced-RLS schema and exposes only four service-role retrieval RPCs. Phase 4 creates the unexposed, forced-RLS `complaints` schema. Narrow `public` wrappers provide service-role-only routing, synchronization, and complaint operations without granting clients any private schema. Communications, operations, analytics, integrations and audit schemas belong to later phases and must be created by their committed migrations when implemented.
+Phase 1 migrations create the unexposed `private` helper schema and keep exposed identity tables in
+`public` for Supabase data-API RLS. Phase 2 creates `governance`, but intentionally leaves it out of
+the `[api].schemas` allow-list. Its tables use forced RLS and explicit grants as defense in depth;
+server-side imports and the jurisdiction resolver use trusted database/service-role access. Phase 3
+creates the similarly unexposed, forced-RLS `routing` schema and adds synchronization tables to
+`governance`. The retrieval/contact slice keeps its leases, events, evidence, and contact versions
+in that same unexposed forced-RLS schema and exposes only four service-role retrieval RPCs. Phase 4
+creates the unexposed, forced-RLS `complaints` schema. Phases 5–9 extend that private schema with
+government workflow, communication, citizen accountability, reviewed public projections, SLA/
+escalation, and KPI evidence. Narrow `public` wrappers provide service-role-only operations without
+granting clients any private schema. Future integrations/audit schemas must be created only by their
+committed migrations when implemented.
 
 Phase 5 extends `complaints` rather than exposing a new schema. It adds database capability and
 transition records, exact-replay government action/audit records, versioned assignment history,
@@ -266,6 +283,17 @@ same no-direct-access rule. The service role is transport only and receives exec
 reviewed wrappers, not table access. Test global/authority/ward/department/read-only scope,
 cross-scope denial, inactive/revoked membership, placeholder target exclusion, workflow conflicts,
 append-only history, and signed evidence access in every managed environment.
+
+Phases 6–8 preserve the same forced-RLS/no-direct-table-access boundary for communication,
+resolution accountability, and transparency records. Phase 8 public reads still execute only
+through NestJS/service wrappers; `anon` cannot execute the database functions directly. Duplicate-
+group review and withdrawal are service-only and never infer publication from a private match.
+
+Phase 9 forces RLS on all 19 SLA/escalation/KPI tables. Only platform-admin publication, trusted
+worker claim/execute/fail, and actor-scoped government read wrappers receive service-role execute
+grants. Test atomic version supersession, missing/ambiguous-policy fail-closed behavior, worker
+lease tokens, complaint/scope reauthorization, transactional escalation/outbox evidence, and
+organizational KPI isolation in every managed environment.
 
 ---
 
@@ -350,6 +378,18 @@ pnpm database:types
 pnpm database:types:check
 pnpm governance:data:check
 ```
+
+After the incremental migration is final, regenerate the optional single-file empty-database
+bootstrap and verify that it matches the ordered sources:
+
+```bash
+pnpm database:master:generate
+pnpm database:master:check
+```
+
+`supabase/master.sql` excludes `supabase/seed/` and must not be applied to a database with existing
+Local Wellness migration history. Normal local, staging, and production upgrades continue to use
+the immutable files under `supabase/migrations/`.
 
 ---
 
@@ -544,14 +584,31 @@ NOTIFICATION_WORKER_ID=notification-worker:local
 NOTIFICATION_BATCH_SIZE=25
 NOTIFICATION_LEASE_SECONDS=60
 NOTIFICATION_POLL_INTERVAL_MS=1000
+
+SLA_ESCALATION_WORKER_ID=sla-escalation-worker:local
+SLA_ESCALATION_BATCH_SIZE=25
+SLA_ESCALATION_LEASE_SECONDS=60
+SLA_ESCALATION_POLL_INTERVAL_MS=1000
+
+KPI_CALCULATION_WORKER_ID=kpi-calculation-worker:local
+KPI_CALCULATION_BATCH_SIZE=10
+KPI_CALCULATION_LEASE_SECONDS=120
+KPI_CALCULATION_POLL_INTERVAL_MS=1000
 ```
 
 Do not place real secrets inside `.env.example`.
 
 The realtime server also requires the server-only Supabase secret/service-role credential and the
-client-safe publishable/anon key; the notification worker requires the server-only credential.
+client-safe publishable/anon key; all three notification/SLA/KPI worker loops require the server-
+only credential.
 Neither value belongs in an `EXPO_PUBLIC_` or `NEXT_PUBLIC_` variable. Public realtime URLs are
 transport locations, not credentials.
+
+Use an untracked repository-root `.env` as the single local source, export it into the process
+before starting workspaces, and do not create a second `apps/mobile/.env.local`. On a physical
+device, override the public API/realtime URLs with the laptop's current LAN address. The mobile
+runtime validates detectable Supabase URL/key project alignment and rejects loopback service URLs
+without echoing configured values.
 
 ---
 
@@ -660,7 +717,23 @@ approved values and reviewer identity, publish one non-overlapping effective ver
 the application still fails closed outside its scope and effective period. Never promote a draft,
 placeholder, ambiguous, or expired policy automatically.
 
-### Dedicated staging database — 2026-07-14
+Phase 8 adds the transparency schema/security migrations, the `20260716105000` RPC/ACL forward fix,
+and `20260716106000_phase_8_duplicate_group_publication.sql`. The duplicate forward migration keeps
+review/withdrawal service-only, requires every member to have a current public projection, bounds a
+group at 100 reports, and returns only public IDs/counts through detail. The focused plans 029–030
+passed 91 assertions. This focused result does not replace the root session's final aggregate
+reset/lint/type/test report, and no transparency policy, projection, or duplicate group is seeded.
+
+Phase 9 adds `20260716110000_phase_9_sla_escalation_kpi_schema.sql` and
+`20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql`. They introduce 19 private
+forced-RLS tables, platform-admin publication with atomic prior-version supersession, materialized
+complaint clocks/deadline history, transactional escalation/outbox evidence, PostgreSQL-leased SLA/
+KPI work, and immutable organizational snapshots. KPI algorithm definitions are seeded, but no
+active calendar, policy target, category override, or escalation rule is seeded. A clean local run
+applied all 34 migrations and passed all 1,275 assertions across 32 pgTAP plans; generated types and
+the deterministic master SQL also passed drift checks.
+
+### Previous dedicated staging deployment — historical record, 2026-07-14
 
 The connected managed project is owner-confirmed as staging, and its privileged/database
 credentials are newly generated replacements. The database now contains all 23 repository
@@ -681,6 +754,13 @@ geometry, route, complaint, or production environment was deployed. Local reset/
 remain isolated; the managed state exists only because the reviewed migrations and seeds were
 explicitly applied to staging.
 
+The owner subsequently replaced the configured staging project and reports applying a generated
+master SQL file to it. That report does not identify the artifact revision and the database ledger
+was not reachable for independent verification in this session. Treat the current target as
+unreconciled: compare `supabase_migrations.schema_migrations` with all 34 current migration files,
+verify schema objects and RLS, and establish the seed/Auth/profile/role state before enabling any
+application, worker, Edge Function, schedule, routing, transparency, SLA, or KPI capability.
+
 When `REQUIRE_LOCAL_SUPABASE=true`, the Auth E2E harness accepts only loopback API hosts. This guard
 fails before user creation if a generic environment file points at hosted Supabase. Hosted database
 migrations and seeds remain an explicit operator action; local reset and test commands do not upload
@@ -691,8 +771,8 @@ Before managed identity activation, operators must:
 - create separate development, staging and production projects;
 - link only the intended non-production project from developer environments;
 - enable required extensions through reviewed migrations;
-- configure Auth providers, code-only citizen OTP templates, exact redirects, and the token-hash
-  government invite template;
+- configure Auth providers and exact redirect allow-lists; custom code-only OTP and token-hash
+  invite templates are optional because the clients also support the managed defaults;
 - configure SMS/email delivery, provider rate limits and abuse controls;
 - select secret storage and restrict production credentials;
 - configure environment-specific CI/deployment secrets;
@@ -765,8 +845,8 @@ Before managed government-dashboard activation, operators must also:
 
 Before managed Phase 6 activation, operators must also:
 
-- apply the two Phase 6 migrations in managed development and staging, regenerate/check types, and
-  repeat forced-RLS, direct-ACL, RPC-grant, lease, retry, revocation, and public-comment denial tests;
+- reconcile the target ledger through the Phase 6 migrations, regenerate/check types, and repeat
+  forced-RLS, direct-ACL, RPC-grant, lease, retry, revocation, and public-comment denial tests;
 - configure one worker identity and one realtime instance with server-only credentials and exact
   browser origins; expose only the public realtime URL to clients;
 - verify database-first message creation, exact replay/conflict, monotonic reads, event
@@ -789,6 +869,69 @@ Before managed Phase 7 activation, operators must also:
   unrelated evidence, expired reservations, mismatched content, and reused evidence;
 - confirm status history, citizen/government audit, and the existing notification outbox commit
   atomically without exposing feedback text, ratings, coordinates, object paths, hashes, or tokens.
+
+Before enabling the mobile verified-governance directory, operators must also:
+
+- apply `20260716104000_verified_governing_body_projection.sql` through the incremental migration
+  workflow and regenerate/check the committed database types; the 34-migration master SQL is only
+  for a clean database and must not be applied over staging history;
+- repeat plan `028_verified_governing_body_projection.test.sql` and application-schema database
+  lint in managed development, then verify `anon`/`authenticated` cannot execute the RPC while the
+  trusted API service role can;
+- deploy the matching NestJS API and smoke authenticated resolved, unsupported, ambiguous,
+  low-accuracy, future-capture, and invalid-field requests without logging bearer tokens or raw
+  coordinates;
+- activate only reviewed current official-source, verified, non-placeholder, routing-eligible
+  entity and boundary versions. Until pilot geometry meets that rule, an unsupported result is the
+  required staging behavior;
+- verify the response contains no UUID, geometry, officer, email, phone, private office, routing, or
+  placeholder field before connecting a physical Expo Go client over a LAN-reachable API URL.
+
+This migration and managed/device smoke are not recorded as complete in the current repository
+state.
+
+Before managed Phase 8 activation, operators must also:
+
+- apply all Phase 8 transparency migrations in repository order in managed development and staging,
+  including the `20260716105000` RPC/ACL forward fix and
+  `20260716106000_phase_8_duplicate_group_publication.sql`; regenerate/check database types and
+  repeat forced-RLS, direct-ACL, function-grant, approximate-geometry, withdrawal, aggregate-
+  threshold, and private-field leakage tests;
+- publish no operational policy until public eligibility, sensitive-category handling, sanitized
+  text, ward-derived approximation, minimum cohort, retention, withdrawal, and reviewer authority
+  are approved;
+- import and review current non-placeholder pilot ward geometry; never use canonical placeholder
+  rows or synthetic test fixtures as public evidence;
+- smoke anonymous bounded list/hotspot/boundary/detail reads, invalid viewports and filters, current
+  publication expiry/withdrawal, and denial of direct table/Data API access;
+- smoke service-only duplicate review/exact replay/conflict/withdrawal, require every member to be
+  currently published, verify the 100-member bound, and assert detail contains public IDs/counts
+  only; never auto-promote a private similarity result;
+- keep public comments and processed media disabled until their independent moderation, abuse,
+  scanning/redaction, retention, and delivery gates are satisfied;
+- keep the provider-neutral map mode unless a later ADR approves a basemap and outbound-coordinate
+  policy.
+
+Before managed Phase 9 activation, operators must also:
+
+- apply both Phase 9 migrations incrementally and regenerate/check the committed database types;
+- repeat forced-RLS/direct-ACL/service-RPC tests, including platform-admin-only publication,
+  complaint/organizational scope isolation, and lease-token enforcement;
+- approve official business calendars, SLA targets, category overrides, completion/pause rules,
+  escalation actions/levels/target roles, and effective dates; publish no placeholder, unverified,
+  ambiguous, or inferred policy;
+- verify calendar/policy/rule replacement atomically closes and supersedes exactly one eligible
+  prior approved interval and rejects conflicting/backdated/same-or-older versions;
+- run rollback-isolated assignment/clock/completion/external-dependency pause/resume/breach tests
+  and verify status history, escalation evidence, and the minimal notification outbox commit in one
+  transaction;
+- configure trusted `SLA_ESCALATION_*` and `KPI_CALCULATION_*` worker values, supervise the process,
+  and test lease expiry, retry, dead state, and clean shutdown without exposing tokens/content;
+- configure the reviewed Supabase/PostgreSQL KPI-run schedule and verify immutable source-cutoff/
+  window/definition evidence plus municipality/ward/department scope and delay-segment isolation;
+- monitor missing/ambiguous bindings, breached clocks, escalation backlog/dead jobs, failed runs,
+  and stale snapshots. An empty/unavailable result is correct until policy and source data pass the
+  activation gate.
 
 No Redis, BullMQ, Redis adapter/cache, or Sentry setup is required or permitted for this V1 path.
 

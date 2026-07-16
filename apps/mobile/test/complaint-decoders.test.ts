@@ -39,10 +39,14 @@ describe('complaint response decoders', () => {
       description: null,
       id: '22222222-2222-4222-8222-222222222222',
       isEmergency: false,
+      maximumMediaCount: 5,
+      minimumMediaCount: 1,
       name: 'Pothole',
       parentCategoryId: null,
       requiresAsset: false,
       requiresLocation: true,
+      requiredAttributes: [],
+      recommendedMediaKinds: ['photo'],
     };
 
     assert.deepEqual(decodeRoutingCategories([category]), [category]);
@@ -79,6 +83,7 @@ describe('complaint response decoders', () => {
       assetId: null,
       categoryId: null,
       createdAt: '2026-07-14T10:00:00.000Z',
+      customAttributes: {},
       description: null,
       expiresAt: '2026-07-15T10:00:00.000Z',
       id: '11111111-1111-4111-8111-111111111111',

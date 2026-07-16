@@ -6,6 +6,7 @@ import {
   getGovernmentComplaintAccountability,
   getGovernmentComplaintAssignmentOptions,
 } from '../../../lib/api/government-complaints';
+import { getGovernmentComplaintSla } from '../../../lib/api/accountability';
 import { getGovernmentAccessScope } from '../../../lib/api/access-scope';
 import { getComplaintMessages } from '../../../lib/api/communications';
 import {
@@ -46,6 +47,8 @@ type DetailLoadResult =
       complaint: Awaited<ReturnType<typeof getGovernmentComplaint>>;
       messages: Awaited<ReturnType<typeof getComplaintMessages>>['items'];
       queueHref: string;
+      sla: Awaited<ReturnType<typeof getGovernmentComplaintSla>> | null;
+      slaError: string | null;
     }>;
 
 const loadComplaint = async (
@@ -64,6 +67,23 @@ const loadComplaint = async (
       complaintId,
       selectedScope.scopeRoleAssignmentId,
     );
+    let sla: Awaited<ReturnType<typeof getGovernmentComplaintSla>> | null = null;
+    let slaError: string | null = null;
+    try {
+      sla = await getGovernmentComplaintSla(
+        accessToken,
+        complaintId,
+        selectedScope.scopeRoleAssignmentId,
+      );
+    } catch (error) {
+      if (
+        error instanceof AuthenticationRequiredError ||
+        (error instanceof ApiError && error.status === 401)
+      ) {
+        throw error;
+      }
+      slaError = getUserFacingApiError(error);
+    }
     let accountability: Awaited<ReturnType<typeof getGovernmentComplaintAccountability>> | null =
       null;
     let accountabilityError: string | null = null;
@@ -124,6 +144,8 @@ const loadComplaint = async (
       complaint,
       messages,
       queueHref,
+      sla,
+      slaError,
       status: 'success',
     };
   } catch (error) {
@@ -190,6 +212,8 @@ export default async function ComplaintPage({ params, searchParams }: DetailPage
           complaint={result.complaint}
           messages={result.messages}
           queueHref={result.queueHref}
+          sla={result.sla}
+          slaError={result.slaError}
         />
       </main>
     </>

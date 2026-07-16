@@ -29,6 +29,7 @@ import {
   type FinalizeComplaintMediaInput,
   type UpdateComplaintDraftInput,
 } from '@local-wellness/types';
+import { complaintCustomAttributesSchema } from '@local-wellness/validation';
 import { z } from 'zod';
 
 import {
@@ -69,7 +70,7 @@ const draftRowSchema = z
     asset_id: nullableUuidSchema,
     description: z.string().nullable(),
     description_language: z.enum(['en', 'hi', 'mr']),
-    custom_attributes: z.record(z.string(), z.unknown()),
+    custom_attributes: complaintCustomAttributesSchema,
     selected_location_evidence_id: nullableUuidSchema,
     status: z.enum(complaintDraftStatuses),
     revision: z.number().int().positive(),
@@ -485,7 +486,7 @@ export class SupabaseComplaintStore extends ComplaintStore {
         p_asset_id: input.assetId ?? null,
         p_description: input.description ?? null,
         p_description_language: 'en',
-        p_custom_attributes: {},
+        p_custom_attributes: input.customAttributes ?? {},
       }),
       'create complaint draft',
     );
@@ -522,6 +523,7 @@ export class SupabaseComplaintStore extends ComplaintStore {
       categoryId: raw.category_id,
       assetId: raw.asset_id,
       description: raw.description,
+      customAttributes: raw.custom_attributes,
       location: selectedLocation,
       media: mediaRows.map((row) => toMedia(row, locationById)),
       createdAt: raw.created_at,
@@ -547,7 +549,8 @@ export class SupabaseComplaintStore extends ComplaintStore {
       p_asset_id: input.assetId === undefined ? current.asset_id : input.assetId,
       p_description: input.description === undefined ? current.description : input.description,
       p_description_language: current.description_language,
-      p_custom_attributes: current.custom_attributes,
+      p_custom_attributes:
+        input.customAttributes === undefined ? current.custom_attributes : input.customAttributes,
       p_selected_location_evidence_id: selectedLocationId,
     });
 

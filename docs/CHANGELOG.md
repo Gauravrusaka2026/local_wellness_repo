@@ -805,3 +805,223 @@ remains data-driven and deliberately unavailable when no approved operational po
 
 None. The migrations and API surfaces are additive; new government resolution submissions require
 captured completion location and valid finalized after evidence before entering citizen verification.
+
+## 2026-07-16 — Single-file Supabase Master Migration
+
+### Summary
+
+Added a deterministic single SQL artifact for bootstrapping the complete Local Wellness schema in an
+empty Supabase database without replacing the immutable incremental migration history.
+
+### Feature
+
+- Generated `supabase/master.sql` from all 29 ordered migrations through Phase 8.
+- Preserved a transaction boundary around each source migration and recorded exact source SHA-256
+  digests in the generated header.
+- Added `database:master:generate` and `database:master:check` commands for reproducible updates and
+  drift detection. Seed data remains separate.
+
+### Files Modified
+
+- Added the master SQL artifact and its Node.js generator.
+- Updated the root package scripts, README, database guide, Supabase setup guide, task tracker,
+  progress tracker, and changelog.
+
+### Migrations Created
+
+None. The master file is a generated clean-bootstrap artifact and intentionally remains outside
+`supabase/migrations/`.
+
+### Tests and Verification
+
+- Verified the committed master file is byte-for-byte reproducible from the ordered migration
+  sources and that its 29 manifest hashes match those source files.
+
+### Security and Operational Status
+
+- Existing RLS, grants, private schemas, Storage policies, functions, and triggers are preserved
+  exactly from the source migrations. No seed, credential, managed database, or production state was
+  changed.
+
+### Breaking Changes
+
+None. Existing environments continue to use incremental migrations.
+
+## 2026-07-16 — Modern Mobile Citizen Experience and Verified Governance Directory
+
+### Summary
+
+Completed the local engineering slice for a modern Expo citizen experience and added a narrow,
+authenticated, verified-only governing-body lookup. The application remains data-driven and keeps
+complaint submission/Nearby results unavailable when staging lacks reviewed operational routing or
+official boundary evidence.
+
+### Feature
+
+- Added a five-destination mobile shell for Home, Complaints, Report, Nearby, and More, with grouped
+  profile/language/notification/transparency/help/logout actions and stable existing deep links.
+- Added explicit passwordless sign-in, create-account, and account-recovery modes. Sign-in/recovery
+  cannot silently create an account and all request feedback remains non-enumerating.
+- Added a refreshable owned-complaint dashboard, filtered/paginated history cards, modern empty/error
+  states, and navigation into existing detail, message, timeline, accountability, and transparency
+  surfaces.
+- Reloaded the Home dashboard on route focus and pull-to-refresh, linked permanent camera/
+  microphone/location denial to OS settings, delayed derived-media preparation until location
+  succeeds, and prevented one completed voice recording URI from being processed twice.
+- Preserved database-defined category required attributes, photo/video minimum/maximum counts, and
+  recommended media kinds through routing/category responses, complaint drafts, strict validation,
+  Supabase adapters, mobile decoding, dynamic fields, readiness, and submission.
+- Added an authenticated Nearby screen using Expo Location and an API-owned, service-role-only
+  PostGIS projection. It returns only official-source verified entity names/types/dates/source URLs,
+  exposes no UUID/contact/geometry/private fields, and reports low-accuracy, unsupported, or
+  ambiguous results without hardcoded municipality fallbacks.
+- Added mobile Supabase project-alignment and native-loopback diagnostics, removed the stale
+  app-local environment override from Expo's load path, and retained the root environment as the
+  local configuration source.
+- Fixed submission retry identity so exact network retries remain stable while successful draft
+  mutations and explicit no-route outcomes rotate stale routing replay keys. Added the distinct
+  `COMPLAINT_ROUTE_UNAVAILABLE` API code so unrelated backend outages are no longer presented as
+  routing-data failures.
+- Kept OS push deliberately unconfigured. Durable in-app notifications and optional Socket.IO
+  refresh remain implemented; `expo-notifications`, Expo/EAS/FCM/APNs credentials, and token
+  registration were not introduced.
+
+### Files Modified
+
+- Updated the Expo auth, layout, home, complaint list/report, configuration, capture, and shared UI
+  modules; added the menu, dashboard helpers, governance directory client/screen, and focused tests.
+- Added governance-directory shared types/strict validation, NestJS module/controller/service/store
+  boundaries, Supabase adapter, API/store tests, and application-module registration.
+- Updated complaint/routing shared contracts and validators plus API/mobile adapters for category
+  metadata and draft `customAttributes`.
+- Regenerated committed database types and the deterministic 30-migration master SQL artifact.
+- Updated README, architecture, API, authentication, database, deployment, Supabase setup, ADR,
+  trackers, known issues, decisions, and the mobile implementation worklog.
+
+### Migrations Created
+
+- `20260716104000_verified_governing_body_projection.sql` — adds the narrow official-source,
+  verified-only, service-role-executable PostGIS governing-body projection.
+
+### Tests Added and Verification
+
+- Added mobile OTP-mode, environment, dashboard-summary, and governance-service tests; API
+  controller/store tests; strict governance-schema tests; and 13 pgTAP assertions in
+  `028_verified_governing_body_projection.test.sql`.
+- The mobile suite passed all 12 test files with lint, strict type-check, and an SDK 54 Android
+  export. The API suite passed 161 tests and type-check/build; shared validation passed all nine test
+  files.
+- A clean local Supabase run applied all 30 migrations and passed 1,085 assertions across 28 plans;
+  application-schema lint, database-type drift, and master-SQL drift checks passed.
+
+### Documentation Updated
+
+- Updated `README.md`, `docs/TASKS.md`, `docs/PROGRESS.md`, `docs/DECISIONS.md`,
+  `docs/KNOWN_ISSUES.md`, `docs/architecture.md`, `docs/api.md`, `docs/authentication.md`,
+  `docs/database.md`, `docs/deployment.md`, `docs/supabase-setup.md`, ADR-0017, and the mobile worklog.
+
+### Security and Operational Status
+
+- Mobile clients still receive only public credentials and bearer-authenticate to NestJS. Direct
+  governance RPC execution remains denied to `anon`/`authenticated`, placeholder/unofficial source
+  evidence remains excluded, and logs/errors do not disclose configured values or raw coordinates.
+- The additive directory migration was not applied to staging, no official pilot geometry was
+  activated, and no physical-device Expo Go smoke was claimed. Nearby and complaint submission may
+  therefore remain safely unavailable in that environment.
+- Redis, BullMQ, Redis adapters/caching, Sentry, OS push registration, hardcoded Pune/BMC routing,
+  and automatic placeholder promotion remain absent.
+
+### Breaking Changes
+
+No endpoint or route was removed. Routing-category and complaint-draft response shapes gained
+additive metadata; strict external clients that reject unknown fields must update their decoders.
+
+## 2026-07-16 — Phase 8 Transparency, Phase 9 Accountability, and Default Auth Links
+
+### Summary
+
+Completed the locally safe engineering scope for Phase 8 and Phase 9, added reviewed public
+transparency projections and organizational SLA/KPI accountability, and made passwordless clients
+compatible with Supabase's managed default email links without weakening database authorization.
+Operational data, policies, managed schedules, and public records remain deliberately inactive.
+
+### Feature
+
+- Added review-gated, effective-dated transparency policies and immutable sanitized complaint
+  publications with PostgreSQL-derived generalized positions, withdrawal history, reviewed
+  duplicate groups, and processed-derivative references that do not expose original media.
+- Added bounded anonymous nearby, hotspot, ward-boundary, public-detail, and duplicate-group reads;
+  strict NestJS/shared contracts; and accessible provider-neutral citizen web/mobile surfaces.
+- Added versioned business calendars, SLA policies/category overrides, complaint bindings/clocks/
+  deadlines/pauses, escalation rules/events/jobs, and reproducible municipality/ward/department KPI
+  definitions/runs/snapshots under forced RLS and narrow service-only RPCs.
+- Added atomic policy supersession, verified governance/category/role activation gates,
+  transactional status/escalation/outbox changes, PostgreSQL lease/retry/dead handling, and no
+  active operational targets or schedules.
+- Added authenticated SLA/KPI APIs, strict adapters/contracts, two independent worker loops, a
+  government complaint SLA panel, and an organizational KPI dashboard with authorized scope only
+  and no individual-officer ranking.
+- Replaced server-only web callback handlers with one-shot, credential-scrubbing client bridges for
+  PKCE and reviewed token hashes. Only the government invitation callback accepts a complete
+  provider-default fragment typed exactly `invite`; citizen, admin, and mobile reject raw fragment
+  sessions. Code entry and citizen-create-only registration remain unchanged.
+- Regenerated the committed database types and deterministic `supabase/master.sql` from all 34
+  ordered migrations.
+
+### Files Modified
+
+- Phase 8/9 Supabase migrations and pgTAP plans under `supabase/migrations` and
+  `supabase/tests/database`.
+- Accountability, transparency, and governance-directory contracts/adapters/controllers under
+  `packages/types`, `packages/validation`, `apps/api`, `apps/workers`, and the citizen/government
+  clients.
+- Passwordless callback/login modules and focused tests in citizen web, government dashboard, admin
+  console, and mobile.
+- Generated `packages/database/src/database.types.ts` and `supabase/master.sql`.
+- Required technical guides, trackers, ADR-0018/0019, and Phase 8/9 worklogs.
+
+### Migrations Created
+
+- `20260716102000_phase_8_transparency_schema.sql`
+- `20260716103000_phase_8_transparency_security_and_rpc.sql`
+- `20260716104000_verified_governing_body_projection.sql`
+- `20260716105000_phase_8_transparency_rpc_and_acl_forward_fix.sql`
+- `20260716106000_phase_8_duplicate_group_publication.sql`
+- `20260716110000_phase_9_sla_escalation_kpi_schema.sql`
+- `20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql`
+
+### Tests and Verification
+
+- A clean local reset applied all 34 migrations; all 1,275 assertions across 32 pgTAP plans passed.
+  Phase 8 focused plans passed 45/45 and 46/46; Phase 9 focused plans passed 48/48 and 51/51.
+- Application-schema database lint had no findings. Generated database types and the 34-migration
+  master SQL passed drift checks.
+- The API passed 173 tests and workers passed all seven test files; both passed strict type-check,
+  lint, and build. Shared validation passed all ten test files.
+- Citizen web passed three test files, admin console one, government dashboard 32 tests, and mobile
+  12 test files. All passed strict type-check and lint; three Next.js production builds and the Expo
+  Android export passed.
+
+### Documentation Updated
+
+- Updated `README.md`, architecture, authentication, API, database, deployment, Supabase setup,
+  tasks, progress, decisions, known issues, Phase 8/9 worklogs, and ADR-0018/0019.
+- `PLAN.md` and `PROJECT_OVERVIEW.md` were unchanged because phase order and product scope did not
+  change.
+
+### Security and Operational Status
+
+- Private complaints, exact coordinates, identities, original media, internal notes, and unreviewed
+  text remain outside public responses. Direct table access stays revoked and RLS remains forced.
+- Authentication callbacks cannot assign application access. Government/admin requests keep
+  `shouldCreateUser: false`; current profile, membership, role, scope, API, and RLS checks remain
+  authoritative.
+- The managed migration ledger was not changed or verified in this session. No transparency/SLA/KPI
+  policy, public complaint, schedule, placeholder route, Redis, BullMQ, Redis adapter/cache, or
+  Sentry integration was activated.
+
+### Breaking Changes
+
+The three Next.js `/auth/callback` implementations changed from route handlers to dynamic pages so
+the browser can safely process provider-default callbacks. The public callback URL is unchanged.
+No API endpoint was removed; new transparency and accountability contracts are additive.

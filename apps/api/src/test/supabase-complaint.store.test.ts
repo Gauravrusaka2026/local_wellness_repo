@@ -334,6 +334,7 @@ describe('Supabase complaint store drafts and media', () => {
     const rawKey = 'raw-complaint-key-000001';
     const input = {
       categoryId: ids.category,
+      customAttributes: { hazard_level: 'high' },
       description: draftRow.description,
       location: locationCapture,
     };
@@ -363,6 +364,7 @@ describe('Supabase complaint store drafts and media', () => {
             data: [
               {
                 ...draftRow,
+                custom_attributes: input.customAttributes,
                 revision: draftReadCount === 3 ? 2 : 1,
                 selected_location_evidence_id: draftReadCount === 3 ? ids.location : null,
               },
@@ -398,6 +400,7 @@ describe('Supabase complaint store drafts and media', () => {
 
     assert.equal(created.id, ids.draft);
     assert.equal(created.visibility, 'private');
+    assert.deepEqual(created.customAttributes, input.customAttributes);
     assert.deepEqual(created.location, {
       id: ids.location,
       latitude: locationCapture.latitude,
@@ -413,6 +416,7 @@ describe('Supabase complaint store drafts and media', () => {
     const createCall = calls.find((call) => call.functionName === 'create_complaint_draft');
     assert.equal(createCall?.arguments_['p_idempotency_key_hash'], identity.idempotencyKeyHash);
     assert.equal(createCall?.arguments_['p_request_fingerprint'], identity.requestFingerprint);
+    assert.deepEqual(createCall?.arguments_['p_custom_attributes'], input.customAttributes);
     assert.equal(JSON.stringify(calls).includes(rawKey), false);
     const locationCall = calls.find(
       (call) => call.functionName === 'append_complaint_location_evidence',

@@ -12,7 +12,12 @@ import {
   hasPlatformAdminAccess,
   type AdminAccessScope,
 } from '../lib/api/access-scope';
-import { getAdminEmailCallbackUrl, getSupportedEmailOtpType } from '../lib/auth/callback';
+import {
+  completeEmailAuthCallback,
+  getAdminEmailCallbackUrl,
+  getSupportedEmailOtpType,
+  resolveEmailAuthCallback,
+} from '../lib/auth/callback';
 import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
 import { requestAdminOtp, signOutAdminSession, verifyAdminOtp } from '../lib/auth/service';
@@ -33,6 +38,41 @@ test('uses the exact queryless administrator callback URL', () => {
     getAdminEmailCallbackUrl('http://localhost:3004'),
     'http://localhost:3004/auth/callback',
   );
+});
+
+test('rejects fragment sessions and accepts only reviewed administrator token hashes', async () => {
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://admin.example.org/auth/callback#access_token=access&refresh_token=refresh',
+    ),
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://admin.example.org/auth/callback?token_hash=hash&type=recovery',
+    ),
+  );
+
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      exchangeCodeForSession: async () => {
+        throw new Error('PKCE must not run for an invite token hash.');
+      },
+      verifyOtp: async (request: unknown) => {
+        calls.push(request);
+        return { data: { session: { access_token: 'admin-access-token' } }, error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  assert.equal(
+    await completeEmailAuthCallback(
+      supabase,
+      'https://admin.example.org/auth/callback?token_hash=invite-hash&type=invite',
+    ),
+    'admin-access-token',
+  );
+  assert.deepEqual(calls, [{ token_hash: 'invite-hash', type: 'invite' }]);
 });
 
 test('requests an administrator email code without creating an account', async () => {

@@ -328,6 +328,14 @@ export const markNotificationRead = (
     decode: (value) => notificationReadReceiptSchema.parse(value),
   });
 
+const terminalSubmissionRoutingErrorCodes = new Set([
+  'COMPLAINT_ROUTE_UNAVAILABLE',
+  'COMPLAINT_UNSUPPORTED_AREA',
+]);
+
+export const shouldRotateSubmitIdempotencyKeyAfterError = (error: unknown): boolean =>
+  error instanceof ApiClientError && terminalSubmissionRoutingErrorCodes.has(error.code);
+
 export const getUserFacingComplaintError = (error: unknown): string => {
   if (error instanceof ApiClientError) {
     if (error.status === 401) return 'Your session has expired. Sign in again.';
@@ -337,9 +345,12 @@ export const getUserFacingComplaintError = (error: unknown): string => {
     if (
       error.code === 'ROUTING_UNAVAILABLE' ||
       error.code === 'ROUTING_CONFIGURATION_UNAVAILABLE' ||
-      error.code === 'DEPENDENCY_UNAVAILABLE'
+      error.code === 'COMPLAINT_ROUTE_UNAVAILABLE'
     ) {
       return 'Verified routing is not available for this category and location yet.';
+    }
+    if (error.code === 'DEPENDENCY_UNAVAILABLE') {
+      return 'Local Wellness is temporarily unavailable. Please try again shortly.';
     }
     if (
       error.code === 'LOCATION_LOW_ACCURACY' ||

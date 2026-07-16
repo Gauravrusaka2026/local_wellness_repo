@@ -86,7 +86,12 @@ export default async function Page({ searchParams }: PageProperties) {
             Your identity is verified, but no active role assignment is available. Contact your
             municipal administrator; this dashboard cannot grant access.
           </p>
-          <SignOutButton />
+          <div className="header-actions">
+            <a className="secondary-link" href="/accountability">
+              Organizational KPIs
+            </a>
+            <SignOutButton />
+          </div>
         </section>
       </main>
     );

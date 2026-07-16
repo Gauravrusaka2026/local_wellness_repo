@@ -1,5 +1,8 @@
 export type AuthChannel = 'email' | 'phone';
 
+export const citizenAuthModes = ['sign_in', 'create_account', 'recover_account'] as const;
+export type CitizenAuthMode = (typeof citizenAuthModes)[number];
+
 export class AuthInputError extends Error {
   public constructor(message: string) {
     super(message);

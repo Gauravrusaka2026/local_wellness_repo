@@ -342,6 +342,9 @@ importers:
       '@local-wellness/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@local-wellness/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
       '@supabase/ssr':
         specifier: 'catalog:'
         version: 0.12.0(@supabase/supabase-js@2.110.2)

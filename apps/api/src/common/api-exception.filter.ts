@@ -4,6 +4,11 @@ import { RoutingConfigurationError } from '@local-wellness/routing-engine';
 import type { ApiErrorBody, ApiErrorResponse } from '@local-wellness/types';
 
 import {
+  AccountabilityAccessDeniedError,
+  AccountabilityDataAccessError,
+  AccountabilityNotFoundError,
+} from '../data/accountability.store.js';
+import {
   ComplaintConflictError,
   ComplaintDataAccessError,
   ComplaintNotFoundError,
@@ -27,6 +32,7 @@ import {
   GovernmentComplaintDataAccessError,
   GovernmentComplaintNotFoundError,
 } from '../data/government-complaint.store.js';
+import { GovernanceDirectoryDataAccessError } from '../data/governance-directory.store.js';
 import { ResolutionEvidenceGatewayError } from '../data/resolution-evidence.gateway.js';
 import {
   DeviceBlockedError,
@@ -37,6 +43,7 @@ import {
   RoutingDataAccessError,
   RoutingDecisionIdempotencyConflictError,
 } from '../data/routing.store.js';
+import { TransparencyDataAccessError } from '../data/transparency.store.js';
 import { ApiException } from './api-exception.js';
 import type { RequestContext, ResponseContext } from './request-context.js';
 
@@ -82,6 +89,11 @@ const safeHttpMessage = (status: number): string => {
   }
 };
 
+export const stripQueryString = (url: string): string => {
+  const queryIndex = url.indexOf('?');
+  return queryIndex === -1 ? url : url.slice(0, queryIndex);
+};
+
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApiExceptionFilter.name);
@@ -104,6 +116,24 @@ export class ApiExceptionFilter implements ExceptionFilter {
         code: exception.code,
         message: exception.message,
         ...(exception.details === undefined ? {} : { details: exception.details }),
+      };
+    } else if (exception instanceof AccountabilityAccessDeniedError) {
+      status = HttpStatus.FORBIDDEN;
+      error = {
+        code: 'GOVERNMENT_ACCESS_REQUIRED',
+        message: 'Verified government accountability access is required.',
+      };
+    } else if (exception instanceof AccountabilityNotFoundError) {
+      status = HttpStatus.NOT_FOUND;
+      error = {
+        code: 'COMPLAINT_NOT_FOUND',
+        message: 'The requested complaint accountability resource was not found.',
+      };
+    } else if (exception instanceof AccountabilityDataAccessError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'SLA and KPI data is temporarily unavailable.',
       };
     } else if (exception instanceof DeviceBlockedError) {
       status = HttpStatus.FORBIDDEN;
@@ -248,11 +278,23 @@ export class ApiExceptionFilter implements ExceptionFilter {
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'Routing data is temporarily unavailable.',
       };
+    } else if (exception instanceof GovernanceDirectoryDataAccessError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Verified governing-body data is temporarily unavailable.',
+      };
     } else if (exception instanceof RoutingConfigurationError) {
       status = HttpStatus.SERVICE_UNAVAILABLE;
       error = {
         code: 'ROUTING_CONFIGURATION_UNAVAILABLE',
         message: 'A verified routing configuration is unavailable.',
+      };
+    } else if (exception instanceof TransparencyDataAccessError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Public transparency data is temporarily unavailable.',
       };
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -263,8 +305,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
     }
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      const requestPath = stripQueryString(request.originalUrl ?? request.url ?? '');
       this.logger.error(
-        `Request ${requestId} failed with ${error.code} (${request.method} ${request.originalUrl ?? request.url ?? ''}).`,
+        `Request ${requestId} failed with ${error.code} (${request.method} ${requestPath}).`,
       );
     }
 

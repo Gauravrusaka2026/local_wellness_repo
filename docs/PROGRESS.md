@@ -2,7 +2,7 @@
 
 ## Overall Completion
 
-67% implemented.
+82% implemented.
 
 Phase 0 and Phase 1 are complete. Phase 2's engineering baseline is complete and locally verified;
 its remaining exit work requires external, verified pilot identifiers, contacts and real boundary
@@ -13,8 +13,11 @@ contact versioning, pure normalization, and generic synchronization scope select
 PMC/BMC endpoints and ten pilot ward targets remain draft, unverified, and inactive/non-routable;
 source-specific parsing, matching, review, publication, and hosted scheduling remain open.
 Phase 4 provides the secure complaint persistence/API boundary and an Android-buildable citizen
-capture client; production submission remains disabled by the absence of verified routable pilot
-data, and transcription/moderation plus physical-device validation remain open. Phase 5 now adds
+capture client. The mobile experience now adds explicit passwordless account modes, a modern
+five-destination navigation shell, refreshable dashboard/history, grouped menu, foreground Nearby
+governance lookup, and database-driven attribute/media requirements. Production submission remains
+disabled by the absence of verified routable pilot data, and transcription/moderation plus
+physical-device validation remain open. Phase 5 now adds
 database-enforced government workflow, an authenticated NestJS operations API, private verified
 resolution evidence, and an accessible access-scoped government dashboard. Its engineering is
 locally complete with synthetic verified fixtures; production-like use remains gated on verified
@@ -23,19 +26,25 @@ Phase 6 now provides forced-RLS private complaint conversations, durable in-app 
 PostgreSQL-leased materialization/realtime delivery, authenticated database-authorized Socket.IO,
 strict communication APIs, and mobile/government client integration. Its local engineering and
 verification matrix are complete; managed activation, push/email providers, public-comment policy,
-and physical-device/hosted validation remain open. The dedicated staging Supabase project uses
-owner-confirmed replacement credentials and has all 23 migrations through Phase 5 plus the six
-reviewed non-production seed files; the two Phase 6 migrations are not yet deployed there. Its bootstrap still
-contains zero operational categories and zero active synchronization sources. A citizen profile,
-one active platform administrator, and one active Pune-scoped municipal administrator now exist as
-confirmed staging-only environment data. The initial invitation was accepted and temporary alias
-privileges were revoked with history retained; authenticated UI smoke testing remains pending.
+and physical-device/hosted validation remain open. The configured replacement Supabase project uses
+owner-confirmed staging credentials, and the owner reports loading a generated master SQL artifact.
+Its exact artifact revision, migration/seed ledger, Auth identities, profiles, and privileged
+assignments have not been independently reconciled; the successful 23-migration deployment and
+identity checks belong to the previous staging target. Authenticated current-target UI smoke testing
+remains pending.
 Phase 7 now adds effective-dated resolution policy, captured completion evidence, immutable citizen
 feedback, policy-controlled reopening, repeated-reopen escalation, strict APIs, private evidence
 access, durable citizen receipts, and government accountability history. Local engineering and
-verification are complete; no operational policy was seeded or activated, and the Phase 7
-migrations were not deployed to staging. Transparency, SLA/KPI and launch hardening remain in later
-phases.
+verification are complete; no operational policy was seeded or activated, and the replacement-
+target Phase 7 migration state is unreconciled. Phase 8 local engineering now provides a separately
+reviewed public projection, generalized PostGIS reads, reviewed duplicate groups, strict anonymous
+APIs, and provider-neutral citizen web/mobile transparency while publishing no fixture. Phase 9
+local engineering adds reviewed business calendars/SLA policies, materialized clocks and pauses,
+transactional escalation, PostgreSQL-leased workers, reproducible organizational KPI snapshots,
+strict APIs, and a scoped dashboard. No operational visibility/SLA policy or KPI schedule is seeded,
+and their versions have not been reconciled against the current staging ledger. Passwordless
+clients now support delivered codes or managed default PKCE links without requiring template edits;
+managed redirect and installed-device smoke testing remains open. Phase 10 hardening is next.
 
 ## Phase Completion
 
@@ -45,12 +54,12 @@ phases.
 | Phase 1 — Identity and access                | Complete    |       100% |
 | Phase 2 — Maharashtra governance model       | In progress |        90% |
 | Phase 3 — Taxonomy and routing               | In progress |        85% |
-| Phase 4 — Citizen complaint capture          | In progress |        95% |
+| Phase 4 — Citizen complaint capture          | In progress |        97% |
 | Phase 5 — Government dashboard               | In progress |        95% |
 | Phase 6 — Realtime and notifications         | In progress |        85% |
 | Phase 7 — Resolution, feedback and reopening | In progress |        90% |
-| Phase 8 — Nearby map and transparency        | Not started |         0% |
-| Phase 9 — SLA, escalation and KPI            | Not started |         0% |
+| Phase 8 — Nearby map and transparency        | In progress |        85% |
+| Phase 9 — SLA, escalation and KPI            | In progress |        85% |
 | Phase 10 — Hardening and launch              | Not started |         0% |
 
 Phase 1 completion is measured against the `PLAN.md` exit criteria: citizens have phone/email passwordless clients; email and delivered-invite sessions pass locally; current database scope gates government access; escalation attempts fail; and server credentials remain outside client sources. Phone delivery, hosted callbacks, MFA, device-bound session invalidation, access lifecycle expansion, quotas, and real-device validation are documented pre-launch follow-ups rather than hidden completion claims.
@@ -100,6 +109,22 @@ unapproved, the migrations are not active in staging, representative physical-de
 remain untested, and government before/reopen evidence review plus current-assignment work-reference
 options remain tracked under `RESOLUTION-002`.
 
+Phase 8 engineering completion covers effective-dated visibility policy, immutable reviewed
+publications, PostgreSQL-derived generalized coordinates, reviewed duplicate groups, bounded
+anonymous nearby/hotspot/ward/detail reads, strict APIs, and provider-neutral accessible citizen
+web/mobile surfaces. It is not marked 100% because policy approval, real reviewed publications,
+verified pilot geometry, processed-media operations, external-map/privacy decisions, managed
+activation, performance, and rendered/device testing remain incomplete. No public complaint is
+activated by engineering fixtures.
+
+Phase 9 engineering completion covers effective-dated business calendars, targets and category
+overrides, immutable complaint clocks/deadlines, external-dependency pauses, versioned escalation,
+PostgreSQL-leased retry/dead work, reproducible organizational KPI runs/snapshots, strict APIs,
+worker loops, and access-scoped dashboard views without officer ranking. It is not marked 100%
+because operational policy and verified target roles are unapproved, existing-complaint adoption is
+undecided, managed migrations/workers/scheduling/monitoring are inactive, and load/staging smoke
+validation remains pending.
+
 ## Sprint Completion
 
 - Sprint 1 — Project Foundation: 100% complete.
@@ -110,9 +135,30 @@ options remain tracked under `RESOLUTION-002`.
 - Sprint 6 — Access-scoped government complaint operations: 95% complete.
 - Sprint 7 — Persistent communication and durable notification delivery: 85% complete.
 - Sprint 8 — Citizen resolution review and accountable reopening: 90% complete.
+- Sprint 9 — Mobile citizen experience completion and privacy-safe projections: 90% complete.
+- Sprint 10 — Organizational accountability and managed activation readiness: 85% complete.
 
 ## Completed Milestones
 
+- Deterministic `supabase/master.sql` clean-bootstrap artifact generated from all 34 ordered
+  migrations, with per-source transaction boundaries, SHA-256 provenance, and a drift check.
+- Template-compatible passwordless callbacks across citizen web, government dashboard, admin
+  console, and mobile: code entry remains available, ordinary links use PKCE, only the government
+  invite accepts a narrowly typed default fragment, and database authorization remains mandatory.
+- Review-gated Phase 8 transparency with immutable sanitized publications, generalized PostGIS
+  projections, reviewed duplicate groups, four bounded anonymous read surfaces, strict APIs, and
+  provider-neutral accessible web/mobile clients; no public data was activated.
+- Database-enforced Phase 9 SLA/escalation/KPI architecture with 19 forced-RLS tables, atomic policy
+  supersession, materialized clocks/pauses/deadlines, transactional escalation/outbox evidence,
+  PostgreSQL-leased workers, reproducible organizational snapshots, strict APIs, and a scoped
+  government accountability dashboard.
+- Modern Expo citizen shell with explicit sign-in/create/recovery modes; Home, Complaints, Report,
+  Nearby, and More navigation; refreshable owned-complaint summaries/history; grouped profile/help
+  actions; category-driven complaint attributes/media limits; focus refresh; permanent-permission
+  recovery; and single-pass location/media preparation.
+- Authenticated verified-governance directory with a service-role-only official-source PostGIS
+  projection, honest low-accuracy/unsupported/ambiguous states, public-safe mobile cards, strict
+  contracts, ADR-0017, and migration/API/mobile/ACL coverage.
 - Deterministic pnpm/Turborepo monorepo, strict TypeScript project references, code-quality tooling, application/package foundations, CI, and containers.
 - Six-table Supabase identity/access model with additive forward migrations, forced RLS, safe column grants, immutable audit attribution, and current-scope helpers.
 - Atomic service-only government invitation and device lifecycle persistence with audit history and failure rollback.
@@ -206,29 +252,45 @@ options remain tracked under `RESOLUTION-002`.
 
 ## Current Milestone
 
-Phase 7 engineering and its local verification matrix are complete. Database-enforced policy,
-completion evidence, citizen feedback/reopening/escalation, strict APIs, mobile accountability, and
-government history are implemented. The remaining Phase 7 milestone is owner approval and audited
-publication of an operational policy plus managed/physical-device validation; feedback and
-reopening correctly remain unavailable without that policy.
+Phase 8 transparency and Phase 9 organizational-accountability engineering are locally complete and
+verified. The current milestone is reviewed managed activation and Phase 10 hardening: reconcile
+the staging ledger and apply every missing migration incrementally, deploy matching API/worker/
+client builds, configure exact
+Auth redirects, and exercise code/link/invite/browser/installed-mobile flows without activating
+placeholder governance, public projection, SLA, or KPI policy.
 
 ## Next Milestone
 
-Approve the operational Phase 7 policy, add the scoped government follow-up evidence/current-work-
-reference contract tracked by `RESOLUTION-002`, then apply the reviewed Phase 6 and Phase 7
-migrations to staging and run the authenticated resolution/reopen/realtime smoke matrix. Redis,
-BullMQ, Redis adapters/caching, and Sentry remain deferred.
+Begin Phase 10 security, reliability, accessibility, observability, and launch validation while
+preparing a non-production rollout through migration `20260716111000`. Approve
+official Pune geometry/routing and the transparency, resolution, SLA/escalation, and KPI operating
+policies independently of engineering. Run browser and installed-development-build Auth/device
+smoke tests after exact redirects are configured. Do not activate placeholders for a demo. OS push,
+Redis, BullMQ, Redis adapters/caching, and Sentry remain deferred.
 
 ## Current Blockers
 
+- The mobile code path is locally complete, but a physical phone still needs a LAN-reachable API/
+  realtime URL and representative permission, capture, interruption, SecureStore/SQLite, callback,
+  refresh, and logout testing (`COMPLAINT-002`, `AUTH-005`).
+- Staging does not yet contain the verified-governance projection migration or official reviewed
+  pilot geometry. Nearby therefore cannot return a real governing body there (`GOVDIR-001`).
+- OS push notifications require an owned Expo/EAS project, FCM/APNs credentials, consent and
+  preferences, verified destinations, and delivery policy. Durable in-app history and Socket.IO
+  refresh remain available (`NOTIFY-001`).
+- Draft attachment removal/replacement, owner signed viewing of finalized original evidence, and
+  mobile notification pagination beyond the newest 100 remain bounded UX/security follow-ups; the
+  existing private upload/submission and durable server history remain complete
+  (`COMPLAINT-004`, `COMPLAINT-005`, `NOTIFY-004`).
 - No blocker remains for the Phase 2 schema, baseline import, security or local verification.
 - The dedicated staging project and newly generated privileged/database credentials are confirmed,
   and all existing migrations/seeds are applied. Provider/template/redirect, SMS, backup, secret-
   management, and browser/device smoke configuration remains incomplete; historical credential-log/
   repository audit and any legacy Redis-token cleanup remain under `SEC-001`.
 - Phone OTP E2E needs a real SMS provider; phone request/verification code paths have unit coverage.
-- Citizen email callback construction now uses the exact allow-listed queryless same-origin route;
-  delivered hosted-link and SSR-cookie behavior remain part of the environment-gated `AUTH-005` test.
+- Citizen, government, and administrator email clients now accept a delivered code or the managed
+  default PKCE link without template edits. Exact redirect allow-lists, delivered link/SSR-cookie
+  behavior, and an installed mobile build remain environment-gated under `AUTH-005`/`ENV-002`.
 - The real-coordinate Phase 2 exit criterion requires pilot selection and official local-body/ward polygons (`DATA-004`).
 - Official LGD codes, complete local-government coverage, verified contacts/incumbents and reviewed routing crosswalks remain external data gaps (`DATA-002` through `DATA-006`).
 - Workbook-to-CSV cell parity and rendered browser inspection remain environment-gated follow-ups (`DATA-007`, `ENV-003`); source/hash validation and HTTP runtime smoke checks passed.
@@ -253,12 +315,13 @@ BullMQ, Redis adapters/caching, and Sentry remain deferred.
   reviewed conflict-free policy data (`ROUTING-003`).
 - Production complaint submission is intentionally unavailable because the canonical bootstrap
   contains zero verified routable categories and no verified Pune route (`ROUTING-001`).
-- Speech-to-text/media-moderation processing, expired-upload cleanup, and representative physical
-  device capture/resume checks remain (`COMPLAINT-001` through `COMPLAINT-003`).
-- One staging platform administrator and one Pune-scoped municipal administrator are active on
-  confirmed owner-controlled Auth identities. Authenticated dashboard access remains to be smoke-
-  tested; a production-like queue additionally needs verified pilot roles, assignments, geometry,
-  routes, and complaints.
+- Speech-to-text/media-moderation processing, physical-device capture/resume, expired-upload
+  cleanup, per-attachment draft removal, and original-evidence owner viewing remain
+  (`COMPLAINT-001` through `COMPLAINT-005`).
+- The prior staging target had one verified platform administrator and one Pune-scoped municipal
+  administrator. The replacement target's Auth profiles, roles, and memberships must be verified or
+  recreated through trusted workflows before authenticated dashboard smoke testing; a production-
+  like queue additionally needs verified pilot roles, assignments, geometry, routes, and complaints.
 - The interactive government complaint map needs an approved provider and exact-coordinate sharing
   policy (`GOVDASH-001`). Resolution evidence still needs scheduled private-object cleanup, full
   media decoding, malware scanning/moderation, and bounded operational concurrency (`GOVDASH-002`).
@@ -266,15 +329,20 @@ BullMQ, Redis adapters/caching, and Sentry remain deferred.
   verification, privacy-safe templates, and credentials (`NOTIFY-001`). Its V1 realtime topology is
   intentionally single-instance (`NOTIFY-002`), and public comments remain disabled until a
   visibility/privacy/moderation decision is approved (`NOTIFY-003`).
-- The two Phase 6 migrations, worker, and realtime process are not yet active in staging. Hosted
-  reconnect/deduplication, token-expiry disconnect, revoked-scope denial, disconnected-recipient
-  history, exact-origin checks, and backlog monitoring remain environment validation work.
+- The replacement target's Phase 6 migration state is unreconciled; its worker and realtime process
+  are not active. Hosted reconnect/deduplication, token-expiry disconnect, revoked-scope denial,
+  disconnected-recipient history, exact-origin checks, and backlog monitoring remain environment
+  validation work.
 - Phase 7 seeds no operational policy. Product owners must approve and publish rating/window/status/
   reason/evidence/attempt/escalation values before managed feedback or reopening can activate
   (`RESOLUTION-001`).
 - Government before/reopen evidence signed review and current-assignment-only work-reference options
   remain pre-pilot follow-up work; database authorization already rejects stale scope/reference use
   (`RESOLUTION-002`).
+- Phase 8/9 migrations have not been reconciled against the current managed-project ledger. No
+  transparency publication, SLA calendar/target/escalation rule, KPI schedule, or operational
+  snapshot is active from this local work (`TRANSPARENCY-001`, `SLA-001`, `KPI-001`). Existing-
+  complaint adoption and sustained lease sizing remain explicit rollout decisions (`SLA-002`).
 
 ## Verification Summary
 
@@ -353,6 +421,31 @@ BullMQ, Redis adapters/caching, and Sentry remain deferred.
   dependency audit reported no known vulnerabilities.
 - Phase 7 activated no managed database, operational policy, public bucket, placeholder governance/
   routing row, Redis, BullMQ, Redis adapter/cache, or Sentry integration.
+- The mobile suite passed all 12 test files, including OTP mode, environment diagnostics, dashboard
+  aggregation, complaint decoding/capture, transparency, and governance-directory coverage. Mobile
+  lint, strict type-check, and the SDK 54 Android export passed; no physical-device smoke is claimed.
+- The API suite passed 161 tests and strict type-check/build; shared validation passed all nine test
+  files. Governance projection coverage verifies bearer auth, strict requests/responses,
+  low-accuracy/unsupported/ambiguous behavior, adapter decoding, private-field rejection, and safe
+  dependency failures.
+- A clean local Supabase run applied all 30 migrations and passed 1,085 assertions across 28 pgTAP
+  plans, including the 13-assertion verified-governance projection plan. Application-schema lint,
+  generated database-type drift, and the 30-migration master-SQL drift check passed. Staging was not
+  migrated and synthetic fixtures were not promoted.
+- A clean local Supabase reset applied all 34 migrations and reviewed non-production seeds. The
+  aggregate database suite passed 1,275 assertions across 32 pgTAP plans; focused Phase 9 plans
+  passed 48/48 schema/ACL and 51/51 lifecycle assertions. Application-schema lint had no findings;
+  remaining full-lint diagnostics are installed Supabase/PostGIS extension functions.
+- Generated database types and the deterministic 34-migration master SQL passed drift checks. The
+  API passed 173 tests plus strict type-check/lint/build; workers passed all seven test files plus
+  type-check/lint/build; shared validation passed all ten files.
+- Citizen web passed three test files, admin console one, government dashboard 32 tests, and mobile
+  all 12 test files after callback hardening. All four passed strict type-check and lint; all three
+  Next.js production builds and the Expo Android export passed. Managed delivery, exact redirects,
+  browser cookies, and installed-device callbacks were not claimed from local tests.
+- Phase 8 focused database coverage passed 45/45 schema/ACL and 46/46 integration assertions. No
+  operational policy, public projection, officer ranking, placeholder route, Redis, BullMQ, Redis
+  adapter/cache, or Sentry integration was activated.
 
 ## Last Updated
 

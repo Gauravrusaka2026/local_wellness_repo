@@ -229,7 +229,10 @@ export interface GovernmentInvitation {
 
 export * from './complaints.js';
 export * from './complaint-resolution.js';
+export * from './accountability.js';
 export * from './communications.js';
 export * from './government-complaints.js';
 export * from './governance.js';
+export * from './governance-directory.js';
 export * from './routing.js';
+export * from './transparency.js';

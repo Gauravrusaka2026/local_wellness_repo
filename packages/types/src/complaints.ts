@@ -99,6 +99,9 @@ export type ComplaintMediaModerationStatus = (typeof complaintMediaModerationSta
 export const complaintVisibilityValues = ['private', 'public'] as const;
 export type ComplaintVisibility = (typeof complaintVisibilityValues)[number];
 
+export type ComplaintCustomAttributeValue = boolean | number | string;
+export type ComplaintCustomAttributes = Record<string, ComplaintCustomAttributeValue>;
+
 export const complaintTimelineEventTypes = [
   'submitted',
   'status_changed',
@@ -132,6 +135,7 @@ export interface CreateComplaintDraftInput {
   assetId?: string | null | undefined;
   description?: string | null | undefined;
   location?: ComplaintLocationCapture | null | undefined;
+  customAttributes?: ComplaintCustomAttributes | undefined;
 }
 
 export type UpdateComplaintDraftInput = CreateComplaintDraftInput;
@@ -199,6 +203,7 @@ export interface ComplaintDraft {
   categoryId: string | null;
   assetId: string | null;
   description: string | null;
+  customAttributes: ComplaintCustomAttributes;
   location: ComplaintLocationEvidence | null;
   media: ComplaintMedia[];
   createdAt: string;

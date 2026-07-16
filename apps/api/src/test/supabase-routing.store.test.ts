@@ -337,6 +337,10 @@ describe('Supabase routing category catalog', () => {
         requiresAsset: false,
         requiresLocation: true,
         isEmergency: false,
+        minimumMediaCount: 0,
+        maximumMediaCount: 5,
+        requiredAttributes: [],
+        recommendedMediaKinds: [],
       },
     ]);
     assert.equal(category?.id, identifiers.category);

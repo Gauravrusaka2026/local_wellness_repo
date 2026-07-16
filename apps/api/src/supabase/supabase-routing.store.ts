@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   routingConfidenceBands,
+  complaintMediaKinds,
   routingDecisionStatuses,
   routingEntityTypes,
   routingVerificationStatuses,
@@ -65,6 +66,10 @@ const categoryRowSchema = z
     is_routing_eligible: z.boolean(),
   })
   .strict();
+
+const publishedMediaRequirementsSchema = z
+  .object({ recommended: z.array(z.enum(complaintMediaKinds)).max(3).optional() })
+  .loose();
 
 const routingAssetRowSchema = z
   .object({
@@ -351,6 +356,11 @@ const decodeCategory = (row: z.infer<typeof categoryRowSchema>): RoutingCategory
   requiresAsset: row.requires_asset,
   requiresLocation: row.requires_location,
   isEmergency: row.is_emergency,
+  minimumMediaCount: row.minimum_media_count,
+  maximumMediaCount: row.maximum_media_count,
+  requiredAttributes: row.required_attributes,
+  recommendedMediaKinds:
+    publishedMediaRequirementsSchema.parse(row.media_requirements).recommended ?? [],
 });
 
 const assertPublishedCategoryRows = (
@@ -364,7 +374,9 @@ const assertPublishedCategoryRows = (
       categoryIds.has(row.category_id) ||
       row.verification_status !== 'verified' ||
       row.is_placeholder ||
-      !row.is_routing_eligible
+      !row.is_routing_eligible ||
+      row.maximum_media_count < row.minimum_media_count ||
+      new Set(row.required_attributes).size !== row.required_attributes.length
     ) {
       throw new RoutingDataAccessError(operation);
     }

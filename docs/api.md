@@ -216,6 +216,12 @@ POST /api/v1/jurisdictions/resolve
 POST /api/v1/routing/resolve
 ```
 
+The mobile citizen-experience completion slice adds one authenticated verified-directory endpoint:
+
+```text
+POST /api/v1/governance/bodies/resolve
+```
+
 Phase 4 adds these authenticated, owner-scoped complaint-capture endpoints:
 
 ```text
@@ -236,9 +242,10 @@ GET    /api/v1/complaints/:complaintId/timeline
 ```
 
 Phase 5 adds the authenticated, scope-aware government queue, detail, assignment and workflow
-surface documented below. Phase 6 adds the private message and durable in-app notification routes
-documented below. Maps, public complaint views/comments, governance administration, analytics, and
-human review/publication routes remain later-phase contracts.
+surface documented below. Phase 6 adds the private message and durable in-app notification routes.
+Phase 8 adds anonymous reviewed-transparency reads, and Phase 9 adds government-scoped SLA/KPI
+accountability reads. Public comments, governance administration, and human review/publication HTTP
+routes remain later-phase contracts.
 
 ```text
 GET  /api/v1/complaints/:complaintId/messages
@@ -246,6 +253,14 @@ POST /api/v1/complaints/:complaintId/messages
 POST /api/v1/complaints/:complaintId/messages/read
 GET  /api/v1/notifications
 POST /api/v1/notifications/:notificationId/read
+
+GET /api/v1/transparency/complaints
+GET /api/v1/transparency/wards
+GET /api/v1/transparency/hotspots
+GET /api/v1/transparency/complaints/:publicId
+
+GET /api/v1/government/accountability/complaints/:complaintId/sla
+GET /api/v1/government/accountability/kpis
 ```
 
 ## Governance Synchronization Runtime Boundary
@@ -330,9 +345,12 @@ GET /api/v1/routing/categories/:categoryId
 ```
 
 Both routes require a valid bearer token and return only database categories whose domain and
-category are active, verified, non-placeholder, and routing-eligible. The Phase 3 seed therefore
-returns an empty list, and identifier lookup returns `ROUTING_CATEGORY_NOT_FOUND`, for its 12
-taxonomy records: they are intentionally draft, unverified, and non-routable.
+category are active, verified, non-placeholder, and routing-eligible. Each result includes its
+database-defined minimum/maximum photo-or-video evidence count, required attribute keys, and
+recommended media kinds in addition to its identity and routing requirements. The mobile report
+form renders and enforces this metadata instead of hardcoding category behavior. The Phase 3 seed
+therefore returns an empty list, and identifier lookup returns `ROUTING_CATEGORY_NOT_FOUND`, for its
+12 taxonomy records: they are intentionally draft, unverified, and non-routable.
 
 ### Nearby Routing Assets
 
@@ -375,6 +393,64 @@ The API calls the trusted, accuracy-aware PostGIS resolver server-side. Its resu
 `resolved`, `ambiguous`, or `unsupported` and includes only entity/version evidence needed for
 explanation; it never returns officer names, phone numbers, or email addresses. A coordinate near
 multiple eligible boundaries stays ambiguous instead of being assigned arbitrarily.
+
+### Verified Governing Bodies
+
+```text
+POST /api/v1/governance/bodies/resolve
+Authorization: Bearer <access-token>
+```
+
+The strict request is the same four-field location-evidence object used by jurisdiction resolution.
+The API rejects an accuracy worse than 100 metres before querying PostGIS and returns one of
+`resolved`, `ambiguous`, `unsupported`, or `low_accuracy`:
+
+```json
+{
+  "status": "resolved",
+  "reason": "verified_governing_body_match",
+  "maximumAccuracyMeters": 100,
+  "matches": [
+    {
+      "state": {
+        "kind": "state",
+        "name": "Maharashtra",
+        "type": "state",
+        "verificationStatus": "verified",
+        "lastVerifiedOn": "2026-07-16",
+        "sourceUrl": "https://official.example.gov.in/source"
+      },
+      "district": null,
+      "taluka": null,
+      "authority": {
+        "kind": "authority",
+        "name": "Verified authority name",
+        "type": "municipal_corporation",
+        "verificationStatus": "verified",
+        "lastVerifiedOn": "2026-07-16",
+        "sourceUrl": "https://official.example.gov.in/source"
+      },
+      "localBody": {
+        "kind": "local_body",
+        "name": "Verified local-body name",
+        "type": "municipal_corporation",
+        "verificationStatus": "verified",
+        "lastVerifiedOn": "2026-07-16",
+        "sourceUrl": "https://official.example.gov.in/source"
+      },
+      "ward": null
+    }
+  ]
+}
+```
+
+The database projection is executable only by the API service role and accepts only active,
+verified, routing-eligible, non-placeholder entities and active official sources for every matched
+entity/boundary. The response exposes names, public types, verification dates, and official source
+URLs only. It deliberately omits all internal UUIDs, coordinates/geometry, officer identities,
+phone/email contacts, and private office data. Multiple matches remain ambiguous; no application
+fallback chooses Pune, Mumbai, a ward, or an authority. Until the additive projection migration and
+reviewed official geometry are applied to staging, a real lookup remains unsupported.
 
 ### Routing Resolution
 
@@ -476,12 +552,16 @@ POST   /api/v1/complaints/drafts/:draftId/duplicate-check
 ```
 
 Draft creation requires `Idempotency-Key`. Create and patch accept only optional `categoryId`,
-`assetId`, a trimmed description of at most 4,000 characters, and strict current-location evidence:
+`assetId`, a trimmed description of at most 4,000 characters, bounded `customAttributes`, and
+strict current-location evidence:
 
 ```json
 {
   "categoryId": "uuid",
   "description": "Water is leaking beside the footpath.",
+  "customAttributes": {
+    "visible_landmark": "Beside the public garden gate"
+  },
   "location": {
     "latitude": 18.5204,
     "longitude": 73.8567,
@@ -494,11 +574,12 @@ Draft creation requires `Idempotency-Key`. Create and patch accept only optional
 }
 ```
 
-The server returns a private draft with its database-derived location verification status and
-owner-visible media metadata. Unknown properties—including authority, ward, department, officer,
-status, visibility, storage path, and routing fields—fail strict validation. Updates use database
-revision checks; terminal, expired, missing, cross-owner, and conflicting drafts fail closed.
-`DELETE` records a retained discard transition and is replay-safe.
+Attribute objects accept at most 20 safe keys and bounded non-empty primitive values. The server
+returns a private draft with the same attributes, its database-derived location verification
+status, and owner-visible media metadata. Unknown properties—including authority, ward, department,
+officer, status, visibility, storage path, and routing fields—fail strict validation. Updates use
+database revision checks; terminal, expired, missing, cross-owner, and conflicting drafts fail
+closed. `DELETE` records a retained discard transition and is replay-safe.
 
 The duplicate-check route requires a draft with a category and selected location. PostgreSQL loads
 capped candidates using exactly one current verified policy and PostGIS distance; the pure routing
@@ -563,6 +644,10 @@ Finalization is exact-replay safe. Status responses never return the upload toke
 locator. `processingStatus` and `moderationStatus` remain pending until later approved providers are
 implemented.
 
+There is currently no per-media delete/replace route after a draft attachment is finalized. The
+owner may discard the entire draft; `COMPLAINT-004` tracks a future idempotent server-owned private
+object lifecycle. Clients must not delete Storage objects directly.
+
 ### Complaint Submission
 
 ```text
@@ -587,8 +672,10 @@ emergency-dispatch service.
 The API first claims a durable submission record and stable routing request ID. It then resolves or
 replays routing server-side. Only a stored `routed` decision with matching actor, category, asset,
 exact point, accuracy, and capture time can be committed. Unsupported locations return
-`COMPLAINT_UNSUPPORTED_AREA`; manual-review/mapping-required or unavailable routes do not create a
-complaint.
+`COMPLAINT_UNSUPPORTED_AREA`; manual-review/mapping-required or unavailable routes return
+`COMPLAINT_ROUTE_UNAVAILABLE` and do not create a complaint. Generic database, Storage, or other
+dependency failures retain `DEPENDENCY_UNAVAILABLE` so clients do not mislabel every service
+failure as a routing-data gap.
 
 The database atomically creates the private complaint, server-derived initial assignment, first
 status-history event, terminal draft transition, and stored response. An exact actor/key/body retry
@@ -596,6 +683,11 @@ returns the original receipt; conflicting reuse returns
 `COMPLAINT_SUBMISSION_IDEMPOTENCY_CONFLICT`. The receipt includes the complaint number, status,
 category, submitted time, and sanitized routing summary, not exact coordinates, original media,
 duplicate internals, or officer contacts.
+
+The mobile client keeps the same submission key for an ambiguous network retry. It rotates that key
+after a successful draft/category/location/asset/media/duplicate mutation, or after an explicit
+terminal route-unavailable/unsupported-area response, so a later reviewed routing-data activation
+cannot replay a stale no-route decision.
 
 ### Complaint Tracking
 
@@ -610,6 +702,11 @@ and a limit of 1–100 (default 25). Detail includes the owner's description, ex
 safe media status/metadata, and sanitized routing receipt; it does not return signed media access.
 The Phase 4 timeline contains the immutable submission event and is designed for later official
 status events. There is no separate complaint-routing endpoint in Phase 4.
+
+The Phase 7 evidence-access endpoint applies only to authorized resolution/reopen evidence. It does
+not expose original submitted complaint media. An owner-authorized short-lived signed-read endpoint
+and mobile viewer for those originals remain tracked under `COMPLAINT-005`; object paths and
+persistent/public URLs must stay private.
 
 ### Private Complaint Communication
 
@@ -646,6 +743,10 @@ the signed-in recipient while they retain complaint access. Payloads are restric
 ID/number, status, and optional message ID; they do not contain complaint descriptions, private
 message bodies, exact coordinates, contacts, object locators, or tokens. Marking read is
 idempotent. Push and email delivery are not implied by these endpoints.
+
+The current mobile notification screen requests the newest 100 records once even though the API
+supports continuation. Older durable rows remain server-side; client cursor pagination is tracked
+under `NOTIFY-004`.
 
 ### Resolution Review, Feedback, and Reopening
 
@@ -691,13 +792,48 @@ POST /api/v1/complaints/:complaintId/support
 POST /api/v1/complaints/:complaintId/comments
 ```
 
-### Planned: Map
+### Public Nearby and Transparency
 
 ```text
-GET /api/v1/map/complaints
-GET /api/v1/map/wards
-GET /api/v1/map/hotspots
+GET /api/v1/transparency/complaints
+GET /api/v1/transparency/wards
+GET /api/v1/transparency/hotspots
+GET /api/v1/transparency/complaints/:publicId
 ```
+
+These are anonymous, read-only NestJS routes over a separately reviewed public projection; they do
+not expose the private complaint model. List routes require a bounded WGS84 viewport and support
+strict category, public-status, date, cursor, and result-limit filters where applicable. Hotspots
+honor the approved policy's minimum cohort, and boundaries include only current verified,
+non-placeholder, routing-eligible ward geometry associated with public output.
+
+Responses contain only stable public identifiers, sanitized public text, category/status labels,
+already-approximate coordinates, public timestamps, safe aggregate counts, and explicitly published
+duplicate-group relationships. They contain no citizen identifiers, private complaint IDs/numbers,
+exact coordinates, descriptions, originals, object paths, hashes, internal notes, contacts,
+reviewer identities, or private routing/moderation evidence. The API returns empty lists or `404`
+when no current reviewed projection exists; it never falls back to private source data. Responses
+are non-cacheable initially so an audited withdrawal takes effect without an application-cache
+invalidation dependency.
+
+When a current reviewed duplicate group exists, detail adds only:
+
+```json
+{
+  "duplicateGroup": {
+    "canonicalPublicId": "public-id",
+    "relatedPublicIds": ["other-public-id"],
+    "totalCount": 2
+  }
+}
+```
+
+`relatedPublicIds` is stable-sorted and excludes the report being viewed. The group is `null` until
+a service-role reviewer groups no more than 100 reports from one local body/category that all have
+current published projections. Private similarity results never auto-publish; internal complaint
+IDs, match scores, review notes, and source evidence are never included. Withdrawing the reviewed
+group removes the relationship from later detail reads without altering private complaint or
+projection history.
 
 ---
 
@@ -806,13 +942,37 @@ follow-up work. Successful state transitions append status history, audit, and a
 notification-outbox event atomically. The Phase 5 workflow performs no direct network delivery;
 Phase 6 consumes that committed event through separate worker and realtime boundaries.
 
-### Planned: Analytics
+### SLA and Organizational KPI Accountability
 
 ```text
-GET /api/v1/government/analytics/ward
-GET /api/v1/government/analytics/department
-GET /api/v1/government/analytics/municipality
+GET /api/v1/government/accountability/complaints/:complaintId/sla
+GET /api/v1/government/accountability/kpis
 ```
+
+Both Phase 9 routes require a verified bearer session, active application profile, and current
+government access scope. Responses set `Cache-Control: private, no-store` and are strictly decoded
+from narrow service-role RPC payloads; clients receive no direct SLA/KPI table access.
+
+Complaint SLA accepts optional `scopeRoleAssignmentId`. It returns only database-materialized
+milestone clocks and escalation history for an authorized complaint. Each clock includes milestone,
+cycle, state, policy code/version, business-minute target, UTC start/target/completion/breach/pause
+times, and external-dependency segment. If no safe clock exists, `policyApplied` is false and
+`unavailableReason` is one of `no_approved_policy`, `ambiguous_policy`,
+`invalid_configuration`, or `not_materialized`; the API never invents a deadline.
+
+The KPI route accepts optional `authorityId`, `scopeRoleAssignmentId`, paired `scopeType`/`scopeId`,
+`segment`, and up to 20 unique `metricCodes`. Scope type is `municipality`, `ward`, or `department`;
+segment is `all`, `external_dependency`, or `no_external_dependency`. The response contains the
+latest authorized completed run's ID, window, source cutoff, calculation time, and immutable
+snapshot rows with definition version, scope label, numerator, denominator, value, and sample size.
+When no completed run exists, run metadata is null and `items` is empty. There is no public KPI
+route and no individual-officer dimension or ranking.
+
+Policy/calendar/rule publication, lease claims, escalation execution/failure, and KPI scheduling/
+materialization are trusted database/worker operations, not client HTTP endpoints. Publication
+atomically supersedes one eligible prior approved interval. Escalation execution commits status
+history, append-only escalation evidence, and a data-minimized notification outbox record in one
+transaction before asynchronous delivery.
 
 ---
 
@@ -953,6 +1113,17 @@ emission, so a revoked scope does not receive stale payloads. Worker and realtim
 RPCs require a matching, unexpired PostgreSQL lease token. Those tokens and the service credential
 are never returned or logged. Per-socket rate limits supplement—but do not replace—the broader HTTP
 rate-limit work tracked for launch.
+
+Phase 8 anonymous transparency routes decode allowlisted public projection DTOs and never fall back
+to private complaint queries. Duplicate relationships appear only after service-role review of
+already-published projections; public callers cannot create, infer, or withdraw a group.
+
+Phase 9 accountability controllers use the bearer guard and return `private, no-store`. Database
+wrappers reauthorize complaint and organizational scope at read time, and strict decoders reject
+unexpected/private fields. Clients cannot publish policy, choose policy/clock inputs, lease a job,
+trigger escalation, enqueue a KPI run, or rank an officer. Worker logs omit complaint content,
+policy review notes, contacts, source evidence, and lease tokens. Atomic escalation persistence
+ensures a notification cannot represent an uncommitted status/escalation change.
 
 The following list is the V1 security target across all later endpoint groups. Endpoint rate limits and quotas remain tracked in `AUTH-004` rather than being claimed as a Phase 1 control.
 

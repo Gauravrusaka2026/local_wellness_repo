@@ -347,6 +347,92 @@ export type Database = {
           },
         ];
       };
+      complaint_duplicate_group_members: {
+        Row: {
+          complaint_id: string;
+          created_at: string;
+          duplicate_group_version_id: string;
+          id: string;
+          is_canonical: boolean;
+          member_order: number;
+        };
+        Insert: {
+          complaint_id: string;
+          created_at?: string;
+          duplicate_group_version_id: string;
+          id?: string;
+          is_canonical?: boolean;
+          member_order: number;
+        };
+        Update: {
+          complaint_id?: string;
+          created_at?: string;
+          duplicate_group_version_id?: string;
+          id?: string;
+          is_canonical?: boolean;
+          member_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_duplicate_group_membe_duplicate_group_version_id_fkey';
+            columns: ['duplicate_group_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_duplicate_group_versions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_duplicate_group_members_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_duplicate_group_versions: {
+        Row: {
+          canonical_complaint_id: string | null;
+          created_at: string;
+          group_id: string;
+          id: string;
+          request_id: string;
+          reviewed_at: string;
+          reviewed_by_user_id: string;
+          state: string;
+          version: number;
+        };
+        Insert: {
+          canonical_complaint_id?: string | null;
+          created_at?: string;
+          group_id: string;
+          id?: string;
+          request_id: string;
+          reviewed_at?: string;
+          reviewed_by_user_id: string;
+          state: string;
+          version: number;
+        };
+        Update: {
+          canonical_complaint_id?: string | null;
+          created_at?: string;
+          group_id?: string;
+          id?: string;
+          request_id?: string;
+          reviewed_at?: string;
+          reviewed_by_user_id?: string;
+          state?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_duplicate_group_versions_canonical_complaint_id_fkey';
+            columns: ['canonical_complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaint_escalation_events: {
         Row: {
           assignment_id: string;
@@ -840,6 +926,180 @@ export type Database = {
           },
         ];
       };
+      complaint_publication_projections: {
+        Row: {
+          approximate_location: unknown;
+          category_id: string;
+          category_name: string;
+          complaint_id: string;
+          created_at: string;
+          event_at: string;
+          id: string;
+          local_body_id: string;
+          location_precision_meters: number;
+          public_id: string;
+          public_status: string;
+          public_summary: string;
+          public_title: string;
+          public_visibility_category_rule_id: string;
+          public_visibility_policy_version_id: string;
+          publication_state: string;
+          published_at: string;
+          review_id: string;
+          source_updated_at: string;
+          submitted_at: string;
+          version: number;
+          ward_boundary_version_id: string;
+          ward_id: string;
+        };
+        Insert: {
+          approximate_location: unknown;
+          category_id: string;
+          category_name: string;
+          complaint_id: string;
+          created_at?: string;
+          event_at?: string;
+          id?: string;
+          local_body_id: string;
+          location_precision_meters: number;
+          public_id: string;
+          public_status: string;
+          public_summary: string;
+          public_title: string;
+          public_visibility_category_rule_id: string;
+          public_visibility_policy_version_id: string;
+          publication_state: string;
+          published_at: string;
+          review_id: string;
+          source_updated_at: string;
+          submitted_at: string;
+          version: number;
+          ward_boundary_version_id: string;
+          ward_id: string;
+        };
+        Update: {
+          approximate_location?: unknown;
+          category_id?: string;
+          category_name?: string;
+          complaint_id?: string;
+          created_at?: string;
+          event_at?: string;
+          id?: string;
+          local_body_id?: string;
+          location_precision_meters?: number;
+          public_id?: string;
+          public_status?: string;
+          public_summary?: string;
+          public_title?: string;
+          public_visibility_category_rule_id?: string;
+          public_visibility_policy_version_id?: string;
+          publication_state?: string;
+          published_at?: string;
+          review_id?: string;
+          source_updated_at?: string;
+          submitted_at?: string;
+          version?: number;
+          ward_boundary_version_id?: string;
+          ward_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_publication_project_public_visibility_category_r_fkey';
+            columns: ['public_visibility_category_rule_id'];
+            isOneToOne: false;
+            referencedRelation: 'public_visibility_category_rules';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_publication_project_public_visibility_policy_ver_fkey';
+            columns: ['public_visibility_policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'public_visibility_policy_versions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_publication_projections_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_publication_projections_review_id_fkey';
+            columns: ['review_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_publication_reviews';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_publication_reviews: {
+        Row: {
+          complaint_id: string;
+          created_at: string;
+          decision: string;
+          id: string;
+          public_summary: string | null;
+          public_title: string | null;
+          public_visibility_category_rule_id: string;
+          public_visibility_policy_version_id: string;
+          reason_code: string | null;
+          request_id: string;
+          reviewed_at: string;
+          reviewer_user_id: string;
+        };
+        Insert: {
+          complaint_id: string;
+          created_at?: string;
+          decision: string;
+          id?: string;
+          public_summary?: string | null;
+          public_title?: string | null;
+          public_visibility_category_rule_id: string;
+          public_visibility_policy_version_id: string;
+          reason_code?: string | null;
+          request_id: string;
+          reviewed_at?: string;
+          reviewer_user_id: string;
+        };
+        Update: {
+          complaint_id?: string;
+          created_at?: string;
+          decision?: string;
+          id?: string;
+          public_summary?: string | null;
+          public_title?: string | null;
+          public_visibility_category_rule_id?: string;
+          public_visibility_policy_version_id?: string;
+          reason_code?: string | null;
+          request_id?: string;
+          reviewed_at?: string;
+          reviewer_user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_publication_reviews_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_publication_reviews_public_visibility_category_r_fkey';
+            columns: ['public_visibility_category_rule_id'];
+            isOneToOne: false;
+            referencedRelation: 'public_visibility_category_rules';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_publication_reviews_public_visibility_policy_ver_fkey';
+            columns: ['public_visibility_policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'public_visibility_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaint_reopen_evidence: {
         Row: {
           bucket_id: string;
@@ -1305,6 +1565,363 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'complaint_work_references';
             referencedColumns: ['id', 'complaint_id'];
+          },
+        ];
+      };
+      complaint_sla_bindings: {
+        Row: {
+          assignment_id: string;
+          candidate_count: number;
+          complaint_id: string;
+          created_at: string;
+          cycle: number;
+          evaluated_at: string;
+          id: string;
+          policy_version_id: string | null;
+          reason_code: string;
+          status: string;
+        };
+        Insert: {
+          assignment_id: string;
+          candidate_count: number;
+          complaint_id: string;
+          created_at?: string;
+          cycle?: number;
+          evaluated_at: string;
+          id?: string;
+          policy_version_id?: string | null;
+          reason_code: string;
+          status: string;
+        };
+        Update: {
+          assignment_id?: string;
+          candidate_count?: number;
+          complaint_id?: string;
+          created_at?: string;
+          cycle?: number;
+          evaluated_at?: string;
+          id?: string;
+          policy_version_id?: string | null;
+          reason_code?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_sla_bindings_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_bindings_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_bindings_policy_version_id_fkey';
+            columns: ['policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_sla_clocks: {
+        Row: {
+          assignment_id: string;
+          binding_id: string;
+          breached_at: string | null;
+          calendar_version_id: string;
+          category_override_id: string | null;
+          complaint_id: string;
+          completed_at: string | null;
+          completion_status_history_id: string | null;
+          created_at: string;
+          cycle: number;
+          external_dependency_segment: boolean;
+          id: string;
+          milestone: string;
+          paused_at: string | null;
+          policy_version_id: string;
+          started_at: string;
+          state: string;
+          target_at: string;
+          target_business_minutes: number;
+          updated_at: string;
+        };
+        Insert: {
+          assignment_id: string;
+          binding_id: string;
+          breached_at?: string | null;
+          calendar_version_id: string;
+          category_override_id?: string | null;
+          complaint_id: string;
+          completed_at?: string | null;
+          completion_status_history_id?: string | null;
+          created_at?: string;
+          cycle?: number;
+          external_dependency_segment?: boolean;
+          id?: string;
+          milestone: string;
+          paused_at?: string | null;
+          policy_version_id: string;
+          started_at: string;
+          state?: string;
+          target_at: string;
+          target_business_minutes: number;
+          updated_at?: string;
+        };
+        Update: {
+          assignment_id?: string;
+          binding_id?: string;
+          breached_at?: string | null;
+          calendar_version_id?: string;
+          category_override_id?: string | null;
+          complaint_id?: string;
+          completed_at?: string | null;
+          completion_status_history_id?: string | null;
+          created_at?: string;
+          cycle?: number;
+          external_dependency_segment?: boolean;
+          id?: string;
+          milestone?: string;
+          paused_at?: string | null;
+          policy_version_id?: string;
+          started_at?: string;
+          state?: string;
+          target_at?: string;
+          target_business_minutes?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_sla_clocks_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_clocks_binding_id_fkey';
+            columns: ['binding_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_sla_bindings';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_clocks_calendar_version_id_fkey';
+            columns: ['calendar_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_calendar_versions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_clocks_category_override_id_fkey';
+            columns: ['category_override_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_category_overrides';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_clocks_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_clocks_completion_status_history_id_fkey';
+            columns: ['completion_status_history_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_status_history';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_clocks_policy_version_id_fkey';
+            columns: ['policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_sla_deadline_history: {
+        Row: {
+          clock_id: string;
+          id: string;
+          occurred_at: string;
+          prior_target_at: string | null;
+          reason_code: string;
+          sequence: number;
+          source_external_dependency_id: string | null;
+          target_at: string;
+        };
+        Insert: {
+          clock_id: string;
+          id?: string;
+          occurred_at?: string;
+          prior_target_at?: string | null;
+          reason_code: string;
+          sequence: number;
+          source_external_dependency_id?: string | null;
+          target_at: string;
+        };
+        Update: {
+          clock_id?: string;
+          id?: string;
+          occurred_at?: string;
+          prior_target_at?: string | null;
+          reason_code?: string;
+          sequence?: number;
+          source_external_dependency_id?: string | null;
+          target_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_sla_deadline_histor_source_external_dependency_i_fkey';
+            columns: ['source_external_dependency_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_external_dependencies';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_deadline_history_clock_id_fkey';
+            columns: ['clock_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_sla_clocks';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_sla_escalation_events: {
+        Row: {
+          action_type: string;
+          assignment_id: string;
+          clock_id: string;
+          complaint_id: string;
+          escalation_job_id: string;
+          escalation_level: number;
+          escalation_rule_version_id: string;
+          id: string;
+          metadata: Json;
+          milestone: string;
+          occurred_at: string;
+          prior_status: string;
+          resulting_status: string;
+        };
+        Insert: {
+          action_type: string;
+          assignment_id: string;
+          clock_id: string;
+          complaint_id: string;
+          escalation_job_id: string;
+          escalation_level: number;
+          escalation_rule_version_id: string;
+          id?: string;
+          metadata?: Json;
+          milestone: string;
+          occurred_at?: string;
+          prior_status: string;
+          resulting_status: string;
+        };
+        Update: {
+          action_type?: string;
+          assignment_id?: string;
+          clock_id?: string;
+          complaint_id?: string;
+          escalation_job_id?: string;
+          escalation_level?: number;
+          escalation_rule_version_id?: string;
+          id?: string;
+          metadata?: Json;
+          milestone?: string;
+          occurred_at?: string;
+          prior_status?: string;
+          resulting_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_sla_escalation_events_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_escalation_events_clock_id_fkey';
+            columns: ['clock_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_sla_clocks';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_escalation_events_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_escalation_events_escalation_job_id_fkey';
+            columns: ['escalation_job_id'];
+            isOneToOne: true;
+            referencedRelation: 'sla_escalation_jobs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_escalation_events_escalation_rule_version_id_fkey';
+            columns: ['escalation_rule_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_escalation_rule_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_sla_pause_intervals: {
+        Row: {
+          clock_id: string;
+          created_at: string;
+          external_dependency_id: string;
+          id: string;
+          paused_at: string;
+          paused_business_minutes: number | null;
+          resumed_at: string | null;
+        };
+        Insert: {
+          clock_id: string;
+          created_at?: string;
+          external_dependency_id: string;
+          id?: string;
+          paused_at: string;
+          paused_business_minutes?: number | null;
+          resumed_at?: string | null;
+        };
+        Update: {
+          clock_id?: string;
+          created_at?: string;
+          external_dependency_id?: string;
+          id?: string;
+          paused_at?: string;
+          paused_business_minutes?: number | null;
+          resumed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_sla_pause_intervals_clock_id_fkey';
+            columns: ['clock_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_sla_clocks';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_sla_pause_intervals_external_dependency_id_fkey';
+            columns: ['external_dependency_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_external_dependencies';
+            referencedColumns: ['id'];
           },
         ];
       };
@@ -1875,6 +2492,200 @@ export type Database = {
         };
         Relationships: [];
       };
+      kpi_calculation_runs: {
+        Row: {
+          attempt_count: number;
+          authority_id: string;
+          calculated_at: string | null;
+          created_at: string;
+          id: string;
+          last_failure_code: string | null;
+          lease_expires_at: string | null;
+          lease_token: string | null;
+          next_attempt_at: string;
+          request_fingerprint: string;
+          requested_by_user_id: string | null;
+          source_cutoff_at: string;
+          state: string;
+          updated_at: string;
+          window_ended_at: string;
+          window_started_at: string;
+          worker_id: string | null;
+        };
+        Insert: {
+          attempt_count?: number;
+          authority_id: string;
+          calculated_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          next_attempt_at?: string;
+          request_fingerprint: string;
+          requested_by_user_id?: string | null;
+          source_cutoff_at: string;
+          state?: string;
+          updated_at?: string;
+          window_ended_at: string;
+          window_started_at: string;
+          worker_id?: string | null;
+        };
+        Update: {
+          attempt_count?: number;
+          authority_id?: string;
+          calculated_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          next_attempt_at?: string;
+          request_fingerprint?: string;
+          requested_by_user_id?: string | null;
+          source_cutoff_at?: string;
+          state?: string;
+          updated_at?: string;
+          window_ended_at?: string;
+          window_started_at?: string;
+          worker_id?: string | null;
+        };
+        Relationships: [];
+      };
+      kpi_definition_versions: {
+        Row: {
+          algorithm_version: string;
+          created_at: string;
+          definition_id: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          implementation_hash: string;
+          version: number;
+        };
+        Insert: {
+          algorithm_version: string;
+          created_at?: string;
+          definition_id: string;
+          effective_from: string;
+          effective_to?: string | null;
+          id?: string;
+          implementation_hash: string;
+          version: number;
+        };
+        Update: {
+          algorithm_version?: string;
+          created_at?: string;
+          definition_id?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          implementation_hash?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'kpi_definition_versions_definition_id_fkey';
+            columns: ['definition_id'];
+            isOneToOne: false;
+            referencedRelation: 'kpi_definitions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      kpi_definitions: {
+        Row: {
+          code: string;
+          created_at: string;
+          id: string;
+          name: string;
+          unit: string;
+        };
+        Insert: {
+          code: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          unit: string;
+        };
+        Update: {
+          code?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          unit?: string;
+        };
+        Relationships: [];
+      };
+      kpi_snapshots: {
+        Row: {
+          authority_department_id: string | null;
+          authority_id: string;
+          calculation_run_id: string;
+          created_at: string;
+          definition_version_id: string;
+          denominator: number;
+          exclusions: Json;
+          id: string;
+          local_body_id: string;
+          numerator: number;
+          sample_size: number;
+          scope_type: string;
+          segment: string;
+          value: number | null;
+          ward_id: string | null;
+        };
+        Insert: {
+          authority_department_id?: string | null;
+          authority_id: string;
+          calculation_run_id: string;
+          created_at?: string;
+          definition_version_id: string;
+          denominator: number;
+          exclusions?: Json;
+          id?: string;
+          local_body_id: string;
+          numerator: number;
+          sample_size: number;
+          scope_type: string;
+          segment: string;
+          value?: number | null;
+          ward_id?: string | null;
+        };
+        Update: {
+          authority_department_id?: string | null;
+          authority_id?: string;
+          calculation_run_id?: string;
+          created_at?: string;
+          definition_version_id?: string;
+          denominator?: number;
+          exclusions?: Json;
+          id?: string;
+          local_body_id?: string;
+          numerator?: number;
+          sample_size?: number;
+          scope_type?: string;
+          segment?: string;
+          value?: number | null;
+          ward_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'kpi_snapshots_calculation_run_id_fkey';
+            columns: ['calculation_run_id'];
+            isOneToOne: false;
+            referencedRelation: 'kpi_calculation_runs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'kpi_snapshots_definition_version_id_fkey';
+            columns: ['definition_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'kpi_definition_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       message_receipts: {
         Row: {
           complaint_id: string;
@@ -2308,6 +3119,198 @@ export type Database = {
           },
         ];
       };
+      public_media_derivatives: {
+        Row: {
+          bucket_id: string | null;
+          byte_size: number | null;
+          complaint_id: string;
+          complaint_media_id: string | null;
+          created_at: string;
+          derivative_kind: string;
+          id: string;
+          mime_type: string | null;
+          moderation_status: string;
+          object_path: string | null;
+          processing_status: string;
+          publication_status: string;
+          reopen_evidence_id: string | null;
+          resolution_evidence_id: string | null;
+          verified_sha256: string | null;
+        };
+        Insert: {
+          bucket_id?: string | null;
+          byte_size?: number | null;
+          complaint_id: string;
+          complaint_media_id?: string | null;
+          created_at?: string;
+          derivative_kind: string;
+          id?: string;
+          mime_type?: string | null;
+          moderation_status?: string;
+          object_path?: string | null;
+          processing_status?: string;
+          publication_status?: string;
+          reopen_evidence_id?: string | null;
+          resolution_evidence_id?: string | null;
+          verified_sha256?: string | null;
+        };
+        Update: {
+          bucket_id?: string | null;
+          byte_size?: number | null;
+          complaint_id?: string;
+          complaint_media_id?: string | null;
+          created_at?: string;
+          derivative_kind?: string;
+          id?: string;
+          mime_type?: string | null;
+          moderation_status?: string;
+          object_path?: string | null;
+          processing_status?: string;
+          publication_status?: string;
+          reopen_evidence_id?: string | null;
+          resolution_evidence_id?: string | null;
+          verified_sha256?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'public_media_derivatives_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'public_media_derivatives_complaint_media_id_fkey';
+            columns: ['complaint_media_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_media';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'public_media_derivatives_reopen_evidence_id_fkey';
+            columns: ['reopen_evidence_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_reopen_evidence';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'public_media_derivatives_resolution_evidence_id_fkey';
+            columns: ['resolution_evidence_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolution_evidence';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      public_visibility_category_rules: {
+        Row: {
+          category_id: string;
+          created_at: string;
+          id: string;
+          processed_media_allowed: boolean;
+          public_visibility_policy_version_id: string;
+          publication_allowed: boolean;
+        };
+        Insert: {
+          category_id: string;
+          created_at?: string;
+          id?: string;
+          processed_media_allowed?: boolean;
+          public_visibility_policy_version_id: string;
+          publication_allowed?: boolean;
+        };
+        Update: {
+          category_id?: string;
+          created_at?: string;
+          id?: string;
+          processed_media_allowed?: boolean;
+          public_visibility_policy_version_id?: string;
+          publication_allowed?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'public_visibility_category_ru_public_visibility_policy_ver_fkey';
+            columns: ['public_visibility_policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'public_visibility_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      public_visibility_policies: {
+        Row: {
+          code: string;
+          created_at: string;
+          id: string;
+          local_body_id: string;
+          name: string;
+        };
+        Insert: {
+          code: string;
+          created_at?: string;
+          id?: string;
+          local_body_id: string;
+          name: string;
+        };
+        Update: {
+          code?: string;
+          created_at?: string;
+          id?: string;
+          local_body_id?: string;
+          name?: string;
+        };
+        Relationships: [];
+      };
+      public_visibility_policy_versions: {
+        Row: {
+          allowed_complaint_statuses: string[];
+          approved_at: string | null;
+          approved_by_user_id: string | null;
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          minimum_hotspot_complaint_count: number;
+          public_visibility_policy_id: string;
+          status: string;
+          version: number;
+        };
+        Insert: {
+          allowed_complaint_statuses: string[];
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          created_at?: string;
+          effective_from: string;
+          effective_to?: string | null;
+          id?: string;
+          minimum_hotspot_complaint_count?: number;
+          public_visibility_policy_id: string;
+          status?: string;
+          version: number;
+        };
+        Update: {
+          allowed_complaint_statuses?: string[];
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          minimum_hotspot_complaint_count?: number;
+          public_visibility_policy_id?: string;
+          status?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'public_visibility_policy_versi_public_visibility_policy_id_fkey';
+            columns: ['public_visibility_policy_id'];
+            isOneToOne: false;
+            referencedRelation: 'public_visibility_policies';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       resolution_policies: {
         Row: {
           authority_id: string | null;
@@ -2459,6 +3462,475 @@ export type Database = {
           },
         ];
       };
+      sla_calendar_exceptions: {
+        Row: {
+          calendar_version_id: string;
+          closes_at: string | null;
+          created_at: string;
+          exception_date: string;
+          id: string;
+          is_working_day: boolean;
+          label: string;
+          opens_at: string | null;
+        };
+        Insert: {
+          calendar_version_id: string;
+          closes_at?: string | null;
+          created_at?: string;
+          exception_date: string;
+          id?: string;
+          is_working_day: boolean;
+          label: string;
+          opens_at?: string | null;
+        };
+        Update: {
+          calendar_version_id?: string;
+          closes_at?: string | null;
+          created_at?: string;
+          exception_date?: string;
+          id?: string;
+          is_working_day?: boolean;
+          label?: string;
+          opens_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_calendar_exceptions_calendar_version_id_fkey';
+            columns: ['calendar_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_calendar_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sla_calendar_versions: {
+        Row: {
+          approved_at: string | null;
+          approved_by_user_id: string | null;
+          calendar_id: string;
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          source_url: string | null;
+          status: string;
+          timezone_name: string;
+          verification_status: string;
+          version: number;
+        };
+        Insert: {
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          calendar_id: string;
+          created_at?: string;
+          effective_from: string;
+          effective_to?: string | null;
+          id?: string;
+          source_url?: string | null;
+          status?: string;
+          timezone_name: string;
+          verification_status?: string;
+          version: number;
+        };
+        Update: {
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          calendar_id?: string;
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          source_url?: string | null;
+          status?: string;
+          timezone_name?: string;
+          verification_status?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_calendar_versions_calendar_id_fkey';
+            columns: ['calendar_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_calendars';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sla_calendar_working_periods: {
+        Row: {
+          calendar_version_id: string;
+          closes_at: string;
+          created_at: string;
+          id: string;
+          iso_weekday: number;
+          opens_at: string;
+          period_sequence: number;
+        };
+        Insert: {
+          calendar_version_id: string;
+          closes_at: string;
+          created_at?: string;
+          id?: string;
+          iso_weekday: number;
+          opens_at: string;
+          period_sequence?: number;
+        };
+        Update: {
+          calendar_version_id?: string;
+          closes_at?: string;
+          created_at?: string;
+          id?: string;
+          iso_weekday?: number;
+          opens_at?: string;
+          period_sequence?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_calendar_working_periods_calendar_version_id_fkey';
+            columns: ['calendar_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_calendar_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sla_calendars: {
+        Row: {
+          authority_id: string;
+          code: string;
+          created_at: string;
+          id: string;
+          name: string;
+        };
+        Insert: {
+          authority_id: string;
+          code: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+        };
+        Update: {
+          authority_id?: string;
+          code?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+        };
+        Relationships: [];
+      };
+      sla_category_overrides: {
+        Row: {
+          acknowledgement_business_minutes: number | null;
+          category_id: string;
+          created_at: string;
+          id: string;
+          inspection_business_minutes: number | null;
+          policy_version_id: string;
+          resolution_business_minutes: number | null;
+        };
+        Insert: {
+          acknowledgement_business_minutes?: number | null;
+          category_id: string;
+          created_at?: string;
+          id?: string;
+          inspection_business_minutes?: number | null;
+          policy_version_id: string;
+          resolution_business_minutes?: number | null;
+        };
+        Update: {
+          acknowledgement_business_minutes?: number | null;
+          category_id?: string;
+          created_at?: string;
+          id?: string;
+          inspection_business_minutes?: number | null;
+          policy_version_id?: string;
+          resolution_business_minutes?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_category_overrides_policy_version_id_fkey';
+            columns: ['policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sla_escalation_jobs: {
+        Row: {
+          attempt_count: number;
+          clock_id: string;
+          completed_at: string | null;
+          created_at: string;
+          due_at: string;
+          escalation_rule_version_id: string;
+          id: string;
+          last_failure_code: string | null;
+          lease_expires_at: string | null;
+          lease_token: string | null;
+          next_attempt_at: string;
+          state: string;
+          updated_at: string;
+          worker_id: string | null;
+        };
+        Insert: {
+          attempt_count?: number;
+          clock_id: string;
+          completed_at?: string | null;
+          created_at?: string;
+          due_at: string;
+          escalation_rule_version_id: string;
+          id?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          next_attempt_at: string;
+          state?: string;
+          updated_at?: string;
+          worker_id?: string | null;
+        };
+        Update: {
+          attempt_count?: number;
+          clock_id?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          due_at?: string;
+          escalation_rule_version_id?: string;
+          id?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          next_attempt_at?: string;
+          state?: string;
+          updated_at?: string;
+          worker_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_escalation_jobs_clock_id_fkey';
+            columns: ['clock_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_sla_clocks';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'sla_escalation_jobs_escalation_rule_version_id_fkey';
+            columns: ['escalation_rule_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_escalation_rule_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sla_escalation_rule_versions: {
+        Row: {
+          action_type: string;
+          approved_at: string | null;
+          approved_by_user_id: string | null;
+          business_minutes_after_target: number;
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          escalation_level: number;
+          escalation_rule_id: string;
+          id: string;
+          milestone: string;
+          policy_version_id: string;
+          source_url: string | null;
+          status: string;
+          target_officer_role_id: string | null;
+          verification_status: string;
+          version: number;
+        };
+        Insert: {
+          action_type: string;
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          business_minutes_after_target?: number;
+          created_at?: string;
+          effective_from: string;
+          effective_to?: string | null;
+          escalation_level: number;
+          escalation_rule_id: string;
+          id?: string;
+          milestone: string;
+          policy_version_id: string;
+          source_url?: string | null;
+          status?: string;
+          target_officer_role_id?: string | null;
+          verification_status?: string;
+          version: number;
+        };
+        Update: {
+          action_type?: string;
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          business_minutes_after_target?: number;
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          escalation_level?: number;
+          escalation_rule_id?: string;
+          id?: string;
+          milestone?: string;
+          policy_version_id?: string;
+          source_url?: string | null;
+          status?: string;
+          target_officer_role_id?: string | null;
+          verification_status?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_escalation_rule_versions_escalation_rule_id_fkey';
+            columns: ['escalation_rule_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_escalation_rules';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'sla_escalation_rule_versions_policy_version_id_fkey';
+            columns: ['policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sla_escalation_rules: {
+        Row: {
+          code: string;
+          created_at: string;
+          id: string;
+          name: string;
+          policy_id: string;
+        };
+        Insert: {
+          code: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          policy_id: string;
+        };
+        Update: {
+          code?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          policy_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_escalation_rules_policy_id_fkey';
+            columns: ['policy_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_policies';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      sla_policies: {
+        Row: {
+          authority_id: string;
+          code: string;
+          created_at: string;
+          id: string;
+          local_body_id: string | null;
+          name: string;
+        };
+        Insert: {
+          authority_id: string;
+          code: string;
+          created_at?: string;
+          id?: string;
+          local_body_id?: string | null;
+          name: string;
+        };
+        Update: {
+          authority_id?: string;
+          code?: string;
+          created_at?: string;
+          id?: string;
+          local_body_id?: string | null;
+          name?: string;
+        };
+        Relationships: [];
+      };
+      sla_policy_versions: {
+        Row: {
+          acknowledgement_business_minutes: number;
+          approved_at: string | null;
+          approved_by_user_id: string | null;
+          calendar_version_id: string;
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          inspection_business_minutes: number | null;
+          pause_for_external_dependencies: boolean;
+          policy_id: string;
+          resolution_business_minutes: number;
+          resolution_completion_status: string;
+          source_url: string | null;
+          status: string;
+          verification_status: string;
+          version: number;
+        };
+        Insert: {
+          acknowledgement_business_minutes: number;
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          calendar_version_id: string;
+          created_at?: string;
+          effective_from: string;
+          effective_to?: string | null;
+          id?: string;
+          inspection_business_minutes?: number | null;
+          pause_for_external_dependencies?: boolean;
+          policy_id: string;
+          resolution_business_minutes: number;
+          resolution_completion_status: string;
+          source_url?: string | null;
+          status?: string;
+          verification_status?: string;
+          version: number;
+        };
+        Update: {
+          acknowledgement_business_minutes?: number;
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          calendar_version_id?: string;
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          inspection_business_minutes?: number | null;
+          pause_for_external_dependencies?: boolean;
+          policy_id?: string;
+          resolution_business_minutes?: number;
+          resolution_completion_status?: string;
+          source_url?: string | null;
+          status?: string;
+          verification_status?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sla_policy_versions_calendar_version_id_fkey';
+            columns: ['calendar_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_calendar_versions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'sla_policy_versions_policy_id_fkey';
+            columns: ['policy_id'];
+            isOneToOne: false;
+            referencedRelation: 'sla_policies';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -2495,13 +3967,95 @@ export type Database = {
         Args: { p_actor_user_id: string; p_at?: string; p_complaint_id: string };
         Returns: boolean;
       };
+      actor_can_review_publication: {
+        Args: { p_actor_user_id: string; p_authority_id: string };
+        Returns: boolean;
+      };
+      actor_is_platform_admin: {
+        Args: { p_actor_user_id: string; p_at?: string };
+        Returns: boolean;
+      };
+      add_sla_business_minutes: {
+        Args: {
+          p_business_minutes: number;
+          p_calendar_version_id: string;
+          p_started_at: string;
+        };
+        Returns: string;
+      };
       assignment_has_current_verified_officer: {
         Args: { p_assignment_id: string; p_at?: string };
         Returns: boolean;
       };
       assignment_summary: { Args: { p_assignment_id: string }; Returns: Json };
+      complaint_matches_kpi_scope: {
+        Args: {
+          p_authority_id: string;
+          p_complaint_id: string;
+          p_scope_id: string;
+          p_scope_type: string;
+          p_source_cutoff_at: string;
+        };
+        Returns: boolean;
+      };
+      complaint_matches_kpi_segment: {
+        Args: {
+          p_complaint_id: string;
+          p_segment: string;
+          p_source_cutoff_at: string;
+        };
+        Returns: boolean;
+      };
+      complaint_status_at: {
+        Args: { p_complaint_id: string; p_source_cutoff_at: string };
+        Returns: string;
+      };
       current_action_request_id: { Args: never; Returns: string };
       current_citizen_action_request_id: { Args: never; Returns: string };
+      current_public_complaint_projections: {
+        Args: { p_at?: string };
+        Returns: {
+          approximate_location: unknown;
+          category_id: string;
+          category_name: string;
+          complaint_id: string;
+          created_at: string;
+          event_at: string;
+          id: string;
+          local_body_id: string;
+          location_precision_meters: number;
+          public_id: string;
+          public_status: string;
+          public_summary: string;
+          public_title: string;
+          public_visibility_category_rule_id: string;
+          public_visibility_policy_version_id: string;
+          publication_state: string;
+          published_at: string;
+          review_id: string;
+          source_updated_at: string;
+          submitted_at: string;
+          version: number;
+          ward_boundary_version_id: string;
+          ward_id: string;
+        }[];
+        SetofOptions: {
+          from: '*';
+          to: 'complaint_publication_projections';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      current_sla_escalation_job_id: { Args: never; Returns: string };
+      initialize_complaint_sla: {
+        Args: {
+          p_assignment_id: string;
+          p_complaint_id: string;
+          p_cycle?: number;
+          p_started_at: string;
+        };
+        Returns: string;
+      };
       is_verified_assignment_scope: {
         Args: {
           p_at: string;
@@ -2514,6 +4068,10 @@ export type Database = {
           p_ward_id: string;
         };
         Returns: boolean;
+      };
+      map_public_complaint_status: {
+        Args: { p_status: string };
+        Returns: string;
       };
       perform_phase7_resolution_submission: {
         Args: {
@@ -2530,8 +4088,23 @@ export type Database = {
           response_payload: Json;
         }[];
       };
+      public_complaint_projection_payload: {
+        Args: {
+          p_include_summary?: boolean;
+          p_projection: Database['complaints']['Tables']['complaint_publication_projections']['Row'];
+        };
+        Returns: Json;
+      };
+      public_duplicate_group_payload: {
+        Args: { p_at?: string; p_complaint_id: string };
+        Returns: Json;
+      };
       resolve_resolution_policy_version: {
         Args: { p_at?: string; p_authority_id: string; p_category_id: string };
+        Returns: string;
+      };
+      resume_sla_clock: {
+        Args: { p_clock_id: string; p_resumed_at: string };
         Returns: string;
       };
       role_capability_enabled: {
@@ -2539,6 +4112,34 @@ export type Database = {
           capability: Database['complaints']['Tables']['government_role_capabilities']['Row'];
           capability_name: string;
         };
+        Returns: boolean;
+      };
+      sla_business_minutes_between: {
+        Args: {
+          p_calendar_version_id: string;
+          p_ended_at: string;
+          p_started_at: string;
+        };
+        Returns: number;
+      };
+      validate_public_transparency_query: {
+        Args: {
+          p_category_codes: string[];
+          p_date_from: string;
+          p_date_to: string;
+          p_east: number;
+          p_limit: number;
+          p_maximum_limit: number;
+          p_north: number;
+          p_south: number;
+          p_statuses: string[];
+          p_west: number;
+          p_zoom: number;
+        };
+        Returns: undefined;
+      };
+      validate_sla_calendar_configuration: {
+        Args: { p_calendar_version_id: string };
         Returns: boolean;
       };
     };
@@ -6018,6 +7619,17 @@ export type Database = {
           source_key: string;
         }[];
       };
+      claim_kpi_calculation_runs: {
+        Args: {
+          p_lease_seconds?: number;
+          p_limit?: number;
+          p_worker_id: string;
+        };
+        Returns: {
+          lease_token: string;
+          run_id: string;
+        }[];
+      };
       claim_notification_outbox: {
         Args: {
           p_lease_seconds?: number;
@@ -6044,6 +7656,17 @@ export type Database = {
           event_name: string;
           payload: Json;
           recipient_user_id: string;
+        }[];
+      };
+      claim_sla_escalation_jobs: {
+        Args: {
+          p_lease_seconds?: number;
+          p_limit?: number;
+          p_worker_id: string;
+        };
+        Returns: {
+          job_id: string;
+          lease_token: string;
         }[];
       };
       complete_notification_delivery: {
@@ -6116,6 +7739,24 @@ export type Database = {
           distance_meters: number;
         }[];
       };
+      enqueue_kpi_calculation_run: {
+        Args: {
+          p_actor_user_id: string;
+          p_authority_id: string;
+          p_source_cutoff_at: string;
+          p_window_ended_at: string;
+          p_window_started_at: string;
+        };
+        Returns: string;
+      };
+      execute_sla_escalation_job: {
+        Args: { p_job_id: string; p_lease_token: string };
+        Returns: {
+          escalation_event_id: string;
+          outcome: string;
+          replayed: boolean;
+        }[];
+      };
       expire_citizen_reopen_evidence_reservations: {
         Args: { p_limit?: number };
         Returns: number;
@@ -6150,6 +7791,13 @@ export type Database = {
           upload_status: string;
         }[];
       };
+      fail_kpi_calculation_run: {
+        Args: { p_error_code: string; p_lease_token: string; p_run_id: string };
+        Returns: {
+          next_attempt_at: string;
+          status: string;
+        }[];
+      };
       fail_notification_delivery: {
         Args: {
           p_claim_token: string;
@@ -6165,6 +7813,13 @@ export type Database = {
           p_lease_token: string;
           p_outbox_id: string;
         };
+        Returns: {
+          next_attempt_at: string;
+          status: string;
+        }[];
+      };
+      fail_sla_escalation_job: {
+        Args: { p_error_code: string; p_job_id: string; p_lease_token: string };
         Returns: {
           next_attempt_at: string;
           status: string;
@@ -6472,6 +8127,16 @@ export type Database = {
           accountability: Json;
         }[];
       };
+      get_government_complaint_sla: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_scope_role_assignment_id?: string;
+        };
+        Returns: {
+          payload: Json;
+        }[];
+      };
       get_government_resolution_evidence_object: {
         Args: {
           p_actor_user_id: string;
@@ -6530,6 +8195,12 @@ export type Database = {
           updated_at: string;
           visibility: string;
           ward_id: string;
+        }[];
+      };
+      get_public_complaint_projection: {
+        Args: { p_public_id: string };
+        Returns: {
+          projection: Json;
         }[];
       };
       get_realtime_account: {
@@ -6691,6 +8362,20 @@ export type Database = {
           workflow_version: number;
         }[];
       };
+      list_government_kpi_snapshots: {
+        Args: {
+          p_actor_user_id: string;
+          p_authority_id?: string;
+          p_metric_codes?: string[];
+          p_scope_id?: string;
+          p_scope_role_assignment_id?: string;
+          p_scope_type?: string;
+          p_segment?: string;
+        };
+        Returns: {
+          payload: Json;
+        }[];
+      };
       list_notifications: {
         Args: {
           p_actor_user_id: string;
@@ -6723,6 +8408,53 @@ export type Database = {
           updated_at: string;
           visibility: string;
           ward_id: string;
+        }[];
+      };
+      list_public_complaint_hotspots: {
+        Args: {
+          p_category_codes: string[];
+          p_date_from: string;
+          p_date_to: string;
+          p_east: number;
+          p_limit: number;
+          p_north: number;
+          p_south: number;
+          p_statuses: string[];
+          p_west: number;
+          p_zoom: number;
+        };
+        Returns: {
+          hotspot: Json;
+        }[];
+      };
+      list_public_complaint_projections: {
+        Args: {
+          p_category_codes: string[];
+          p_cursor: string;
+          p_date_from: string;
+          p_date_to: string;
+          p_east: number;
+          p_limit: number;
+          p_north: number;
+          p_south: number;
+          p_statuses: string[];
+          p_west: number;
+          p_zoom: number;
+        };
+        Returns: {
+          projection: Json;
+        }[];
+      };
+      list_public_ward_boundaries: {
+        Args: {
+          p_east: number;
+          p_limit: number;
+          p_north: number;
+          p_south: number;
+          p_west: number;
+        };
+        Returns: {
+          ward_boundary: Json;
         }[];
       };
       list_routing_categories: {
@@ -6762,6 +8494,13 @@ export type Database = {
       mark_notification_read: {
         Args: { p_actor_user_id: string; p_notification_id: string };
         Returns: Json;
+      };
+      materialize_kpi_calculation_run: {
+        Args: { p_lease_token: string; p_run_id: string };
+        Returns: {
+          replayed: boolean;
+          snapshot_count: number;
+        }[];
       };
       materialize_notification_outbox: {
         Args: { p_lease_token: string; p_outbox_id: string };
@@ -6818,6 +8557,18 @@ export type Database = {
           membership_id: string;
           role_assignment_id: string;
         }[];
+      };
+      publish_sla_calendar_version: {
+        Args: { p_actor_user_id: string; p_calendar_version_id: string };
+        Returns: string;
+      };
+      publish_sla_escalation_rule_version: {
+        Args: { p_actor_user_id: string; p_escalation_rule_version_id: string };
+        Returns: string;
+      };
+      publish_sla_policy_version: {
+        Args: { p_actor_user_id: string; p_policy_version_id: string };
+        Returns: string;
       };
       record_complaint_duplicate_check: {
         Args: {
@@ -7150,6 +8901,41 @@ export type Database = {
           confidence_weights: Json;
         }[];
       };
+      resolve_verified_governing_bodies: {
+        Args: {
+          p_accuracy_meters: number;
+          p_latitude: number;
+          p_longitude: number;
+          p_resolved_at?: string;
+        };
+        Returns: {
+          district_id: string;
+          local_body_id: string;
+          match: Json;
+          state_id: string;
+          taluka_id: string;
+          ward_id: string;
+        }[];
+      };
+      review_and_publish_complaint_projection: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_public_summary: string;
+          p_public_title: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
+      review_public_duplicate_group: {
+        Args: {
+          p_actor_user_id: string;
+          p_canonical_public_id: string;
+          p_public_ids: string[];
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
       revoke_device: {
         Args: {
           p_device_id: string;
@@ -7179,6 +8965,17 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      schedule_kpi_calculation_runs: {
+        Args: {
+          p_source_cutoff_at: string;
+          p_window_ended_at: string;
+          p_window_started_at: string;
+        };
+        Returns: {
+          authority_id: string;
+          run_id: string;
+        }[];
       };
       submit_complaint: {
         Args: {
@@ -7267,6 +9064,23 @@ export type Database = {
           status: string;
           updated_at: string;
         }[];
+      };
+      withdraw_public_complaint_projection: {
+        Args: {
+          p_actor_user_id: string;
+          p_public_id: string;
+          p_reason_code: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
+      withdraw_public_duplicate_group: {
+        Args: {
+          p_actor_user_id: string;
+          p_canonical_public_id: string;
+          p_request_id: string;
+        };
+        Returns: Json;
       };
     };
     Enums: {

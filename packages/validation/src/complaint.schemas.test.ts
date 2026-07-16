@@ -80,6 +80,31 @@ describe('complaint request validation', () => {
     });
   });
 
+  it('accepts bounded category attributes and rejects unsafe keys or empty values', () => {
+    assert.deepEqual(
+      updateComplaintDraftSchema.parse({
+        customAttributes: { flooding_observed: true, hazard_level: 'high' },
+      }),
+      { customAttributes: { flooding_observed: true, hazard_level: 'high' } },
+    );
+    assert.equal(
+      updateComplaintDraftSchema.safeParse({ customAttributes: { 'Unsafe Key': 'value' } }).success,
+      false,
+    );
+    assert.equal(
+      updateComplaintDraftSchema.safeParse({ customAttributes: { hazard_level: '   ' } }).success,
+      false,
+    );
+    assert.equal(
+      updateComplaintDraftSchema.safeParse({
+        customAttributes: Object.fromEntries(
+          Array.from({ length: 21 }, (_, index) => [`field_${index}`, 'value']),
+        ),
+      }).success,
+      false,
+    );
+  });
+
   it('accepts supported photo metadata with a lowercase SHA-256 checksum', () => {
     const result = createComplaintMediaUploadIntentSchema.safeParse({
       draftId,

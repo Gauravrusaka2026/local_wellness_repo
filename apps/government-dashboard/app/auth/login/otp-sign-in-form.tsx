@@ -19,7 +19,7 @@ export const OtpSignInForm = ({
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(
     callbackError
-      ? 'The invitation or authentication request is invalid or expired. Request a new code.'
+      ? 'The invitation or authentication request is invalid or expired. Request a new verification email.'
       : null,
   );
   const [isPending, setIsPending] = useState(false);
@@ -89,17 +89,19 @@ export const OtpSignInForm = ({
             value={email}
           />
           <p className="field-hint">
-            If this address has active access, we will email a 6-digit verification code.
+            If this address has active access, the email may contain a verification code, a secure
+            sign-in link, or both.
           </p>
           <button className="primary-button" disabled={isPending} type="submit">
-            {isPending ? 'Sending…' : 'Send verification code'}
+            {isPending ? 'Sending…' : 'Send verification email'}
           </button>
         </form>
       ) : (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
           <p aria-live="polite" className="success-notice">
-            If this address has active access, enter the verification code sent to{' '}
-            <strong>{normalizedEmail}</strong>.
+            If this address has active access, enter the code sent to{' '}
+            <strong>{normalizedEmail}</strong> or open the newest secure sign-in link in this
+            browser.
           </p>
           <label htmlFor="otp">Verification code</label>
           <input

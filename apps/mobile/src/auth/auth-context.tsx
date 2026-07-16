@@ -9,9 +9,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Platform } from 'react-native';
 
 import { signOut as signOutFromSupabase } from './auth-service';
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
+import { validateMobileRuntimeEnvironment } from '../config/environment';
 import { getSupabaseClient } from './supabase';
 
 type AuthState =
@@ -34,6 +36,7 @@ export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) =>
     let isMounted = true;
 
     try {
+      validateMobileRuntimeEnvironment({ isNativeRuntime: Platform.OS !== 'web' });
       const supabase = getSupabaseClient();
 
       void supabase.auth.getSession().then(({ data, error }) => {

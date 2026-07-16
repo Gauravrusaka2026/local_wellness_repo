@@ -48,17 +48,22 @@ The initial implementation should begin with one municipality and 5 to 10 verifi
 - React Native 0.81.5
 - TypeScript 5.9.3
 - Expo SDK 54.0.33 development builds/Expo Go and Expo Router 6
-- Expo Camera and Expo Location
+- Expo Camera, Location, and Audio
 - Expo SecureStore
 - SQLite-backed complaint draft recovery
 - Supabase Auth
+- Zod-backed shared runtime contracts
+
+OS-level push notifications are not enabled yet. The implemented notification experience is the
+durable in-app history with optional authenticated Socket.IO refresh. Adding `expo-notifications`
+requires an approved Expo/EAS project, FCM/APNs credentials, user consent/preferences, destination
+verification, and delivery policy.
 
 Planned product-phase additions include:
 
 - TanStack Query
 - Zustand
 - React Hook Form
-- Zod
 - React Native Maps
 
 ### Web
@@ -208,15 +213,15 @@ cd local_wellness_repo
 
 corepack enable
 pnpm install --frozen-lockfile
-cp .env.example .env.local
+cp .env.example .env
 pnpm database:start
 pnpm governance:data:check
 pnpm database:reset
 pnpm database:test
 
-# After filling .env.local with the local URL and keys:
+# After filling the root .env with the local URL and keys:
 set -a
-. ./.env.local
+. ./.env
 set +a
 
 pnpm dev
@@ -228,7 +233,7 @@ If the Corepack installation directory is not writable, install its pnpm shim in
 corepack enable --install-directory "$HOME/.local/bin" pnpm
 ```
 
-After the local stack starts, read its values with `pnpm exec supabase status -o env` and copy them into the untracked environment file using this mapping:
+After the local stack starts, read its values with `pnpm exec supabase status -o env` and copy them into the untracked root `.env` file using this mapping:
 
 | CLI output        | Repository variables                                                                                           |
 | ----------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -262,6 +267,14 @@ when Supabase is running. The committed confirmation and magic-link templates in
 no sign-in link. Its phone case is provider-gated: configure a local SMS provider and set
 `LOCAL_SUPABASE_SMS_ENABLED=true` before expecting that case to run.
 
+Managed Supabase projects do not need those custom code-only templates. Citizen, government, and
+administrator clients accept either a delivered code or the provider's default PKCE magic link.
+The trusted government invitation callback also accepts the default Supabase invite fragment,
+scrubs it immediately, and still requires the pre-existing database membership and role. Add each
+exact application callback to the managed Auth redirect allow-list; use an installed mobile
+development/release build for `localwellness://auth/callback` rather than relying on Expo Go's
+temporary `exp://` URL.
+
 ---
 
 ## Environments
@@ -293,6 +306,18 @@ SUPABASE_DB_URL
 GOVERNMENT_INVITE_REDIRECT_URL
 API_ALLOWED_ORIGINS
 GOVERNANCE_SYNC_DISPATCH_SECRET
+NOTIFICATION_WORKER_ID
+NOTIFICATION_BATCH_SIZE
+NOTIFICATION_LEASE_SECONDS
+NOTIFICATION_POLL_INTERVAL_MS
+SLA_ESCALATION_WORKER_ID
+SLA_ESCALATION_BATCH_SIZE
+SLA_ESCALATION_LEASE_SECONDS
+SLA_ESCALATION_POLL_INTERVAL_MS
+KPI_CALCULATION_WORKER_ID
+KPI_CALCULATION_BATCH_SIZE
+KPI_CALCULATION_LEASE_SECONDS
+KPI_CALCULATION_POLL_INTERVAL_MS
 
 EXPO_PUBLIC_SUPABASE_URL
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -340,6 +365,17 @@ pnpm database:types
 pnpm database:types:check
 ```
 
+For a clean database bootstrap that requires one SQL file, use `supabase/master.sql`. It is
+generated from the complete ordered migration history and deliberately excludes seed data.
+
+```bash
+pnpm database:master:generate
+pnpm database:master:check
+```
+
+Do not add the master file to `supabase/migrations/` or apply it to a database that already ran the
+incremental migrations.
+
 No production schema change should be performed only through the Supabase dashboard.
 
 Phase 2 governance data is generated from the hash-pinned canonical CSVs. Use `pnpm governance:data:validate` for a read-only audit, `pnpm governance:data:generate` after an intentionally reviewed source/manifest change, and `pnpm governance:data:check` in ordinary development and CI. Never hand-edit the canonical CSVs, the generated main seed, its checksum companion or the machine report; see `docs/governance-data.md`.
@@ -376,12 +412,17 @@ publishers, DNS-resolution hardening, snapshot reconciliation, environment secre
 activation remain required. See
 `docs/governance-synchronization.md` and ADR-0012.
 
-The dedicated Supabase staging project was initialized on 2026-07-14 with all 23 migrations through
+The previous Supabase staging target was initialized on 2026-07-14 with all 23 migrations through
 `20260714124000` and the six reviewed non-production seed files. The existing citizen identity was
 reconciled by the profile backfill. Staging contains 12 categories with zero operational categories
 and 11 synchronization endpoints (the repository bootstrap plus ten PMC/BMC contracts) with zero
 active endpoints. This is a database-only staging deployment: no application, Edge Function, Cron,
 source, route, ward, complaint, or production deployment/activation is implied.
+
+The owner has since selected a replacement staging project and reports loading a generated master
+SQL artifact. Because that target's database connection and migration ledger were not available for
+this session, do not infer which master revision, seeds, Auth identities, or role assignments it
+contains. Reconcile it against all 34 current migrations before enabling managed features.
 
 Phase 4 adds the local mobile complaint-capture flow and authenticated complaint API. For local
 engineering, run the API and mobile workspaces after starting and resetting Supabase:
@@ -390,6 +431,24 @@ engineering, run the API and mobile workspaces after starting and resetting Supa
 pnpm --filter @local-wellness/api dev
 pnpm --filter @local-wellness/mobile dev
 ```
+
+For Expo Go on a physical phone, source the root environment and override loopback service URLs
+with the development computer's current LAN address before starting Metro:
+
+```bash
+set -a
+. ./.env
+set +a
+EXPO_PUBLIC_API_URL=http://<laptop-lan-ip>:3001 \
+EXPO_PUBLIC_REALTIME_URL=http://<laptop-lan-ip>:3002 \
+pnpm --filter @local-wellness/mobile dev -- --lan --clear
+```
+
+The phone and laptop must be on the same reachable network. A native client cannot use
+`localhost` to reach the laptop, and the mobile runtime reports that configuration explicitly.
+Keep local client configuration in the root `.env`; do not create an app-local environment copy
+that can silently point Expo at a different Supabase project. Only client-safe public values may
+use `EXPO_PUBLIC_*`.
 
 The flow captures exact location evidence, discovers database-driven nearby assets when a category
 requires one, uploads media through private signed Storage targets, shows advisory duplicate
@@ -455,6 +514,24 @@ reopen reasons, evidence requirement, attempt limit, and repeated-reopen thresho
 approval. Until an approved policy version is deliberately activated, feedback and reopening fail
 closed while existing complaint and resolution history remains readable. Tests may use only
 rollback-isolated synthetic policies.
+
+Phase 8 public detail can show a separately reviewed duplicate group, but never publishes a private
+similarity result automatically. Every member must already have a current reviewed public
+projection; the response contains only public IDs and a total count. Review and withdrawal remain
+service-only, versioned operations, and no public projection or duplicate group is seeded.
+
+Phase 9 adds database-enforced business-calendar SLA clocks, auditable overdue escalation, and
+versioned municipality/ward/department KPI snapshots. The existing trusted worker process runs
+independent PostgreSQL-leased notification, SLA-escalation, and KPI-calculation loops. Government
+complaint detail exposes authorized clock/escalation evidence, while `/accountability` reads the
+latest completed organizational snapshots without ranking individual officers. Replacing a
+calendar, policy, or rule atomically supersedes the prior approved interval; an escalation commits
+its status history, escalation event, and data-minimized notification outbox row together.
+
+No operational SLA calendar, target, category override, or escalation rule is seeded. Phase 9
+remains safely inactive until reviewed official policy values and verified governance assignments
+are published, its migrations and worker are deployed, KPI scheduling is configured, and the
+target environment passes migration/RLS/synthetic smoke verification.
 
 ---
 
@@ -525,6 +602,14 @@ Current stage:
   duplicate suggestions, and idempotent server-orchestrated submission are implemented for local
   engineering; the bootstrap contains zero verified routable categories, so the valid-submission
   production exit remains data-gated;
+- the signed-in Expo client now has a modern five-destination shell for Home, Complaints, Report,
+  Nearby, and More; explicit passwordless sign-in, account creation, and recovery modes; a
+  refreshable owned-complaint dashboard/history; grouped account/help actions; and a data-driven,
+  category-aware report form;
+- the authenticated Nearby directory captures foreground location through Expo Location and calls
+  the NestJS API for an official-source, verified-only PostGIS governing-body projection. It shows
+  explicit low-accuracy, unsupported, and ambiguous states and never substitutes placeholder names,
+  contacts, internal IDs, or hardcoded Pune/Mumbai data;
 - the mobile dependency set is aligned to Expo SDK 54.0.33, React Native 0.81.5, React 19.1, and
   TypeScript 5.9.3; the SDK compatibility check, strict type-check, and Android export pass locally;
 - citizen web account rendering now shows authenticated identity and explicit onboarding,
@@ -547,7 +632,8 @@ Current stage:
   notifications, PostgreSQL-leased outbox/realtime delivery, authenticated Socket.IO rooms,
   private message/notification APIs, a mobile notification/conversation experience, and the
   government complaint conversation panel. Local reset, pgTAP, lint, type generation, tests, and
-  builds pass; the two Phase 6 migrations are not yet deployed to staging;
+  builds pass; their presence on the replacement staging target still requires ledger
+  reconciliation;
 - Phase 6 does not activate placeholder pilot data, external push/email delivery, public comments,
   multi-instance realtime, or a hosted application. Verified Pune/BMC data, provider policy, and
   managed-environment validation remain separate gates;
@@ -555,19 +641,30 @@ Current stage:
   evidence, citizen feedback and reopening, private follow-up evidence, repeated-reopen escalation,
   strict APIs, and mobile/government client surfaces. No operational policy or production data is
   activated automatically;
+- Phase 8 engineering adds a review-gated public projection boundary, bounded anonymous nearby,
+  hotspot, and verified-boundary APIs, plus provider-neutral citizen web/mobile transparency
+  surfaces. Exact locations, private complaints, identities, originals, internal notes, and
+  placeholder data remain private. Public detail also supports explicitly reviewed, versioned
+  duplicate-group relationships made only from current public projections. No public policy,
+  complaint, or duplicate group is activated automatically;
+- Phase 9 engineering adds effective-dated SLA calendars/policies/rules, materialized complaint
+  clocks and deadline history, PostgreSQL-leased escalation/KPI work, transactional escalation
+  outbox evidence, immutable organizational KPI runs/snapshots, scoped accountability APIs, worker
+  loops, and government dashboard surfaces. Operational targets, schedules, assignments, and
+  managed-environment activation remain policy/data/deployment gates;
 - Pune Municipal Corporation is the generic architecture and test reference only; no
   municipality-specific routing logic exists, and verified Pune boundaries, ownership mappings,
   officer-role assignments, confidence policy, and fallback records remain required before an
   operational route can be activated;
 - local Supabase configuration, migration tests, RLS tests, API tests, and client build validation are part of CI;
 - Redis, BullMQ, and Sentry are intentionally outside the V1 topology;
-- the connected Supabase project is confirmed as dedicated staging, and its privileged/database
-  credentials are newly generated replacements; production credentials and production deployment
-  remain separate and are not present in this repository;
+- the configured Supabase project is owner-confirmed as dedicated staging and uses replacement
+  credentials; its exact migration/seed/Auth state is not inferred from environment variables or
+  the owner's master-SQL report and must be reconciled read-only before activation;
 - phone delivery, hosted callbacks, MFA enforcement, device-bound session invalidation, complaint
   transcription and moderation providers, physical-device behavior, and hosted application
-  verification remain documented pre-launch follow-ups; the staging database is migrated and
-  seeded, but no hosted application or production deployment has been performed;
+  verification remain documented pre-launch follow-ups; no current-target managed activation or
+  hosted/production application deployment is claimed;
 - verified Pune LGD identifiers, selected ward geometry, and operational ownership mappings remain
   required before the reference pilot can claim real jurisdiction-routing coverage.
 

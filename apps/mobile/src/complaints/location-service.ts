@@ -5,11 +5,17 @@ import { complaintLocationCaptureSchema } from '@local-wellness/validation';
 import { assessLocation, inferLocationProvider } from './location-evidence';
 
 export class LocationCaptureError extends Error {
-  public constructor(message: string) {
+  public readonly requiresAppSettings: boolean;
+
+  public constructor(message: string, options: Readonly<{ requiresAppSettings?: boolean }> = {}) {
     super(message);
     this.name = 'LocationCaptureError';
+    this.requiresAppSettings = options.requiresAppSettings ?? false;
   }
 }
+
+export const requiresLocationPermissionSettings = (error: unknown): boolean =>
+  error instanceof LocationCaptureError && error.requiresAppSettings;
 
 export const captureCurrentLocation = async (): Promise<ComplaintLocationCapture> => {
   const servicesEnabled = await Location.hasServicesEnabledAsync();
@@ -23,6 +29,7 @@ export const captureCurrentLocation = async (): Promise<ComplaintLocationCapture
       permission.canAskAgain
         ? 'Location permission is required to verify a civic complaint.'
         : 'Enable location permission for Local Wellness in your device settings.',
+      { requiresAppSettings: !permission.canAskAgain },
     );
   }
 

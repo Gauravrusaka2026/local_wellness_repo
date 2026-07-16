@@ -20,7 +20,7 @@ const write = (
     `${JSON.stringify({
       level,
       event,
-      service: 'notification-worker',
+      service: 'local-wellness-workers',
       timestamp: new Date().toISOString(),
       ...payload,
     })}\n`,

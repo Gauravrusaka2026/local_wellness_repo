@@ -95,7 +95,7 @@ export class NotificationOutboxWorker {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    await this.activeBatch;
+    await this.activeBatch?.catch(() => undefined);
   }
 
   private schedule(): void {

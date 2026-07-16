@@ -5,6 +5,7 @@ import {
   complaintMediaKinds,
   complaintMediaMimeTypes,
   type ComplaintListQuery,
+  type ComplaintCustomAttributes,
   type ComplaintLocationCapture,
   type CreateComplaintDraftInput,
   type CreateComplaintMediaUploadIntentInput,
@@ -19,6 +20,21 @@ const offsetTimestampSchema = z.iso.datetime({ offset: true });
 const sha256Schema = z
   .string()
   .regex(/^[0-9a-f]{64}$/u, 'The checksum must be a lowercase SHA-256 digest.');
+
+export const complaintCustomAttributesSchema: z.ZodType<ComplaintCustomAttributes> = z
+  .record(
+    z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u),
+    z.union([
+      z.string().trim().min(1).max(500),
+      z.number().finite().min(-1_000_000_000).max(1_000_000_000),
+      z.boolean(),
+    ]),
+  )
+  .superRefine((attributes, context) => {
+    if (Object.keys(attributes).length > 20) {
+      context.addIssue({ code: 'custom', message: 'At most 20 complaint attributes are allowed.' });
+    }
+  });
 
 export const complaintLocationCaptureSchema: z.ZodType<ComplaintLocationCapture> = z
   .object({
@@ -37,6 +53,7 @@ const complaintDraftShape = {
   assetId: z.uuid().nullable().optional(),
   description: z.string().trim().min(1).max(4_000).nullable().optional(),
   location: complaintLocationCaptureSchema.nullable().optional(),
+  customAttributes: complaintCustomAttributesSchema.optional(),
 } as const;
 
 export const createComplaintDraftSchema: z.ZodType<CreateComplaintDraftInput> = z

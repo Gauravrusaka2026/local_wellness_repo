@@ -15,6 +15,8 @@
     "changeset": "changeset",
     "database:reset": "supabase db reset",
     "database:lint": "supabase db lint --local --schema public,private,governance,routing,complaints --level warning --fail-on error",
+    "database:master:check": "node scripts/generate-master-migration.mjs --check",
+    "database:master:generate": "node scripts/generate-master-migration.mjs",
     "database:start": "supabase start",
     "database:stop": "supabase stop",
     "database:test": "supabase test db",

@@ -85,6 +85,12 @@ and TypeScript 5.9.3. Local Android Expo Go testing requires an SDK 54-capable c
 SDK change must pass `expo install --check`, strict type-checking, and an Android export before a
 device or EAS release is attempted.
 
+Expo Go development must source the repository root `.env`. Override
+`EXPO_PUBLIC_API_URL`/`EXPO_PUBLIC_REALTIME_URL` with the laptop's current LAN address when testing
+on a phone; loopback resolves to the device and is rejected by the native runtime diagnostic. Do
+not maintain an app-local environment copy or put a secret/service-role credential in any
+`EXPO_PUBLIC_*` value.
+
 ### Web
 
 - Vercel or equivalent;
@@ -109,8 +115,12 @@ device or EAS release is attempted.
 - containerized worker process;
 - Phase 6 continuously materializes the complaint notification outbox through bounded PostgreSQL
   lease/retry RPCs;
+- Phase 9 runs independently configured SLA-escalation and KPI-calculation loops in the same
+  trusted process, also through bounded PostgreSQL lease/retry RPCs;
 - run independently from the API and realtime process so a materialization failure cannot terminate
   request handling;
+- supervise and restart the process, drain active batches on SIGINT/SIGTERM, and alert on expired
+  leases, retry/dead jobs, failed calculation runs, and stale KPI snapshots;
 - no Redis or BullMQ dependency in V1.
 
 ---
@@ -270,10 +280,11 @@ mask it with Auth metadata or an empty profile.
 
 The identity forward fix repairs missing application profiles/global citizen roles for existing
 Auth users during migration without overwriting existing application state. Local Auth uses the
-committed code-only confirmation and magic-link templates, so citizen emails contain a six-digit
-OTP and no sign-in URL. Configure equivalent templates in each managed project and smoke-test the
-delivered OTP, expiry/rate limits, session cookie, profile lookup, and signed-in landing page; a
-local template file does not update a hosted Supabase project automatically.
+committed code-only confirmation and magic-link templates for deterministic tests. Managed projects
+may retain Supabase's default secure-link templates or use a reviewed token template; the clients
+support both modes. Configure each exact web/mobile callback in the managed redirect allow-list and
+smoke-test the actual delivered message, expiry/rate limits, session cookie, profile lookup, and
+signed-in landing page. A local template file does not update a hosted Supabase project.
 
 Production complaint activation additionally requires:
 
@@ -336,6 +347,26 @@ The migration provides a bounded service-only function for marking expired citiz
 reservations, but this session does not create a managed schedule or delete orphaned Storage
 objects. Configure a reviewed Supabase/PostgreSQL scheduled maintenance path together with the
 existing private-media cleanup and scanning work before public operation (`GOVDASH-002`).
+
+Phase 9 deployments apply `20260716110000_phase_9_sla_escalation_kpi_schema.sql` followed by
+`20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql`, regenerate database types, then
+deploy the API, government dashboard, and trusted worker together. The migrations add private
+forced-RLS calendar/policy/rule versions, complaint bindings/clocks/history, escalation lease/audit
+state, and versioned KPI calculation runs/snapshots. They seed algorithm definitions only—never an
+active calendar, target, category override, or escalation rule.
+
+Before activation, verify direct ACL/RLS denial, platform-admin-only publication, atomic version
+supersession, fail-closed missing/ambiguous configuration, business-calendar timezone boundaries,
+clock completion/pause/deadline history, lease expiry/retry/dead behavior, transactional status/
+escalation/outbox persistence, reproducible KPI source cutoffs, and municipality/ward/department
+scope isolation. Use rollback-isolated synthetic policy fixtures; they are not operational data.
+
+Deploy and supervise one worker process with independently configured notification, SLA, and KPI
+loops. Configure the approved Supabase/PostgreSQL scheduling path that creates KPI runs at the
+reviewed cadence. Do not publish policy until official targets, calendars, effective dates,
+category overrides, escalation actions, and verified target roles are approved. Missing policy
+must remain visibly unavailable, not be replaced by hardcoded defaults. No Redis, BullMQ, or Sentry
+service is required.
 
 ---
 
@@ -406,6 +437,14 @@ NOTIFICATION_WORKER_ID
 NOTIFICATION_BATCH_SIZE
 NOTIFICATION_LEASE_SECONDS
 NOTIFICATION_POLL_INTERVAL_MS
+SLA_ESCALATION_WORKER_ID
+SLA_ESCALATION_BATCH_SIZE
+SLA_ESCALATION_LEASE_SECONDS
+SLA_ESCALATION_POLL_INTERVAL_MS
+KPI_CALCULATION_WORKER_ID
+KPI_CALCULATION_BATCH_SIZE
+KPI_CALCULATION_LEASE_SECONDS
+KPI_CALCULATION_POLL_INTERVAL_MS
 ```
 
 Prefer `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` for current projects. Anon and service-role variables are supported as legacy fallbacks. Secret/service-role values must never appear in a client-visible environment.
@@ -414,6 +453,11 @@ Realtime and worker processes require the server-only secret/service-role creden
 RPC execution. Public realtime URLs contain no credential. Push/email provider variables are not
 part of the active Phase 6 delivery configuration; those channels remain `unsupported` until an
 approved provider and notification policy exist.
+
+The Phase 9 SLA loop defaults to a 25-row batch and 60-second lease; the KPI loop defaults to a
+10-row batch and 120-second lease. Both default to a 1,000 ms poll interval and accept an
+independently identifiable worker ID. Keep those values in the trusted worker environment only; the
+service credential and lease tokens must never enter a browser/mobile bundle or log.
 
 ---
 
@@ -510,6 +554,13 @@ state, materialization retry/dead counts, realtime delivery age/count by state, 
 zero-socket deliveries, active connections, authorization failures, and readiness failures. Push/
 email success metrics are not meaningful until those channels are implemented.
 
+Phase 9 adds structured SLA/KPI worker events containing safe job/run IDs, aggregate counts,
+outcomes, and durations. Logs must omit complaint content, citizen identity, exact locations,
+contacts, policy review notes, source evidence, service credentials, and lease tokens. Monitor
+active/paused/breached clock counts, oldest due escalation job, retry/dead rates, lease expiry,
+calculation-run failures, latest completed source cutoff, snapshot staleness, and worker readiness.
+No Sentry, Redis, or BullMQ monitoring dependency is introduced.
+
 Governance retrieval emits structured Edge logs containing only event status, run ID, and source
 endpoint ID. PostgreSQL retains append-only sync events with safe error codes, aggregate HTTP
 status, duplicate/not-modified state, and retry timing. Never log dispatch/service credentials,
@@ -532,6 +583,82 @@ Rollback strategy:
 Never depend on destructive database rollback as the only recovery strategy.
 
 ---
+
+## Phase 8 Transparency Activation
+
+Deploying the Phase 8 code does not activate a public dataset. Apply all Phase 8 transparency
+migrations in repository order, including the `20260716105000` RPC/ACL forward fix and
+`20260716106000` duplicate-group migration, regenerate types, and repeat forced-RLS/direct-ACL/
+spatial/privacy tests in managed development and staging. Before any
+publication, approve an effective transparency policy, sensitive-category and field-redaction
+rules, minimum aggregation cohort, withdrawal/retention/abuse runbook, and reviewed pilot ward
+geometry. Exercise publish, anonymous read, withdrawal, cache behavior, and private-field non-
+disclosure with non-production records.
+
+Duplicate groups require a separate human review after every member already has a current public
+projection. Verify the 100-member bound, canonical membership, exact replay/conflict behavior,
+public-ID-only detail payload, and versioned withdrawal. Do not build an automatic publication path
+from private similarity results, and do not activate the service-only review RPC without an
+authorized moderation workflow and audit runbook.
+
+The provider-neutral client makes no external map/tile request. Do not add a basemap key or permit
+coordinates to leave Local Wellness infrastructure until a provider, billing/key ownership,
+domain/application restrictions, data-transfer/privacy terms, accessibility, and retention decision
+is recorded. Do not activate processed public media until full decode, malware scanning,
+EXIF/face/plate/address redaction, moderation, deletion, and orphan cleanup are operational.
+
+## Phase 9 SLA, Escalation, and KPI Activation
+
+Engineering support for private SLA clocks, escalation, and organizational KPI snapshots exists in
+the repository, subject to the root session's aggregate verification. Deployment alone must remain
+non-operational because no approved calendar, target, override, escalation rule, or production KPI
+schedule is seeded.
+
+Before enabling Phase 9 in managed development or staging:
+
+- apply both Phase 9 migrations incrementally and regenerate/check database types;
+- approve source-backed, effective-dated calendar/policy/rule versions through a current platform
+  administrator and verify replacement atomically closes/supersedes the prior approved interval;
+- verify every target authority/local body/category/department/ward/officer role is current,
+  source-verified or manually verified, non-placeholder, and eligible for the intended operation;
+- configure the SLA and KPI worker variables in a trusted secret store, supervise the worker, and
+  verify clean shutdown plus lease expiry/retry/dead recovery;
+- configure a reviewed Supabase/PostgreSQL schedule for KPI-run creation and document its reporting
+  window, source cutoff, cadence, retention, and failure runbook;
+- run rollback-isolated synthetic clock, pause/resume, breach, escalation, transactional outbox,
+  KPI materialization, and cross-scope denial smokes; then confirm all synthetic policy/data was
+  rolled back;
+- monitor missing/ambiguous policy bindings, breached clocks, escalation backlog/dead jobs, failed
+  runs, and stale snapshots before publishing any operational version.
+
+Do not infer targets from placeholder governance data, hardcode pilot thresholds in a client or
+worker, expose KPI snapshots publicly, or add officer rankings. Production activation remains
+blocked on approved operational policy/data and environment verification.
+
+## Mobile Citizen Experience and Governance Directory Activation
+
+The current mobile shell, OTP modes, complaint dashboard/history, category-aware report form, and
+Nearby directory are locally implemented. Before a managed demo or release:
+
+- deploy the matching API and apply the additive
+  `20260716104000_verified_governing_body_projection.sql` migration through the ordinary
+  incremental workflow; never apply the master bootstrap to an already migrated project;
+- source one reviewed root environment, confirm the public Supabase URL/key belong to the same
+  staging project, and use a LAN-reachable API/realtime URL for Expo Go;
+- run a physical-device signed-out → OTP → dashboard → Nearby → live photo/video/voice → draft
+  resume smoke, including denied permissions, weak GPS accuracy, network interruption, and logout;
+- review the known pilot UX limits: an individual finalized draft attachment cannot yet be removed,
+  submitted original media has no owner signed-read view, and mobile notification history currently
+  loads the newest 100 records (`COMPLAINT-004`, `COMPLAINT-005`, `NOTIFY-004`);
+- keep Nearby honestly unsupported until official, reviewed, current, non-placeholder jurisdiction
+  geometry and governance records are active; do not load synthetic pgTAP fixtures or hardcode a
+  municipality for a demo;
+- keep OS push disabled until the Expo/EAS project, FCM/APNs credentials, consent/preferences,
+  destination verification, privacy-safe templates, and retry/fallback policy are approved. Durable
+  in-app history and optional Socket.IO refresh remain the implemented notification channels.
+
+The migration, managed API deployment, verified pilot geometry/data, and physical-device smoke are
+pending; local engineering results do not imply those environment steps passed.
 
 ## Infrastructure as Code
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { getUserFacingAuthError, requestOtp, verifyOtp } from './auth-service';
-import type { AuthChannel } from './auth-input';
+import type { AuthChannel, CitizenAuthMode } from './auth-input';
 
 type SignInStep = 'request' | 'verify';
 
@@ -10,6 +10,7 @@ export const useOtpSignIn = () => {
   const [error, setError] = useState<string | null>(null);
   const [identifier, setIdentifierState] = useState('');
   const [isPending, setIsPending] = useState(false);
+  const [mode, setModeState] = useState<CitizenAuthMode>('sign_in');
   const [normalizedIdentifier, setNormalizedIdentifier] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<SignInStep>('request');
@@ -28,16 +29,25 @@ export const useOtpSignIn = () => {
     setError(null);
   };
 
+  const setMode = (nextMode: CitizenAuthMode): void => {
+    setModeState(nextMode);
+    setError(null);
+    setIdentifierState('');
+    setNormalizedIdentifier('');
+    setOtp('');
+    setStep('request');
+  };
+
   const request = async (): Promise<void> => {
     setError(null);
     setIsPending(true);
 
     try {
-      const normalizedValue = await requestOtp(channel, identifier);
+      const normalizedValue = await requestOtp(channel, identifier, mode);
       setNormalizedIdentifier(normalizedValue);
       setStep('verify');
     } catch (requestError) {
-      setError(getUserFacingAuthError(requestError));
+      setError(getUserFacingAuthError(requestError, 'request'));
     } finally {
       setIsPending(false);
     }
@@ -51,7 +61,7 @@ export const useOtpSignIn = () => {
       await verifyOtp(channel, normalizedIdentifier, otp);
       return true;
     } catch (verificationError) {
-      setError(getUserFacingAuthError(verificationError));
+      setError(getUserFacingAuthError(verificationError, 'verify'));
       return false;
     } finally {
       setIsPending(false);
@@ -69,11 +79,13 @@ export const useOtpSignIn = () => {
     error,
     identifier,
     isPending,
+    mode,
     normalizedIdentifier,
     otp,
     request,
     setChannel,
     setIdentifier,
+    setMode,
     setOtp,
     startAgain,
     step,

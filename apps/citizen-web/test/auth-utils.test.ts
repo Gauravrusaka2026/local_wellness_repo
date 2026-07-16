@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getCitizenEmailCallbackUrl, getSupportedEmailOtpType } from '../lib/auth/callback';
+import {
+  completeEmailAuthCallback,
+  getCitizenEmailCallbackUrl,
+  getSupportedEmailOtpType,
+  resolveEmailAuthCallback,
+} from '../lib/auth/callback';
 import { AuthInputError, normalizeEmail, normalizeOtp, normalizePhone } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
 import { requestCitizenOtp, signOutCitizenSession } from '../lib/auth/service';
@@ -32,6 +37,58 @@ test('uses the exact allow-listed citizen email callback without query parameter
     getCitizenEmailCallbackUrl('http://localhost:3000'),
     'http://localhost:3000/auth/callback',
   );
+});
+
+test('accepts PKCE and reviewed token hashes while rejecting fragment sessions', () => {
+  assert.deepEqual(resolveEmailAuthCallback('https://citizen.example/auth/callback?code=pkce'), {
+    code: 'pkce',
+    method: 'pkce',
+  });
+  assert.deepEqual(
+    resolveEmailAuthCallback('https://citizen.example/auth/callback?token_hash=hashed&type=signup'),
+    { method: 'token_hash', tokenHash: 'hashed', type: 'signup' },
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://citizen.example/auth/callback#access_token=access&refresh_token=refresh',
+    ),
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://citizen.example/auth/callback?code=one&code=two#access_token=a&refresh_token=r',
+    ),
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback('https://citizen.example/auth/callback#access_token=only-one'),
+  );
+  assert.throws(() =>
+    resolveEmailAuthCallback(
+      'https://citizen.example/auth/callback?code=pkce&error_description=expired',
+    ),
+  );
+});
+
+test('exchanges a default PKCE magic link and requires a verified session', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      exchangeCodeForSession: async (code: string) => {
+        calls.push(code);
+        return { data: { session: { access_token: 'verified-access-token' } }, error: null };
+      },
+      verifyOtp: async () => {
+        throw new Error('OTP verification must not run for a PKCE callback.');
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  const accessToken = await completeEmailAuthCallback(
+    supabase,
+    'https://citizen.example/auth/callback?code=pkce-code',
+  );
+
+  assert.equal(accessToken, 'verified-access-token');
+  assert.deepEqual(calls, ['pkce-code']);
 });
 
 test('requests phone OTP through Supabase with a normalized E.164 number', async () => {

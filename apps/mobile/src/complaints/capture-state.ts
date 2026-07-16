@@ -35,6 +35,7 @@ export type ComplaintCaptureState = Readonly<{
   error: string | null;
   isBusy: boolean;
   isOnline: boolean;
+  locationSettingsRequired: boolean;
   receipt: ComplaintReceipt | null;
   step: ComplaintCaptureStep;
   upload: UploadState | null;
@@ -50,6 +51,7 @@ export const initialComplaintCaptureState: ComplaintCaptureState = {
   error: null,
   isBusy: false,
   isOnline: true,
+  locationSettingsRequired: false,
   receipt: null,
   step: 'details',
   upload: null,
@@ -65,7 +67,11 @@ export type ComplaintCaptureAction =
   | Readonly<{ type: 'duplicates_loaded'; duplicateCheck: ComplaintDuplicateCheckResult }>
   | Readonly<{ type: 'duplicates_acknowledged'; value: boolean }>
   | Readonly<{ type: 'emergency_acknowledged'; value: boolean }>
-  | Readonly<{ type: 'error'; message: string | null }>
+  | Readonly<{
+      type: 'error';
+      message: string | null;
+      locationSettingsRequired?: boolean;
+    }>
   | Readonly<{ type: 'network_changed'; isOnline: boolean }>
   | Readonly<{ type: 'receipt_loaded'; receipt: ComplaintReceipt }>
   | Readonly<{ type: 'step_changed'; step: ComplaintCaptureStep }>
@@ -79,7 +85,12 @@ export const complaintCaptureReducer = (
     case 'assets_cleared':
       return { ...state, assetOptions: [] };
     case 'assets_loaded':
-      return { ...state, assetOptions: action.assets, error: null };
+      return {
+        ...state,
+        assetOptions: action.assets,
+        error: null,
+        locationSettingsRequired: false,
+      };
     case 'busy':
       return { ...state, isBusy: action.value };
     case 'categories_loaded':
@@ -92,6 +103,7 @@ export const complaintCaptureReducer = (
         duplicatesAcknowledged: false,
         emergencyAcknowledged: false,
         error: null,
+        locationSettingsRequired: false,
         receipt: null,
         step: action.step ?? state.step,
       };
@@ -113,7 +125,13 @@ export const complaintCaptureReducer = (
     case 'emergency_acknowledged':
       return { ...state, emergencyAcknowledged: action.value };
     case 'error':
-      return { ...state, error: action.message, isBusy: false };
+      return {
+        ...state,
+        error: action.message,
+        isBusy: false,
+        locationSettingsRequired:
+          action.message === null ? false : (action.locationSettingsRequired ?? false),
+      };
     case 'network_changed':
       return { ...state, isOnline: action.isOnline };
     case 'receipt_loaded':
@@ -126,7 +144,7 @@ export const complaintCaptureReducer = (
         upload: null,
       };
     case 'step_changed':
-      return { ...state, error: null, step: action.step };
+      return { ...state, error: null, locationSettingsRequired: false, step: action.step };
     case 'upload_changed':
       return { ...state, upload: action.upload };
   }
@@ -170,10 +188,15 @@ export const getLocationRecaptureGuidance = (
 
 export type DraftReadiness = Readonly<{
   isReady: boolean;
-  missing: readonly ('category' | 'description' | 'location' | 'media')[];
+  missing: readonly (
+    'category' | 'category details' | 'description' | 'location' | 'media' | 'media limit'
+  )[];
 }>;
 
-export const getDraftReadiness = (draft: ComplaintDraft | null): DraftReadiness => {
+export const getDraftReadiness = (
+  draft: ComplaintDraft | null,
+  category?: RoutingCategory | null,
+): DraftReadiness => {
   if (draft === null) {
     return { isReady: false, missing: ['category', 'description', 'location', 'media'] };
   }
@@ -185,7 +208,22 @@ export const getDraftReadiness = (draft: ComplaintDraft | null): DraftReadiness 
   if (!isLocationEvidenceEligible(draft.location)) {
     missing.push('location');
   }
-  if (!draft.media.some((media) => media.uploadStatus === 'finalized')) missing.push('media');
+  if (
+    category?.requiredAttributes.some(
+      (attribute) => !Object.hasOwn(draft.customAttributes, attribute),
+    ) === true
+  ) {
+    missing.push('category details');
+  }
+  const finalizedEvidenceCount = draft.media.filter(
+    (media) =>
+      media.uploadStatus === 'finalized' &&
+      (media.metadata.kind === 'photo' || media.metadata.kind === 'video'),
+  ).length;
+  const minimumMediaCount = category?.minimumMediaCount ?? 1;
+  const maximumMediaCount = category?.maximumMediaCount ?? 20;
+  if (finalizedEvidenceCount < minimumMediaCount) missing.push('media');
+  if (finalizedEvidenceCount > maximumMediaCount) missing.push('media limit');
 
   return { isReady: missing.length === 0, missing };
 };

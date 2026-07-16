@@ -67,10 +67,14 @@ const category: RoutingCategory = {
   code: 'pilot_category',
   name: 'Pilot category',
   description: 'Synthetic verified test category.',
+  maximumMediaCount: 5,
+  minimumMediaCount: 1,
   parentCategoryId: null,
   requiresAsset: false,
   requiresLocation: true,
   isEmergency: false,
+  requiredAttributes: [],
+  recommendedMediaKinds: ['photo'],
 };
 
 const verifiedEvidence = (

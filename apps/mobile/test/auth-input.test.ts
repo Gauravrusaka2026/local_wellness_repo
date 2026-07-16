@@ -8,7 +8,11 @@ import {
   normalizeOtp,
   normalizePhone,
 } from '../src/auth/auth-input';
-import { resolveMobileAuthCallback, type MobileAuthCallbackParameters } from '../src/auth/callback';
+import {
+  completeMobileAuthCallback,
+  resolveMobileAuthCallback,
+  type MobileAuthCallbackParameters,
+} from '../src/auth/callback';
 import {
   createSecureStorageManifest,
   parseSecureStorageManifest,
@@ -39,23 +43,107 @@ test('chunks and reconstructs values larger than a SecureStore item', () => {
   assert.equal(parseSecureStorageManifest('not-a-manifest'), null);
 });
 
-test('accepts only PKCE codes and hashed email tokens in mobile callbacks', () => {
+test('accepts only unambiguous PKCE codes and reviewed hashed email tokens', () => {
   assert.deepEqual(resolveMobileAuthCallback({ code: 'pkce-code' }), {
     code: 'pkce-code',
-    type: 'pkce',
+    method: 'pkce',
   });
-  assert.deepEqual(resolveMobileAuthCallback({ tokenHash: 'hashed-email-token' }), {
-    tokenHash: 'hashed-email-token',
-    type: 'email_otp',
-  });
+  assert.deepEqual(
+    resolveMobileAuthCallback({ tokenHash: 'hashed-email-token', type: 'magiclink' }),
+    {
+      method: 'token_hash',
+      tokenHash: 'hashed-email-token',
+      type: 'magiclink',
+    },
+  );
+  assert.throws(() => resolveMobileAuthCallback({ tokenHash: 'hashed-email-token' }));
+  assert.throws(() =>
+    resolveMobileAuthCallback({ tokenHash: 'hashed-email-token', type: 'recovery' }),
+  );
+  assert.throws(() =>
+    resolveMobileAuthCallback({
+      code: 'pkce-code',
+      tokenHash: 'hashed-email-token',
+      type: 'email',
+    }),
+  );
+  assert.throws(() => resolveMobileAuthCallback({ code: ['one', 'two'] }));
+  assert.throws(() => resolveMobileAuthCallback({ code: 'pkce-code', error: 'access_denied' }));
+  assert.throws(() =>
+    resolveMobileAuthCallback({ code: 'pkce-code', errorDescription: 'Link expired' }),
+  );
   assert.throws(
     () =>
       resolveMobileAuthCallback({
         access_token: 'raw-access-token',
         refresh_token: 'raw-refresh-token',
       } as unknown as MobileAuthCallbackParameters),
-    /authentication callback is incomplete/i,
+    /authentication callback is invalid/i,
   );
+});
+
+test('exchanges a mobile PKCE callback once and records only the verified session', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      exchangeCodeForSession: async (code: string) => {
+        calls.push(['exchange', code]);
+        return { data: { session: { access_token: 'verified-access-token' } }, error: null };
+      },
+      setSession: async () => {
+        throw new Error('Raw fragment sessions are not accepted on mobile.');
+      },
+      verifyOtp: async () => {
+        throw new Error('Token hash verification must not run for PKCE.');
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await completeMobileAuthCallback(supabase, { code: 'pkce-code' }, async (...audit) => {
+    calls.push(['audit', ...audit]);
+    return true;
+  });
+
+  assert.deepEqual(calls, [
+    ['exchange', 'pkce-code'],
+    ['audit', 'verified-access-token', 'sign_in_succeeded'],
+  ]);
+});
+
+test('passes the reviewed mobile token-hash type and requires a returned session', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      exchangeCodeForSession: async () => {
+        throw new Error('PKCE must not run for a token hash.');
+      },
+      setSession: async () => {
+        throw new Error('Raw fragment sessions are not accepted on mobile.');
+      },
+      verifyOtp: async (request: unknown) => {
+        calls.push(request);
+        return { data: { session: null }, error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(
+    completeMobileAuthCallback(
+      supabase,
+      { tokenHash: 'hashed-email-token', type: 'signup' },
+      async () => {
+        calls.push('audit');
+        return true;
+      },
+    ),
+    /authentication callback is invalid/i,
+  );
+  assert.deepEqual(calls, [
+    {
+      token_hash: 'hashed-email-token',
+      type: 'signup',
+    },
+  ]);
 });
 
 test('records mobile sign-out success only after Supabase signs out', async () => {

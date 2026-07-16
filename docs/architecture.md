@@ -73,19 +73,31 @@ Responsibilities:
 - reopening;
 - nearby complaint map.
 
-Phase 4 implements the signed-in home, resumable complaint draft, current-location evidence, live
-photo/video/voice capture, private upload, duplicate review, submission receipt, and owned
-complaint history slice. Phase 6 adds durable in-app notification history/read state and private
-complaint messages. Its optional Socket.IO connection refreshes REST-backed state and does not
-replace durable history. Phase 7 adds private before/after resolution review, policy-driven outcome
-ratings and confirmation, and policy-controlled reopening with live additional evidence. Reopen
-windows, rating bounds, reason codes, evidence requirements, and escalation thresholds come from
-the server-resolved policy rather than mobile constants. Maps, background synchronization,
-push/email delivery, and public complaint views remain later-phase work. Asset-dependent categories use an authenticated,
-database-driven nearby-asset picker and remain unavailable unless the category, jurisdiction,
-asset/version, ownership, and owner scope are current, verified, non-placeholder, and routable.
-The client advances only when server-derived location evidence is `verified` or
-`partially_verified`.
+The authenticated Expo shell exposes five stable destinations: Home, Complaints, the central Report
+action, Nearby, and More. Home aggregates the owner's complaint history and provides honest empty,
+loading, refresh, and API-error states; Complaints adds filter, pagination, detail, and timeline
+navigation; More groups profile, language, notification, transparency, device-help, and sign-out
+actions. Authentication has explicit passwordless sign-in, create-account, and recovery modes so
+an existing-user flow cannot silently register a new account.
+
+Phase 4 implements resumable drafts, current-location evidence through Expo Location, live
+photo/video/voice capture through Expo Camera and Audio, private upload, duplicate review,
+submission receipt, and owned complaint history. Category-required attributes and media counts are
+database-driven end to end; they are not duplicated as municipality/category constants in the
+client. Asset-dependent categories use an authenticated database-driven nearby-asset picker and
+remain unavailable unless the category, jurisdiction, asset/version, ownership, and owner scope are
+current, verified, non-placeholder, and routable. The client advances only when server-derived
+location evidence is `verified` or `partially_verified`.
+
+Phase 6 adds durable in-app notification history/read state and private complaint messages. Its
+optional Socket.IO connection refreshes REST-backed state and does not replace durable history.
+OS-level push is deliberately not installed until an Expo/EAS project, FCM/APNs credentials,
+consent/preferences, destination verification, and delivery policy are approved. Phase 7 adds
+private before/after resolution review, policy-driven outcome ratings and confirmation, and
+policy-controlled reopening with live additional evidence. Phase 8 adds provider-neutral public
+transparency views. Phase 9 adds private policy-derived SLA clocks, overdue escalation, and
+persisted organizational KPI snapshots; background governance normalization and a third-party
+native basemap remain deferred.
 
 ### Citizen Web
 
@@ -128,8 +140,8 @@ Actions cover acknowledgement, versioned assignment or same-authority transfer, 
 transitions, private notes, inspection scheduling/completion, work references, external dependency
 creation/closure, private evidence upload/finalization, and resolution submission. Exact coordinates
 are shown only to an authorized government user as text. The interactive map remains an explicit
-placeholder until a provider, key, and coordinate-sharing/privacy policy are reviewed. SLA/KPI
-analytics remain later work. Phase 6 adds the complaint's private conversation. Server-rendered
+placeholder until a provider, key, and coordinate-sharing/privacy policy are reviewed. Phase 6 adds
+the complaint's private conversation. Server-rendered
 history is reconciled through authenticated REST, while the browser supplies its session token to
 an optional realtime connection at runtime rather than serializing it into page markup.
 
@@ -137,6 +149,12 @@ Phase 7 requires a captured completion location for each new resolution and allo
 reference to be linked. The dashboard also renders the authorized resolution, citizen feedback,
 reopen, and escalation history. It does not infer policy, verification, or allowed workflow action
 from displayed data.
+
+Phase 9 adds a complaint SLA panel and an organizational accountability page. The former renders
+only database-materialized clocks, pauses, deadlines, and escalation evidence; the latter reads the
+latest completed municipality/ward/department KPI snapshots at their explicit source cutoff. Both
+re-authorize the selected government scope. Missing/ambiguous policy is an explicit unavailable
+state, and no view ranks an individual officer.
 
 ### Admin Console
 
@@ -212,18 +230,24 @@ Responsibilities:
 - government portal synchronization;
 - contact data refresh jobs.
 
-Most entries remain target responsibilities. Phase 6 implements the notification-outbox
+Several entries remain target responsibilities. Phase 6 implements the notification-outbox
 materialization worker: it polls narrow service-only RPCs, claims PostgreSQL jobs with bounded
 leases, materializes data-minimized per-user notifications and channel rows, and records bounded
 retry or terminal state. In-app history is operational in engineering; realtime rows are consumed
 by the Socket.IO process. Push and email rows are explicitly `unsupported` until providers and
 consent/preferences are approved.
 
+Phase 9 extends the same trusted worker process with independently configured SLA-escalation and
+KPI-calculation loops. Both use narrow service-only PostgreSQL leases, idempotent execution,
+bounded retry/dead state, and structured logs that omit lease tokens and complaint content. A clean
+shutdown stops polling and waits for active batches. No loop invents policy: absent or ambiguous
+approved configuration produces no clock or automatic action.
+
 Phase 4 duplicate evaluation still runs synchronously through PostgreSQL plus the pure routing
-package. Transcription, media processing/moderation, private-object cleanup, SLA processing, and
-analytics workers are not operational. Governance retrieval runs separately through a Supabase
-Scheduled Edge Function; its source schedule is inactive by default. No Redis, BullMQ, or Sentry
-dependency backs any of these boundaries.
+package. Transcription, media processing/moderation, and private-object cleanup remain
+unimplemented. Governance retrieval runs separately through a Supabase Scheduled Edge Function;
+its source schedule is inactive by default. No Redis, BullMQ, or Sentry dependency backs any of
+these boundaries.
 
 ### Governance Synchronization
 
@@ -372,6 +396,16 @@ Business logic should not be implemented directly inside React components.
 
 Supabase Auth proves identity. Current database state determines authorization so revoked or expired access does not remain valid until a JWT refresh. Client applications receive only the public project URL and publishable key (or legacy anonymous key); the secret/service-role key exists only in the trusted API runtime. The API verifies each bearer token with Supabase Auth, reauthorizes ownership and scope, and performs identity writes through audited database operations. RLS and column privileges remain a second boundary for direct data-API access.
 
+Passwordless email delivery is template-compatible rather than template-dependent. Browser clients
+request ordinary sign-in links through the Supabase SSR PKCE flow and may also verify a delivered
+code. Dynamic callback pages consume one reviewed method, remove callback material from browser
+history before session completion, and reload through current application authorization. Citizen
+and administrator callbacks reject implicit fragment sessions. Because a trusted Supabase admin
+invitation has no PKCE verifier, only the government invitation callback accepts a complete default
+fragment whose provider type is exactly `invite`; authentication still cannot create the required
+membership or role. Mobile accepts PKCE or reviewed token hashes only and stores the resulting
+session in SecureStore.
+
 Device registration and soft revocation are atomic with their audit events. Sensitive device hashes and push tokens remain server-only. Client session events are explicitly marked as client-reported; provider logs and server-generated access events carry the authoritative security meaning.
 
 ### Governance Domain
@@ -431,6 +465,31 @@ managed database baseline: applications, the Edge Function, Cron, source/scope a
 official ward records or geometry, routes, complaints, and production remain undeployed or
 inactive.
 
+The citizen-facing governance directory is a separate narrow projection over this private domain:
+
+```text
+Expo foreground location
+        |
+        v
+authenticated NestJS endpoint
+        |
+        v
+service-role-only PostGIS projection
+        |
+        v
+verified official-source names and provenance only
+```
+
+`POST /api/v1/governance/bodies/resolve` accepts bounded location evidence and returns only a
+verified hierarchy name/type, last-verification date, and official source URL. The projection
+requires active, verified, routing-eligible, non-placeholder entities and official active sources
+for the matched jurisdiction and boundaries. It exposes no UUIDs, geometry, officers, phone/email
+contacts, or private office data. Accuracy over 100 metres fails before the query; zero and multiple
+matches remain explicit `unsupported` and `ambiguous` outcomes. Mobile clients never query
+governance tables/functions directly and no Pune/Mumbai fallback is hardcoded. The additive
+projection migration and reviewed official geometry are still required in staging before the
+directory can resolve a real location.
+
 ### Complaint Domain
 
 - resumable complaint draft;
@@ -458,8 +517,86 @@ capability/transition rules, exact-replay action requests, append-only action au
 work references, dependencies, private resolution evidence, versioned resolution records, and a
 data-minimized notification outbox. Phase 7 adds a separate exact-replay citizen-action ledger,
 database-resolved accountability policy, captured completion location, owner-only evidence review,
-immutable feedback, policy-controlled reopening, and repeated-reopen escalation. Public visibility,
-processed public derivatives, and maps are not implemented.
+immutable feedback, policy-controlled reopening, and repeated-reopen escalation. Phase 8 leaves
+those source records private and introduces separately reviewed, immutable public projections.
+Phase 9 adds exact policy bindings, materialized milestone clocks, pause intervals, deadline
+history, escalation evidence/jobs, and reproducible KPI runs/snapshots without widening complaint
+table access.
+
+### Public Transparency Boundary
+
+The Phase 8 public read model is not a filtered view over private complaints. An approved,
+effective-dated transparency policy plus an attributed review must create a sanitized projection in
+the unexposed, forced-RLS `complaints` schema. PostgreSQL derives its approximate position from a
+current verified ward boundary; a client cannot submit a public coordinate. Withdrawal closes the
+current projection without deleting its audit history.
+
+Anonymous nearby, hotspot, verified-boundary, and detail requests enter through bounded NestJS
+routes and service-only database functions. The functions query only current published projections
+and return strict JSON allowlists. They never join private text, citizen identity, exact complaint or
+routing points, original media, private evidence, internal notes, routing evidence, moderation
+evidence, object locators, or contact data into a response. Missing or ambiguous policy, geometry,
+review, or publication evidence yields an empty result.
+
+Public duplicate groups are distinct reviewed, versioned records; private similarity results never
+merge or publish complaints automatically. A service-role reviewer can group at most 100 reports
+only after every member has a current public projection. Public detail returns the canonical public
+ID, related public IDs excluding the viewed report, and total group size—never internal complaint
+IDs or review evidence. Withdrawal ends the active group version. Processed-media derivative
+storage is structural and remains
+unavailable until full decode, malware/moderation, privacy-redaction, retention, and delivery policy
+are approved. Comments remain disabled. Client rendering uses a first-party provider-neutral plot
+and accessible list, so no coordinate or tile request leaves Local Wellness infrastructure; a
+third-party basemap requires a later provider/privacy decision.
+
+### SLA, Escalation, and KPI Accountability Boundary
+
+Phase 9 stores operational policy and materialized evidence in the unexposed, forced-RLS
+`complaints` schema. Stable calendar, policy, escalation-rule, and KPI identities are separated
+from reviewed versions. Platform-admin publication is a service-role operation: it validates
+verified provenance and temporal/configuration integrity, locks the candidate and one eligible
+approved predecessor, atomically closes and supersedes that predecessor at the candidate's
+`effective_from`, then approves the new version. Conflicting, backdated, same/older-version, or
+multiple-overlap publication fails as one transaction.
+
+An initial routed complaint assignment selects exactly one effective approved policy/calendar/
+category override and persists that evidence in a cycle binding. It materializes acknowledgement,
+optional inspection, and resolution clocks in UTC while evaluating working time in the calendar's
+IANA timezone. Missing, ambiguous, or invalid configuration persists an explicit fail-closed
+binding and creates no clock. Status history completes milestones; eligible external-dependency
+history pauses/resumes configured clocks and appends deadline changes. Clients cannot submit
+targets, pause duration, breach state, escalation level, or policy IDs.
+
+```text
+approved policy/calendar/rules
+  -> routed assignment binding
+  -> materialized milestone clocks and deadline history
+  -> bounded PostgreSQL lease
+  -> idempotent escalation action
+  -> status history + escalation event + notification outbox (one transaction)
+
+versioned KPI definition + explicit source cutoff/window
+  -> bounded PostgreSQL lease
+  -> immutable calculation run
+  -> municipality/ward/department snapshots by delay segment
+  -> government-scope-authorized API/dashboard read
+```
+
+Escalation and KPI work use independent bounded PostgreSQL leases in the existing trusted worker
+process. Retries are idempotent and terminal failures remain available for operator review. An
+escalation action may record evidence or derive the reviewed `escalated` status; its status history,
+append-only escalation event, and data-minimized notification outbox row commit together before any
+delivery worker can observe them.
+
+KPI results are persisted snapshots rather than mutable request-time aggregates. Every completed
+run retains its definition version, source cutoff, reporting window, input fingerprint, exclusions,
+scope, segment, numerator, denominator, and sample size. Reads are limited to current authorized
+municipality, ward, or department scope. There is no public KPI contract and no individual-officer
+dimension or ranking.
+
+No operational calendar, policy, target, category override, or escalation rule is seeded. The
+engineering topology remains inactive until reviewed official values, verified target roles,
+worker/scheduling deployment, and environment verification are complete.
 
 ### Routing Domain
 
@@ -470,7 +607,7 @@ processed public derivatives, and maps are not implemented.
 - stable routing rules with versioned scope, targets, and fallback paths;
 - versioned confidence and duplicate-detection policies;
 - append-only routing decisions;
-- SLA and escalation rules in later phases.
+- Phase 9 SLA and escalation configuration in the private complaint domain.
 
 Phase 3 stores these records in a private, forced-RLS `routing` schema. The 12 pilot taxonomy rows
 are engineering records only: draft, unverified, and non-routable. Pune Municipal Corporation is a
@@ -648,6 +785,12 @@ identifiers are not substituted for idempotency keys. Complaint creation succeed
 stored draft, verified or partially verified PostGIS location evidence, active verified category,
 finalized media, duplicate acknowledgements, optional emergency acknowledgement, and routed
 decision all agree.
+
+The mobile resume record preserves a submission key across ambiguous transport failures, but
+rotates it after successful draft-evidence mutations and explicit terminal no-route outcomes. This
+keeps exact retries safe without pinning a draft forever to an earlier stored routing decision.
+Complaint no-route responses use `COMPLAINT_ROUTE_UNAVAILABLE`; generic dependency errors remain
+distinct so dashboard, media, and notification outages are not described as routing failures.
 
 The API reserves owner/draft/media-scoped opaque paths and returns a transient private signed-upload
 token. It then downloads/inspects the stored object and compares MIME type, byte size, and SHA-256
@@ -852,6 +995,9 @@ Redis and BullMQ are not part of V1. Phase 6 uses the existing PostgreSQL transa
 leased job and delivery projections as documented by ADR-0014. This is a bounded V1 mechanism, not
 a general replacement for every later background workload. A future job category must demonstrate
 that the same retry, concurrency, retention, and operational model fits before reusing it.
+ADR-0018 records that Phase 9 escalation and KPI materialization meet that boundary through separate
+bounded lease tables, idempotent completion, retained retry/dead state, and independently tuned
+worker loops.
 
 Background work must be:
 
@@ -878,7 +1024,10 @@ broadcast, forced-RLS communication state, data-minimized notification payloads,
 service RPCs, bounded per-socket limits, and recipient reauthorization before queued delivery.
 Phase 7 adds approved effective-dated policy resolution, complaint-owner evidence reauthorization,
 separate citizen exact-replay/audit records, immutable feedback/reopen/escalation history, and
-database-derived status changes.
+database-derived status changes. Phase 8 adds a separately reviewed public read model without
+widening private complaint access. Phase 9 adds immutable policy bindings/clocks/KPI evidence,
+atomic policy supersession, scope-authorized accountability reads, and transactional escalation/
+notification evidence.
 Broader HTTP rate limits, provider-specific controls, and device-risk enforcement remain tracked
 hardening work.
 

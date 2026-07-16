@@ -224,6 +224,10 @@ These conventions implement ADR-0011 and do not activate unverified Pune routing
 - Draft creation, media reservation, routing, and final submission use purpose-scoped idempotency
   identities. Raw client idempotency keys are not persisted, and successful routing/submission
   retries return stored evidence instead of recomputing against changed configuration.
+- Mobile submission keys remain stable for ambiguous network retries, rotate after successful
+  draft-evidence mutations or explicit terminal no-route outcomes, and never rotate merely because
+  a response cannot be decoded. `COMPLAINT_ROUTE_UNAVAILABLE` is distinct from a generic dependency
+  outage so clients can make that retry decision without guessing from message text.
 - Submission is atomic only after the current server-side evidence passes location, media,
   duplicate-policy, route, and acknowledgement checks. Unsupported, ambiguous, placeholder, or
   unverified routes fail closed and create no submitted complaint.
@@ -457,3 +461,74 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   coordinates, object paths, hashes, and signed tokens never enter notification payloads or
   structured logs; logs may retain bounded actor, complaint, action, and evidence identifiers for
   audit correlation.
+
+## 2026-07-16 — Phase 8 Public Transparency Conventions
+
+- Public transparency is a separately reviewed, immutable projection, never a direct filtered read
+  of the private complaint row. The private visibility constraint remains unchanged.
+- Public positions are derived by PostgreSQL from current reviewed ward geometry. Clients cannot
+  submit a public coordinate, and exact complaint/routing geometry is absent from projection DTOs.
+- Publication, withdrawal, duplicate grouping, and any later derivative approval are append-only or
+  effective-dated and reviewer-attributed. Missing or ambiguous approved policy fails closed.
+- Anonymous HTTP reads pass through NestJS service-only functions; no Supabase API role receives
+  direct projection-table access.
+- Provider-neutral first-party rendering plus an accessible list is the default. External tiles,
+  processed public media, and comments remain disabled until their separate privacy, moderation,
+  operations, and provider decisions are approved.
+
+## 2026-07-16 — Mobile Citizen Experience Conventions
+
+- The authenticated mobile shell keeps five stable primary destinations: Home, Complaints, the
+  central Report action, Nearby, and More. Secondary profile, language, notification,
+  transparency, device-help, and sign-out actions live in grouped More sections so existing
+  complaint/deep-link paths do not change.
+- Passwordless citizen authentication presents explicit sign-in, create-account, and recovery
+  modes. Only account creation may set `shouldCreateUser`; sign-in and recovery remain
+  existing-user flows with generic anti-enumeration responses. “Forgot password” is expressed as
+  account recovery because the citizen flow stores no password.
+- Category requirements are runtime data. Required attributes, photo/video minimum/maximum counts,
+  recommended media kinds, asset selection, and routing readiness travel through shared/API/mobile
+  contracts and must not be duplicated in municipality/category UI branches.
+- Local mobile configuration is sourced from the repository root environment. Native startup
+  rejects loopback service URLs and detectable Supabase URL/key project mismatches without exposing
+  their values; app-local credential copies are not an accepted override mechanism.
+- Expo Location, Camera, Audio, SecureStore, and SQLite remain the native capability boundary for
+  foreground capture and protected resume state. OS push is not installed until an Expo/EAS
+  project, FCM/APNs credentials, user consent/preferences, verified destinations, and a delivery
+  policy are approved. Durable in-app notifications plus optional Socket.IO refresh remain active.
+- Citizen-facing governance lookup follows ADR-0017: the app displays only official-source,
+  verified projection data and renders low-accuracy, unsupported, or ambiguous outcomes instead of
+  inventing a local body, ward, officer, or contact.
+
+## 2026-07-16 — Template-Compatible Passwordless Callback Conventions
+
+- Email request screens describe both possible provider outcomes: a six-digit token, a secure
+  link, or both. Template presentation never changes the database authorization boundary.
+- Ordinary web links use the Supabase SSR PKCE flow. Citizen and administrator callbacks reject
+  implicit fragments; only the configured government invitation callback may accept a complete
+  fragment typed exactly `invite`, and it removes callback material from browser history before
+  persisting the session.
+- `shouldCreateUser` is true only in explicit citizen account creation. Citizen sign-in/recovery and
+  every government/administrator request keep it false, and callbacks never assign application
+  roles or memberships.
+- Mobile accepts PKCE or reviewed email token hashes and rejects raw fragments. The stable custom
+  scheme is validated with an installed development/release build rather than treating Expo Go's
+  temporary `exp://` address as production-like evidence.
+
+## 2026-07-16 — Phase 9 SLA and KPI Conventions
+
+- SLA calendars, policies, category overrides, and escalation rules have stable identities plus
+  immutable effective-dated versions. Publishing a future replacement atomically closes and
+  supersedes the prior version; overlapping/backdated ambiguity fails closed.
+- Complaint clocks snapshot the exact assignment, policy, calendar, target, pause, completion, and
+  deadline evidence. Existing complaints receive no fabricated backfill and historical deadlines
+  are never silently recalculated.
+- Overdue escalation and KPI materialization use bounded PostgreSQL leases, retry/dead evidence,
+  idempotent execution, and privacy-safe structured logs in the existing worker. Redis, BullMQ,
+  Redis caching/adapters, and Sentry remain absent.
+- KPI definitions are code-owned and versioned; persisted runs retain source cutoff, window,
+  algorithm version, fingerprint, numerator, denominator, exclusions, scope, and segmentation.
+  APIs read current authorized organizational snapshots and never calculate or expose individual-
+  officer rankings.
+- No operational SLA target, calendar, override, escalation rule, KPI schedule, or public metric is
+  seeded by engineering fixtures.

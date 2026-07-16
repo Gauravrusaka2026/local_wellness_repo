@@ -459,18 +459,22 @@ lease-expired evidence to `notification_delivery_attempts`.
 
 ### Operations
 
-- sla_policies;
-- escalation_rules;
-- escalation_events;
-- work_orders;
-- external_dependencies.
+- `sla_calendars` and `sla_calendar_versions`;
+- `sla_calendar_working_periods` and `sla_calendar_exceptions`;
+- `sla_policies`, `sla_policy_versions`, and `sla_category_overrides`;
+- `sla_escalation_rules` and `sla_escalation_rule_versions`;
+- `complaint_sla_bindings`, `complaint_sla_clocks`, `complaint_sla_pause_intervals`, and
+  `complaint_sla_deadline_history`;
+- `sla_escalation_jobs` and `complaint_sla_escalation_events`;
+- existing `complaint_external_dependencies` and complaint workflow records.
 
 ### Analytics
 
-- ward_kpi_snapshots;
-- department_kpi_snapshots;
-- municipality_kpi_snapshots;
-- hotspot_snapshots.
+- `kpi_definitions` and `kpi_definition_versions`;
+- `kpi_calculation_runs`;
+- `kpi_snapshots` with municipality, ward, or department scope and explicit delay segments;
+- Phase 8 bounded hotspot aggregates over reviewed public projections (not a private complaint
+  snapshot table).
 
 ### Audit
 
@@ -581,6 +585,15 @@ geography GiST expression index complements the existing geometry index. Spatial
 have geometry and geography GiST indexes; candidate matching uses the greater of the asset-type
 match radius and the input accuracy. API and database contracts reject accuracy above 5,000 metres.
 
+The additive `public.resolve_verified_governing_bodies` projection reuses the accuracy-aware
+resolver for the authenticated mobile directory. Its API limit is 100 metres. It admits only
+active, verified, routing-eligible, non-placeholder state/local-body/authority records plus any
+matched district, taluka, or ward, and requires active official provenance for every entity and
+boundary used. Its JSON contains only entity kind/name/type, `lastVerifiedOn`, and the official
+source URL. UUIDs are present only as internal relational columns outside the returned JSON and are
+not exposed by the API. Geometry, officers, contacts, office details, and routing rules are absent.
+`anon` and `authenticated` have no execute privilege; only `service_role` may call the function.
+
 ---
 
 ## Routing Query
@@ -654,6 +667,18 @@ Push to linked environment only after review:
 ```bash
 supabase db push
 ```
+
+### Master bootstrap SQL
+
+`supabase/master.sql` is the deterministic, single-file bootstrap form of all 34 ordered SQL files
+in `supabase/migrations/`. Each source migration retains its own transaction boundary, and the
+header records the exact source filename and SHA-256 digest. Seed artifacts remain separate because
+they contain environment/bootstrap data rather than table definitions and security policy.
+
+Run `pnpm database:master:generate` after adding or changing an unapplied migration and
+`pnpm database:master:check` in verification. The master artifact is only for an empty compatible
+Supabase database. Never put it in the migration directory, apply it after the incremental history,
+or use it to replace or mutate migration records in an existing environment.
 
 ---
 
@@ -810,6 +835,20 @@ mutation. Government accountability reads still apply the current assignment cap
 check. Policy rows, feedback, reopen requests, evidence links, escalation events, and audits are
 append-only; policy lifecycle and reserved-evidence finalization use narrowly validated transitions.
 
+Phase 8 enables and forces RLS on every transparency policy/review/projection/duplicate/derivative
+table and revokes direct table access from all Data API roles, including `service_role`. Only
+reviewed service-role functions may publish, withdraw, review/withdraw duplicate groups, or return
+bounded public projections. Anonymous HTTP requests terminate at NestJS; `anon` receives no direct
+database execute surface.
+
+Phase 9 enables and forces RLS on all 19 SLA, escalation, and KPI tables and continues the schema-
+wide direct-table denial, including for `service_role`. Platform-admin publication and trusted
+worker claim/execute/fail operations use narrow service-role wrappers. Government read wrappers
+receive the actor UUID derived from a verified bearer token and recheck current role assignment,
+authority membership, complaint assignment, and requested municipality/ward/department scope.
+Policy evidence, lease tokens, complaint clocks, escalation jobs/events, and KPI source rows are
+not client tables.
+
 ---
 
 ## Storage Metadata
@@ -949,9 +988,9 @@ deterministic source-contract hash before `NOT NULL` enforcement.
 
 Synthetic verified Phase 4 fixtures are rolled back. The actual reset bootstrap still has zero
 operational categories and cannot create a production complaint from placeholder or unverified
-evidence. The dedicated staging project now has the schema and non-production seeds, but hosted
-RLS/RPC/Storage workflow smokes, verified Pune data, and a physical-device media submission remain
-pending; see the Phase 4 testing worklog.
+evidence. The previous staging target received the schema and non-production seeds; the replacement
+target is unreconciled. Hosted RLS/RPC/Storage workflow smokes, verified Pune data, and a physical-
+device media submission remain pending; see the Phase 4 testing worklog.
 
 The identity/routing forward fixes add pgTAP plans 019–021 for legacy Auth profile repair,
 confidence-policy conflict reporting, and verified PostGIS asset discovery. The governance import
@@ -991,12 +1030,117 @@ windows and attempt limits, private follow-up evidence integrity/non-reuse, feed
 reopen state, repeated-reopen escalation, immutable audit/history, and Phase 6 notification-outbox
 integration. Synthetic approved policy versions exist only inside rollback-isolated tests.
 
-The managed staging deployment recorded on 2026-07-14 applied all 23 migrations through
+The verified governance-directory slice adds migration
+`20260716104000_verified_governing_body_projection.sql` and pgTAP plan
+`028_verified_governing_body_projection.test.sql`. Its 13 assertions cover function existence,
+direct-client denial, service-role execution, official provenance, placeholder/source exclusion,
+public-safe output, PostGIS resolution, and migration grants. The latest clean local database run
+applied all 30 migrations and passed all 1,085 assertions across 28 plans; application-schema lint
+also passed. Synthetic directory entities and boundaries are transaction-rolled-back fixtures and
+do not create pilot coverage.
+
+The previous managed staging deployment recorded on 2026-07-14 applied all 23 migrations through
 `20260714124000` and all six reviewed non-production seed files. The existing citizen Auth identity
 was reconciled by the idempotent profile backfill. Post-seed checks found 12 category records with
 zero operational and 11 synchronization endpoints with zero active. No official ward or geometry,
 operational route, complaint, application, Edge Function, Cron, source/scope activation, or
 production deployment was created by that database operation.
+
+The owner later switched the configured staging target and reports applying a generated master SQL
+file. The exact artifact revision and current target ledger were not independently verified, so the
+historical deployment above must not be treated as evidence for the replacement project. Reconcile
+that target against all 34 current migrations before activation.
+
+## Phase 8 Public Projection Model
+
+Phase 8 preserves `complaints.complaints.visibility = 'private'` and adds public-output evidence as
+separate versioned records in the unexposed `complaints` schema. Transparency policies and category
+rules define effective eligibility, safe status sets, minimum hotspot cohorts, summary behavior,
+and ward-derived location requirements. Publication reviews bind one complaint and one exact policy
+version to reviewer-supplied sanitized text. Publication versions snapshot only allowlisted public
+category, status, authority/local-body/ward, time, and approximate-boundary evidence; withdrawal
+closes a current version rather than rewriting it.
+
+Current approximate points are derived inside PostgreSQL from verified, active, non-placeholder,
+routing-eligible ward-boundary versions. Exact complaint/location/routing geometry never enters the
+projection tables or public function return types. Human-reviewed duplicate groups and memberships
+are versioned separately from private duplicate-detection runs. A service-only review accepts at
+most 100 complaints from one local body/category only when every member has a current published
+projection; public detail then returns only the canonical public ID, related public IDs excluding
+the viewed report, and the group size. Private match scores/evidence and internal complaint IDs
+never enter that contract.
+Withdrawal closes the active group version. Processed-media derivative records have independent
+processing, moderation, and publication gates and expose no public object in this slice.
+
+Every Phase 8 table has forced RLS and no direct `anon`, `authenticated`, or `service_role` table
+access. Narrow service-only functions perform publication/withdrawal authorization, duplicate-group
+review/withdrawal, and bounded public projection, hotspot, verified-boundary, and detail reads.
+NestJS is the anonymous HTTP trust boundary; Supabase Data API roles receive no direct Phase 8
+execute surface. No transparency policy, publication, duplicate group, or derivative is seeded.
+
+Phase 8 is delivered by additive migrations `20260716102000_phase_8_transparency_schema.sql`,
+`20260716103000_phase_8_transparency_security_and_rpc.sql`,
+`20260716105000_phase_8_transparency_rpc_and_acl_forward_fix.sql`, and
+`20260716106000_phase_8_duplicate_group_publication.sql`. The focused transparency pgTAP run passed
+91 assertions across plans 029–030; the root session owns the final aggregate repository result.
+
+## Phase 9 SLA, Escalation, and KPI Model
+
+Phase 9 adds migrations `20260716110000_phase_9_sla_escalation_kpi_schema.sql` and
+`20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql`. They add 19 private,
+forced-RLS tables without exposing the `complaints` schema through PostgREST.
+
+Stable calendar, SLA policy, escalation rule, and KPI-definition identities are separate from
+versions. Calendar versions retain an IANA timezone, weekly working periods, date exceptions,
+effective interval, provenance, verification state, and approval attribution. Policy versions bind
+one exact approved calendar and retain business-minute acknowledgement, optional inspection, and
+resolution targets; completion status and optional external-dependency pause behavior; effective
+dates; source evidence; and approval. Category overrides version policy targets without embedding
+category logic in application code. Escalation-rule versions retain the policy version, milestone,
+level, business-minute delay, reviewed action, optional verified target role, effective interval,
+and provenance.
+
+Publishing a replacing calendar, policy, or escalation-rule version locks the candidate and the one
+eligible approved predecessor in a single transaction. It closes the predecessor at the new
+`effective_from`, marks it `superseded`, and approves the candidate. Backdated, same/older-version,
+multiple-overlap, already-superseded, invalid-provenance, and incompatible-scope/configuration
+requests are rejected without leaving a partial lifecycle transition.
+
+`complaint_sla_bindings` records the exact selection result for one complaint assignment cycle:
+`applied`, `not_configured`, `ambiguous`, or `invalid_configuration`. An applied binding snapshots
+the selected policy/calendar/override evidence. `complaint_sla_clocks` materializes acknowledgement,
+optional inspection, and resolution targets with `active`, `paused`, `met`, `breached`, or
+`cancelled` state. Pause intervals and append-only deadline history retain every eligible external-
+dependency adjustment. Business-calendar calculations use the version's local timezone while all
+stored timestamps remain UTC. Complaint assignment, status history, and dependency triggers—not
+API fields—initialize, complete, pause, and resume clocks.
+
+`sla_escalation_jobs` is the mutable bounded lease/retry projection; attempts are capped and terminal
+`dead` state is retained. `complaint_sla_escalation_events` is append-only. Execution rechecks the
+current complaint/assignment/clock/rule and may record evidence or derive `escalated` only as the
+approved rule permits. The resulting status history, append-only escalation event, and data-
+minimized notification outbox row commit in the same transaction, so asynchronous delivery cannot
+precede its source state.
+
+Eight code-owned KPI definition versions cover acknowledgement compliance, resolution compliance,
+citizen-confirmed resolution rate, reopen rate, misrouting rate, backlog, evidence completeness,
+and communication quality. They define algorithms only; they do not activate policy or fabricate
+source data. Immutable calculation runs retain reporting window, source cutoff, algorithm versions,
+input fingerprint, lease/retry state, and outcome. `kpi_snapshots` retain municipality, ward, or
+department scope; all/external-dependency/no-external-dependency segment; numerator, denominator,
+value, sample size, and exclusions. No table or API defines an individual-officer ranking.
+
+Service-only RPCs publish versions; initialize clocks; claim, execute, or fail escalation jobs;
+schedule/enqueue, claim, materialize, or fail KPI runs; and return narrow government-scoped JSON.
+All direct table grants are revoked. No active calendar, SLA target, category override, or
+escalation rule is seeded, so ordinary bootstrap data creates no operational clock/escalation.
+
+Phase 9 coverage includes forced-RLS/ACL denial, atomic supersession, business-calendar boundaries,
+fail-closed policy selection, clock/pause/deadline history, transactional escalation/outbox
+behavior, lease/retry/dead semantics, KPI reproducibility and scope isolation, strict RPC payloads,
+and immutability. The focused Phase 9 plans pass 48/48 and 51/51 assertions; the clean aggregate
+database run passes 1,275 assertions across all 32 plans. These rollback-isolated fixtures verify
+engineering and do not activate operational policy.
 
 Required:
 
