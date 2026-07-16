@@ -1,4 +1,5 @@
 import type {
+  ComplaintLocationCapture,
   ComplaintLocationProvider,
   ComplaintLocationVerificationStatus,
   ComplaintMediaKind,
@@ -343,7 +344,9 @@ export interface FinalizeGovernmentResolutionEvidenceInput extends GovernmentCom
 
 export interface SubmitGovernmentComplaintResolutionInput extends GovernmentComplaintMutationInput {
   completionNote: string;
+  completionLocation: ComplaintLocationCapture;
   resolutionEvidenceIds: string[];
+  workReferenceId?: string | undefined;
   publicMessage?: string | undefined;
 }
 

@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 
 import { AuthenticationGateway } from '../auth/authentication.gateway.js';
 import { ComplaintMediaGateway } from '../data/complaint-media.gateway.js';
+import { CitizenResolutionStore } from '../data/citizen-resolution.store.js';
 import { ComplaintStore } from '../data/complaint.store.js';
 import { CommunicationStore } from '../data/communication.store.js';
 import { IdentityStore } from '../data/identity.store.js';
@@ -10,6 +11,7 @@ import { ResolutionEvidenceGateway } from '../data/resolution-evidence.gateway.j
 import { RoutingStore } from '../data/routing.store.js';
 import { SupabaseAuthenticationGateway } from './supabase-authentication.gateway.js';
 import { SupabaseComplaintMediaGateway } from './supabase-complaint-media.gateway.js';
+import { SupabaseCitizenResolutionStore } from './supabase-citizen-resolution.store.js';
 import { SupabaseComplaintStore } from './supabase-complaint.store.js';
 import { SupabaseCommunicationStore } from './supabase-communication.store.js';
 import { SupabaseClients } from './supabase-clients.js';
@@ -24,6 +26,7 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
     SupabaseClients,
     SupabaseAuthenticationGateway,
     SupabaseComplaintMediaGateway,
+    SupabaseCitizenResolutionStore,
     SupabaseComplaintStore,
     SupabaseCommunicationStore,
     SupabaseIdentityStore,
@@ -47,6 +50,10 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
       useExisting: SupabaseComplaintStore,
     },
     {
+      provide: CitizenResolutionStore,
+      useExisting: SupabaseCitizenResolutionStore,
+    },
+    {
       provide: CommunicationStore,
       useExisting: SupabaseCommunicationStore,
     },
@@ -67,6 +74,7 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
     AuthenticationGateway,
     ComplaintMediaGateway,
     ComplaintStore,
+    CitizenResolutionStore,
     CommunicationStore,
     IdentityStore,
     RoutingStore,

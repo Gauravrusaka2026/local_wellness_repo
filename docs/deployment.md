@@ -316,6 +316,27 @@ privacy policy. The two Phase 5 migrations are present in staging as part of the
 above; no evidence object, dashboard/API build, workflow fixture, hosted smoke, or application
 deployment was performed.
 
+Phase 7 deployments apply the accountability schema and security/RPC migrations after Phase 6,
+regenerate database types, and deploy the API, mobile build, and government dashboard together.
+The migration adds private forced-RLS policy, feedback, citizen replay/audit, reopen-evidence,
+reopen-request, and escalation records while extending resolution history additively. Existing
+Phase 5 resolutions retain nullable completion-location fields; deployment must never fabricate a
+historical completion location or rewrite linked evidence.
+
+Do not activate a managed Phase 7 policy until product owners approve its rating bounds, feedback
+and reopen windows, eligible statuses, allowed reason codes, evidence requirement, attempt limit,
+and repeated-reopen threshold. A missing, expired, or ambiguous approved policy is the intended
+safe unavailable state. Before activation, repeat direct ACL/RLS denial, owner and government-scope
+isolation, exact replay/conflict, signed evidence, workflow concurrency, feedback, reopening, and
+repeated-escalation tests. Confirm notification payloads contain no ratings, comments, reasons,
+coordinates, object locators, hashes, or signed tokens. Phase 7 needs no new worker, Redis, BullMQ,
+or Sentry process; its status events reuse the Phase 6 outbox.
+
+The migration provides a bounded service-only function for marking expired citizen reopen-evidence
+reservations, but this session does not create a managed schedule or delete orphaned Storage
+objects. Configure a reviewed Supabase/PostgreSQL scheduled maintenance path together with the
+existing private-media cleanup and scanning work before public operation (`GOVDASH-002`).
+
 ---
 
 ## Secrets

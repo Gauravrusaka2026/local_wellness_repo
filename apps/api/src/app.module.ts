@@ -4,6 +4,7 @@ import { AdminModule } from './admin/admin.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CommonModule } from './common/common.module.js';
 import { ComplaintsModule } from './complaints/complaints.module.js';
+import { CitizenResolutionModule } from './complaints/citizen-resolution.module.js';
 import { CommunicationsModule } from './communications/communications.module.js';
 import { ConfigurationModule } from './configuration.module.js';
 import { IdentityModule } from './identity/identity.module.js';
@@ -21,6 +22,7 @@ import { SupabaseModule } from './supabase/supabase.module.js';
     AdminModule,
     RoutingModule,
     ComplaintsModule,
+    CitizenResolutionModule,
     CommunicationsModule,
     GovernmentComplaintsModule,
   ],

@@ -1,5 +1,6 @@
 import type {
   GovernmentComplaintActionResult,
+  GovernmentComplaintAccountability,
   GovernmentComplaintAssignmentOptions,
   GovernmentComplaintDetail,
   GovernmentComplaintQueueQuery,
@@ -10,6 +11,7 @@ import type {
 } from '@local-wellness/types';
 import {
   decodeGovernmentComplaintActionResult,
+  decodeGovernmentComplaintAccountability,
   decodeGovernmentComplaintAssignmentOptions,
   decodeGovernmentComplaintDetail,
   decodeGovernmentComplaintQueueResult,
@@ -22,6 +24,7 @@ import { createGovernmentApiClient } from './client';
 
 export {
   decodeGovernmentComplaintActionResult,
+  decodeGovernmentComplaintAccountability,
   decodeGovernmentComplaintAssignmentOptions,
   decodeGovernmentComplaintDetail,
   decodeGovernmentComplaintQueueResult,
@@ -82,6 +85,18 @@ export const getGovernmentComplaint = (
   return createGovernmentApiClient(accessToken).get(
     `/api/v1/government/complaints/${complaintId}${toScopeSearch(scopeRoleAssignmentId)}`,
     { decode: decodeGovernmentComplaintDetail },
+  );
+};
+
+export const getGovernmentComplaintAccountability = (
+  accessToken: string,
+  complaintId: string,
+  scopeRoleAssignmentId?: string,
+): Promise<GovernmentComplaintAccountability> => {
+  assertIdentifier(complaintId, 'complaint');
+  return createGovernmentApiClient(accessToken).get(
+    `/api/v1/government/complaints/${complaintId}/accountability${toScopeSearch(scopeRoleAssignmentId)}`,
+    { decode: decodeGovernmentComplaintAccountability },
   );
 };
 

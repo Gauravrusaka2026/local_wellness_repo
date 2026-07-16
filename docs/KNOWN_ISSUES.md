@@ -2,6 +2,44 @@
 
 ## Open Issues
 
+### RESOLUTION-001 — Operational resolution and reopening policy values are not approved
+
+- Severity: High before citizen reopening is activated
+- Status: Open product-policy input; Phase 7 engineering fails closed
+- Discovered: 2026-07-16
+
+The approved roadmap requires citizen confirmation, four feedback ratings, reopening within policy,
+and repeated-reopen escalation, but it does not define the rating scale, reopen window and anchor,
+eligible statuses, attempt limit, evidence requirement, repeat threshold, escalation destination, or
+no-response closure behavior. A supplementary design note gives examples only; it is not an approved
+operational policy.
+
+Phase 7 implements effective-dated, review-attributed policy storage and exercises it with
+rollback-isolated synthetic fixtures. It seeds no active operational policy and rejects
+feedback/reopen mutations when no single current approved policy matches. Before pilot activation,
+the owner must approve the policy values and privacy/retention rules for feedback text and additional
+evidence, then publish them through an auditable database change. Clients must read the resolved
+policy context and must not hardcode fallback values.
+
+### RESOLUTION-002 — Government follow-up evidence review and current work-reference options are incomplete
+
+- Severity: Medium before an operational government pilot
+- Status: Open Phase 7 follow-up; database authorization remains fail closed
+- Discovered: 2026-07-16
+
+The access-scoped government accountability response exposes private evidence metadata and counts,
+but the dashboard has no current-assignment-authorized signed-read flow for citizen before/reopen
+evidence. The existing Phase 5 resolution-evidence access helper is not wired into the dashboard and
+does not cover those citizen evidence relationships. In addition, complaint detail returns historical
+work references after a transfer, so the resolution form can offer an earlier-assignment reference
+that PostgreSQL correctly rejects.
+
+Before an operational pilot, add a bounded current-scope evidence locator/read action for the exact
+complaint/evidence relationship and expose only work references eligible for the current assignment.
+Keep Storage private, force downloads, reauthorize every request, and add scope-transfer, unrelated-
+evidence, expiry, and current-reference tests. Do not weaken the existing database rejection to make
+the current UI options succeed.
+
 ### DATA-001 — Canonical CSV path and export shape differ from the requested import layout
 
 - Severity: Medium

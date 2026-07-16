@@ -8,6 +8,7 @@ import {
 
 const complaintId = '22222222-2222-4222-8222-222222222222';
 const dependencyId = '33333333-3333-4333-8333-333333333333';
+const workReferenceId = '44444444-4444-4444-8444-444444444444';
 
 const baseForm = (action: string): FormData => {
   const form = new FormData();
@@ -52,6 +53,36 @@ test('resolves only an exact path-owned dependency with workflow evidence', () =
     complaintId,
     dependencyId,
     idempotencyKey: '11111111-1111-4111-8111-111111111111',
+  });
+});
+
+test('submits resolution with browser completion location and an optional work reference', () => {
+  const form = baseForm('submit_resolution');
+  form.set('completionNote', 'Work completed at the reported location.');
+  form.set('completionLatitude', '18.5204');
+  form.set('completionLongitude', '73.8567');
+  form.set('completionAccuracyMeters', '7.5');
+  form.set('completionCapturedAt', '2026-07-16T10:00:00.000Z');
+  form.set('completionDeviceRecordedAt', '2026-07-16T10:00:01.000Z');
+  form.set('completionProvider', 'unknown');
+  form.set('resolutionEvidenceIds', dependencyId);
+  form.set('workReferenceId', workReferenceId);
+
+  assert.deepEqual(parseGovernmentActionForm(form).body, {
+    completionLocation: {
+      accuracyMeters: 7.5,
+      capturedAt: '2026-07-16T10:00:00.000Z',
+      deviceRecordedAt: '2026-07-16T10:00:01.000Z',
+      isMockLocation: null,
+      latitude: 18.5204,
+      longitude: 73.8567,
+      provider: 'unknown',
+    },
+    completionNote: 'Work completed at the reported location.',
+    expectedWorkflowVersion: 3,
+    publicMessage: undefined,
+    resolutionEvidenceIds: [dependencyId],
+    workReferenceId,
   });
 });
 

@@ -353,6 +353,24 @@ contracts or logs.
 - assignment and transfer append versions, while action audit, resolution history, evidence links,
   and status history are retained rather than deleted.
 
+### Citizen resolution accountability
+
+- resolution context, feedback, evidence access, and reopening require the complaint owner's
+  verified bearer session and active profile;
+- the API derives the citizen actor and the database rechecks exact complaint ownership, latest
+  resolution, workflow version, and the single approved policy version effective at that
+  resolution's server completion time;
+- clients cannot select the policy version, reopen window, attempt count, escalation threshold,
+  official status, object path, or evidence relationship;
+- a short-lived signed read is issued only for finalized before, after, or reopen evidence already
+  related to that owned complaint; bucket-wide access and durable URLs are never granted;
+- feedback and reopen operations use separate hashed idempotency/action ledgers and append
+  data-minimized audit history;
+- PostgreSQL derives `resolved`, `reopened`, or `escalated` and commits status history/outbox
+  evidence atomically; adverse feedback alone cannot silently reopen a complaint;
+- missing, ambiguous, expired, or unapproved policy data fails closed. The mobile client has no
+  fallback rating scale, deadline, reason list, or threshold.
+
 ### Messages
 
 - messages are available only to the complaint owner or a government actor with current access to
@@ -526,3 +544,9 @@ lease ownership/expiry, access revocation before queued delivery, and public-com
 clean local database and repository verification passed. Hosted/physical-device token-expiry,
 reconnect, revoked-scope, and offline-history validation remains environment-dependent and is not
 implied by the local result.
+
+Phase 7 adds migration/RLS, API, store-adapter, validation, mobile, and dashboard coverage for
+complaint-owner isolation, current-policy failure, stale workflow versions, exact replay/conflict,
+private evidence authorization/integrity, rating bounds, immutable feedback, policy windows and
+attempt limits, and database-derived reopen/escalation. Synthetic approved policies are rolled back
+inside tests and do not activate a managed environment.

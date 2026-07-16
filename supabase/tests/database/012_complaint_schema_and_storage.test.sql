@@ -29,7 +29,7 @@ select is(
       and relation.relrowsecurity
       and relation.relforcerowsecurity
   ),
-  30,
+  39,
   'every complaint table enables and forces RLS'
 );
 

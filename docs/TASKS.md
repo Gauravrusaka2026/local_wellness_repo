@@ -3,9 +3,9 @@
 ## Project Status
 
 - Project: Local Wellness
-- Current phase: Phase 6 — Realtime and notifications
-- Current sprint: Sprint 7 — Persistent communication and durable notification delivery
-- Overall implementation progress: 59%
+- Current phase: Phase 7 — Resolution, feedback and reopening
+- Current sprint: Sprint 8 — Citizen resolution review and accountable reopening
+- Overall implementation progress: 67%
 - Phase 0 implementation progress: 100%
 - Phase 1 implementation progress: 100%
 - Phase 2 implementation progress: 90%
@@ -13,7 +13,8 @@
 - Phase 4 implementation progress: 95%
 - Phase 5 implementation progress: 95%
 - Phase 6 implementation progress: 85%
-- Last updated: 2026-07-14
+- Phase 7 implementation progress: 90%
+- Last updated: 2026-07-16
 
 ## Phase 0 Scope
 
@@ -497,6 +498,48 @@ no Phase 6 surface may make a complaint or its media publicly visible.
 - [x] Create an ADR for the PostgreSQL delivery ledger/lease boundary and update every required
       architecture, database, API, deployment, setup, tracker, worklog, and known-issue document.
 
+## Phase 7 Execution Plan
+
+Phase 7 completes the private accountability loop around the versioned Phase 5 resolution boundary.
+Citizen feedback, confirmation, reopening, escalation, and post-submission evidence remain
+server-orchestrated and database-enforced. Reopen windows, rating scales, evidence requirements,
+attempt limits, and escalation thresholds are versioned policy data; no operational values are
+hardcoded or activated without an approved policy.
+
+### Accountability Persistence and Policy
+
+- [x] Add effective-dated resolution-policy versions with approval attribution, scope matching,
+      rating bounds, reopen windows, attempt limits, evidence requirements, and escalation thresholds.
+- [x] Add append-only resolution feedback, citizen action replay/audit, reopen requests, private
+      reopen evidence, evidence links, and escalation events with forced RLS and least privilege.
+- [x] Extend resolution records with server completion time, captured completion location, optional
+      work-reference linkage, and explicit before/after evidence semantics without rewriting history.
+- [x] Move new government resolution submissions into citizen verification atomically while retaining
+      existing Phase 5 resolution history and data-minimized notification delivery.
+
+### Citizen and Government APIs
+
+- [x] Add strict citizen resolution-context, feedback/confirmation, reopen-evidence upload/finalize,
+      evidence-access, and reopen APIs with ownership, workflow-version, policy, expiry, and exact-replay
+      checks.
+- [x] Add a scoped government accountability read API exposing resolution, feedback, reopen, and
+      escalation history without weakening complaint or media privacy.
+- [x] Reuse the Phase 6 status-history outbox for resolution, reopen, and escalation notifications;
+      never include feedback text, ratings, coordinates, media locators, or tokens in event payloads.
+
+### Clients, Verification, and Traceability
+
+- [x] Add mobile before/after review, citizen outcome and ratings, confirmation, live additional
+      evidence capture, and policy-aware reopen UX with stable retry identities.
+- [x] Add government-dashboard resolution/feedback/reopen/escalation history and completion-location
+      capture while retaining database-authoritative allowed actions.
+- [x] Add migration, forced-RLS/ACL, policy ambiguity, ownership, idempotency, evidence integrity,
+      feedback, confirmation, repeated-reopen escalation, API, store, mobile, and dashboard tests.
+- [x] Regenerate database types; run reset, database lint/pgTAP, formatting, lint, type-check, tests,
+      builds, Expo checks/export, Compose validation, and dependency audit.
+- [x] Create the Phase 7 ADR/worklog and update all required architecture, database, API, deployment,
+      setup, tracker, decision, and known-issue documents.
+
 ## Staging Activation and Demo Identity Closeout
 
 - [x] Confirm the hosted target is a dedicated staging project using newly generated privileged and
@@ -600,6 +643,11 @@ no Phase 6 surface may make a complaint or its media publicly visible.
       finalized, unlinked evidence as eligible for a new resolution submission.
 - [ ] Add scheduled private resolution-evidence object cleanup plus full decode, malware scanning,
       and moderation before the public pilot (`GOVDASH-002`).
+- [ ] Approve and publish the operational Phase 7 rating bounds, feedback/reopen windows, eligible
+      statuses, reason codes, evidence requirement, attempt cap, and repeat-escalation threshold;
+      feedback and reopening must remain unavailable until then (`RESOLUTION-001`).
+- [ ] Add current-assignment-authorized signed review of citizen before/reopen evidence and expose
+      only current-assignment work references in the resolution form (`RESOLUTION-002`).
 
 ## Current Blockers
 
@@ -639,6 +687,12 @@ no Phase 6 surface may make a complaint or its media publicly visible.
   reconnect, expiry, revocation, and backlog smoke tests. Push/email providers and preferences are
   unresolved (`NOTIFY-001`), realtime remains deliberately single-instance (`NOTIFY-002`), and
   public comments remain disabled pending an explicit visibility/privacy decision (`NOTIFY-003`).
+- Phase 7 engineering and local verification are complete. Managed feedback/reopening remains
+  intentionally unavailable until an operational policy is approved and published
+  (`RESOLUTION-001`); the two Phase 7 migrations are not deployed to staging in this session.
+- Government accountability currently exposes evidence metadata without a signed before/reopen
+  evidence review action, and transferred complaints can display historical work references that
+  PostgreSQL safely rejects for a new resolution (`RESOLUTION-002`).
 
 ## Technical Debt
 
@@ -666,24 +720,26 @@ no Phase 6 surface may make a complaint or its media publicly visible.
 - ADR-0012 — Use Supabase Cron, Edge Functions, and PostgreSQL leases for governance retrieval.
 - ADR-0013 — Use database-enforced government complaint workflows.
 - ADR-0014 — Use PostgreSQL-leased outbox delivery for V1 notifications.
+- ADR-0015 — Use database-enforced resolution accountability.
 
 ## Files Modified This Session
 
-- Added two Phase 6 communication/notification migrations, two pgTAP plans, regenerated database
-  types, shared communication contracts, strict validation, and their unit coverage.
-- Added authenticated API message/notification routes, a PostgreSQL-leased notification worker,
-  and an authenticated single-instance Socket.IO server with database-authorized rooms.
-- Added mobile private conversation and notification history/read state plus the government
-  dashboard conversation panel; REST remains the durable recovery path.
-- Updated environment templates, development Compose, README, technical guides, trackers,
-  ADR-0014, and the Phase 6 worklog. Canonical governance CSV/workbook bytes were not changed.
-- No managed environment was mutated and no placeholder source, scope, recipient, route, or category
-  was activated. Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
+- Added two Phase 7 accountability migrations, two pgTAP plans, regenerated database types, shared
+  resolution contracts/validation, authenticated API/store boundaries, and focused tests.
+- Added mobile private evidence review, policy-driven feedback/reopening, live follow-up capture,
+  durable citizen receipts, external-update refresh, and safe retry behavior.
+- Added government-dashboard completion-location/work-reference input and access-scoped resolution,
+  feedback, reopen, and escalation history.
+- Updated README, technical guides, trackers, ADR-0015, and the Phase 7 worklog. Canonical governance
+  CSV/workbook bytes and managed environments were not changed.
+- No operational policy, placeholder source, scope, recipient, route, or category was activated.
+  Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
 
 ## Next Recommended Task
 
-Begin Phase 7 resolution feedback and reopening engineering against the existing versioned
-resolution/workflow boundary. In parallel, apply the two reviewed Phase 6 migrations to staging,
-configure one worker and one realtime instance, and run the authenticated managed-environment
-smoke matrix. Push/email provider selection, public-comment visibility, and verified Pune/BMC data
-remain independent owner/data-review gates; do not activate placeholders to unblock a demo.
+Obtain product-owner approval for the exact Phase 7 operational policy, publish it through a
+reviewed environment change, then apply the reviewed Phase 6 and Phase 7 migrations to staging and
+run the authenticated resolution/feedback/reopen/realtime smoke matrix. Before an operational
+government pilot, add the scoped before/reopen evidence review and current work-reference option
+contract tracked by `RESOLUTION-002`. Verified Pune/BMC data remains an independent gate; do not
+activate placeholders to unblock a demo.

@@ -58,6 +58,12 @@ Every Phase 5 government mutation also requires `Idempotency-Key` plus an
 stored response. A conflicting key returns `COMPLAINT_ACTION_IDEMPOTENCY_CONFLICT`; a stale workflow
 version returns `COMPLAINT_WORKFLOW_VERSION_CONFLICT` so the dashboard reloads current state.
 
+Phase 7 feedback, reopen-evidence reservation/finalization, and reopen mutations use the same two
+headers and body workflow version. PostgreSQL binds every accepted request to the authenticated
+complaint owner, exact resolution, approved policy version, and request fingerprint. Exact retries
+return the stored result; conflicting key reuse, stale workflow versions, expired policy windows,
+ineligible statuses, and unavailable policy data fail closed.
+
 ---
 
 ## Response Format
@@ -641,15 +647,48 @@ ID/number, status, and optional message ID; they do not contain complaint descri
 message bodies, exact coordinates, contacts, object locators, or tokens. Marking read is
 idempotent. Push and email delivery are not implied by these endpoints.
 
-### Planned: Complaint Actions
+### Resolution Review, Feedback, and Reopening
+
+```text
+GET  /api/v1/complaints/:complaintId/resolution-context
+POST /api/v1/complaints/:complaintId/feedback
+POST /api/v1/complaints/:complaintId/reopen-evidence/upload-intents
+POST /api/v1/complaints/:complaintId/reopen-evidence/:evidenceId/finalize
+POST /api/v1/complaints/:complaintId/evidence/:evidenceId/access
+POST /api/v1/complaints/:complaintId/reopen
+```
+
+Only the authenticated complaint owner can use these Phase 7 routes. Resolution context contains
+the latest versioned public resolution record, policy-derived available actions, immutable feedback
+and reopen history, repeated-reopen escalation history, and safe evidence metadata. Government-only
+completion notes, object paths, checksums, exact actor identifiers, and signed tokens are excluded.
+
+Feedback records one of `resolved`, `partially_resolved`, `not_resolved`, `temporary_fix`, or
+`wrong_location`. When ratings are supplied, all four—satisfaction, speed, quality, and
+communication—must be present and within the active policy range. A confirmed `resolved` outcome
+advances the complaint to `resolved`; other outcomes remain auditable without silently reopening.
+Only one feedback record is accepted per exact resolution.
+
+Reopening is a separate policy-controlled operation. The API accepts only an allowed reason code,
+bounded explanation, and finalized follow-up evidence owned by the same citizen and reserved for
+the same complaint and resolution. Evidence uploads reuse a private Storage bucket and receive
+short-lived signed targets; finalization verifies expiry, workflow version, byte size, SHA-256,
+content type, and bounded binary signature before the object can be linked. PostgreSQL derives
+`reopened` or `escalated` from the retained complaint-wide attempt history and policy threshold.
+
+Evidence access always performs a fresh ownership and eligibility check and returns a five-minute
+signed URL. Original complaint media is `before` evidence, explicitly linked government evidence
+is `after` evidence, and citizen follow-up media is `reopen` evidence. Direct Storage access and
+public object URLs remain denied. If no unambiguous approved policy applies, the context returns an
+explicit unavailable state and all feedback/reopen mutations fail closed.
+
+### Other Planned Complaint Actions
 
 ```text
 POST /api/v1/complaints/:complaintId/follow
 DELETE /api/v1/complaints/:complaintId/follow
 POST /api/v1/complaints/:complaintId/support
 POST /api/v1/complaints/:complaintId/comments
-POST /api/v1/complaints/:complaintId/feedback
-POST /api/v1/complaints/:complaintId/reopen
 ```
 
 ### Planned: Map
@@ -678,6 +717,7 @@ Only current, active, non-expired government roles backed by an active authority
 GET /api/v1/government/complaints
 GET /api/v1/government/complaints/:complaintId
 GET /api/v1/government/complaints/:complaintId/assignment-options
+GET /api/v1/government/complaints/:complaintId/accountability
 ```
 
 Every route requires an active government access scope and returns only complaints intersecting the
@@ -700,6 +740,11 @@ the complaint's current assignment that is not already linked to a resolution. E
 superseded assignment and linked items remain visible as retained history but are not offered for
 reuse. Every queue, detail, option, action, and evidence response sets `Cache-Control: private,
 no-store`.
+
+The Phase 7 accountability route applies the same current assignment scope check and returns
+versioned resolution completion records, government-only completion notes, work-reference and
+before/after/reopen evidence metadata, citizen feedback, reopen requests, and escalation history.
+It never returns object locators, signed tokens, checksums, or direct Storage access.
 
 ### Complaint Actions
 

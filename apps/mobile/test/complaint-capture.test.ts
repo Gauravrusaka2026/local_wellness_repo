@@ -11,12 +11,21 @@ import {
 } from '../src/complaints/capture-state';
 import { formatComplaintIdempotencyKey } from '../src/complaints/idempotency-format';
 import {
+  formatComplaintAccountabilityIdempotencyKey,
+  retainStableComplaintMutationIdentity,
+} from '../src/complaints/accountability-idempotency';
+import {
   assessLocation,
   assessMediaDistance,
   distanceBetweenLocationsMeters,
   inferLocationProvider,
 } from '../src/complaints/location-evidence';
 import { buildMediaUploadIntentInput } from '../src/complaints/media-upload';
+import {
+  buildReopenEvidenceUploadIntentInput,
+  createRatingValues,
+  getFinalizedReopenEvidenceIds,
+} from '../src/complaints/reopen-evidence';
 import type { PreparedComplaintMedia } from '../src/complaints/media-service';
 import {
   createPendingMediaResume,
@@ -201,6 +210,87 @@ describe('resume, idempotency, and upload helpers', () => {
     assert.equal(
       formatComplaintIdempotencyKey('submit', identifier),
       `complaint-submit:${identifier}`,
+    );
+  });
+
+  it('retains an accountability mutation key only while its fingerprint is unchanged', () => {
+    let sequence = 0;
+    const createIdentifier = () =>
+      `aaaaaaaa-aaaa-4aaa-8aaa-${String(++sequence).padStart(12, '0')}`;
+    const first = retainStableComplaintMutationIdentity(
+      null,
+      'feedback',
+      'resolution-1:resolved',
+      createIdentifier,
+    );
+    const retry = retainStableComplaintMutationIdentity(
+      first,
+      'feedback',
+      'resolution-1:resolved',
+      createIdentifier,
+    );
+    const changed = retainStableComplaintMutationIdentity(
+      retry,
+      'feedback',
+      'resolution-1:not_resolved',
+      createIdentifier,
+    );
+
+    assert.equal(first, retry);
+    assert.notEqual(changed.key, retry.key);
+    assert.equal(
+      formatComplaintAccountabilityIdempotencyKey('reopen', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      'complaint-reopen:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    );
+  });
+
+  it('builds reopen evidence from live media and a separately captured location', () => {
+    assert.deepEqual(buildReopenEvidenceUploadIntentInput(7, prepared, location()), {
+      byteSize: prepared.byteSize,
+      captureLocation: location(),
+      capturedAt: prepared.capturedAt,
+      expectedWorkflowVersion: 7,
+      heightPixels: prepared.heightPixels,
+      kind: 'photo',
+      mimeType: 'image/jpeg',
+      sha256: prepared.sha256,
+      widthPixels: prepared.widthPixels,
+    });
+    assert.deepEqual(createRatingValues(2, 5), [2, 3, 4, 5]);
+    assert.deepEqual(createRatingValues(5, 2), []);
+  });
+
+  it('restores only finalized reopen evidence after navigation or application restart', () => {
+    const evidence = {
+      byteSize: 1_024,
+      captureLocation: {
+        accuracyMeters: 8,
+        capturedAt: '2026-07-14T10:00:00.000Z',
+        latitude: 18.5204,
+        longitude: 73.8567,
+        provider: 'gps' as const,
+      },
+      capturedAt: '2026-07-14T10:00:00.000Z',
+      createdAt: '2026-07-14T10:00:00.000Z',
+      finalizedAt: '2026-07-14T10:01:00.000Z',
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      kind: 'photo' as const,
+      mimeType: 'image/jpeg' as const,
+      uploadStatus: 'finalized' as const,
+    };
+
+    assert.deepEqual(
+      getFinalizedReopenEvidenceIds([
+        evidence,
+        {
+          ...evidence,
+          finalizedAt: null,
+          id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          uploadStatus: 'reserved',
+        },
+        evidence,
+      ]),
+      [evidence.id],
     );
   });
 

@@ -1276,7 +1276,12 @@ select throws_ok(
     repeat('9',64), repeat('a',64), 'phase5-resolution-blocked',
     jsonb_build_object(
       'completionNote', 'Completed.',
-      'resolutionEvidenceIds', jsonb_build_array((select evidence_id from phase5_evidence_fixture))
+      'resolutionEvidenceIds', jsonb_build_array((select evidence_id from phase5_evidence_fixture)),
+      'completionLocation', jsonb_build_object(
+        'longitude', 73.84, 'latitude', 18.54, 'accuracyMeters', 10,
+        'provider', 'gps', 'capturedAt', clock_timestamp(),
+        'deviceRecordedAt', clock_timestamp(), 'isMockLocation', null
+      )
     )
   )$$,
   '23514', 'INVALID_STATUS_TRANSITION',
@@ -1325,7 +1330,17 @@ select throws_ok(
     'd2000000-0000-4000-8000-000000000002',
     'd3300000-0000-4000-8000-000000000001', 'submit_resolution', 10,
     repeat('1abc',16), repeat('cba1',16), 'phase5-old-assignment-evidence-blocked',
-    '{"completionNote":"Completed.","resolutionEvidenceIds":["d3600000-0000-4000-8000-000000000001"]}'::jsonb
+    jsonb_build_object(
+      'completionNote', 'Completed.',
+      'resolutionEvidenceIds', jsonb_build_array(
+        'd3600000-0000-4000-8000-000000000001'
+      ),
+      'completionLocation', jsonb_build_object(
+        'longitude', 73.84, 'latitude', 18.54, 'accuracyMeters', 10,
+        'provider', 'gps', 'capturedAt', clock_timestamp(),
+        'deviceRecordedAt', clock_timestamp(), 'isMockLocation', null
+      )
+    )
   )$$,
   '23514', 'RESOLUTION_EVIDENCE_NOT_READY',
   'resolution submission rejects evidence from a superseded assignment'
@@ -1338,9 +1353,15 @@ select is((select response_payload ->> 'status' from public.perform_government_c
   jsonb_build_object(
     'completionNote', 'Work completed and verified by the field team.',
     'resolutionEvidenceIds', jsonb_build_array((select evidence_id from phase5_evidence_fixture)),
-    'publicMessage', 'Resolution evidence has been submitted.'
+    'publicMessage', 'Resolution evidence has been submitted.',
+    'completionLocation', jsonb_build_object(
+      'longitude', 73.84, 'latitude', 18.54, 'accuracyMeters', 10,
+      'provider', 'gps', 'capturedAt', clock_timestamp(),
+      'deviceRecordedAt', clock_timestamp(), 'isMockLocation', null
+    )
   )
-)), 'resolution_submitted', 'finalized evidence is mandatory and linked to resolution');
+)), 'citizen_verification_pending',
+  'finalized evidence is mandatory and linked before citizen verification');
 select is((select count(*)::integer from complaints.complaint_resolutions), 1);
 select is((select count(*)::integer from complaints.complaint_resolution_evidence_links), 1);
 select is((

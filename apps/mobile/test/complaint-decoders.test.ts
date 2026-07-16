@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   decodeComplaintDraft,
   decodeComplaintMediaUploadIntent,
+  decodeComplaintResolutionContext,
   decodeRoutingAssetDiscovery,
   decodeRoutingCategories,
 } from '../src/complaints/response-decoders';
@@ -130,6 +131,29 @@ describe('complaint response decoders', () => {
           },
         },
       }),
+    );
+  });
+
+  it('fails closed when no verified resolution policy is available', () => {
+    const context = {
+      complaintId: '11111111-1111-4111-8111-111111111111',
+      availableReopenEvidence: [],
+      escalations: [],
+      feedback: [],
+      latestResolution: null,
+      policy: null,
+      policyUnavailableReason: 'No operational policy is configured for this complaint.',
+      reopenRequests: [],
+      status: 'submitted',
+      workflowVersion: 1,
+    };
+
+    assert.deepEqual(decodeComplaintResolutionContext(context), context);
+    assert.throws(() =>
+      decodeComplaintResolutionContext({ ...context, policyUnavailableReason: null }),
+    );
+    assert.throws(() =>
+      decodeComplaintResolutionContext({ ...context, officerPhone: 'unexpected-private-field' }),
     );
   });
 });

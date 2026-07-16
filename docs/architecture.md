@@ -77,8 +77,11 @@ Phase 4 implements the signed-in home, resumable complaint draft, current-locati
 photo/video/voice capture, private upload, duplicate review, submission receipt, and owned
 complaint history slice. Phase 6 adds durable in-app notification history/read state and private
 complaint messages. Its optional Socket.IO connection refreshes REST-backed state and does not
-replace durable history. Maps, feedback, reopening, background synchronization, push/email
-delivery, and public complaint views remain later-phase work. Asset-dependent categories use an authenticated,
+replace durable history. Phase 7 adds private before/after resolution review, policy-driven outcome
+ratings and confirmation, and policy-controlled reopening with live additional evidence. Reopen
+windows, rating bounds, reason codes, evidence requirements, and escalation thresholds come from
+the server-resolved policy rather than mobile constants. Maps, background synchronization,
+push/email delivery, and public complaint views remain later-phase work. Asset-dependent categories use an authenticated,
 database-driven nearby-asset picker and remain unavailable unless the category, jurisdiction,
 asset/version, ownership, and owner scope are current, verified, non-placeholder, and routable.
 The client advances only when server-derived location evidence is `verified` or
@@ -129,6 +132,11 @@ placeholder until a provider, key, and coordinate-sharing/privacy policy are rev
 analytics remain later work. Phase 6 adds the complaint's private conversation. Server-rendered
 history is reconciled through authenticated REST, while the browser supplies its session token to
 an optional realtime connection at runtime rather than serializing it into page markup.
+
+Phase 7 requires a captured completion location for each new resolution and allows an existing work
+reference to be linked. The dashboard also renders the authorized resolution, citizen feedback,
+reopen, and escalation history. It does not infer policy, verification, or allowed workflow action
+from displayed data.
 
 ### Admin Console
 
@@ -434,7 +442,8 @@ inactive.
 - durable submission replay record;
 - append-only duplicate-check run and matches;
 - private resolution evidence and versioned government resolution records;
-- feedback and citizen reopen request in later phases.
+- effective-dated resolution policy versions;
+- append-only citizen feedback, reopen requests, additional evidence, and escalation events.
 
 Phase 4 stores complaint capture state in an unexposed, forced-RLS `complaints` schema. Clients do
 not receive schema access and use authenticated NestJS endpoints only. Narrow service-role RPCs
@@ -447,8 +456,10 @@ signals, duplicate evidence, signed-upload tokens, internal notes, and internal 
 not public contracts. Phase 5 extends the same private boundary with versioned assignments,
 capability/transition rules, exact-replay action requests, append-only action audit, inspections,
 work references, dependencies, private resolution evidence, versioned resolution records, and a
-data-minimized notification outbox. Public visibility, processed public derivatives, maps,
-feedback, and reopening are not implemented.
+data-minimized notification outbox. Phase 7 adds a separate exact-replay citizen-action ledger,
+database-resolved accountability policy, captured completion location, owner-only evidence review,
+immutable feedback, policy-controlled reopening, and repeated-reopen escalation. Public visibility,
+processed public derivatives, and maps are not implemented.
 
 ### Routing Domain
 
@@ -507,7 +518,13 @@ Authorized officer handles complaint through the Phase 5 workflow
 Private resolution evidence finalized and resolution submitted
         |
         v
-Later phases: citizen confirms or reopens
+Citizen reviews owner-authorized before/after evidence and current policy
+        |
+        +--> resolved feedback confirms the resolution
+        |
+        +--> adverse feedback remains auditable without silently changing status
+        |
+        +--> policy-eligible reopen appends evidence/history and derives reopened or escalated
 ```
 
 ---
@@ -723,6 +740,54 @@ private Storage objects remain follow-up work.
 
 ---
 
+## Resolution Accountability Architecture
+
+Phase 7 extends the existing complaint transaction boundary without making complaint or resolution
+evidence public:
+
+```text
+government submits finalized after evidence + completion location
+        |
+        v
+versioned resolution + citizen_verification_pending + history/outbox
+        |
+        v
+owner reloads current resolution + approved policy + private evidence metadata
+        |
+        +--> short-lived owner-only signed evidence access
+        +--> immutable outcome/ratings feedback
+        +--> private additional evidence reservation/finalization
+                        |
+                        v
+              policy-bound reopen transaction
+                        |
+                        +--> reopened
+                        +--> escalated at configured repeat threshold
+```
+
+Stable policy identities are separated from effective-dated versions. Scope matching may use the
+complaint authority and category; the most specific single approved version effective at the
+immutable resolution completion time governs every later review action for that resolution.
+Missing, out-of-period, overlapping, or unapproved policy evidence disables feedback/reopening
+rather than selecting an application fallback. Phase 7 seeds no operational policy because its
+window, rating scale, evidence rule, attempt cap, and escalation threshold remain owner inputs.
+
+Original finalized complaint media is the before record. Government evidence explicitly linked to
+one resolution is the after record. Citizen follow-up evidence is separately reserved against the
+latest resolution and cannot be reused by another reopen request. All object paths remain private;
+the API reauthorizes the complaint owner and returns a short-lived signed URL only for an eligible
+object. Exact locations, hashes, paths, signed URLs, comments, and ratings never enter notification
+payloads or structured logs.
+
+Feedback and reopening are intentionally separate. A `resolved` outcome advances the complaint to
+`resolved`; an adverse outcome is retained without an automatic state change. A reopen mutation
+checks owner, workflow version, latest resolution, approved policy, deadline, reason, attempt count,
+and finalized evidence atomically. PostgreSQL derives `reopened` or `escalated`, appends citizen
+action audit, status history, escalation evidence when applicable, and the existing Phase 6 outbox
+event in the same transaction. Exact idempotency replay returns the stored result.
+
+---
+
 ## Realtime Architecture
 
 Phase 6 connects the private complaint transaction boundary to authenticated Socket.IO delivery
@@ -811,6 +876,9 @@ append-only audit, private resolution evidence, and transaction-outbox persisten
 network-verified socket authentication, database-authorized room access, persistence-before-
 broadcast, forced-RLS communication state, data-minimized notification payloads, lease-scoped
 service RPCs, bounded per-socket limits, and recipient reauthorization before queued delivery.
+Phase 7 adds approved effective-dated policy resolution, complaint-owner evidence reauthorization,
+separate citizen exact-replay/audit records, immutable feedback/reopen/escalation history, and
+database-derived status changes.
 Broader HTTP rate limits, provider-specific controls, and device-risk enforcement remain tracked
 hardening work.
 

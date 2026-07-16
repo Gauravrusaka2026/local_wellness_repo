@@ -3,6 +3,7 @@ import { governmentComplaintIdParametersSchema } from '@local-wellness/validatio
 
 import {
   getGovernmentComplaint,
+  getGovernmentComplaintAccountability,
   getGovernmentComplaintAssignmentOptions,
 } from '../../../lib/api/government-complaints';
 import { getGovernmentAccessScope } from '../../../lib/api/access-scope';
@@ -39,6 +40,8 @@ type DetailLoadResult =
       assignmentOptions: Awaited<
         ReturnType<typeof getGovernmentComplaintAssignmentOptions>
       >['options'];
+      accountability: Awaited<ReturnType<typeof getGovernmentComplaintAccountability>> | null;
+      accountabilityError: string | null;
       communicationError: string | null;
       complaint: Awaited<ReturnType<typeof getGovernmentComplaint>>;
       messages: Awaited<ReturnType<typeof getComplaintMessages>>['items'];
@@ -61,6 +64,24 @@ const loadComplaint = async (
       complaintId,
       selectedScope.scopeRoleAssignmentId,
     );
+    let accountability: Awaited<ReturnType<typeof getGovernmentComplaintAccountability>> | null =
+      null;
+    let accountabilityError: string | null = null;
+    try {
+      accountability = await getGovernmentComplaintAccountability(
+        accessToken,
+        complaintId,
+        selectedScope.scopeRoleAssignmentId,
+      );
+    } catch (error) {
+      if (
+        error instanceof AuthenticationRequiredError ||
+        (error instanceof ApiError && error.status === 401)
+      ) {
+        throw error;
+      }
+      accountabilityError = getUserFacingApiError(error);
+    }
     let communicationError: string | null = null;
     let messages: Awaited<ReturnType<typeof getComplaintMessages>>['items'] = [];
     try {
@@ -96,6 +117,8 @@ const loadComplaint = async (
       toDate: '',
     });
     return {
+      accountability,
+      accountabilityError,
       assignmentOptions,
       communicationError,
       complaint,
@@ -160,6 +183,8 @@ export default async function ComplaintPage({ params, searchParams }: DetailPage
       </a>
       <main className="complaint-shell" id="main-content">
         <ComplaintDetailView
+          accountability={result.accountability}
+          accountabilityError={result.accountabilityError}
           assignmentOptions={result.assignmentOptions}
           communicationError={result.communicationError}
           complaint={result.complaint}

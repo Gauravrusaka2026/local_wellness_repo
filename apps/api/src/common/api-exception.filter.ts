@@ -9,6 +9,12 @@ import {
   ComplaintNotFoundError,
 } from '../data/complaint.store.js';
 import {
+  CitizenResolutionAccessDeniedError,
+  CitizenResolutionConflictError,
+  CitizenResolutionDataAccessError,
+  CitizenResolutionNotFoundError,
+} from '../data/citizen-resolution.store.js';
+import {
   CommunicationAccessDeniedError,
   CommunicationConflictError,
   CommunicationDataAccessError,
@@ -126,6 +132,41 @@ export class ApiExceptionFilter implements ExceptionFilter {
             : `COMPLAINT_${exception.resource.toUpperCase()}_NOT_FOUND`,
         message: 'The requested complaint resource was not found.',
       };
+    } else if (exception instanceof CitizenResolutionAccessDeniedError) {
+      status = HttpStatus.FORBIDDEN;
+      error = {
+        code: 'GOVERNMENT_ACCESS_REQUIRED',
+        message: 'Verified government complaint access is required.',
+      };
+    } else if (exception instanceof CitizenResolutionNotFoundError) {
+      status = HttpStatus.NOT_FOUND;
+      error = {
+        code: {
+          complaint: 'COMPLAINT_NOT_FOUND',
+          evidence: 'COMPLAINT_EVIDENCE_NOT_FOUND',
+          policy: 'COMPLAINT_RESOLUTION_POLICY_NOT_FOUND',
+          resolution: 'COMPLAINT_RESOLUTION_NOT_FOUND',
+        }[exception.resource],
+        message: 'The requested complaint accountability resource was not found.',
+      };
+    } else if (exception instanceof CitizenResolutionConflictError) {
+      status = HttpStatus.CONFLICT;
+      error = {
+        code: exception.marker,
+        message: 'The resolution feedback or reopening request conflicts with current policy.',
+      };
+    } else if (exception instanceof CitizenResolutionDataAccessError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Complaint accountability data is temporarily unavailable.',
+      };
+    } else if (exception instanceof ResolutionEvidenceGatewayError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Private complaint evidence storage is temporarily unavailable.',
+      };
     } else if (exception instanceof ComplaintConflictError) {
       status = HttpStatus.CONFLICT;
       error = {
@@ -188,10 +229,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
         code: exception.marker,
         message: 'The government complaint request conflicts with the current workflow state.',
       };
-    } else if (
-      exception instanceof GovernmentComplaintDataAccessError ||
-      exception instanceof ResolutionEvidenceGatewayError
-    ) {
+    } else if (exception instanceof GovernmentComplaintDataAccessError) {
       status = HttpStatus.SERVICE_UNAVAILABLE;
       error = {
         code: 'DEPENDENCY_UNAVAILABLE',

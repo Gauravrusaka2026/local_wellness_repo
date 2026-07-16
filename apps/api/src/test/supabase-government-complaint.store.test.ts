@@ -5,6 +5,7 @@ import type { GovernmentComplaintAssignmentSummary } from '@local-wellness/types
 
 import {
   GovernmentComplaintAccessDeniedError,
+  GovernmentComplaintConflictError,
   GovernmentComplaintDataAccessError,
   GovernmentComplaintNotFoundError,
 } from '../data/government-complaint.store.js';
@@ -27,6 +28,7 @@ const identifiers = {
   officerAssignment: '10000000-0000-4000-8000-000000000013',
   officerRole: '10000000-0000-4000-8000-000000000014',
   ward: '10000000-0000-4000-8000-000000000015',
+  workReference: '10000000-0000-4000-8000-000000000016',
 } as const;
 
 const timestamp = '2026-07-14T10:00:00.000Z';
@@ -203,6 +205,58 @@ describe('Supabase government complaint store', () => {
     });
   });
 
+  it('forwards required resolution completion location and an optional work reference', async () => {
+    const calls: RpcCall[] = [];
+    const store = createStore(async (functionName, arguments_) => {
+      calls.push({ functionName, arguments_ });
+      return { data: [{ response_payload: actionPayload, replayed: false }], error: null };
+    });
+    const completionLocation = {
+      latitude: 18.5204,
+      longitude: 73.8567,
+      accuracyMeters: 8,
+      capturedAt: timestamp,
+      deviceRecordedAt: timestamp,
+      provider: 'gps' as const,
+      isMockLocation: false,
+    };
+
+    await store.submitResolution(
+      identifiers.actor,
+      identifiers.complaint,
+      {
+        expectedWorkflowVersion: 3,
+        completionNote: 'Field repair completed and inspected.',
+        completionLocation,
+        resolutionEvidenceIds: [identifiers.evidence],
+        workReferenceId: identifiers.workReference,
+        publicMessage: 'The repair is ready for citizen review.',
+      },
+      identity,
+      'resolution-request-1',
+    );
+
+    assert.deepEqual(calls[0], {
+      functionName: 'perform_government_complaint_action',
+      arguments_: {
+        p_actor_user_id: identifiers.actor,
+        p_complaint_id: identifiers.complaint,
+        p_action_type: 'submit_resolution',
+        p_expected_workflow_version: 3,
+        p_idempotency_key_hash: identity.idempotencyKeyHash,
+        p_request_fingerprint: identity.requestFingerprint,
+        p_request_id: 'resolution-request-1',
+        p_payload: {
+          completionNote: 'Field repair completed and inspected.',
+          completionLocation,
+          resolutionEvidenceIds: [identifiers.evidence],
+          workReferenceId: identifiers.workReference,
+          publicMessage: 'The repair is ready for citizen review.',
+        },
+      },
+    });
+  });
+
   it('decodes only the privacy-safe routing summary on authorized detail', async () => {
     const routingSummary = {
       decisionStatus: 'routed',
@@ -366,5 +420,40 @@ describe('Supabase government complaint store', () => {
       (error: unknown) =>
         error instanceof GovernmentComplaintNotFoundError && error.resource === 'dependency',
     );
+
+    for (const marker of [
+      'RESOLUTION_COMPLETION_LOCATION_INVALID',
+      'RESOLUTION_WORK_REFERENCE_INVALID',
+    ]) {
+      const conflictingResolution = createStore(async () => ({
+        data: null,
+        error: { message: marker },
+      }));
+      await assert.rejects(
+        conflictingResolution.submitResolution(
+          identifiers.actor,
+          identifiers.complaint,
+          {
+            expectedWorkflowVersion: 3,
+            completionNote: 'Field repair completed and inspected.',
+            completionLocation: {
+              latitude: 18.5204,
+              longitude: 73.8567,
+              accuracyMeters: 8,
+              capturedAt: timestamp,
+              deviceRecordedAt: timestamp,
+              provider: 'gps',
+              isMockLocation: false,
+            },
+            resolutionEvidenceIds: [identifiers.evidence],
+            workReferenceId: identifiers.workReference,
+          },
+          identity,
+          'resolution-request-2',
+        ),
+        (error: unknown) =>
+          error instanceof GovernmentComplaintConflictError && error.marker === marker,
+      );
+    }
   });
 });

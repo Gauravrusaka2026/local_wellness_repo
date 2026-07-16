@@ -10,12 +10,22 @@ import type {
   ComplaintMediaUploadIntent,
   ComplaintMessage,
   ComplaintMessagePage,
+  ComplaintEvidenceAccess,
   ComplaintReceipt,
+  ComplaintReopenEvidenceFinalization,
+  ComplaintReopenEvidenceUploadIntent,
+  ComplaintResolutionContext,
+  ComplaintResolutionFeedbackInput,
+  ComplaintResolutionFeedbackResult,
   ComplaintTimeline,
+  CreateComplaintReopenEvidenceUploadIntentInput,
   CreatePrivateComplaintMessageInput,
+  FinalizeComplaintReopenEvidenceInput,
   MessageReadReceipt,
   NotificationPage,
   NotificationReadReceipt,
+  ReopenComplaintInput,
+  ReopenComplaintResult,
   CreateComplaintDraftInput,
   CreateComplaintMediaUploadIntentInput,
   RoutingCategory,
@@ -37,18 +47,28 @@ import {
   notificationPageSchema,
   notificationReadReceiptSchema,
   messageReadReceiptSchema,
+  complaintResolutionFeedbackSchema,
+  createComplaintReopenEvidenceUploadIntentSchema,
+  finalizeComplaintReopenEvidenceSchema,
+  reopenComplaintSchema,
 } from '@local-wellness/validation';
 
 import { getPublicApiUrl } from '../config/environment';
 import {
   decodeComplaintDetail,
   decodeComplaintDraft,
+  decodeComplaintEvidenceAccess,
   decodeComplaintDuplicateCheck,
   decodeComplaintList,
   decodeComplaintMedia,
   decodeComplaintMediaUploadIntent,
   decodeComplaintReceipt,
+  decodeComplaintReopenEvidenceFinalization,
+  decodeComplaintReopenEvidenceUploadIntent,
+  decodeComplaintResolutionContext,
+  decodeComplaintResolutionFeedbackResult,
   decodeComplaintTimeline,
+  decodeReopenComplaintResult,
   decodeRoutingCategories,
   decodeRoutingAssetDiscovery,
 } from './response-decoders';
@@ -195,6 +215,74 @@ export const getComplaintTimeline = (
     decode: decodeComplaintTimeline,
   });
 
+export const getComplaintResolutionContext = (
+  accessToken: string,
+  complaintId: string,
+): Promise<ComplaintResolutionContext> =>
+  createClient(accessToken).get(`/api/v1/complaints/${complaintId}/resolution-context`, {
+    decode: decodeComplaintResolutionContext,
+  });
+
+export const submitComplaintResolutionFeedback = (
+  accessToken: string,
+  complaintId: string,
+  input: ComplaintResolutionFeedbackInput,
+  idempotencyKey: string,
+): Promise<ComplaintResolutionFeedbackResult> =>
+  createClient(accessToken).post(
+    `/api/v1/complaints/${complaintId}/feedback`,
+    complaintResolutionFeedbackSchema.parse(input),
+    { decode: decodeComplaintResolutionFeedbackResult, idempotencyKey },
+  );
+
+export const createComplaintReopenEvidenceUploadIntent = (
+  accessToken: string,
+  complaintId: string,
+  input: CreateComplaintReopenEvidenceUploadIntentInput,
+  idempotencyKey: string,
+): Promise<ComplaintReopenEvidenceUploadIntent> =>
+  createClient(accessToken).post(
+    `/api/v1/complaints/${complaintId}/reopen-evidence/upload-intents`,
+    createComplaintReopenEvidenceUploadIntentSchema.parse(input),
+    { decode: decodeComplaintReopenEvidenceUploadIntent, idempotencyKey },
+  );
+
+export const finalizeComplaintReopenEvidence = (
+  accessToken: string,
+  complaintId: string,
+  evidenceId: string,
+  input: FinalizeComplaintReopenEvidenceInput,
+  idempotencyKey: string,
+): Promise<ComplaintReopenEvidenceFinalization> =>
+  createClient(accessToken).post(
+    `/api/v1/complaints/${complaintId}/reopen-evidence/${evidenceId}/finalize`,
+    finalizeComplaintReopenEvidenceSchema.parse(input),
+    { decode: decodeComplaintReopenEvidenceFinalization, idempotencyKey },
+  );
+
+export const getComplaintEvidenceAccess = (
+  accessToken: string,
+  complaintId: string,
+  evidenceId: string,
+): Promise<ComplaintEvidenceAccess> =>
+  createClient(accessToken).post(
+    `/api/v1/complaints/${complaintId}/evidence/${evidenceId}/access`,
+    undefined,
+    { decode: decodeComplaintEvidenceAccess },
+  );
+
+export const reopenComplaint = (
+  accessToken: string,
+  complaintId: string,
+  input: ReopenComplaintInput,
+  idempotencyKey: string,
+): Promise<ReopenComplaintResult> =>
+  createClient(accessToken).post(
+    `/api/v1/complaints/${complaintId}/reopen`,
+    reopenComplaintSchema.parse(input),
+    { decode: decodeReopenComplaintResult, idempotencyKey },
+  );
+
 export const listComplaintMessages = (
   accessToken: string,
   complaintId: string,
@@ -286,6 +374,21 @@ export const getUserFacingComplaintError = (error: unknown): string => {
     }
     if (error.code === 'COMPLAINT_INCOMPLETE' || error.code === 'COMPLAINT_DRAFT_NOT_SUBMITTABLE') {
       return 'Complete the category, description, location, evidence, and duplicate review first.';
+    }
+    if (error.code === 'COMPLAINT_WORKFLOW_VERSION_CONFLICT') {
+      return 'This complaint changed while you were reviewing it. Reload the latest details.';
+    }
+    if (
+      error.code === 'RESOLUTION_POLICY_UNAVAILABLE' ||
+      error.code === 'COMPLAINT_RESOLUTION_POLICY_NOT_FOUND' ||
+      error.code === 'COMPLAINT_FEEDBACK_NOT_ALLOWED' ||
+      error.code === 'RESOLUTION_FEEDBACK_NOT_ALLOWED' ||
+      error.code === 'COMPLAINT_REOPEN_NOT_ALLOWED'
+    ) {
+      return 'Resolution feedback or reopening is not available under the current policy.';
+    }
+    if (error.code === 'COMPLAINT_REOPEN_EVIDENCE_REQUIRED') {
+      return 'Capture and upload the additional evidence required by the current reopening policy.';
     }
     if (error.code === 'NETWORK_ERROR') return error.message;
     return error.message;

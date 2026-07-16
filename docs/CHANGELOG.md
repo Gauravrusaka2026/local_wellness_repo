@@ -735,3 +735,73 @@ or routing record was activated.
 
 None. The changes are additive and fail closed when access, routing, recipient, or provider evidence
 is unavailable.
+
+## 2026-07-16 — Phase 7 Resolution Accountability, Feedback, and Reopening
+
+### Summary
+
+Implemented the Phase 7 private accountability loop for evidence-backed government completion,
+citizen outcome feedback, policy-controlled reopening, and repeated-attempt escalation. The system
+remains data-driven and deliberately unavailable when no approved operational policy applies.
+
+### Feature
+
+- Added captured resolution completion time/location provenance, optional current-assignment work
+  reference, explicit before/after/reopen evidence roles, effective-dated policy, immutable feedback,
+  citizen replay/audit, private follow-up evidence, reopen requests, and escalation history.
+- Added service-only, forced-RLS database functions for policy/context resolution, evidence lifecycle
+  and access, feedback confirmation, reopening, bounded expired-reservation cleanup, and scoped
+  government accountability. Workflow history and Phase 6 notification events commit atomically.
+- Added strict authenticated citizen and government API/store contracts with private signed evidence
+  handling, exact replay, workflow concurrency, integrity/expiry checks, and safe error mapping.
+- Added mobile evidence review, policy-rendered outcomes/four ratings, live follow-up capture,
+  restart recovery, durable citizen receipts, and external/realtime refresh. Added government
+  completion-location/work-reference input and access-scoped accountability history.
+- Seeded no operational policy and changed no canonical governance data. Redis, BullMQ, Redis
+  adapters/caching, and Sentry remain absent.
+
+### Files Modified
+
+- Phase 7 migrations and pgTAP plans under `supabase/`, plus regenerated database types.
+- Shared resolution types/validation, API resolution module/store/tests, mobile complaint
+  accountability, and government-dashboard complaint workflow/history.
+- README, ADR-0015, Phase 7 worklog, architecture/database/API/authentication/deployment/Supabase
+  guides, and required task/progress/decision/known-issue trackers.
+
+### Migrations Created
+
+- `20260716100000_phase_7_accountability_schema.sql`
+- `20260716101000_phase_7_accountability_security_and_rpc.sql`
+
+### Tests and Verification
+
+- Added pgTAP plans 026–027. A clean reset passed and all 1,072 assertions across 27 plans passed;
+  Phase 7 contributed 56 schema/ACL and 49 integration assertions.
+- Generated database types and their drift check passed. Database lint exited successfully with
+  only pre-existing installed PostGIS diagnostics in broad output.
+- All 144 API tests, 45 shared-validation tests, 7 mobile test files, 22 government-dashboard tests,
+  28 workspace test tasks, repository lint/type-check, root safety tests, application builds, and
+  Android Expo export passed.
+
+### Documentation Updated
+
+- Updated `README.md`, architecture, database, API, authentication, deployment, Supabase setup,
+  tasks, progress, decisions, known issues, and the Phase 7 worklog.
+- Added ADR-0015 for database-enforced resolution accountability. `PLAN.md` and
+  `PROJECT_OVERVIEW.md` remain unchanged because scope and roadmap order did not change.
+
+### Security and Operational Status
+
+- Direct table access remains denied under forced RLS; service functions recheck citizen ownership
+  or current government scope and use pinned empty search paths. Buckets remain private.
+- Feedback text, ratings, coordinates, media locators, hashes, tokens, and completion notes remain
+  excluded from notifications and citizen/public contracts where applicable.
+- No managed environment, active policy, public media, placeholder routing/governance record, or
+  provider process was activated. Operational policy approval and managed/device smoke testing
+  remain explicit gates; government follow-up evidence review/current-reference UX is tracked as
+  `RESOLUTION-002`.
+
+### Breaking Changes
+
+None. The migrations and API surfaces are additive; new government resolution submissions require
+captured completion location and valid finalized after evidence before entering citizen verification.

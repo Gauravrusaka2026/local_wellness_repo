@@ -39,6 +39,8 @@ import {
 } from '@local-wellness/types';
 import { z } from 'zod';
 
+import { complaintLocationCaptureSchema } from './complaint.schemas.js';
+
 const offsetTimestampSchema = z.iso.datetime({ offset: true });
 const nullableUuidSchema = z.uuid().nullable();
 const nonEmptyTrimmedString = (maximumLength: number) =>
@@ -257,7 +259,9 @@ export const submitGovernmentComplaintResolutionSchema: z.ZodType<SubmitGovernme
     .object({
       ...mutationBase,
       completionNote: nonEmptyTrimmedString(4_000),
+      completionLocation: complaintLocationCaptureSchema,
       resolutionEvidenceIds: uniqueUuidArray(20),
+      workReferenceId: z.uuid().optional(),
       publicMessage: nonEmptyTrimmedString(1_000).optional(),
     })
     .strict();

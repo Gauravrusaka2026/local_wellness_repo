@@ -292,3 +292,12 @@ export const decodeComplaintDetail = (value: unknown): ComplaintDetail =>
   detailSchema.parse(value) as ComplaintDetail;
 export const decodeComplaintTimeline = (value: unknown): ComplaintTimeline =>
   timelineSchema.parse(value) as ComplaintTimeline;
+
+export {
+  decodeComplaintEvidenceAccess,
+  decodeComplaintReopenEvidenceFinalization,
+  decodeComplaintReopenEvidenceUploadIntent,
+  decodeComplaintResolutionContext,
+  decodeComplaintResolutionFeedbackResult,
+  decodeReopenComplaintResult,
+} from '@local-wellness/validation';

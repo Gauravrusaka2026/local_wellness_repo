@@ -3,6 +3,139 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   complaints: {
     Tables: {
+      citizen_action_audit_events: {
+        Row: {
+          action_request_id: string;
+          action_type: string;
+          actor_user_id: string;
+          assignment_id: string | null;
+          complaint_id: string;
+          from_status: string;
+          id: string;
+          metadata: Json;
+          occurred_at: string;
+          request_id: string;
+          resolution_id: string | null;
+          to_status: string;
+        };
+        Insert: {
+          action_request_id: string;
+          action_type: string;
+          actor_user_id: string;
+          assignment_id?: string | null;
+          complaint_id: string;
+          from_status: string;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          request_id: string;
+          resolution_id?: string | null;
+          to_status: string;
+        };
+        Update: {
+          action_request_id?: string;
+          action_type?: string;
+          actor_user_id?: string;
+          assignment_id?: string | null;
+          complaint_id?: string;
+          from_status?: string;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          request_id?: string;
+          resolution_id?: string | null;
+          to_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'citizen_action_audit_events_action_request_id_fkey';
+            columns: ['action_request_id'];
+            isOneToOne: true;
+            referencedRelation: 'citizen_action_requests';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'citizen_action_audit_events_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'citizen_action_audit_events_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'citizen_action_audit_events_resolution_id_fkey';
+            columns: ['resolution_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      citizen_action_requests: {
+        Row: {
+          action_type: string;
+          actor_user_id: string;
+          claimed_at: string;
+          complaint_id: string;
+          completed_at: string | null;
+          expected_workflow_version: number;
+          from_status: string;
+          id: string;
+          idempotency_key_hash: string;
+          request_fingerprint: string;
+          request_id: string;
+          response_payload: Json | null;
+          state: string;
+          to_status: string;
+        };
+        Insert: {
+          action_type: string;
+          actor_user_id: string;
+          claimed_at?: string;
+          complaint_id: string;
+          completed_at?: string | null;
+          expected_workflow_version: number;
+          from_status: string;
+          id?: string;
+          idempotency_key_hash: string;
+          request_fingerprint: string;
+          request_id: string;
+          response_payload?: Json | null;
+          state?: string;
+          to_status: string;
+        };
+        Update: {
+          action_type?: string;
+          actor_user_id?: string;
+          claimed_at?: string;
+          complaint_id?: string;
+          completed_at?: string | null;
+          expected_workflow_version?: number;
+          from_status?: string;
+          id?: string;
+          idempotency_key_hash?: string;
+          request_fingerprint?: string;
+          request_id?: string;
+          response_payload?: Json | null;
+          state?: string;
+          to_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'citizen_action_requests_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaint_assignments: {
         Row: {
           asset_id: string | null;
@@ -214,6 +347,71 @@ export type Database = {
           },
         ];
       };
+      complaint_escalation_events: {
+        Row: {
+          assignment_id: string;
+          complaint_id: string;
+          escalation_type: string;
+          id: string;
+          observed_reopen_count: number;
+          occurred_at: string;
+          reopen_request_id: string;
+          resolution_policy_version_id: string;
+          threshold_reopen_count: number;
+        };
+        Insert: {
+          assignment_id: string;
+          complaint_id: string;
+          escalation_type: string;
+          id?: string;
+          observed_reopen_count: number;
+          occurred_at?: string;
+          reopen_request_id: string;
+          resolution_policy_version_id: string;
+          threshold_reopen_count: number;
+        };
+        Update: {
+          assignment_id?: string;
+          complaint_id?: string;
+          escalation_type?: string;
+          id?: string;
+          observed_reopen_count?: number;
+          occurred_at?: string;
+          reopen_request_id?: string;
+          resolution_policy_version_id?: string;
+          threshold_reopen_count?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_escalation_events_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_escalation_events_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_escalation_events_reopen_request_id_fkey';
+            columns: ['reopen_request_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_reopen_requests';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_escalation_events_resolution_policy_version_id_fkey';
+            columns: ['resolution_policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'resolution_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaint_external_dependencies: {
         Row: {
           added_by_user_id: string;
@@ -273,6 +471,90 @@ export type Database = {
             columns: ['complaint_id'];
             isOneToOne: false;
             referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_feedback: {
+        Row: {
+          action_request_id: string;
+          citizen_user_id: string;
+          comment: string | null;
+          communication_rating: number | null;
+          complaint_id: string;
+          created_at: string;
+          id: string;
+          outcome: string;
+          quality_rating: number | null;
+          resolution_id: string;
+          resolution_policy_version_id: string;
+          satisfaction_rating: number | null;
+          speed_rating: number | null;
+        };
+        Insert: {
+          action_request_id: string;
+          citizen_user_id: string;
+          comment?: string | null;
+          communication_rating?: number | null;
+          complaint_id: string;
+          created_at?: string;
+          id?: string;
+          outcome: string;
+          quality_rating?: number | null;
+          resolution_id: string;
+          resolution_policy_version_id: string;
+          satisfaction_rating?: number | null;
+          speed_rating?: number | null;
+        };
+        Update: {
+          action_request_id?: string;
+          citizen_user_id?: string;
+          comment?: string | null;
+          communication_rating?: number | null;
+          complaint_id?: string;
+          created_at?: string;
+          id?: string;
+          outcome?: string;
+          quality_rating?: number | null;
+          resolution_id?: string;
+          resolution_policy_version_id?: string;
+          satisfaction_rating?: number | null;
+          speed_rating?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_feedback_action_request_id_fkey';
+            columns: ['action_request_id'];
+            isOneToOne: true;
+            referencedRelation: 'citizen_action_requests';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_feedback_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_feedback_resolution_complaint_fkey';
+            columns: ['resolution_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id', 'complaint_id'];
+          },
+          {
+            foreignKeyName: 'complaint_feedback_resolution_id_fkey';
+            columns: ['resolution_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_feedback_resolution_policy_version_id_fkey';
+            columns: ['resolution_policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'resolution_policy_versions';
             referencedColumns: ['id'];
           },
         ];
@@ -558,6 +840,272 @@ export type Database = {
           },
         ];
       };
+      complaint_reopen_evidence: {
+        Row: {
+          bucket_id: string;
+          capture_accuracy_meters: number;
+          capture_location: unknown;
+          capture_provider: string;
+          captured_at: string;
+          client_sha256: string;
+          complaint_id: string;
+          created_at: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          duration_milliseconds: number | null;
+          failure_code: string | null;
+          finalized_at: string | null;
+          height_pixels: number | null;
+          id: string;
+          kind: string;
+          location_captured_at: string;
+          location_device_recorded_at: string;
+          mock_location_detected: boolean | null;
+          object_path: string;
+          observed_byte_size: number | null;
+          observed_mime_type: string | null;
+          resolution_id: string;
+          updated_at: string;
+          upload_expires_at: string;
+          upload_status: string;
+          uploader_user_id: string;
+          verified_sha256: string | null;
+          width_pixels: number | null;
+        };
+        Insert: {
+          bucket_id?: string;
+          capture_accuracy_meters: number;
+          capture_location: unknown;
+          capture_provider: string;
+          captured_at: string;
+          client_sha256: string;
+          complaint_id: string;
+          created_at?: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          duration_milliseconds?: number | null;
+          failure_code?: string | null;
+          finalized_at?: string | null;
+          height_pixels?: number | null;
+          id?: string;
+          kind: string;
+          location_captured_at: string;
+          location_device_recorded_at: string;
+          mock_location_detected?: boolean | null;
+          object_path: string;
+          observed_byte_size?: number | null;
+          observed_mime_type?: string | null;
+          resolution_id: string;
+          updated_at?: string;
+          upload_expires_at: string;
+          upload_status?: string;
+          uploader_user_id: string;
+          verified_sha256?: string | null;
+          width_pixels?: number | null;
+        };
+        Update: {
+          bucket_id?: string;
+          capture_accuracy_meters?: number;
+          capture_location?: unknown;
+          capture_provider?: string;
+          captured_at?: string;
+          client_sha256?: string;
+          complaint_id?: string;
+          created_at?: string;
+          declared_byte_size?: number;
+          declared_mime_type?: string;
+          duration_milliseconds?: number | null;
+          failure_code?: string | null;
+          finalized_at?: string | null;
+          height_pixels?: number | null;
+          id?: string;
+          kind?: string;
+          location_captured_at?: string;
+          location_device_recorded_at?: string;
+          mock_location_detected?: boolean | null;
+          object_path?: string;
+          observed_byte_size?: number | null;
+          observed_mime_type?: string | null;
+          resolution_id?: string;
+          updated_at?: string;
+          upload_expires_at?: string;
+          upload_status?: string;
+          uploader_user_id?: string;
+          verified_sha256?: string | null;
+          width_pixels?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_reopen_evidence_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_evidence_resolution_complaint_fkey';
+            columns: ['resolution_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id', 'complaint_id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_evidence_resolution_id_fkey';
+            columns: ['resolution_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_reopen_evidence_links: {
+        Row: {
+          complaint_id: string;
+          created_at: string;
+          evidence_id: string;
+          reopen_request_id: string;
+          resolution_id: string;
+        };
+        Insert: {
+          complaint_id: string;
+          created_at?: string;
+          evidence_id: string;
+          reopen_request_id: string;
+          resolution_id: string;
+        };
+        Update: {
+          complaint_id?: string;
+          created_at?: string;
+          evidence_id?: string;
+          reopen_request_id?: string;
+          resolution_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_reopen_evidence_links_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_evidence_links_evidence_id_fkey';
+            columns: ['evidence_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_reopen_evidence';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_evidence_links_evidence_scope_fkey';
+            columns: ['evidence_id', 'complaint_id', 'resolution_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_reopen_evidence';
+            referencedColumns: ['id', 'complaint_id', 'resolution_id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_evidence_links_reopen_request_id_fkey';
+            columns: ['reopen_request_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_reopen_requests';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_evidence_links_request_scope_fkey';
+            columns: ['reopen_request_id', 'complaint_id', 'resolution_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_reopen_requests';
+            referencedColumns: ['id', 'complaint_id', 'resolution_id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_evidence_links_resolution_id_fkey';
+            columns: ['resolution_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      complaint_reopen_requests: {
+        Row: {
+          action_request_id: string;
+          attempt_number: number;
+          citizen_user_id: string;
+          complaint_id: string;
+          id: string;
+          outcome_status: string;
+          reason_code: string;
+          reason_detail: string;
+          requested_at: string;
+          resolution_id: string;
+          resolution_policy_version_id: string;
+          window_closes_at: string;
+        };
+        Insert: {
+          action_request_id: string;
+          attempt_number: number;
+          citizen_user_id: string;
+          complaint_id: string;
+          id?: string;
+          outcome_status: string;
+          reason_code: string;
+          reason_detail: string;
+          requested_at?: string;
+          resolution_id: string;
+          resolution_policy_version_id: string;
+          window_closes_at: string;
+        };
+        Update: {
+          action_request_id?: string;
+          attempt_number?: number;
+          citizen_user_id?: string;
+          complaint_id?: string;
+          id?: string;
+          outcome_status?: string;
+          reason_code?: string;
+          reason_detail?: string;
+          requested_at?: string;
+          resolution_id?: string;
+          resolution_policy_version_id?: string;
+          window_closes_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_reopen_requests_action_request_id_fkey';
+            columns: ['action_request_id'];
+            isOneToOne: true;
+            referencedRelation: 'citizen_action_requests';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_requests_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_requests_resolution_complaint_fkey';
+            columns: ['resolution_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id', 'complaint_id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_requests_resolution_id_fkey';
+            columns: ['resolution_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_resolutions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_reopen_requests_resolution_policy_version_id_fkey';
+            columns: ['resolution_policy_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'resolution_policy_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaint_resolution_evidence: {
         Row: {
           assignment_id: string;
@@ -647,16 +1195,19 @@ export type Database = {
           created_at: string;
           evidence_id: string;
           resolution_id: string;
+          role: string;
         };
         Insert: {
           created_at?: string;
           evidence_id: string;
           resolution_id: string;
+          role?: string;
         };
         Update: {
           created_at?: string;
           evidence_id?: string;
           resolution_id?: string;
+          role?: string;
         };
         Relationships: [
           {
@@ -679,32 +1230,59 @@ export type Database = {
         Row: {
           assignment_id: string;
           complaint_id: string;
+          completed_at: string | null;
+          completion_accuracy_meters: number | null;
+          completion_distance_to_complaint_meters: number | null;
+          completion_location: unknown;
+          completion_location_device_recorded_at: string | null;
+          completion_mock_location_detected: boolean | null;
           completion_note: string;
+          completion_provider: string | null;
           created_at: string;
           id: string;
+          location_captured_at: string | null;
           public_message: string | null;
           submitted_by_user_id: string;
           version: number;
+          work_reference_id: string | null;
         };
         Insert: {
           assignment_id: string;
           complaint_id: string;
+          completed_at?: string | null;
+          completion_accuracy_meters?: number | null;
+          completion_distance_to_complaint_meters?: number | null;
+          completion_location?: unknown;
+          completion_location_device_recorded_at?: string | null;
+          completion_mock_location_detected?: boolean | null;
           completion_note: string;
+          completion_provider?: string | null;
           created_at?: string;
           id?: string;
+          location_captured_at?: string | null;
           public_message?: string | null;
           submitted_by_user_id: string;
           version: number;
+          work_reference_id?: string | null;
         };
         Update: {
           assignment_id?: string;
           complaint_id?: string;
+          completed_at?: string | null;
+          completion_accuracy_meters?: number | null;
+          completion_distance_to_complaint_meters?: number | null;
+          completion_location?: unknown;
+          completion_location_device_recorded_at?: string | null;
+          completion_mock_location_detected?: boolean | null;
           completion_note?: string;
+          completion_provider?: string | null;
           created_at?: string;
           id?: string;
+          location_captured_at?: string | null;
           public_message?: string | null;
           submitted_by_user_id?: string;
           version?: number;
+          work_reference_id?: string | null;
         };
         Relationships: [
           {
@@ -720,6 +1298,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'complaints';
             referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'complaint_resolutions_work_reference_fkey';
+            columns: ['work_reference_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaint_work_references';
+            referencedColumns: ['id', 'complaint_id'];
           },
         ];
       };
@@ -1723,6 +2308,113 @@ export type Database = {
           },
         ];
       };
+      resolution_policies: {
+        Row: {
+          authority_id: string | null;
+          category_id: string | null;
+          code: string;
+          created_at: string;
+          id: string;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          authority_id?: string | null;
+          category_id?: string | null;
+          code: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          authority_id?: string | null;
+          category_id?: string | null;
+          code?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      resolution_policy_versions: {
+        Row: {
+          allowed_reopen_reason_codes: string[];
+          approved_at: string | null;
+          approved_by_user_id: string | null;
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          eligible_feedback_statuses: string[];
+          eligible_reopen_statuses: string[];
+          feedback_window_seconds: number;
+          id: string;
+          max_reopen_attempts: number;
+          rating_maximum: number;
+          rating_minimum: number;
+          ratings_required: boolean;
+          reopen_evidence_required: boolean;
+          reopen_window_seconds: number;
+          repeat_escalation_threshold: number;
+          resolution_policy_id: string;
+          status: string;
+          version: number;
+        };
+        Insert: {
+          allowed_reopen_reason_codes: string[];
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          created_at?: string;
+          effective_from: string;
+          effective_to?: string | null;
+          eligible_feedback_statuses: string[];
+          eligible_reopen_statuses: string[];
+          feedback_window_seconds: number;
+          id?: string;
+          max_reopen_attempts: number;
+          rating_maximum: number;
+          rating_minimum: number;
+          ratings_required?: boolean;
+          reopen_evidence_required?: boolean;
+          reopen_window_seconds: number;
+          repeat_escalation_threshold: number;
+          resolution_policy_id: string;
+          status?: string;
+          version: number;
+        };
+        Update: {
+          allowed_reopen_reason_codes?: string[];
+          approved_at?: string | null;
+          approved_by_user_id?: string | null;
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          eligible_feedback_statuses?: string[];
+          eligible_reopen_statuses?: string[];
+          feedback_window_seconds?: number;
+          id?: string;
+          max_reopen_attempts?: number;
+          rating_maximum?: number;
+          rating_minimum?: number;
+          ratings_required?: boolean;
+          reopen_evidence_required?: boolean;
+          reopen_window_seconds?: number;
+          repeat_escalation_threshold?: number;
+          resolution_policy_id?: string;
+          status?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'resolution_policy_versions_resolution_policy_id_fkey';
+            columns: ['resolution_policy_id'];
+            isOneToOne: false;
+            referencedRelation: 'resolution_policies';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       room_members: {
         Row: {
           created_at: string;
@@ -1772,6 +2464,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      accountability_resolution_payload: {
+        Args: {
+          p_complaint_id: string;
+          p_include_completion_note: boolean;
+          p_resolution_id: string;
+        };
+        Returns: Json;
+      };
       action_capability: { Args: { p_action_type: string }; Returns: string };
       action_is_state_eligible: {
         Args: {
@@ -1801,6 +2501,7 @@ export type Database = {
       };
       assignment_summary: { Args: { p_assignment_id: string }; Returns: Json };
       current_action_request_id: { Args: never; Returns: string };
+      current_citizen_action_request_id: { Args: never; Returns: string };
       is_verified_assignment_scope: {
         Args: {
           p_at: string;
@@ -1813,6 +2514,25 @@ export type Database = {
           p_ward_id: string;
         };
         Returns: boolean;
+      };
+      perform_phase7_resolution_submission: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_expected_workflow_version: number;
+          p_idempotency_key_hash: string;
+          p_payload: Json;
+          p_request_fingerprint: string;
+          p_request_id: string;
+        };
+        Returns: {
+          replayed: boolean;
+          response_payload: Json;
+        }[];
+      };
+      resolve_resolution_policy_version: {
+        Args: { p_at?: string; p_authority_id: string; p_category_id: string };
+        Returns: string;
       };
       role_capability_enabled: {
         Args: {
@@ -5396,9 +6116,21 @@ export type Database = {
           distance_meters: number;
         }[];
       };
+      expire_citizen_reopen_evidence_reservations: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
       expire_government_resolution_evidence: {
         Args: { p_limit?: number };
         Returns: number;
+      };
+      fail_citizen_reopen_evidence: {
+        Args: { p_evidence_id: string; p_failure_code: string };
+        Returns: {
+          evidence_id: string;
+          failure_code: string;
+          upload_status: string;
+        }[];
       };
       fail_governance_sync_run: {
         Args: {
@@ -5436,6 +6168,37 @@ export type Database = {
         Returns: {
           next_attempt_at: string;
           status: string;
+        }[];
+      };
+      finalize_citizen_reopen_evidence: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_evidence_id: string;
+          p_expected_workflow_version: number;
+          p_idempotency_key_hash: string;
+          p_observed_byte_size: number;
+          p_observed_mime_type: string;
+          p_request_fingerprint: string;
+          p_request_id: string;
+          p_verified_sha256: string;
+        };
+        Returns: {
+          captured_at: string;
+          created_at: string;
+          evidence_id: string;
+          finalized_at: string;
+          kind: string;
+          location_accuracy_meters: number;
+          location_captured_at: string;
+          location_latitude: number;
+          location_longitude: number;
+          location_provider: string;
+          observed_byte_size: number;
+          observed_mime_type: string;
+          replayed: boolean;
+          upload_status: string;
+          workflow_version: number;
         }[];
       };
       finalize_complaint_media: {
@@ -5560,6 +6323,34 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      get_citizen_complaint_evidence_object: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_evidence_id: string;
+          p_purpose: string;
+        };
+        Returns: {
+          bucket_id: string;
+          client_sha256: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          evidence_id: string;
+          evidence_role: string;
+          object_path: string;
+          observed_byte_size: number;
+          observed_mime_type: string;
+          upload_expires_at: string;
+          upload_status: string;
+          workflow_version: number;
+        }[];
+      };
+      get_citizen_resolution_context: {
+        Args: { p_actor_user_id: string; p_complaint_id: string };
+        Returns: {
+          resolution_context: Json;
+        }[];
+      };
       get_complaint_draft: {
         Args: { p_actor_user_id: string; p_draft_id: string };
         Returns: {
@@ -5669,6 +6460,16 @@ export type Database = {
           updated_at: string;
           work_references: Json;
           workflow_version: number;
+        }[];
+      };
+      get_government_complaint_accountability: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_scope_role_assignment_id: string;
+        };
+        Returns: {
+          accountability: Json;
         }[];
       };
       get_government_resolution_evidence_object: {
@@ -5985,6 +6786,22 @@ export type Database = {
           response_payload: Json;
         }[];
       };
+      perform_government_complaint_action_phase5_impl: {
+        Args: {
+          p_action_type: string;
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_expected_workflow_version: number;
+          p_idempotency_key_hash: string;
+          p_payload?: Json;
+          p_request_fingerprint: string;
+          p_request_id: string;
+        };
+        Returns: {
+          replayed: boolean;
+          response_payload: Json;
+        }[];
+      };
       provision_government_invitation: {
         Args: {
           actor_user_id: string;
@@ -6111,6 +6928,24 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      reopen_complaint: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_evidence_ids: string[];
+          p_expected_workflow_version: number;
+          p_explanation: string;
+          p_idempotency_key_hash: string;
+          p_reason_code: string;
+          p_request_fingerprint: string;
+          p_request_id: string;
+          p_resolution_id: string;
+        };
+        Returns: {
+          replayed: boolean;
+          result: Json;
+        }[];
+      };
       report_routing_confidence_policy_conflicts: {
         Args: never;
         Returns: {
@@ -6135,6 +6970,50 @@ export type Database = {
           right_scope_authority_id: string;
           right_scope_local_body_id: string;
           right_scope_ward_id: string;
+        }[];
+      };
+      reserve_citizen_reopen_evidence: {
+        Args: {
+          p_actor_user_id: string;
+          p_byte_size: number;
+          p_captured_at: string;
+          p_complaint_id: string;
+          p_duration_milliseconds: number;
+          p_expected_workflow_version: number;
+          p_height_pixels: number;
+          p_idempotency_key_hash: string;
+          p_kind: string;
+          p_location_accuracy_meters: number;
+          p_location_captured_at: string;
+          p_location_device_recorded_at: string;
+          p_location_latitude: number;
+          p_location_longitude: number;
+          p_location_mock_detected: boolean;
+          p_location_provider: string;
+          p_mime_type: string;
+          p_request_fingerprint: string;
+          p_request_id: string;
+          p_sha256: string;
+          p_width_pixels: number;
+        };
+        Returns: {
+          bucket_id: string;
+          captured_at: string;
+          created_at: string;
+          declared_byte_size: number;
+          declared_mime_type: string;
+          evidence_id: string;
+          kind: string;
+          location_accuracy_meters: number;
+          location_captured_at: string;
+          location_latitude: number;
+          location_longitude: number;
+          location_provider: string;
+          object_path: string;
+          replayed: boolean;
+          upload_expires_at: string;
+          upload_status: string;
+          workflow_version: number;
         }[];
       };
       reserve_complaint_media: {
@@ -6323,6 +7202,27 @@ export type Database = {
           status: string;
           submitted_at: string;
           ward_id: string;
+        }[];
+      };
+      submit_complaint_feedback: {
+        Args: {
+          p_actor_user_id: string;
+          p_comment: string;
+          p_communication_rating: number;
+          p_complaint_id: string;
+          p_expected_workflow_version: number;
+          p_idempotency_key_hash: string;
+          p_outcome: string;
+          p_quality_rating: number;
+          p_request_fingerprint: string;
+          p_request_id: string;
+          p_resolution_id: string;
+          p_satisfaction_rating: number;
+          p_speed_rating: number;
+        };
+        Returns: {
+          replayed: boolean;
+          result: Json;
         }[];
       };
       submit_complaint_phase4_impl: {

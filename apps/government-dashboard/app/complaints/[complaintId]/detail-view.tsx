@@ -3,6 +3,7 @@ import React from 'react';
 import {
   governmentComplaintAllowedActions,
   type GovernmentComplaintAssignmentOption,
+  type GovernmentComplaintAccountability,
   type GovernmentComplaintDetail,
   type ComplaintMessage,
 } from '@local-wellness/types';
@@ -25,12 +26,16 @@ const DefinitionList = ({
 );
 
 export const ComplaintDetailView = ({
+  accountability = null,
+  accountabilityError = null,
   assignmentOptions,
   communicationError = null,
   complaint,
   messages,
   queueHref = '/',
 }: Readonly<{
+  accountability?: GovernmentComplaintAccountability | null;
+  accountabilityError?: string | null;
   assignmentOptions: GovernmentComplaintAssignmentOption[];
   communicationError?: string | null;
   complaint: GovernmentComplaintDetail;
@@ -301,6 +306,139 @@ export const ComplaintDetailView = ({
               </ul>
             )}
           </section>
+
+          <section aria-labelledby="accountability-heading" className="content-card">
+            <p className="eyebrow">Resolution accountability</p>
+            <h2 id="accountability-heading">Resolution, feedback, and reopening history</h2>
+            <p className="field-hint">
+              This history is versioned and access-scoped. Completion notes remain government-only;
+              citizens receive only the public resolution message.
+            </p>
+            {accountabilityError === null ? null : (
+              <p className="error-notice" role="alert">
+                Accountability history is temporarily unavailable. {accountabilityError}
+              </p>
+            )}
+            {accountability === null ? (
+              accountabilityError === null ? (
+                <p className="muted">No accountability history is available.</p>
+              ) : null
+            ) : (
+              <>
+                <h3>Resolution history</h3>
+                {accountability.resolutionHistory.length === 0 ? (
+                  <p className="muted">No resolutions recorded.</p>
+                ) : (
+                  <ol className="record-list">
+                    {accountability.resolutionHistory.map((resolution) => (
+                      <li key={resolution.id}>
+                        <strong>Resolution version {resolution.version}</strong>
+                        <span>{resolution.completionNote}</span>
+                        <span>
+                          Citizen message:{' '}
+                          {resolution.publicMessage ?? 'No public message recorded'}
+                        </span>
+                        <span>
+                          Completed:{' '}
+                          {resolution.completedAt === null
+                            ? 'Time unavailable'
+                            : formatDateTime(resolution.completedAt)}
+                        </span>
+                        {resolution.completionLocation === null ? (
+                          <span>Completion location unavailable</span>
+                        ) : (
+                          <span>
+                            Completion location: {resolution.completionLocation.latitude.toFixed(6)}
+                            , {resolution.completionLocation.longitude.toFixed(6)} · accuracy{' '}
+                            {resolution.completionLocation.accuracyMeters.toFixed(1)} metres
+                          </span>
+                        )}
+                        {resolution.distanceFromComplaintMeters === null ? null : (
+                          <span>
+                            Distance from report:{' '}
+                            {Math.round(resolution.distanceFromComplaintMeters)} metres
+                          </span>
+                        )}
+                        {resolution.workReference === null ? null : (
+                          <span>
+                            Work reference: {resolution.workReference.referenceType} ·{' '}
+                            {resolution.workReference.referenceNumber}
+                          </span>
+                        )}
+                        <span>
+                          Evidence: {resolution.beforeEvidence.length} before ·{' '}
+                          {resolution.afterEvidence.length} after ·{' '}
+                          {resolution.reopenEvidence.length} reopen
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                <h3>Citizen feedback</h3>
+                {accountability.feedback.length === 0 ? (
+                  <p className="muted">No citizen feedback recorded.</p>
+                ) : (
+                  <ol className="record-list">
+                    {accountability.feedback.map((feedback) => (
+                      <li key={feedback.id}>
+                        <strong>{feedback.outcome.replaceAll('_', ' ')}</strong>
+                        <span>{feedback.comment ?? 'No citizen comment'}</span>
+                        {feedback.ratings === null ? (
+                          <span>No ratings recorded</span>
+                        ) : (
+                          <span>
+                            Satisfaction {feedback.ratings.satisfaction} · Speed{' '}
+                            {feedback.ratings.speed} · Quality {feedback.ratings.quality} ·
+                            Communication {feedback.ratings.communication}
+                          </span>
+                        )}
+                        <time dateTime={feedback.submittedAt}>
+                          {formatDateTime(feedback.submittedAt)}
+                        </time>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                <h3>Reopen requests</h3>
+                {accountability.reopenRequests.length === 0 ? (
+                  <p className="muted">No reopen requests recorded.</p>
+                ) : (
+                  <ol className="record-list">
+                    {accountability.reopenRequests.map((request) => (
+                      <li key={request.id}>
+                        <strong>
+                          Attempt {request.attemptNumber} · {request.resultingStatus}
+                        </strong>
+                        <span>{request.reasonCode.replaceAll('_', ' ')}</span>
+                        <span>{request.explanation}</span>
+                        <span>{request.evidenceIds.length} evidence item(s)</span>
+                        <time dateTime={request.requestedAt}>
+                          {formatDateTime(request.requestedAt)}
+                        </time>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                <h3>Escalations</h3>
+                {accountability.escalations.length === 0 ? (
+                  <p className="muted">No escalations recorded.</p>
+                ) : (
+                  <ol className="record-list">
+                    {accountability.escalations.map((event) => (
+                      <li key={event.id}>
+                        <strong>Escalation level {event.level}</strong>
+                        <span>{event.reasonCode.replaceAll('_', ' ')}</span>
+                        <time dateTime={event.occurredAt}>{formatDateTime(event.occurredAt)}</time>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </>
+            )}
+          </section>
         </div>
 
         <aside aria-labelledby="actions-heading" className="content-card action-panel">
@@ -319,6 +457,7 @@ export const ComplaintDetailView = ({
             externalDependencies={complaint.externalDependencies}
             inspections={complaint.inspections}
             operationKeys={operationKeys}
+            workReferences={complaint.workReferences}
             workflowVersion={complaint.workflowVersion}
           />
         </aside>

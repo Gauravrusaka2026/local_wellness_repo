@@ -253,8 +253,8 @@ moderation states are modeled but no provider automatically advances them in Pha
 Duplicate checks select exactly one current verified, non-placeholder, routing-eligible policy;
 use PostGIS distance, time, category, text similarity, media hashes, and asset evidence; cap the
 candidate set; and retain the scored advisory result. They never merge or automatically reject a
-complaint. Future supporters, feedback, reopen requests, and public complaint visibility require
-later migrations.
+complaint. Future supporters and public complaint visibility require later migrations; Phase 7
+adds private feedback and reopening through the server boundary described below.
 
 Phase 5 extends the same private schema with:
 
@@ -310,6 +310,49 @@ status history.
 Service-only bounded functions mark elapsed reservations `expired` or a reserved row `failed`; they
 do not delete evidence history. No schedule or private Storage reconciliation/removal job is wired
 in Phase 5.
+
+Phase 7 adds the accountability tables:
+
+- `resolution_policies`;
+- `resolution_policy_versions`;
+- `citizen_action_requests`;
+- `citizen_action_audit_events`;
+- `complaint_feedback`;
+- `complaint_reopen_evidence`;
+- `complaint_reopen_requests`;
+- `complaint_reopen_evidence_links`;
+- `complaint_escalation_events`.
+
+Stable policy identity is separate from effective-dated versions. A version records approval
+attribution, rating bounds/requirements, feedback and reopen windows, eligible statuses, attempt
+cap, additional-evidence requirement, allowed reopen reason codes, and repeated-reopen escalation
+threshold. Scope may be global, authority, category, or authority-plus-category. Runtime selection
+uses the most specific single approved version effective at the resolution's immutable server
+completion time; that same version governs context, evidence reservation, feedback, and reopening.
+Missing or ambiguous policy evidence fails closed. Phase 7 deliberately seeds no active policy.
+
+New resolution rows record a server completion time plus captured SRID 4326 point, accuracy,
+provider, capture/device timestamps, mock-location signal, and optional existing work-reference
+link. Existing Phase 5 rows retain null completion-location fields rather than receiving an
+invented backfill. Resolution-evidence
+links identify their `after` role. Finalized original complaint media remains the immutable before
+record, while follow-up reopen evidence is stored separately and linked once to its accepted reopen
+request.
+
+`expire_citizen_reopen_evidence_reservations(limit)` is a bounded service-only maintenance
+function that marks elapsed `reserved` rows as `expired` without erasing audit metadata. Phase 7
+does not schedule it or delete Storage objects; platform scheduling, orphan reconciliation, full
+media decoding, malware scanning, and moderation remain tracked under `GOVDASH-002`.
+
+`citizen_action_requests` and its audit table mirror the established exact-replay boundary without
+sharing government capabilities. Feedback is immutable and references the exact complaint,
+resolution, citizen, policy version, and action request. A resolved feedback outcome advances to
+`resolved`; adverse outcomes remain recorded without an implicit reopen. Reopening separately
+checks current ownership, workflow version, latest resolution, policy deadline/status/reason,
+attempt count, and finalized non-reused evidence in one transaction. It appends a reopen request,
+links evidence, derives `reopened` or `escalated`, records a repeated-reopen escalation when the
+configured threshold is reached, and appends status history plus the existing notification outbox
+event atomically.
 
 ### Routing
 
@@ -759,6 +802,14 @@ notification read time, and job/delivery lifecycle updates are constrained by gu
 Public-comment table structure does not create public access because no create/read RPC or table
 privilege is granted.
 
+Phase 7 enables and forces RLS on every accountability and follow-up-evidence table and preserves
+the schema-wide denial of direct access, including for `service_role`. Actor-facing wrappers receive
+the citizen UUID from a verified bearer token, recheck an active profile and exact complaint
+ownership, and use a guarded citizen-action context for the only permitted complaint workflow
+mutation. Government accountability reads still apply the current assignment capability/scope
+check. Policy rows, feedback, reopen requests, evidence links, escalation events, and audits are
+append-only; policy lifecycle and reserved-evidence finalization use narrowly validated transitions.
+
 ---
 
 ## Storage Metadata
@@ -796,6 +847,18 @@ finalization. Verification retains the 50 MiB maximum and exact object-size and 
 uses bounded parsing to derive the MIME type from accepted JPEG, PNG, WebP, HEIC/HEIF, MP4,
 QuickTime, and WebM binary signatures. Storage metadata must match. A signature/MIME, size, or
 checksum mismatch removes the reserved object and fails closed.
+
+Phase 7 reuses `complaint-originals-private` for a separately namespaced post-submission reopen
+object path. The API reserves that exact path only for the complaint owner and latest resolution,
+then applies the same bounded binary signature, MIME, size, and SHA-256 finalization boundary before
+the evidence may be linked to a reopen request. The live capture's point, accuracy, provider,
+capture/device time, and mock-location signal remain private evidence. Reopen evidence is not a new
+public upload path and cannot be selected twice.
+
+The complaint owner may request a five-minute signed read for a finalized before, after, or reopen
+evidence identifier only after a fresh ownership/relationship check. The response is private and
+non-cacheable; object paths and signed tokens are never stored in feedback, status history,
+notifications, or logs.
 
 Authorized viewing returns a five-minute, forced-download signed URL only after a separate scope
 and `view` capability check. All government-workspace responses set `Cache-Control: private,
@@ -917,6 +980,16 @@ comment access. A clean local reset applied all 25 migrations and reviewed seeds
 passed across 25 pgTAP plans. Strict application-schema lint reported no errors, and generated
 database types were regenerated successfully. Installed PostGIS-owned diagnostics remain when the
 extension schema is included in the broader lint command; no application schema owns those objects.
+
+Phase 7 adds migrations `20260716100000_phase_7_accountability_schema.sql` and
+`20260716101000_phase_7_accountability_security_and_rpc.sql` plus pgTAP plans
+`026_phase_7_accountability_schema_and_acl.test.sql` and
+`027_phase_7_accountability_integration.test.sql`. Coverage includes policy versioning and
+fail-closed selection, forced RLS/direct ACL denial, historical-resolution compatibility, captured
+completion evidence, owner isolation, exact replay/conflict, rating and outcome validation, policy
+windows and attempt limits, private follow-up evidence integrity/non-reuse, feedback confirmation,
+reopen state, repeated-reopen escalation, immutable audit/history, and Phase 6 notification-outbox
+integration. Synthetic approved policy versions exist only inside rollback-isolated tests.
 
 The managed staging deployment recorded on 2026-07-14 applied all 23 migrations through
 `20260714124000` and all six reviewed non-production seed files. The existing citizen Auth identity

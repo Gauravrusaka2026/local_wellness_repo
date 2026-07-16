@@ -119,6 +119,15 @@ describe('government complaint validation', () => {
     const input = {
       expectedWorkflowVersion: 2,
       completionNote: 'Work completed and inspected.',
+      completionLocation: {
+        latitude: 18.5204,
+        longitude: 73.8567,
+        accuracyMeters: 8,
+        capturedAt: timestamp,
+        deviceRecordedAt: timestamp,
+        provider: 'gps',
+        isMockLocation: false,
+      },
       resolutionEvidenceIds: [identifiers.evidence, identifiers.evidence],
     };
 

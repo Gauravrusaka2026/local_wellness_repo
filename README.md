@@ -439,6 +439,23 @@ Redis or BullMQ. Push and email are recorded as explicitly unsupported until pro
 preferences/consent, verified destinations, and credentials are approved. Public comments remain
 disabled until public visibility, moderation, abuse controls, and privacy policy are reviewed.
 
+Phase 7 adds the private resolution-accountability loop. New government resolutions retain a
+server completion time, captured completion location, optional existing work reference, and
+explicitly linked after evidence before entering citizen verification. The complaint owner can
+review authorized before/after evidence, submit one immutable outcome with four policy-bounded
+ratings, upload private follow-up evidence, and request reopening. PostgreSQL selects the approved
+effective-dated policy, derives reopened versus escalated state, and commits workflow history,
+audit, and the existing notification outbox atomically. Persisted feedback, reopen, and escalation
+receipts remain visible after refresh, and complaint realtime hints reload the authoritative
+accountability context. The government dashboard shows the full access-scoped accountability
+history while keeping internal completion notes private from the citizen.
+
+No operational Phase 7 policy is seeded: the rating scale, review windows, eligible statuses,
+reopen reasons, evidence requirement, attempt limit, and repeated-reopen threshold require product
+approval. Until an approved policy version is deliberately activated, feedback and reopening fail
+closed while existing complaint and resolution history remains readable. Tests may use only
+rollback-isolated synthetic policies.
+
 ---
 
 ## ADR Workflow
@@ -534,6 +551,10 @@ Current stage:
 - Phase 6 does not activate placeholder pilot data, external push/email delivery, public comments,
   multi-instance realtime, or a hosted application. Verified Pune/BMC data, provider policy, and
   managed-environment validation remain separate gates;
+- Phase 7 engineering adds versioned resolution policy, completion-location/work-reference
+  evidence, citizen feedback and reopening, private follow-up evidence, repeated-reopen escalation,
+  strict APIs, and mobile/government client surfaces. No operational policy or production data is
+  activated automatically;
 - Pune Municipal Corporation is the generic architecture and test reference only; no
   municipality-specific routing logic exists, and verified Pune boundaries, ownership mappings,
   officer-role assignments, confidence policy, and fallback records remain required before an

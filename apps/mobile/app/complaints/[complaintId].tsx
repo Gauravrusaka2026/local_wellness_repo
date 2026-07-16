@@ -21,6 +21,7 @@ import {
   listComplaintMessages,
   markComplaintMessagesRead,
 } from '../../src/complaints/complaint-service';
+import { ResolutionAccountability } from '../../src/complaints/resolution-accountability';
 import { subscribeToComplaintEvents } from '../../src/realtime/complaint-subscription';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
 
@@ -47,6 +48,7 @@ export default function ComplaintDetailScreen() {
   const [messageError, setMessageError] = useState<string | null>(null);
   const [readReceiptWarning, setReadReceiptWarning] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [accountabilityRefreshSignal, setAccountabilityRefreshSignal] = useState(0);
   const activeLoadRef = useRef(0);
   const isMountedRef = useRef(true);
   const isSendingRef = useRef(false);
@@ -80,6 +82,7 @@ export default function ComplaintDetailScreen() {
         status: 'ready',
         timeline,
       }));
+      setAccountabilityRefreshSignal((current) => current + 1);
       setReadReceiptWarning(null);
 
       const newestMessage = 'page' in messageOutcome ? messageOutcome.page.items[0] : undefined;
@@ -188,6 +191,12 @@ export default function ComplaintDetailScreen() {
           <Text style={styles.heading}>Evidence</Text>
           <Text style={styles.body}>{state.complaint.media.length} private media item(s)</Text>
         </View>
+        <ResolutionAccountability
+          accessToken={accessToken}
+          complaintId={complaintId}
+          onChanged={load}
+          refreshSignal={accountabilityRefreshSignal}
+        />
         <Text accessibilityRole="header" style={styles.timelineTitle}>
           Timeline
         </Text>

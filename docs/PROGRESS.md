@@ -2,7 +2,7 @@
 
 ## Overall Completion
 
-59% implemented.
+67% implemented.
 
 Phase 0 and Phase 1 are complete. Phase 2's engineering baseline is complete and locally verified;
 its remaining exit work requires external, verified pilot identifiers, contacts and real boundary
@@ -30,7 +30,12 @@ contains zero operational categories and zero active synchronization sources. A 
 one active platform administrator, and one active Pune-scoped municipal administrator now exist as
 confirmed staging-only environment data. The initial invitation was accepted and temporary alias
 privileges were revoked with history retained; authenticated UI smoke testing remains pending.
-Citizen resolution feedback, transparency, SLA/KPI and launch hardening remain in later phases.
+Phase 7 now adds effective-dated resolution policy, captured completion evidence, immutable citizen
+feedback, policy-controlled reopening, repeated-reopen escalation, strict APIs, private evidence
+access, durable citizen receipts, and government accountability history. Local engineering and
+verification are complete; no operational policy was seeded or activated, and the Phase 7
+migrations were not deployed to staging. Transparency, SLA/KPI and launch hardening remain in later
+phases.
 
 ## Phase Completion
 
@@ -43,7 +48,7 @@ Citizen resolution feedback, transparency, SLA/KPI and launch hardening remain i
 | Phase 4 — Citizen complaint capture          | In progress |        95% |
 | Phase 5 — Government dashboard               | In progress |        95% |
 | Phase 6 — Realtime and notifications         | In progress |        85% |
-| Phase 7 — Resolution, feedback and reopening | Not started |         0% |
+| Phase 7 — Resolution, feedback and reopening | In progress |        90% |
 | Phase 8 — Nearby map and transparency        | Not started |         0% |
 | Phase 9 — SLA, escalation and KPI            | Not started |         0% |
 | Phase 10 — Hardening and launch              | Not started |         0% |
@@ -86,6 +91,15 @@ providers and preferences are unselected, public comments remain deliberately di
 migrations and processes are not active in staging, and hosted/physical-device reconnect, expiry,
 revocation, and offline-delivery validation remains pending.
 
+Phase 7 engineering completion covers effective-dated approved policy selection frozen at the
+resolution completion time, captured completion location/work evidence, private before/after/reopen
+evidence, immutable feedback, exact-replay citizen actions, policy-controlled reopening, repeated-
+attempt escalation, atomic history/outbox writes, strict citizen/government APIs, and mobile/
+dashboard accountability surfaces. It is not marked 100% because operational policy values remain
+unapproved, the migrations are not active in staging, representative physical-device/hosted flows
+remain untested, and government before/reopen evidence review plus current-assignment work-reference
+options remain tracked under `RESOLUTION-002`.
+
 ## Sprint Completion
 
 - Sprint 1 — Project Foundation: 100% complete.
@@ -95,6 +109,7 @@ revocation, and offline-delivery validation remains pending.
 - Sprint 5 — Secure citizen complaint capture: 95% complete.
 - Sprint 6 — Access-scoped government complaint operations: 95% complete.
 - Sprint 7 — Persistent communication and durable notification delivery: 85% complete.
+- Sprint 8 — Citizen resolution review and accountable reopening: 90% complete.
 
 ## Completed Milestones
 
@@ -179,22 +194,30 @@ revocation, and offline-delivery validation remains pending.
 - Mobile private conversations and durable notification history/read state plus a government
   dashboard conversation panel, all REST-recoverable when realtime is unavailable.
 - ADR-0014 and the Phase 6 realtime/notification implementation and testing worklog.
+- Two additive Phase 7 migrations implementing captured resolution completion evidence,
+  effective-dated resolution policy, private citizen action/audit, immutable feedback, follow-up
+  evidence, reopen requests, and repeated-reopen escalation under forced RLS.
+- Authenticated citizen resolution-context, feedback, private evidence, and reopen APIs plus a
+  current-scope government accountability API with strict shared contracts and database decoding.
+- Mobile before/after review, policy-driven ratings/reopening, live follow-up capture, durable
+  feedback/reopen/escalation receipts, and realtime refresh; government completion-location input
+  and access-scoped accountability history.
+- ADR-0015 and the Phase 7 resolution-accountability implementation and testing worklog.
 
 ## Current Milestone
 
-Phase 6 engineering and its local verification matrix are complete. Private communication,
-durable in-app notification history, PostgreSQL delivery leases, the worker, authenticated
-single-instance realtime delivery, and citizen/government client surfaces are implemented. The
-remaining Phase 6 milestone is managed staging activation plus authenticated reconnect, token-
-expiry, scope-revocation, offline-history, and backlog smoke testing; no placeholder recipient may
-be activated for that test.
+Phase 7 engineering and its local verification matrix are complete. Database-enforced policy,
+completion evidence, citizen feedback/reopening/escalation, strict APIs, mobile accountability, and
+government history are implemented. The remaining Phase 7 milestone is owner approval and audited
+publication of an operational policy plus managed/physical-device validation; feedback and
+reopening correctly remain unavailable without that policy.
 
 ## Next Milestone
 
-Begin Phase 7 resolution feedback and reopening engineering against the versioned Phase 5 workflow
-and Phase 6 notification boundaries. In parallel, activate Phase 6 in staging after applying its
-two reviewed migrations and configuring one worker/realtime instance. Redis, BullMQ, Redis
-adapters/caching, and Sentry remain deferred.
+Approve the operational Phase 7 policy, add the scoped government follow-up evidence/current-work-
+reference contract tracked by `RESOLUTION-002`, then apply the reviewed Phase 6 and Phase 7
+migrations to staging and run the authenticated resolution/reopen/realtime smoke matrix. Redis,
+BullMQ, Redis adapters/caching, and Sentry remain deferred.
 
 ## Current Blockers
 
@@ -246,6 +269,12 @@ adapters/caching, and Sentry remain deferred.
 - The two Phase 6 migrations, worker, and realtime process are not yet active in staging. Hosted
   reconnect/deduplication, token-expiry disconnect, revoked-scope denial, disconnected-recipient
   history, exact-origin checks, and backlog monitoring remain environment validation work.
+- Phase 7 seeds no operational policy. Product owners must approve and publish rating/window/status/
+  reason/evidence/attempt/escalation values before managed feedback or reopening can activate
+  (`RESOLUTION-001`).
+- Government before/reopen evidence signed review and current-assignment-only work-reference options
+  remain pre-pilot follow-up work; database authorization already rejects stale scope/reference use
+  (`RESOLUTION-002`).
 
 ## Verification Summary
 
@@ -312,7 +341,19 @@ adapters/caching, and Sentry remain deferred.
   worker configuration/lease/retry/dead behavior, authenticated room authorization, persistence-
   before-broadcast, stale-scope reauthorization, client REST reconciliation, and privacy-safe
   sender/event payloads.
+- A clean local reset applied all 27 migrations and reviewed seeds. All 1,072 assertions passed
+  across 27 pgTAP plans, including 56 Phase 7 schema/ACL assertions and 49 rollback-isolated
+  accountability integration assertions. Application-schema database lint exited successfully;
+  broader output contains only pre-existing PostGIS-owned diagnostics.
+- Phase 7 database types were regenerated and the drift check passed. All 144 API tests, 45 shared
+  validation tests, 7 mobile test files, 22 government-dashboard tests, 28 workspace test tasks,
+  and root security/resource tests passed. Repository lint and strict type-check passed across all
+  16 packages; formatting, development Compose validation, offline SDK 54 dependency alignment,
+  the 1,243-module Android Expo export, and existing production builds also passed. The production
+  dependency audit reported no known vulnerabilities.
+- Phase 7 activated no managed database, operational policy, public bucket, placeholder governance/
+  routing row, Redis, BullMQ, Redis adapter/cache, or Sentry integration.
 
 ## Last Updated
 
-2026-07-14
+2026-07-16

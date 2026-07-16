@@ -432,3 +432,28 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   destination verification, localization, fallback, credential, and privacy policy are approved.
 - Public-comment storage is structural only. No create/read RPC, grant, event, or client route is
   enabled while complaint visibility and moderation policy remain unresolved.
+
+## 2026-07-16 — Phase 7 Resolution Accountability Conventions
+
+- A resolution policy has a stable scope identity and immutable effective-dated versions. The
+  policy applicable at the exact server-recorded resolution completion time governs its later
+  feedback, follow-up evidence, and reopen actions even if a newer version is published.
+- Missing, ambiguous, draft, or out-of-period policy data is an explicit unavailable state. No API
+  or client supplies fallback rating bounds, windows, reasons, attempt limits, or escalation
+  thresholds, and the repository seeds no operational Phase 7 policy.
+- Original finalized complaint media is `before` evidence; explicitly linked finalized government
+  media is `after` evidence; finalized citizen follow-up media is `reopen` evidence. Every object
+  stays private and is accessed only through a fresh owner check and short-lived signed URL.
+- New government resolutions record server completion time, the complete captured-location
+  provenance, optional same-complaint/current-assignment work reference, and at least one finalized
+  after-evidence item. Historical Phase 5 rows retain nullable completion fields rather than
+  receiving fabricated backfills.
+- Citizen feedback and reopening are distinct immutable actions. A `resolved` outcome confirms the
+  complaint; an adverse outcome remains auditable but never silently reopens it.
+- Feedback, evidence reservation/finalization, and reopening use purpose-scoped exact replay plus
+  optimistic workflow versions. PostgreSQL derives `reopened` versus `escalated`, appends history
+  and data-minimized audit, and reuses the existing Phase 6 outbox transactionally.
+- Government-only completion notes never enter citizen contracts. Feedback text, ratings, exact
+  coordinates, object paths, hashes, and signed tokens never enter notification payloads or
+  structured logs; logs may retain bounded actor, complaint, action, and evidence identifiers for
+  audit correlation.

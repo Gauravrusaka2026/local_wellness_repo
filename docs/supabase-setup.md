@@ -647,6 +647,19 @@ retry/dead behavior, and no direct public-comment access. Push and email rows mu
 `unsupported`; do not configure a provider or mark them delivered without the later provider,
 consent, preference, privacy, and destination-lifecycle work.
 
+Phase 7 adds two resolution-accountability migrations and pgTAP plans 026–027. They extend
+resolution records with nullable historical completion fields, add effective-dated policy and
+private citizen accountability tables, and expose narrow service-role RPCs for context, feedback,
+follow-up evidence, reopening, escalation, and scoped government history. All new tables remain in
+the unexposed forced-RLS `complaints` schema. No public/anonymous/authenticated role receives direct
+table or function access, and private evidence buckets gain no public read policy.
+
+The repository intentionally contains no approved operational resolution policy seed. Use
+rollback-isolated synthetic policy rows for local tests only. A managed operator must obtain the
+approved values and reviewer identity, publish one non-overlapping effective version, then verify
+the application still fails closed outside its scope and effective period. Never promote a draft,
+placeholder, ambiguous, or expired policy automatically.
+
 ### Dedicated staging database — 2026-07-14
 
 The connected managed project is owner-confirmed as staging, and its privileged/database
@@ -762,6 +775,20 @@ Before managed Phase 6 activation, operators must also:
 - monitor outbox/delivery age, retry/dead rows, lease expiry, readiness, and zero-socket delivery;
 - leave push/email unsupported until providers, consent/preferences, destination verification,
   retention, fallback, privacy, and credential ownership are approved.
+
+Before managed Phase 7 activation, operators must also:
+
+- apply both Phase 7 migrations in managed development and staging, regenerate/check database
+  types, and repeat forced-RLS, direct-ACL, service-RPC, ownership, scope, and append-only tests;
+- approve and publish the exact policy values through a reviewed operator change; keep feedback
+  and reopening unavailable if no single effective policy matches;
+- smoke a new resolution with live captured completion location, an existing same-complaint work
+  reference, finalized after evidence, citizen feedback, private follow-up evidence, reopening,
+  exact retries, and the repeated-reopen escalation threshold;
+- verify short-lived owner evidence access and denial for another citizen, stale government scope,
+  unrelated evidence, expired reservations, mismatched content, and reused evidence;
+- confirm status history, citizen/government audit, and the existing notification outbox commit
+  atomically without exposing feedback text, ratings, coordinates, object paths, hashes, or tokens.
 
 No Redis, BullMQ, Redis adapter/cache, or Sentry setup is required or permitted for this V1 path.
 

@@ -202,11 +202,21 @@ export const parseGovernmentActionForm = (formData: FormData): ParsedGovernmentA
     case 'submit_resolution':
       body = parseWithSchema(submitGovernmentComplaintResolutionSchema, {
         completionNote: text(formData, 'completionNote'),
+        completionLocation: {
+          accuracyMeters: Number(text(formData, 'completionAccuracyMeters')),
+          capturedAt: text(formData, 'completionCapturedAt'),
+          deviceRecordedAt: text(formData, 'completionDeviceRecordedAt'),
+          isMockLocation: null,
+          latitude: Number(text(formData, 'completionLatitude')),
+          longitude: Number(text(formData, 'completionLongitude')),
+          provider: text(formData, 'completionProvider'),
+        },
         expectedWorkflowVersion: common.expectedWorkflowVersion,
         publicMessage: optionalText(formData, 'publicMessage'),
         resolutionEvidenceIds: formData
           .getAll('resolutionEvidenceIds')
           .filter((value): value is string => typeof value === 'string'),
+        workReferenceId: optionalText(formData, 'workReferenceId'),
       });
       break;
   }

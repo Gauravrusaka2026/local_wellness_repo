@@ -9,6 +9,7 @@ import {
 import type {
   ComplaintMessage,
   GovernmentAccessScope,
+  GovernmentComplaintAccountability,
   GovernmentComplaintDetail,
   GovernmentComplaintQueueResult,
 } from '@local-wellness/types';
@@ -16,8 +17,14 @@ import type {
 import { ComplaintQueue, QueueFilters, QueueNavigation } from '../app/queue-view';
 import { ComplaintDetailView } from '../app/complaints/[complaintId]/detail-view';
 import { realtimeEventMatchesComplaint } from '../app/complaints/[complaintId]/conversation-panel';
-import { getAvailableResolutionEvidence } from '../app/complaints/[complaintId]/action-forms';
-import { decodeGovernmentComplaintQueueResult } from '../lib/api/government-complaints';
+import {
+  getAvailableResolutionEvidence,
+  toCompletionLocation,
+} from '../app/complaints/[complaintId]/action-forms';
+import {
+  decodeGovernmentComplaintAccountability,
+  decodeGovernmentComplaintQueueResult,
+} from '../lib/api/government-complaints';
 import {
   buildComplaintHref,
   buildQueueHref,
@@ -261,9 +268,69 @@ test('renders authorized text location context without an external map or coordi
     ],
     workReferences: [],
   };
+  const accountability: GovernmentComplaintAccountability = {
+    complaintId,
+    escalations: [
+      {
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        level: 1,
+        occurredAt: '2026-07-14T13:00:00+05:30',
+        reasonCode: 'repeat_reopen',
+      },
+    ],
+    feedback: [
+      {
+        comment: 'The repair did not last.',
+        id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        outcome: 'temporary_fix',
+        ratings: { communication: 3, quality: 2, satisfaction: 2, speed: 4 },
+        resolutionId: '12121212-1212-4212-8212-121212121212',
+        submittedAt: '2026-07-14T12:00:00+05:30',
+      },
+    ],
+    reopenRequests: [
+      {
+        attemptNumber: 1,
+        evidenceIds: [],
+        explanation: 'The road surface failed again.',
+        id: '13131313-1313-4313-8313-131313131313',
+        reasonCode: 'issue_returned',
+        requestedAt: '2026-07-14T12:30:00+05:30',
+        resolutionId: '12121212-1212-4212-8212-121212121212',
+        resultingStatus: 'escalated',
+      },
+    ],
+    resolutionHistory: [
+      {
+        afterEvidence: [],
+        beforeEvidence: [],
+        completedAt: '2026-07-14T11:30:00+05:30',
+        completionLocation: {
+          accuracyMeters: 7,
+          capturedAt: '2026-07-14T11:29:00+05:30',
+          latitude: 18.5205,
+          longitude: 73.8568,
+          provider: 'gps',
+        },
+        completionNote: 'Temporary patch installed by the road crew.',
+        distanceFromComplaintMeters: 14,
+        id: '12121212-1212-4212-8212-121212121212',
+        publicMessage: 'The reported road defect was repaired.',
+        reopenEvidence: [],
+        version: 1,
+        workReference: null,
+      },
+    ],
+    workflowVersion: 4,
+  };
   const markup = renderToStaticMarkup(
     <AppRouterContext.Provider value={testRouter}>
-      <ComplaintDetailView assignmentOptions={[]} complaint={detail} messages={[citizenMessage]} />
+      <ComplaintDetailView
+        accountability={accountability}
+        assignmentOptions={[]}
+        complaint={detail}
+        messages={[citizenMessage]}
+      />
     </AppRouterContext.Provider>,
   );
 
@@ -279,6 +346,18 @@ test('renders authorized text location context without an external map or coordi
   assert.match(markup, /Private conversation/u);
   assert.match(markup, /The issue is beside the main entrance/u);
   assert.match(markup, /visible only to the citizen and currently authorized complaint staff/u);
+  assert.match(markup, /Resolution, feedback, and reopening history/u);
+  assert.match(markup, /Temporary patch installed by the road crew/u);
+  assert.match(markup, /The repair did not last/u);
+  assert.match(markup, /Attempt 1.*escalated/u);
+  assert.match(markup, /Escalation level 1/u);
+  assert.deepEqual(decodeGovernmentComplaintAccountability(accountability), accountability);
+  assert.throws(() =>
+    decodeGovernmentComplaintAccountability({
+      ...accountability,
+      resolutionHistory: [{ ...accountability.resolutionHistory[0], officerPhone: 'private' }],
+    }),
+  );
 });
 
 test('refreshes durable complaint data only for matching realtime event envelopes', () => {
@@ -349,5 +428,26 @@ test('offers only finalized evidence that has not already been linked to a resol
   assert.deepEqual(
     available.map(({ id }) => id),
     ['cccccccc-cccc-4ccc-8ccc-ccccccccccc2'],
+  );
+});
+
+test('normalizes browser geolocation into restricted completion evidence', () => {
+  assert.deepEqual(
+    toCompletionLocation(
+      {
+        coords: { accuracy: 8.25, latitude: 18.5204, longitude: 73.8567 },
+        timestamp: Date.parse('2026-07-16T10:00:00.000Z'),
+      },
+      '2026-07-16T10:00:01.000Z',
+    ),
+    {
+      accuracyMeters: 8.25,
+      capturedAt: '2026-07-16T10:00:00.000Z',
+      deviceRecordedAt: '2026-07-16T10:00:01.000Z',
+      isMockLocation: null,
+      latitude: 18.5204,
+      longitude: 73.8567,
+      provider: 'unknown',
+    },
   );
 });

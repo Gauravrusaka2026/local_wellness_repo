@@ -12,7 +12,9 @@ import {
   type GovernmentComplaintAssignmentOption,
   type GovernmentComplaintExternalDependency,
   type GovernmentComplaintInspection,
+  type GovernmentComplaintWorkReference,
   type GovernmentResolutionEvidence,
+  type ComplaintLocationCapture,
 } from '@local-wellness/types';
 
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
@@ -43,8 +45,31 @@ type GovernmentActionFormsProperties = Readonly<{
   externalDependencies: GovernmentComplaintExternalDependency[];
   inspections: GovernmentComplaintInspection[];
   operationKeys: ActionKeys;
+  workReferences: GovernmentComplaintWorkReference[];
   workflowVersion: number;
 }>;
+
+type BrowserGeolocationPosition = Readonly<{
+  coords: Readonly<{
+    accuracy: number;
+    latitude: number;
+    longitude: number;
+  }>;
+  timestamp: number;
+}>;
+
+export const toCompletionLocation = (
+  position: BrowserGeolocationPosition,
+  deviceRecordedAt = new Date().toISOString(),
+): ComplaintLocationCapture => ({
+  accuracyMeters: position.coords.accuracy,
+  capturedAt: new Date(position.timestamp).toISOString(),
+  deviceRecordedAt,
+  isMockLocation: null,
+  latitude: position.coords.latitude,
+  longitude: position.coords.longitude,
+  provider: 'unknown',
+});
 
 export const getAvailableResolutionEvidence = (
   evidence: GovernmentResolutionEvidence[],
@@ -227,6 +252,103 @@ const EvidenceUploader = ({
   );
 };
 
+const CompletionLocationFields = () => {
+  const [location, setLocation] = useState<ComplaintLocationCapture | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
+
+  const capture = (): void => {
+    if (!globalThis.navigator.geolocation) {
+      setMessage('This browser cannot capture a completion location. Use a supported device.');
+      return;
+    }
+
+    setIsPending(true);
+    setMessage('Capturing an accurate completion location…');
+    globalThis.navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const captured = toCompletionLocation(position);
+        if (
+          !Number.isFinite(captured.accuracyMeters) ||
+          captured.accuracyMeters < 0 ||
+          captured.accuracyMeters > 5_000
+        ) {
+          setLocation(null);
+          setMessage('The browser did not return a usable accuracy estimate. Try again outdoors.');
+        } else {
+          setLocation(captured);
+          setMessage(
+            `Completion location captured to ${captured.accuracyMeters.toFixed(1)} metres.`,
+          );
+        }
+        setIsPending(false);
+      },
+      (error) => {
+        setLocation(null);
+        setMessage(
+          error.code === error.PERMISSION_DENIED
+            ? 'Location permission is required to submit resolution evidence.'
+            : 'The completion location could not be captured. Move outdoors and try again.',
+        );
+        setIsPending(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 },
+    );
+  };
+
+  return (
+    <fieldset>
+      <legend>Completion location</legend>
+      <p className="field-hint">
+        Capture the location where the work was completed. It remains restricted operational data.
+      </p>
+      <input
+        aria-label="Completion latitude"
+        name="completionLatitude"
+        readOnly
+        required
+        type="text"
+        value={location?.latitude ?? ''}
+      />
+      <input
+        aria-label="Completion longitude"
+        name="completionLongitude"
+        readOnly
+        required
+        type="text"
+        value={location?.longitude ?? ''}
+      />
+      <input
+        aria-label="Completion location accuracy"
+        name="completionAccuracyMeters"
+        readOnly
+        required
+        type="text"
+        value={location?.accuracyMeters ?? ''}
+      />
+      <input name="completionCapturedAt" type="hidden" value={location?.capturedAt ?? ''} />
+      <input
+        name="completionDeviceRecordedAt"
+        type="hidden"
+        value={location?.deviceRecordedAt ?? ''}
+      />
+      <input name="completionProvider" type="hidden" value={location?.provider ?? ''} />
+      <button className="secondary-button" disabled={isPending} onClick={capture} type="button">
+        {isPending
+          ? 'Capturing location…'
+          : location === null
+            ? 'Capture location'
+            : 'Recapture location'}
+      </button>
+      {message === null ? null : (
+        <p aria-live="polite" className={location === null ? 'error-notice' : 'success-notice'}>
+          {message}
+        </p>
+      )}
+    </fieldset>
+  );
+};
+
 export const GovernmentActionForms = ({
   allowedActions,
   allowedStatusTransitions,
@@ -236,6 +358,7 @@ export const GovernmentActionForms = ({
   externalDependencies,
   inspections,
   operationKeys,
+  workReferences,
   workflowVersion,
 }: GovernmentActionFormsProperties) => {
   const has = (action: GovernmentComplaintAllowedAction): boolean =>
@@ -634,6 +757,18 @@ export const GovernmentActionForms = ({
                   required
                   rows={5}
                 />
+              </div>
+              <CompletionLocationFields />
+              <div className="field-group">
+                <label htmlFor="resolution-work-reference">Work reference (optional)</label>
+                <select id="resolution-work-reference" name="workReferenceId">
+                  <option value="">No linked work reference</option>
+                  {workReferences.map((reference) => (
+                    <option key={reference.id} value={reference.id}>
+                      {reference.referenceType}: {reference.referenceNumber}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="field-group">
                 <label htmlFor="resolution-message">Public resolution message (optional)</label>
