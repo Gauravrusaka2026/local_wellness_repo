@@ -9,10 +9,16 @@
     "dev": "tsx watch src/main.ts",
     "lint": "eslint .",
     "start": "node dist/main.js",
+    "test": "node --test --import tsx src/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
-  "devDependencies": {
+  "dependencies": {
     "@local-wellness/config": "workspace:*",
+    "@local-wellness/database": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "tsx": "catalog:",

@@ -43,6 +43,7 @@
     "react-native-screens": "catalog:",
     "react-native-url-polyfill": "catalog:",
     "react-native-worklets": "catalog:",
+    "socket.io-client": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

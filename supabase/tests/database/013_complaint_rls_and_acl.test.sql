@@ -96,7 +96,7 @@ select is(
     where tgrelid = 'complaints.complaint_status_history'::regclass
       and not tgisinternal
   ),
-  1,
+  2,
   'status history has an append-only trigger'
 );
 

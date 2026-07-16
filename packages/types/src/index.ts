@@ -228,6 +228,7 @@ export interface GovernmentInvitation {
 }
 
 export * from './complaints.js';
+export * from './communications.js';
 export * from './government-complaints.js';
 export * from './governance.js';
 export * from './routing.js';

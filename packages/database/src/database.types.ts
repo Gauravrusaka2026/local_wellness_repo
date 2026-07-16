@@ -105,6 +105,47 @@ export type Database = {
           },
         ];
       };
+      complaint_comments: {
+        Row: {
+          author_user_id: string;
+          body: string;
+          client_message_id: string;
+          complaint_id: string;
+          created_at: string;
+          id: string;
+          moderation_status: string;
+          visibility: string;
+        };
+        Insert: {
+          author_user_id: string;
+          body: string;
+          client_message_id: string;
+          complaint_id: string;
+          created_at?: string;
+          id?: string;
+          moderation_status?: string;
+          visibility?: string;
+        };
+        Update: {
+          author_user_id?: string;
+          body?: string;
+          client_message_id?: string;
+          complaint_id?: string;
+          created_at?: string;
+          id?: string;
+          moderation_status?: string;
+          visibility?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_comments_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       complaint_drafts: {
         Row: {
           asset_id: string | null;
@@ -927,6 +968,41 @@ export type Database = {
           },
         ];
       };
+      conversation_rooms: {
+        Row: {
+          closed_at: string | null;
+          complaint_id: string;
+          created_at: string;
+          id: string;
+          status: string;
+          visibility: string;
+        };
+        Insert: {
+          closed_at?: string | null;
+          complaint_id: string;
+          created_at?: string;
+          id?: string;
+          status?: string;
+          visibility?: string;
+        };
+        Update: {
+          closed_at?: string | null;
+          complaint_id?: string;
+          created_at?: string;
+          id?: string;
+          status?: string;
+          visibility?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'conversation_rooms_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       duplicate_check_matches: {
         Row: {
           age_seconds: number;
@@ -1214,41 +1290,302 @@ export type Database = {
         };
         Relationships: [];
       };
+      message_receipts: {
+        Row: {
+          complaint_id: string;
+          created_at: string;
+          event_id: string;
+          id: string;
+          read_at: string;
+          read_through_created_at: string;
+          read_through_message_id: string;
+          request_id: string;
+          room_id: string;
+          updated_at: string;
+          user_id: string;
+          version: number;
+        };
+        Insert: {
+          complaint_id: string;
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          read_at?: string;
+          read_through_created_at: string;
+          read_through_message_id: string;
+          request_id: string;
+          room_id: string;
+          updated_at?: string;
+          user_id: string;
+          version?: number;
+        };
+        Update: {
+          complaint_id?: string;
+          created_at?: string;
+          event_id?: string;
+          id?: string;
+          read_at?: string;
+          read_through_created_at?: string;
+          read_through_message_id?: string;
+          request_id?: string;
+          room_id?: string;
+          updated_at?: string;
+          user_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'message_receipts_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'message_receipts_message_complaint_fkey';
+            columns: ['read_through_message_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'messages';
+            referencedColumns: ['id', 'complaint_id'];
+          },
+          {
+            foreignKeyName: 'message_receipts_read_through_message_id_fkey';
+            columns: ['read_through_message_id'];
+            isOneToOne: false;
+            referencedRelation: 'messages';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'message_receipts_room_complaint_fkey';
+            columns: ['room_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'conversation_rooms';
+            referencedColumns: ['id', 'complaint_id'];
+          },
+          {
+            foreignKeyName: 'message_receipts_room_id_fkey';
+            columns: ['room_id'];
+            isOneToOne: false;
+            referencedRelation: 'conversation_rooms';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      messages: {
+        Row: {
+          body: string;
+          client_message_id: string;
+          complaint_id: string;
+          created_at: string;
+          id: string;
+          request_fingerprint: string;
+          request_id: string;
+          room_id: string;
+          sender_user_id: string;
+        };
+        Insert: {
+          body: string;
+          client_message_id: string;
+          complaint_id: string;
+          created_at?: string;
+          id?: string;
+          request_fingerprint: string;
+          request_id: string;
+          room_id: string;
+          sender_user_id: string;
+        };
+        Update: {
+          body?: string;
+          client_message_id?: string;
+          complaint_id?: string;
+          created_at?: string;
+          id?: string;
+          request_fingerprint?: string;
+          request_id?: string;
+          room_id?: string;
+          sender_user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'messages_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'messages_room_complaint_fkey';
+            columns: ['room_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'conversation_rooms';
+            referencedColumns: ['id', 'complaint_id'];
+          },
+          {
+            foreignKeyName: 'messages_room_id_fkey';
+            columns: ['room_id'];
+            isOneToOne: false;
+            referencedRelation: 'conversation_rooms';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      notification_deliveries: {
+        Row: {
+          attempt_count: number;
+          channel: string;
+          created_at: string;
+          delivered_at: string | null;
+          destination_key: string;
+          device_id: string | null;
+          event_name: string;
+          id: string;
+          last_failure_code: string | null;
+          lease_expires_at: string | null;
+          lease_token: string | null;
+          leased_by: string | null;
+          next_attempt_at: string;
+          notification_id: string;
+          state: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          channel: string;
+          created_at?: string;
+          delivered_at?: string | null;
+          destination_key: string;
+          device_id?: string | null;
+          event_name: string;
+          id?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          leased_by?: string | null;
+          next_attempt_at?: string;
+          notification_id: string;
+          state?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          channel?: string;
+          created_at?: string;
+          delivered_at?: string | null;
+          destination_key?: string;
+          device_id?: string | null;
+          event_name?: string;
+          id?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          leased_by?: string | null;
+          next_attempt_at?: string;
+          notification_id?: string;
+          state?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_deliveries_notification_id_fkey';
+            columns: ['notification_id'];
+            isOneToOne: false;
+            referencedRelation: 'notifications';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      notification_delivery_attempts: {
+        Row: {
+          attempt_number: number;
+          claim_token: string;
+          delivered_socket_count: number | null;
+          delivery_id: string;
+          event_type: string;
+          failure_code: string | null;
+          id: string;
+          occurred_at: string;
+          worker_id: string;
+        };
+        Insert: {
+          attempt_number: number;
+          claim_token: string;
+          delivered_socket_count?: number | null;
+          delivery_id: string;
+          event_type: string;
+          failure_code?: string | null;
+          id?: string;
+          occurred_at?: string;
+          worker_id: string;
+        };
+        Update: {
+          attempt_number?: number;
+          claim_token?: string;
+          delivered_socket_count?: number | null;
+          delivery_id?: string;
+          event_type?: string;
+          failure_code?: string | null;
+          id?: string;
+          occurred_at?: string;
+          worker_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_delivery_attempts_delivery_id_fkey';
+            columns: ['delivery_id'];
+            isOneToOne: false;
+            referencedRelation: 'notification_deliveries';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       notification_outbox: {
         Row: {
           aggregate_id: string;
           aggregate_type: string;
+          assignment_id: string | null;
           complaint_id: string;
           created_at: string;
           event_type: string;
           id: string;
+          message_id: string | null;
           occurred_at: string;
           payload: Json;
-          status_history_id: string;
+          status_history_id: string | null;
         };
         Insert: {
           aggregate_id: string;
           aggregate_type?: string;
+          assignment_id?: string | null;
           complaint_id: string;
           created_at?: string;
           event_type?: string;
           id?: string;
+          message_id?: string | null;
           occurred_at: string;
           payload: Json;
-          status_history_id: string;
+          status_history_id?: string | null;
         };
         Update: {
           aggregate_id?: string;
           aggregate_type?: string;
+          assignment_id?: string | null;
           complaint_id?: string;
           created_at?: string;
           event_type?: string;
           id?: string;
+          message_id?: string | null;
           occurred_at?: string;
           payload?: Json;
-          status_history_id?: string;
+          status_history_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: 'notification_outbox_assignment_id_fkey';
+            columns: ['assignment_id'];
+            isOneToOne: true;
+            referencedRelation: 'complaint_assignments';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'notification_outbox_complaint_id_fkey';
             columns: ['complaint_id'];
@@ -1257,10 +1594,175 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
+            foreignKeyName: 'notification_outbox_message_id_fkey';
+            columns: ['message_id'];
+            isOneToOne: true;
+            referencedRelation: 'messages';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'notification_outbox_status_history_id_fkey';
             columns: ['status_history_id'];
             isOneToOne: true;
             referencedRelation: 'complaint_status_history';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      notification_outbox_jobs: {
+        Row: {
+          attempt_count: number;
+          completed_at: string | null;
+          created_at: string;
+          last_failure_code: string | null;
+          lease_expires_at: string | null;
+          lease_token: string | null;
+          next_attempt_at: string;
+          outbox_id: string;
+          state: string;
+          updated_at: string;
+          worker_id: string | null;
+        };
+        Insert: {
+          attempt_count?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          next_attempt_at?: string;
+          outbox_id: string;
+          state?: string;
+          updated_at?: string;
+          worker_id?: string | null;
+        };
+        Update: {
+          attempt_count?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          last_failure_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_token?: string | null;
+          next_attempt_at?: string;
+          outbox_id?: string;
+          state?: string;
+          updated_at?: string;
+          worker_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_outbox_jobs_outbox_id_fkey';
+            columns: ['outbox_id'];
+            isOneToOne: true;
+            referencedRelation: 'notification_outbox';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      notifications: {
+        Row: {
+          body: string;
+          complaint_id: string;
+          created_at: string;
+          event_type: string;
+          id: string;
+          outbox_id: string;
+          payload: Json;
+          read_at: string | null;
+          recipient_user_id: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          body: string;
+          complaint_id: string;
+          created_at?: string;
+          event_type: string;
+          id?: string;
+          outbox_id: string;
+          payload: Json;
+          read_at?: string | null;
+          recipient_user_id: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          body?: string;
+          complaint_id?: string;
+          created_at?: string;
+          event_type?: string;
+          id?: string;
+          outbox_id?: string;
+          payload?: Json;
+          read_at?: string | null;
+          recipient_user_id?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notifications_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'notifications_outbox_complaint_fkey';
+            columns: ['outbox_id', 'complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'notification_outbox';
+            referencedColumns: ['id', 'complaint_id'];
+          },
+          {
+            foreignKeyName: 'notifications_outbox_id_fkey';
+            columns: ['outbox_id'];
+            isOneToOne: false;
+            referencedRelation: 'notification_outbox';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      room_members: {
+        Row: {
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          member_type: string;
+          membership_source: string;
+          role_assignment_id: string | null;
+          room_id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          member_type: string;
+          membership_source: string;
+          role_assignment_id?: string | null;
+          room_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          member_type?: string;
+          membership_source?: string;
+          role_assignment_id?: string | null;
+          room_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'room_members_room_id_fkey';
+            columns: ['room_id'];
+            isOneToOne: false;
+            referencedRelation: 'conversation_rooms';
             referencedColumns: ['id'];
           },
         ];
@@ -1287,6 +1789,10 @@ export type Database = {
           p_capability: string;
           p_scope_role_assignment_id?: string;
         };
+        Returns: boolean;
+      };
+      actor_can_communicate: {
+        Args: { p_actor_user_id: string; p_at?: string; p_complaint_id: string };
         Returns: boolean;
       };
       assignment_has_current_verified_officer: {
@@ -4741,6 +5247,17 @@ export type Database = {
         };
         Returns: string;
       };
+      authorize_realtime_room: {
+        Args: {
+          p_actor_user_id: string;
+          p_resource_id: string;
+          p_room_type: string;
+        };
+        Returns: {
+          actor_type: string;
+          authorized: boolean;
+        }[];
+      };
       bootstrap_platform_administrator: {
         Args: { target_user_id: string };
         Returns: string;
@@ -4781,6 +5298,43 @@ export type Database = {
           source_key: string;
         }[];
       };
+      claim_notification_outbox: {
+        Args: {
+          p_lease_seconds?: number;
+          p_limit?: number;
+          p_worker_id: string;
+        };
+        Returns: {
+          lease_token: string;
+          outbox_id: string;
+        }[];
+      };
+      claim_realtime_deliveries: {
+        Args: {
+          p_batch_size?: number;
+          p_instance_id: string;
+          p_lease_seconds?: number;
+        };
+        Returns: {
+          attempt_count: number;
+          claim_token: string;
+          complaint_id: string;
+          delivery_id: string;
+          event_id: string;
+          event_name: string;
+          payload: Json;
+          recipient_user_id: string;
+        }[];
+      };
+      complete_notification_delivery: {
+        Args: {
+          p_claim_token: string;
+          p_delivered_socket_count: number;
+          p_delivery_id: string;
+          p_instance_id: string;
+        };
+        Returns: undefined;
+      };
       create_complaint_draft: {
         Args: {
           p_actor_user_id: string;
@@ -4798,6 +5352,19 @@ export type Database = {
           replayed: boolean;
           revision: number;
           status: string;
+        }[];
+      };
+      create_complaint_message: {
+        Args: {
+          p_actor_user_id: string;
+          p_body: string;
+          p_client_message_id: string;
+          p_complaint_id: string;
+          p_request_id?: string;
+        };
+        Returns: {
+          replayed: boolean;
+          response_payload: Json;
         }[];
       };
       discard_complaint_draft: {
@@ -4849,6 +5416,26 @@ export type Database = {
           evidence_id: string;
           failure_code: string;
           upload_status: string;
+        }[];
+      };
+      fail_notification_delivery: {
+        Args: {
+          p_claim_token: string;
+          p_delivery_id: string;
+          p_failure_code: string;
+          p_instance_id: string;
+        };
+        Returns: undefined;
+      };
+      fail_notification_outbox: {
+        Args: {
+          p_error_code: string;
+          p_lease_token: string;
+          p_outbox_id: string;
+        };
+        Returns: {
+          next_attempt_at: string;
+          status: string;
         }[];
       };
       finalize_complaint_media: {
@@ -5144,6 +5731,13 @@ export type Database = {
           ward_id: string;
         }[];
       };
+      get_realtime_account: {
+        Args: { p_actor_user_id: string };
+        Returns: {
+          is_active: boolean;
+          user_id: string;
+        }[];
+      };
       get_routing_decision_replay: {
         Args: { p_actor_user_id: string; p_request_id: string };
         Returns: {
@@ -5242,6 +5836,18 @@ export type Database = {
           width_pixels: number;
         }[];
       };
+      list_complaint_messages: {
+        Args: {
+          p_actor_user_id: string;
+          p_before_created_at?: string;
+          p_before_id?: string;
+          p_complaint_id: string;
+          p_limit?: number;
+        };
+        Returns: {
+          response_payload: Json;
+        }[];
+      };
       list_government_assignment_options: {
         Args: {
           p_actor_user_id: string;
@@ -5282,6 +5888,17 @@ export type Database = {
           submitted_at: string;
           updated_at: string;
           workflow_version: number;
+        }[];
+      };
+      list_notifications: {
+        Args: {
+          p_actor_user_id: string;
+          p_before_created_at?: string;
+          p_before_id?: string;
+          p_limit?: number;
+        };
+        Returns: {
+          response_payload: Json;
         }[];
       };
       list_owned_complaints: {
@@ -5329,6 +5946,27 @@ export type Database = {
           requires_asset: boolean;
           requires_location: boolean;
           verification_status: string;
+        }[];
+      };
+      mark_complaint_message_read: {
+        Args: {
+          p_actor_user_id: string;
+          p_complaint_id: string;
+          p_read_through_created_at: string;
+          p_read_through_message_id: string;
+          p_request_id?: string;
+        };
+        Returns: Json;
+      };
+      mark_notification_read: {
+        Args: { p_actor_user_id: string; p_notification_id: string };
+        Returns: Json;
+      };
+      materialize_notification_outbox: {
+        Args: { p_lease_token: string; p_outbox_id: string };
+        Returns: {
+          notification_count: number;
+          replayed: boolean;
         }[];
       };
       perform_government_complaint_action: {

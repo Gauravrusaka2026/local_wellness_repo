@@ -416,8 +416,28 @@ coordinate-sharing policy has been selected.
 The current bootstrap intentionally exposes zero verified routable categories, so a valid
 production-style submission and a real government queue remain blocked until reviewed pilot
 routing data is activated. Speech transcription, media moderation, physical-device verification,
-hosted-environment verification, and outbox delivery remain pending. No hosted deployment is part
-of the current repository state.
+hosted-environment verification, and provider-backed notification delivery remain pending. No
+hosted application deployment is part of the current repository state.
+
+Phase 6 adds database-first private complaint conversations, durable in-app notification history,
+and authenticated single-instance Socket.IO delivery. For local engineering, start Supabase and
+the API first, then run only the clients and background processes you need:
+
+```bash
+pnpm --filter @local-wellness/api dev
+pnpm --filter @local-wellness/workers dev
+pnpm --filter @local-wellness/realtime-server dev
+pnpm --filter @local-wellness/mobile dev
+pnpm --filter @local-wellness/government-dashboard dev
+```
+
+Messages are persisted before broadcast. The worker materializes the transaction outbox into
+recipient-specific in-app notifications, while Socket.IO events act only as authenticated
+invalidation hints over REST-backed history. The V1 realtime topology supports one instance and
+uses PostgreSQL leases, bounded retries, stable event IDs, and retained delivery attempts without
+Redis or BullMQ. Push and email are recorded as explicitly unsupported until providers, user
+preferences/consent, verified destinations, and credentials are approved. Public comments remain
+disabled until public visibility, moderation, abuse controls, and privacy policy are reviewed.
 
 ---
 
@@ -506,9 +526,14 @@ Current stage:
   requests, append-only audit/history, inspections, work references, dependency closure, private
   resolution evidence, versioned resolutions, a transaction outbox, NestJS APIs, and a scoped
   government dashboard queue/detail workspace;
-- Phase 5 does not activate placeholder pilot data, deliver notification outbox records, expose an
-  external map, or claim application deployment; verified Pune/BMC data and environment validation
-  remain separate gates;
+- Phase 6 engineering adds forced-RLS conversations/messages/read receipts, durable in-app
+  notifications, PostgreSQL-leased outbox/realtime delivery, authenticated Socket.IO rooms,
+  private message/notification APIs, a mobile notification/conversation experience, and the
+  government complaint conversation panel. Local reset, pgTAP, lint, type generation, tests, and
+  builds pass; the two Phase 6 migrations are not yet deployed to staging;
+- Phase 6 does not activate placeholder pilot data, external push/email delivery, public comments,
+  multi-instance realtime, or a hosted application. Verified Pune/BMC data, provider policy, and
+  managed-environment validation remain separate gates;
 - Pune Municipal Corporation is the generic architecture and test reference only; no
   municipality-specific routing logic exists, and verified Pune boundaries, ownership mappings,
   officer-role assignments, confidence policy, and fallback records remain required before an

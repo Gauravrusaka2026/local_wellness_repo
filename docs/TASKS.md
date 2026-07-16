@@ -3,15 +3,16 @@
 ## Project Status
 
 - Project: Local Wellness
-- Current phase: Phase 5 — Government dashboard
-- Current sprint: Sprint 6 closeout — Staging activation and Phase 6 readiness
-- Overall implementation progress: 51%
+- Current phase: Phase 6 — Realtime and notifications
+- Current sprint: Sprint 7 — Persistent communication and durable notification delivery
+- Overall implementation progress: 59%
 - Phase 0 implementation progress: 100%
 - Phase 1 implementation progress: 100%
 - Phase 2 implementation progress: 90%
 - Phase 3 implementation progress: 85%
 - Phase 4 implementation progress: 95%
 - Phase 5 implementation progress: 95%
+- Phase 6 implementation progress: 85%
 - Last updated: 2026-07-14
 
 ## Phase 0 Scope
@@ -448,6 +449,54 @@ operational recipient.
 - [x] Create the Phase 5 workflow ADR and worklog; update all required architecture, database, API,
       authentication, deployment, setup, tracker, changelog, decision, and known-issue documents.
 
+## Phase 6 Execution Plan
+
+Phase 6 adds authenticated, database-first complaint communication and durable notifications. The
+V1 pilot remains a single Socket.IO instance backed by PostgreSQL. Redis, BullMQ, Redis adapters,
+caches, and Sentry remain excluded. Public comments are fail-closed while complaints remain private;
+no Phase 6 surface may make a complaint or its media publicly visible.
+
+### Communication Persistence and Access Control
+
+- [x] Add private, forced-RLS conversation, message, receipt, notification, delivery-attempt, and
+      outbox-dispatch tables with append-only history, bounded payloads, indexes, deduplication keys,
+      leases, retries, and terminal failure state.
+- [x] Add service-only database functions for current complaint access, authorized room resolution,
+      idempotent private-message persistence, message reads, notification listing/reads, recipient
+      fan-out, and `FOR UPDATE SKIP LOCKED` delivery claims.
+- [x] Extend complaint submission and every supported government workflow event so the domain event
+      is appended in the same transaction without editing an applied migration or exposing citizen,
+      contact, exact-location, media-path, or token data.
+- [x] Keep public comments structurally supported but non-creatable until a later reviewed public
+      complaint visibility policy is implemented; private conversation access remains limited to
+      the complaint owner and currently authorized government scope.
+
+### Realtime and Notification Delivery
+
+- [x] Authenticate every Socket.IO connection with a verified Supabase access token and an active
+      application profile; join only the authenticated user's server-owned room automatically.
+- [x] Validate and authorize complaint, authority, ward, and department room joins on every request;
+      recheck authorization before permanent events, message reads, and ephemeral typing events.
+- [x] Persist messages before broadcasting, return bounded acknowledgements, make client message
+      creation idempotent, and emit only sanitized event contracts.
+- [x] Implement the PostgreSQL-leased notification worker with bounded exponential retry,
+      lease recovery, exact delivery deduplication, structured logs, and terminal dead-letter state.
+- [x] Deliver durable in-app notifications and single-instance Socket.IO events; expose explicit
+      pending/unsupported states for push and email until approved providers and credentials exist.
+
+### API, Clients, Tests, and Operations
+
+- [x] Add authenticated communication and notification HTTP endpoints plus strict shared types,
+      validation schemas, response decoding, pagination, and no-store responses.
+- [x] Add citizen and government conversation/notification client integration sufficient to recover
+      persisted history after reconnect; realtime is an enhancement, never the source of truth.
+- [x] Add migration, RLS, room-authorization, persistence-before-broadcast, API, worker lease/retry,
+      deduplication, offline-notification, and reconnect/replay tests.
+- [x] Regenerate database types and run reset, database lint/pgTAP, formatting, lint, strict
+      type-checking, tests, builds, Expo checks, and production dependency audit.
+- [x] Create an ADR for the PostgreSQL delivery ledger/lease boundary and update every required
+      architecture, database, API, deployment, setup, tracker, worklog, and known-issue document.
+
 ## Staging Activation and Demo Identity Closeout
 
 - [x] Confirm the hosted target is a dedicated staging project using newly generated privileged and
@@ -585,6 +634,11 @@ operational recipient.
 - Resolution evidence has checksum, size, signature, content-type, expiry, and private-access gates,
   but full decoding, malware scanning/moderation, and scheduled Storage-object cleanup remain
   pre-pilot work (`GOVDASH-002`).
+- Phase 6 engineering is locally complete. Managed staging still needs the two additive migrations,
+  one worker and one realtime instance, exact origin/server-secret configuration, and authenticated
+  reconnect, expiry, revocation, and backlog smoke tests. Push/email providers and preferences are
+  unresolved (`NOTIFY-001`), realtime remains deliberately single-instance (`NOTIFY-002`), and
+  public comments remain disabled pending an explicit visibility/privacy decision (`NOTIFY-003`).
 
 ## Technical Debt
 
@@ -611,25 +665,25 @@ operational recipient.
 - ADR-0011 — Use server-orchestrated complaint submission and private signed media uploads.
 - ADR-0012 — Use Supabase Cron, Edge Functions, and PostgreSQL leases for governance retrieval.
 - ADR-0013 — Use database-enforced government complaint workflows.
+- ADR-0014 — Use PostgreSQL-leased outbox delivery for V1 notifications.
 
 ## Files Modified This Session
 
-- Government-dashboard and admin-console code-only OTP login forms and focused authentication tests.
-- Staging/deployment, ward-identity, authentication, governance, database, architecture, and project
-  tracking documentation, including reconciliation of the governance synchronization worklog.
-- No canonical CSV/workbook, generated governance artifact, migration, seed, or ADR was created or
-  modified for the staging activation. Existing reviewed migrations/seeds were deployed unchanged.
-- Staging-only Auth identities, access assignments, and audit records were created through trusted
-  provider/RPC/operator boundaries. Temporary privileged aliases were revoked rather than deleted;
-  no demo email, UUID, OTP, credential, or secret was committed.
-- Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
+- Added two Phase 6 communication/notification migrations, two pgTAP plans, regenerated database
+  types, shared communication contracts, strict validation, and their unit coverage.
+- Added authenticated API message/notification routes, a PostgreSQL-leased notification worker,
+  and an authenticated single-instance Socket.IO server with database-authorized rooms.
+- Added mobile private conversation and notification history/read state plus the government
+  dashboard conversation panel; REST remains the durable recovery path.
+- Updated environment templates, development Compose, README, technical guides, trackers,
+  ADR-0014, and the Phase 6 worklog. Canonical governance CSV/workbook bytes were not changed.
+- No managed environment was mutated and no placeholder source, scope, recipient, route, or category
+  was activated. Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
 
 ## Next Recommended Task
 
-Begin Phase 6 realtime and notification delivery from the transactional complaint outbox. Define
-authorized event contracts, PostgreSQL claiming/retry/replay semantics, and single-instance
-Socket.IO delivery without Redis or BullMQ; keep cross-instance scale-out deferred. In parallel,
-continue reviewed PMC/BMC parsers and acquire the verified Pune/BMC ward, contact, assignment,
-geometry, and routing evidence needed for a production-like dashboard smoke test. First complete the
-pending staging Auth/dashboard browser smoke; do not activate sources, scopes, or routing until
-`ENV-002` and the independent data-review/security gates are closed.
+Begin Phase 7 resolution feedback and reopening engineering against the existing versioned
+resolution/workflow boundary. In parallel, apply the two reviewed Phase 6 migrations to staging,
+configure one worker and one realtime instance, and run the authenticated managed-environment
+smoke matrix. Push/email provider selection, public-comment visibility, and verified Pune/BMC data
+remain independent owner/data-review gates; do not activate placeholders to unblock a demo.

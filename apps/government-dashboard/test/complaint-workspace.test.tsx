@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import {
+  AppRouterContext,
+  type AppRouterInstance,
+} from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import type {
+  ComplaintMessage,
   GovernmentAccessScope,
   GovernmentComplaintDetail,
   GovernmentComplaintQueueResult,
@@ -10,6 +15,7 @@ import type {
 
 import { ComplaintQueue, QueueFilters, QueueNavigation } from '../app/queue-view';
 import { ComplaintDetailView } from '../app/complaints/[complaintId]/detail-view';
+import { realtimeEventMatchesComplaint } from '../app/complaints/[complaintId]/conversation-panel';
 import { getAvailableResolutionEvidence } from '../app/complaints/[complaintId]/action-forms';
 import { decodeGovernmentComplaintQueueResult } from '../lib/api/government-complaints';
 import {
@@ -30,6 +36,25 @@ const authorityDepartmentId = '88888888-8888-4888-8888-888888888888';
 const officerRoleId = '99999999-9999-4999-8999-999999999999';
 const categoryId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const locationEvidenceId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+const citizenMessage: ComplaintMessage = {
+  authoredByMe: false,
+  authorType: 'citizen',
+  body: 'The issue is beside the main entrance.',
+  complaintId,
+  createdAt: '2026-07-14T10:30:00+05:30',
+  id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  kind: 'private_message',
+};
+
+const testRouter: AppRouterInstance = {
+  back: () => undefined,
+  forward: () => undefined,
+  prefetch: () => undefined,
+  push: () => undefined,
+  refresh: () => undefined,
+  replace: () => undefined,
+};
 
 const scope: GovernmentAccessScope = {
   authorities: [
@@ -237,7 +262,9 @@ test('renders authorized text location context without an external map or coordi
     workReferences: [],
   };
   const markup = renderToStaticMarkup(
-    <ComplaintDetailView assignmentOptions={[]} complaint={detail} />,
+    <AppRouterContext.Provider value={testRouter}>
+      <ComplaintDetailView assignmentOptions={[]} complaint={detail} messages={[citizenMessage]} />
+    </AppRouterContext.Provider>,
   );
 
   assert.match(markup, /Authorized location context/u);
@@ -249,6 +276,37 @@ test('renders authorized text location context without an external map or coordi
   assert.doesNotMatch(markup, /google\.com|openstreetmap|mapbox|maps\.apple/u);
   assert.doesNotMatch(markup, /href="[^"]*18\.520400/u);
   assert.match(markup, /Private internal notes/u);
+  assert.match(markup, /Private conversation/u);
+  assert.match(markup, /The issue is beside the main entrance/u);
+  assert.match(markup, /visible only to the citizen and currently authorized complaint staff/u);
+});
+
+test('refreshes durable complaint data only for matching realtime event envelopes', () => {
+  assert.equal(
+    realtimeEventMatchesComplaint(
+      'message:created',
+      { payload: { complaintId }, schemaVersion: 1 },
+      complaintId,
+    ),
+    true,
+  );
+  assert.equal(
+    realtimeEventMatchesComplaint(
+      'notification:created',
+      { payload: { payload: { complaintId } }, schemaVersion: 1 },
+      complaintId,
+    ),
+    true,
+  );
+  assert.equal(
+    realtimeEventMatchesComplaint(
+      'complaint:status_changed',
+      { payload: { payload: { complaintId: authorityId } }, schemaVersion: 1 },
+      complaintId,
+    ),
+    false,
+  );
+  assert.equal(realtimeEventMatchesComplaint('message:created', null, complaintId), false);
 });
 
 test('offers only finalized evidence that has not already been linked to a resolution', () => {

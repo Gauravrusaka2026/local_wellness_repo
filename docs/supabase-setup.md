@@ -523,15 +523,35 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_REALTIME_URL=http://localhost:3002
 
 GOVERNMENT_INVITE_REDIRECT_URL=
 API_ALLOWED_ORIGINS=
 GOVERNANCE_SYNC_DISPATCH_SECRET=
 
 EXPO_PUBLIC_API_URL=
+EXPO_PUBLIC_REALTIME_URL=http://localhost:3002
+
+REALTIME_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3003,http://localhost:3004
+REALTIME_DELIVERY_BATCH_SIZE=25
+REALTIME_DELIVERY_LEASE_SECONDS=30
+REALTIME_DELIVERY_POLL_INTERVAL_MS=1000
+REALTIME_EVENT_RATE_LIMIT_PER_MINUTE=120
+REALTIME_MAX_HTTP_BUFFER_SIZE_BYTES=65536
+REALTIME_MAX_ROOMS_PER_SOCKET=32
+
+NOTIFICATION_WORKER_ID=notification-worker:local
+NOTIFICATION_BATCH_SIZE=25
+NOTIFICATION_LEASE_SECONDS=60
+NOTIFICATION_POLL_INTERVAL_MS=1000
 ```
 
 Do not place real secrets inside `.env.example`.
+
+The realtime server also requires the server-only Supabase secret/service-role credential and the
+client-safe publishable/anon key; the notification worker requires the server-only credential.
+Neither value belongs in an `EXPO_PUBLIC_` or `NEXT_PUBLIC_` variable. Public realtime URLs are
+transport locations, not credentials.
 
 ---
 
@@ -606,7 +626,26 @@ surface includes scoped queue/detail/options, versioned assignment/transfer, gua
 private notes/inspections/work/dependencies, private resolution evidence and versioned resolutions,
 action audit, and transaction-outbox persistence. Exact aggregate gate results belong in the
 current progress tracker/worklog after the full verification run. Local synthetic records do not
-constitute a hosted deployment, verified Pune/BMC workflow, notification delivery, or external map.
+constitute a hosted deployment, verified Pune/BMC workflow, provider-backed notification delivery,
+or external map.
+
+Phase 6 adds two communication/notification migrations and pgTAP plans 024–025. The engineering
+surface includes private complaint rooms/messages/read receipts, durable in-app notifications,
+source-bound outbox jobs, PostgreSQL leases/retry state, and realtime delivery attempt history.
+Before enabling the worker or realtime process against a managed project, apply both migrations,
+regenerate types, run the full pgTAP suite, verify direct table/RPC ACL denial, and confirm that
+worker and realtime service credentials exist only in their server secret stores. Locally, a clean
+reset applied all 25 migrations and reviewed seeds, all 967 assertions passed across 25 pgTAP plans,
+strict application-schema lint reported no errors, and database types were regenerated. These
+local results do not deploy or validate the managed environment.
+
+Start one materialization worker and one realtime instance for the V1 pilot. Verify liveness and
+readiness independently, then exercise a private message/status event with two authorized test
+users and confirm the message/outbox/notification/delivery/attempt chain. Also verify revoked scope,
+expired JWT disconnect, disconnected-recipient in-app history, exact message replay, lease expiry,
+retry/dead behavior, and no direct public-comment access. Push and email rows must remain explicitly
+`unsupported`; do not configure a provider or mark them delivered without the later provider,
+consent, preference, privacy, and destination-lifecycle work.
 
 ### Dedicated staging database — 2026-07-14
 
@@ -707,9 +746,22 @@ Before managed government-dashboard activation, operators must also:
 - verify private resolution-evidence signed upload, server MIME/size/SHA-256 finalization, short-
   lived non-cacheable authorized reads, and denial of direct Storage access;
 - verify that every successful status mutation appends history, action audit, and the minimal outbox
-  event atomically, while no delivery is claimed until a later durable consumer is implemented;
+  event atomically, with no direct network emission from the workflow transaction;
 - select and review an external map provider/key plus coordinate-sharing privacy policy before
   replacing the explicit text-only location/map placeholder.
+
+Before managed Phase 6 activation, operators must also:
+
+- apply the two Phase 6 migrations in managed development and staging, regenerate/check types, and
+  repeat forced-RLS, direct-ACL, RPC-grant, lease, retry, revocation, and public-comment denial tests;
+- configure one worker identity and one realtime instance with server-only credentials and exact
+  browser origins; expose only the public realtime URL to clients;
+- verify database-first message creation, exact replay/conflict, monotonic reads, event
+  deduplication/reconciliation, token-expiry disconnect, offline in-app history, and a revoked
+  government scope before pilot use;
+- monitor outbox/delivery age, retry/dead rows, lease expiry, readiness, and zero-socket delivery;
+- leave push/email unsupported until providers, consent/preferences, destination verification,
+  retention, fallback, privacy, and credential ownership are approved.
 
 No Redis, BullMQ, Redis adapter/cache, or Sentry setup is required or permitted for this V1 path.
 

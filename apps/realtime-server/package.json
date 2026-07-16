@@ -9,15 +9,22 @@
     "dev": "tsx watch src/main.ts",
     "lint": "eslint .",
     "start": "node dist/main.js",
+    "test": "node --test --import tsx src/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@local-wellness/config": "workspace:*",
+    "@local-wellness/database": "workspace:*",
+    "@local-wellness/types": "workspace:*",
+    "@local-wellness/validation": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "zod": "catalog:",
     "socket.io": "catalog:"
   },
   "devDependencies": {
-    "@local-wellness/config": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",
+    "socket.io-client": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

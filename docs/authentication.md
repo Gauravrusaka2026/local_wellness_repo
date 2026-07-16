@@ -214,6 +214,22 @@ the server-authorized profile.
 
 Avoid storing privileged tokens in local storage.
 
+### Realtime
+
+The Socket.IO client supplies the current Supabase access token only in handshake auth. The
+realtime server validates its structure/expiry, calls Supabase Auth `getUser` for authoritative
+verification, and then checks `public.profiles.status = 'active'` through a narrow service-only
+function. A decoded token payload is never sufficient authentication. The socket joins only its
+server-derived `user:<uuid>` room and disconnects at JWT expiry; refresh requires a new connection
+with a refreshed token.
+
+Room joins accept a typed complaint, authority, ward, or department UUID, never an arbitrary room
+name. The database derives access from current complaint ownership or active role/membership/scope
+records. Every persistent queued emission rechecks active account and complaint access, so a role or
+membership revoked after connection does not authorize the pending event. Typing signals are
+ephemeral but still require a fresh complaint-room authorization. Tokens, socket auth payloads,
+service credentials, and lease tokens are not logged.
+
 ### Governance synchronization machine boundary
 
 The `governance-sync-fetch` Edge Function is not user authentication. Supabase Cron calls it with a
@@ -339,9 +355,29 @@ contracts or logs.
 
 ### Messages
 
-- room member may read room messages;
-- sender may create message after membership check;
-- internal officer notes are separate from citizen-visible messages.
+- messages are available only to the complaint owner or a government actor with current access to
+  the active complaint assignment;
+- `room_members` is participation/audit evidence and never grants access independently;
+- REST derives the sender from the verified bearer token and Socket.IO derives it from the verified
+  handshake; clients cannot choose another sender or recipient;
+- creation is idempotent by sender/client-message UUID plus request fingerprint, and a persistent
+  message commits before broadcast;
+- read receipts may advance only monotonically within the same private complaint room;
+- internal officer notes remain separate from citizen-visible private messages;
+- public comments have no read/create function or grant until public complaint visibility and
+  moderation policy are approved.
+
+### Notifications
+
+- durable notification history is readable only by its recipient while they retain complaint
+  access;
+- notification/outbox metadata is data-minimized and cannot contain private message text,
+  description, exact coordinates, contacts, object locators, or tokens;
+- the worker and realtime server use narrow service-role RPCs plus bounded PostgreSQL lease tokens,
+  not direct table access;
+- recipient access is rechecked before a realtime delivery is claimed/emitted;
+- push/email delivery remains unsupported until provider, consent/preference, destination, and
+  privacy controls are implemented.
 
 ### Officer Assignments
 
@@ -482,3 +518,11 @@ conflicts, exact-replay action idempotency, versioned assignments, guarded statu
 private notes/evidence, dependency closure, resolution requirements, audit history, and outbox
 persistence. Local synthetic fixtures do not make any placeholder pilot entity verified or prove a
 hosted government login/queue.
+
+Phase 6 adds intended database, API, worker, and Socket.IO coverage for inactive accounts,
+unauthenticated connections, unauthorized/cross-scope room joins, token expiry, exact private-message
+replay/conflict, persistence before broadcast, monotonic reads, recipient-only notification history,
+lease ownership/expiry, access revocation before queued delivery, and public-comment denial. The
+clean local database and repository verification passed. Hosted/physical-device token-expiry,
+reconnect, revoked-scope, and offline-history validation remains environment-dependent and is not
+implied by the local result.

@@ -24,6 +24,7 @@ export default function RootLayout() {
           <Stack.Screen name="complaints/index" options={{ title: 'Your complaints' }} />
           <Stack.Screen name="complaints/new" options={{ title: 'Report an issue' }} />
           <Stack.Screen name="complaints/[complaintId]" options={{ title: 'Complaint' }} />
+          <Stack.Screen name="notifications/index" options={{ title: 'Notifications' }} />
           <Stack.Screen name="profile/index" options={{ title: 'Your profile' }} />
         </Stack>
       </ComplaintProvider>

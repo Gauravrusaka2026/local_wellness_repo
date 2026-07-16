@@ -8,6 +8,12 @@ import {
   ComplaintDataAccessError,
   ComplaintNotFoundError,
 } from '../data/complaint.store.js';
+import {
+  CommunicationAccessDeniedError,
+  CommunicationConflictError,
+  CommunicationDataAccessError,
+  CommunicationNotFoundError,
+} from '../data/communication.store.js';
 import { ComplaintMediaGatewayError } from '../data/complaint-media.gateway.js';
 import {
   GovernmentComplaintAccessDeniedError,
@@ -134,6 +140,30 @@ export class ApiExceptionFilter implements ExceptionFilter {
       error = {
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'Complaint data or private media storage is temporarily unavailable.',
+      };
+    } else if (exception instanceof CommunicationAccessDeniedError) {
+      status = HttpStatus.FORBIDDEN;
+      error = {
+        code: 'COMMUNICATION_ACCESS_DENIED',
+        message: 'Current complaint access is required for this communication.',
+      };
+    } else if (exception instanceof CommunicationNotFoundError) {
+      status = HttpStatus.NOT_FOUND;
+      error = {
+        code: `${exception.resource.toUpperCase()}_NOT_FOUND`,
+        message: 'The requested communication resource was not found.',
+      };
+    } else if (exception instanceof CommunicationConflictError) {
+      status = HttpStatus.CONFLICT;
+      error = {
+        code: exception.marker,
+        message: 'The communication request conflicts with its current state or prior request.',
+      };
+    } else if (exception instanceof CommunicationDataAccessError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Communication data is temporarily unavailable.',
       };
     } else if (exception instanceof GovernmentComplaintAccessDeniedError) {
       status = HttpStatus.FORBIDDEN;

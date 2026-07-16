@@ -98,13 +98,19 @@ device or EAS release is attempted.
 ### Realtime
 
 - containerized Socket.IO server;
-- one instance for the V1 pilot;
+- one instance for the V1 pilot, with authenticated private rooms and a PostgreSQL-leased delivery
+  pump;
+- `GET /health/live` confirms process liveness and `GET /health/ready` confirms the delivery pump
+  has successfully reached its database claim boundary;
 - horizontal scaling requires a later reviewed delivery mechanism and ADR.
 
 ### Workers
 
 - containerized worker process;
-- independent scaling when a V1 phase introduces background work;
+- Phase 6 continuously materializes the complaint notification outbox through bounded PostgreSQL
+  lease/retry RPCs;
+- run independently from the API and realtime process so a materialization failure cannot terminate
+  request handling;
 - no Redis or BullMQ dependency in V1.
 
 ---
@@ -342,6 +348,7 @@ EXPO_PUBLIC_SUPABASE_URL
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 EXPO_PUBLIC_SUPABASE_ANON_KEY
 EXPO_PUBLIC_API_URL
+EXPO_PUBLIC_REALTIME_URL
 EXPO_PUBLIC_MAPS_KEY
 ```
 
@@ -352,6 +359,7 @@ NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 NEXT_PUBLIC_API_URL
+NEXT_PUBLIC_REALTIME_URL
 ```
 
 ### Server
@@ -366,9 +374,25 @@ SUPABASE_DB_URL
 GOVERNMENT_INVITE_REDIRECT_URL
 EMAIL_PROVIDER_API_KEY
 SMS_PROVIDER_API_KEY
+REALTIME_ALLOWED_ORIGINS
+REALTIME_DELIVERY_BATCH_SIZE
+REALTIME_DELIVERY_LEASE_SECONDS
+REALTIME_DELIVERY_POLL_INTERVAL_MS
+REALTIME_EVENT_RATE_LIMIT_PER_MINUTE
+REALTIME_MAX_HTTP_BUFFER_SIZE_BYTES
+REALTIME_MAX_ROOMS_PER_SOCKET
+NOTIFICATION_WORKER_ID
+NOTIFICATION_BATCH_SIZE
+NOTIFICATION_LEASE_SECONDS
+NOTIFICATION_POLL_INTERVAL_MS
 ```
 
 Prefer `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` for current projects. Anon and service-role variables are supported as legacy fallbacks. Secret/service-role values must never appear in a client-visible environment.
+
+Realtime and worker processes require the server-only secret/service-role credential for narrow
+RPC execution. Public realtime URLs contain no credential. Push/email provider variables are not
+part of the active Phase 6 delivery configuration; those channels remain `unsupported` until an
+approved provider and notification policy exist.
 
 ---
 
@@ -406,7 +430,8 @@ Prefer `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` for current projects
 
 ## Health Checks
 
-Required before launch; these endpoints are not part of the Phase 1 implementation:
+Required before launch. Phase 6 implements both endpoints on the realtime-server process; other
+runtime readiness implementations remain service-specific:
 
 ```text
 /health/live
@@ -428,8 +453,8 @@ The deployed V1 target must track:
 - API error rate;
 - API latency;
 - database connections;
-- notification-outbox backlog when implemented;
-- background-work failures when implemented;
+- notification-outbox and delivery backlog;
+- notification materialization and realtime-delivery failures;
 - Socket.IO connections;
 - message delivery;
 - upload failures;
@@ -455,6 +480,14 @@ dependency details, and idempotency keys must not be logged. Monitor workflow-ve
 authorization denials, action failures, evidence integrity failures, unresolved dependencies, and
 notification-outbox growth with NestJS/Supabase/platform logs and audit tables. No Sentry SDK or
 Redis/BullMQ monitoring dependency is introduced.
+
+Phase 6 adds structured worker and realtime events with safe outbox, notification-delivery,
+message, complaint, event, and socket identifiers plus aggregate counts/outcome codes. Logs omit
+private message text, notification body text, complaint descriptions, recipient contacts, device
+push tokens, JWTs, service credentials, and lease/claim tokens. Monitor outbox-job age/count by
+state, materialization retry/dead counts, realtime delivery age/count by state, expired leases,
+zero-socket deliveries, active connections, authorization failures, and readiness failures. Push/
+email success metrics are not meaningful until those channels are implemented.
 
 Governance retrieval emits structured Edge logs containing only event status, run ID, and source
 endpoint ID. PostgreSQL retains append-only sync events with safe error codes, aggregate HTTP

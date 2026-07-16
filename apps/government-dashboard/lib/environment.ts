@@ -15,3 +15,8 @@ export const getPublicSupabaseConfiguration = () =>
 
 export const getPublicApiUrl = (): string =>
   parsePublicHttpUrl(process.env.NEXT_PUBLIC_API_URL, 'NEXT_PUBLIC_API_URL');
+
+export const getPublicRealtimeUrl = (): string | null => {
+  const value = process.env.NEXT_PUBLIC_REALTIME_URL?.trim();
+  return value ? parsePublicHttpUrl(value, 'NEXT_PUBLIC_REALTIME_URL') : null;
+};

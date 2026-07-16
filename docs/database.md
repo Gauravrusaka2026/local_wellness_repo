@@ -363,14 +363,56 @@ returns no selectable asset rather than weakening routing validation.
 
 ### Communication
 
-- complaint_comments;
-- conversation_rooms;
-- room_members;
-- messages;
-- message_receipts;
-- notifications;
-- notification_outbox;
-- notification_deliveries.
+- `conversation_rooms`;
+- `room_members`;
+- `messages`;
+- `message_receipts`;
+- `complaint_comments`;
+- `notification_outbox`;
+- `notification_outbox_jobs`;
+- `notifications`;
+- `notification_deliveries`;
+- `notification_delivery_attempts`.
+
+Phase 6 stores communication in the existing unexposed, forced-RLS `complaints` schema. Every
+submitted complaint has exactly one conversation room; the current implementation creates private
+rooms only. `room_members` preserves effective-dated participation evidence for the citizen and
+message senders, but it is not an authorization source. Current complaint ownership or current
+government assignment scope is recalculated for every message/read/room operation.
+
+Messages are immutable, complaint/room-bound records with a trimmed 1–4,000 character body. A
+sender UUID plus client message UUID is unique, and a SHA-256 request fingerprint distinguishes an
+exact replay from conflicting reuse. Message responses expose only citizen/government author type,
+whether the current actor authored the record, body, and timestamps; they do not expose an Auth
+user UUID. `message_receipts` stores one read-through position per room/user. Database guards allow
+only a monotonic move to a later `(created_at, message_id)` pair.
+
+`complaint_comments` is structural preparation only. The table accepts retained moderation state,
+but no Phase 6 creation/read RPC or direct role grant exists while every complaint remains private.
+Public comments require a later visibility, moderation, abuse, and privacy decision.
+
+Phase 6 extends the Phase 5 `notification_outbox` rather than creating another source ledger. Each
+row binds to exactly one status-history, assignment-version, or message source. Supported domain
+events are complaint submitted, status changed, assignment changed, and private message created.
+Triggers append source-bound events in the same transaction and backfill existing eligible
+submission/assignment rows idempotently. Payload checks allow only complaint/status/scope/message
+identifiers and occurrence time; private body text, exact location, contacts, user identifiers,
+object paths, signed URLs, and tokens are prohibited.
+
+`notification_outbox_jobs` is a mutable lease/retry projection over the immutable outbox.
+`claim_notification_outbox` selects due or expired jobs with `FOR UPDATE SKIP LOCKED`, increments an
+attempt, and issues a 15–300 second opaque lease. Materialization is idempotent by
+`(outbox_id, recipient_user_id)`, creates only current authorized recipients other than the actor,
+and marks the job complete. Failures retry with bounded exponential backoff and become `dead` after
+five attempts.
+
+`notifications` is the durable, data-minimized in-app history. `notification_deliveries` tracks
+one channel/event/destination reference with `pending`, `processing`, `retry`, `delivered`,
+`unsupported`, or `dead` state; values such as email addresses and push tokens are not copied into
+the row. In-app delivery is materialized as delivered, realtime delivery begins pending, and email/
+push intent is explicitly unsupported until providers and policies exist. Realtime claims use
+their own 5–300 second leases, recheck recipient access, and append claim/delivered/failed/
+lease-expired evidence to `notification_delivery_attempts`.
 
 ### Operations
 
@@ -702,6 +744,21 @@ authority/global operator can reassign to a fully current verified target. Ward/
 cannot assign or transfer. Scheduled inspections and active dependencies block transfer/manual
 status exit until their own completion/closure action resolves the child workflow.
 
+Phase 6 enables and forces RLS on all nine new communication and delivery tables and preserves the
+schema-wide direct-access revocation for `public`, `anon`, `authenticated`, and `service_role`.
+The API, worker, and realtime runtime may execute only reviewed public wrappers. Actor-facing
+wrappers receive the UUID derived from a verified bearer/socket session and recheck the active
+profile, citizen ownership, or current government assignment scope. Worker wrappers require a
+bounded worker/instance identifier plus an opaque live claim token for completion/failure.
+
+Conversation membership does not grant access. Notification history is recipient-specific and is
+returned only while that recipient still has complaint access. The realtime claim also rechecks
+access and marks a revoked recipient's queued delivery terminal rather than returning its payload.
+Messages, comments, delivery attempts, and source outbox records are immutable; read positions,
+notification read time, and job/delivery lifecycle updates are constrained by guarded triggers.
+Public-comment table structure does not create public access because no create/read RPC or table
+privilege is granted.
+
 ---
 
 ## Storage Metadata
@@ -847,6 +904,19 @@ checks, bounded binary signature/MIME rejection, object removal, forced-download
 identifier-only access logging. Exact aggregate results are recorded in the current progress
 tracker and Phase 5 testing worklog after the complete repository gate; no hosted-environment or
 verified-pilot result is implied by local fixtures.
+
+Phase 6 adds migrations `20260714130000_phase_6_communication_and_notification_schema.sql` and
+`20260714131000_phase_6_communication_notification_security_and_rpc.sql` plus pgTAP plans
+`024_communication_notification_schema_and_acl.test.sql` and
+`025_communication_notification_integration.test.sql`. Their intended coverage includes the
+private schema, indexes and constraints, forced RLS/direct ACL denial, complaint-room backfill,
+current actor scope, exact message replay/conflict, monotonic read receipts, source-bound outbox
+events, current recipient selection, materialization deduplication, explicit unsupported channel
+state, leased claims, retry/dead outcomes, append-only attempt history, and the absence of public-
+comment access. A clean local reset applied all 25 migrations and reviewed seeds; all 967 assertions
+passed across 25 pgTAP plans. Strict application-schema lint reported no errors, and generated
+database types were regenerated successfully. Installed PostGIS-owned diagnostics remain when the
+extension schema is included in the broader lint command; no application schema owns those objects.
 
 The managed staging deployment recorded on 2026-07-14 applied all 23 migrations through
 `20260714124000` and all six reviewed non-production seed files. The existing citizen Auth identity

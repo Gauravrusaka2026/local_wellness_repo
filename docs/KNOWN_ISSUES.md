@@ -405,6 +405,49 @@ Authenticated clients can submit unlimited client-reported session events and ca
 
 Local email and delivered-invite flows pass, and phone paths have unit coverage. Real SMS delivery, Expo development-build deep links, OS SecureStore behavior, browser cookie attributes and hosted callback URLs still require device/environment smoke tests.
 
+### NOTIFY-001 — Push and email notification providers and user preferences are not configured
+
+- Severity: High before offline notification channels are represented as operational
+- Status: Open provider and product-policy decision
+- Discovered: 2026-07-14
+
+Phase 6 now implements PostgreSQL-backed notification persistence, in-app history, retry and
+deduplication, authenticated single-instance Socket.IO delivery, and inert provider-channel state.
+No approved push/email provider, credentials, consent/preference model, channel fallback policy,
+or privacy-reviewed external payload template exists yet. Push and email therefore remain
+explicitly `unsupported`; they must never be marked sent or silently dropped.
+
+Provider selection and production credentials require owner input. Any external payload must remain
+data-minimized and omit complaint descriptions, exact coordinates, citizen/contact identifiers,
+private media, internal notes, paths, and tokens. Real-device/background push and delivered-email
+tests are required before closing the Phase 6 offline-channel exit criterion.
+
+### NOTIFY-002 — Realtime delivery is intentionally single-instance in V1
+
+- Severity: Medium for availability and future scale
+- Status: Accepted V1 limitation; horizontal topology deferred
+- Discovered: 2026-07-14
+
+ADR-0005 and the Phase 6 plan permit one Socket.IO instance for the pilot. PostgreSQL remains the
+durable source of truth, so reconnecting clients can recover persisted messages and notifications,
+but active broadcasts are not coordinated across multiple realtime processes and in-memory typing
+presence is lost on restart. Do not introduce Redis or a Redis adapter. A later horizontal design
+must choose a reviewed cross-instance mechanism, define presence semantics, and preserve database-
+first delivery and authorization.
+
+### NOTIFY-003 — Public complaint comments remain disabled pending visibility policy
+
+- Severity: High before any public complaint surface is enabled
+- Status: Open product, privacy, moderation, and abuse-control decision
+- Discovered: 2026-07-14
+
+Phase 6 creates only the forced-RLS structural `complaint_comments` table. It intentionally grants
+no create/read RPC, direct role access, realtime event, or client route because ADR-0011 keeps
+complaints and original media private. Enabling comments first requires a reviewed public/private
+complaint policy, moderation lifecycle, reporting and abuse controls, retention/deletion rules,
+safe public media derivatives, and an explicit architectural/privacy decision. The structural
+table must not be mistaken for an operational public feature.
+
 ### OPS-001 — Production container images are not pruned
 
 - Severity: Low

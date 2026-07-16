@@ -75,8 +75,10 @@ Responsibilities:
 
 Phase 4 implements the signed-in home, resumable complaint draft, current-location evidence, live
 photo/video/voice capture, private upload, duplicate review, submission receipt, and owned
-complaint history slice. Maps, notifications, feedback, reopening, background synchronization, and
-public complaint views remain later-phase work. Asset-dependent categories now use an authenticated,
+complaint history slice. Phase 6 adds durable in-app notification history/read state and private
+complaint messages. Its optional Socket.IO connection refreshes REST-backed state and does not
+replace durable history. Maps, feedback, reopening, background synchronization, push/email
+delivery, and public complaint views remain later-phase work. Asset-dependent categories use an authenticated,
 database-driven nearby-asset picker and remain unavailable unless the category, jurisdiction,
 asset/version, ownership, and owner scope are current, verified, non-placeholder, and routable.
 The client advances only when server-derived location evidence is `verified` or
@@ -124,7 +126,9 @@ transitions, private notes, inspection scheduling/completion, work references, e
 creation/closure, private evidence upload/finalization, and resolution submission. Exact coordinates
 are shown only to an authorized government user as text. The interactive map remains an explicit
 placeholder until a provider, key, and coordinate-sharing/privacy policy are reviewed. SLA/KPI
-analytics and notification delivery remain later work.
+analytics remain later work. Phase 6 adds the complaint's private conversation. Server-rendered
+history is reconciled through authenticated REST, while the browser supplies its session token to
+an optional realtime connection at runtime rather than serializing it into page markup.
 
 ### Admin Console
 
@@ -169,20 +173,22 @@ Core modules:
 
 ### Realtime Server
 
-Socket.IO server.
+The Phase 6 Socket.IO server verifies a Supabase access token supplied in handshake auth, checks the
+application profile is active, and disconnects the socket when that token expires. It maintains a
+private per-user delivery room and database-authorized complaint, authority, ward, and department
+subscriptions. Room participation rows are audit evidence, not authorization; access is derived
+again from the current complaint owner or effective government scope.
 
-Responsibilities:
+Persistent message, read-receipt, status, and notification events use strict shared schemas and
+versioned envelopes. Message creation and read advancement persist in PostgreSQL before any room
+broadcast. Typing signals are deliberately ephemeral but still require a fresh complaint access
+check. Exact-origin allowlisting, a bounded HTTP buffer, disabled compression, per-socket operation
+limits, and a maximum room count constrain the transport boundary.
 
-- complaint rooms;
-- officer rooms;
-- user rooms;
-- comment delivery;
-- complaint chat;
-- presence;
-- typing indicators;
-- realtime status updates.
-
-All permanent realtime events must first be persisted in PostgreSQL.
+A PostgreSQL-leased delivery pump emits queued events to the intended user only after rechecking
+active-account and complaint access. Stable event identifiers support deduplication, and clients
+reconcile through REST because Socket.IO delivery is at-least-once rather than durable storage. The
+V1 pilot remains single-instance; Redis adapters and multi-instance presence are not implemented.
 
 ### Workers
 
@@ -198,12 +204,18 @@ Responsibilities:
 - government portal synchronization;
 - contact data refresh jobs.
 
-These are target responsibilities, not a claim that each worker exists. Phase 4 performs its capped
-duplicate evaluation synchronously through PostgreSQL plus the pure routing package;
-transcription, media processing/moderation, cleanup, and notifications are not operational. The
-governance retrieval slice runs separately through a Supabase Scheduled Edge Function rather than
-this worker process; its source schedule is not active by default. No Redis, BullMQ, or Sentry
-dependency backs either boundary.
+Most entries remain target responsibilities. Phase 6 implements the notification-outbox
+materialization worker: it polls narrow service-only RPCs, claims PostgreSQL jobs with bounded
+leases, materializes data-minimized per-user notifications and channel rows, and records bounded
+retry or terminal state. In-app history is operational in engineering; realtime rows are consumed
+by the Socket.IO process. Push and email rows are explicitly `unsupported` until providers and
+consent/preferences are approved.
+
+Phase 4 duplicate evaluation still runs synchronously through PostgreSQL plus the pure routing
+package. Transcription, media processing/moderation, private-object cleanup, SLA processing, and
+analytics workers are not operational. Governance retrieval runs separately through a Supabase
+Scheduled Edge Function; its source schedule is inactive by default. No Redis, BullMQ, or Sentry
+dependency backs any of these boundaries.
 
 ### Governance Synchronization
 
@@ -456,12 +468,14 @@ dataset.
 
 ### Communication Domain
 
-- public comment;
-- complaint room;
-- message;
-- message receipt;
-- notification;
-- notification delivery.
+- one private room per submitted complaint;
+- effective-dated participation evidence that never grants access by itself;
+- immutable, idempotent private messages;
+- monotonic per-user read-through receipts;
+- data-minimized per-user in-app notifications and read state;
+- transactional outbox jobs and channel-specific delivery/attempt history;
+- structural public-comment storage with no create/read contract until public visibility and
+  moderation are approved.
 
 ---
 
@@ -687,7 +701,8 @@ completion notes remain private.
 Every mutation requires an `Idempotency-Key` and the detail's `workflowVersion`. Exact retries replay
 the prior response, conflicting reuse fails, and stale versions force a reload. Successful status
 changes append a minimal `notification_outbox` event in the same transaction. Phase 5 deliberately
-provides persistence only: no delivery worker, Redis, BullMQ, Redis adapter, or cache is present.
+provides persistence only; Phase 6 consumes it from a separate worker/realtime boundary. Redis,
+BullMQ, Redis adapters, and caches remain absent.
 Structured NestJS logs and append-only database audit events provide the current observability
 boundary; Sentry remains deferred.
 
@@ -710,30 +725,54 @@ private Storage objects remain follow-up work.
 
 ## Realtime Architecture
 
-Socket.IO is used for realtime delivery.
-
-PostgreSQL remains the source of truth.
+Phase 6 connects the private complaint transaction boundary to authenticated Socket.IO delivery
+without changing the source of truth:
 
 ```text
-Client sends message
+complaint transaction / persisted private message
         |
-        v
-Socket server validates access
-        |
-        v
-Message saved in PostgreSQL
-        |
-        v
-Transaction succeeds
-        |
-        v
-Message broadcast to room
-        |
-        v
-Offline notification queued
+        +--> immutable data-minimized notification outbox event
+                  |
+                  v
+        PostgreSQL-leased materialization worker
+                  |
+                  +--> durable per-user in-app notification
+                  +--> realtime delivery row
+                  +--> unsupported push/email intent (when applicable)
+                                  |
+                                  v
+                    Socket.IO delivery pump
+                                  |
+                                  v
+                authenticated per-user room + REST reconciliation
 ```
 
-The V1 pilot runs a single realtime instance. If horizontal scaling is introduced after V1:
+Message creation is accepted through authenticated REST or `message:create`. Both paths call the
+same private database function, use a client message UUID for exact replay/conflict detection, and
+commit the message plus outbox source before returning or broadcasting. Read positions advance
+monotonically and cannot move backwards. Conversation access comes from current complaint ownership
+or the government workflow's active scoped assignment authorization; membership rows do not grant
+access.
+
+The outbox worker claims a mutable job projection with `FOR UPDATE SKIP LOCKED`, a 15–300 second
+lease, opaque claim token, five-attempt cap, and bounded exponential retry. Materialization uses
+unique outbox/recipient and notification/channel/destination keys, so a replay cannot create a
+second logical notification. The realtime pump applies an independent 5–300 second lease and
+records every claim, success, failure, and expired claim. A zero-socket delivery may complete
+because the durable in-app record is the offline fallback.
+
+Socket handshakes use network-verified Supabase Auth, active-profile checks, exact-origin policy,
+and expiry disconnect. User, complaint, authority, ward, and department rooms are server-derived;
+clients cannot name arbitrary Socket.IO rooms. Persistent delivery rechecks current recipient
+access before emission. Event envelopes use `schemaVersion: 1`, a stable `eventId`, and
+`occurredAt`. Transport is at-least-once, so clients must tolerate repeated hints and reload durable
+REST state; stable event IDs permit explicit duplicate suppression where a client needs it.
+
+Public comments are not part of this architecture slice. Their table is structural only and has no
+create/read RPC or client route while complaint visibility, moderation, abuse controls, and privacy
+policy remain unresolved.
+
+The V1 pilot runs one realtime instance. If horizontal scaling is introduced after V1:
 
 - select and document a reviewed cross-instance delivery mechanism;
 - use sticky sessions if the selected transport requires them;
@@ -744,7 +783,10 @@ The V1 pilot runs a single realtime instance. If horizontal scaling is introduce
 
 ## Background Work Architecture
 
-Redis and BullMQ are not part of V1. The phase that first implements background work must select a durable PostgreSQL- or platform-backed mechanism and record any architectural decision required by `AGENTS.md`.
+Redis and BullMQ are not part of V1. Phase 6 uses the existing PostgreSQL transaction outbox plus
+leased job and delivery projections as documented by ADR-0014. This is a bounded V1 mechanism, not
+a general replacement for every later background workload. A future job category must demonstrate
+that the same retry, concurrency, retention, and operational model fits before reusing it.
 
 Background work must be:
 
@@ -765,8 +807,12 @@ overwriting existing profile state or reactivating a revoked role. Phase 4 adds 
 persistence, owner-scoped server orchestration, exact-replay idempotency, and private signed media
 uploads with server-side object verification. Phase 5 adds database-enforced government scope,
 capability and transition checks, optimistic workflow versions, exact-replay action ledgers,
-append-only audit, private resolution evidence, and transaction-outbox persistence. Rate limits and
-broader device-risk enforcement remain tracked hardening work.
+append-only audit, private resolution evidence, and transaction-outbox persistence. Phase 6 adds
+network-verified socket authentication, database-authorized room access, persistence-before-
+broadcast, forced-RLS communication state, data-minimized notification payloads, lease-scoped
+service RPCs, bounded per-socket limits, and recipient reauthorization before queued delivery.
+Broader HTTP rate limits, provider-specific controls, and device-risk enforcement remain tracked
+hardening work.
 
 - Supabase Auth for identity;
 - JWT verification at API;

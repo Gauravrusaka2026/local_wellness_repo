@@ -6,6 +6,7 @@ import {
   getGovernmentComplaintAssignmentOptions,
 } from '../../../lib/api/government-complaints';
 import { getGovernmentAccessScope } from '../../../lib/api/access-scope';
+import { getComplaintMessages } from '../../../lib/api/communications';
 import {
   ApiError,
   AuthenticationRequiredError,
@@ -38,7 +39,9 @@ type DetailLoadResult =
       assignmentOptions: Awaited<
         ReturnType<typeof getGovernmentComplaintAssignmentOptions>
       >['options'];
+      communicationError: string | null;
       complaint: Awaited<ReturnType<typeof getGovernmentComplaint>>;
+      messages: Awaited<ReturnType<typeof getComplaintMessages>>['items'];
       queueHref: string;
     }>;
 
@@ -58,6 +61,19 @@ const loadComplaint = async (
       complaintId,
       selectedScope.scopeRoleAssignmentId,
     );
+    let communicationError: string | null = null;
+    let messages: Awaited<ReturnType<typeof getComplaintMessages>>['items'] = [];
+    try {
+      messages = (await getComplaintMessages(accessToken, complaintId)).items;
+    } catch (error) {
+      if (
+        error instanceof AuthenticationRequiredError ||
+        (error instanceof ApiError && error.status === 401)
+      ) {
+        throw error;
+      }
+      communicationError = getUserFacingApiError(error);
+    }
     const needsOptions = complaint.allowedActions.some(
       (action) => action === 'assign' || action === 'transfer',
     );
@@ -79,7 +95,14 @@ const loadComplaint = async (
       status: '',
       toDate: '',
     });
-    return { assignmentOptions, complaint, queueHref, status: 'success' };
+    return {
+      assignmentOptions,
+      communicationError,
+      complaint,
+      messages,
+      queueHref,
+      status: 'success',
+    };
   } catch (error) {
     if (
       error instanceof AuthenticationRequiredError ||
@@ -138,7 +161,9 @@ export default async function ComplaintPage({ params, searchParams }: DetailPage
       <main className="complaint-shell" id="main-content">
         <ComplaintDetailView
           assignmentOptions={result.assignmentOptions}
+          communicationError={result.communicationError}
           complaint={result.complaint}
+          messages={result.messages}
           queueHref={result.queueHref}
         />
       </main>

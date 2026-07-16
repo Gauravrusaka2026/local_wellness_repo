@@ -8,8 +8,14 @@ import type {
   ComplaintLocationEvidence,
   ComplaintMedia,
   ComplaintMediaUploadIntent,
+  ComplaintMessage,
+  ComplaintMessagePage,
   ComplaintReceipt,
   ComplaintTimeline,
+  CreatePrivateComplaintMessageInput,
+  MessageReadReceipt,
+  NotificationPage,
+  NotificationReadReceipt,
   CreateComplaintDraftInput,
   CreateComplaintMediaUploadIntentInput,
   RoutingCategory,
@@ -24,6 +30,13 @@ import {
   submitComplaintSchema,
   updateComplaintDraftSchema,
   discoverRoutingAssetsRequestSchema,
+  advanceMessageReadReceiptSchema,
+  complaintMessagePageSchema,
+  complaintMessageSchema,
+  createPrivateComplaintMessageSchema,
+  notificationPageSchema,
+  notificationReadReceiptSchema,
+  messageReadReceiptSchema,
 } from '@local-wellness/validation';
 
 import { getPublicApiUrl } from '../config/environment';
@@ -180,6 +193,51 @@ export const getComplaintTimeline = (
 ): Promise<ComplaintTimeline> =>
   createClient(accessToken).get(`/api/v1/complaints/${complaintId}/timeline`, {
     decode: decodeComplaintTimeline,
+  });
+
+export const listComplaintMessages = (
+  accessToken: string,
+  complaintId: string,
+): Promise<ComplaintMessagePage> =>
+  createClient(accessToken).get(`/api/v1/complaints/${complaintId}/messages?limit=100`, {
+    decode: (value) => complaintMessagePageSchema.parse(value),
+  });
+
+export const createComplaintMessage = (
+  accessToken: string,
+  complaintId: string,
+  input: CreatePrivateComplaintMessageInput,
+): Promise<ComplaintMessage> =>
+  createClient(accessToken).post(
+    `/api/v1/complaints/${complaintId}/messages`,
+    createPrivateComplaintMessageSchema.parse(input),
+    { decode: (value) => complaintMessageSchema.parse(value) },
+  );
+
+export const markComplaintMessagesRead = (
+  accessToken: string,
+  complaintId: string,
+  input: Readonly<{ readThroughCreatedAt: string; readThroughMessageId: string }>,
+): Promise<MessageReadReceipt> =>
+  createClient(accessToken).post(
+    `/api/v1/complaints/${complaintId}/messages/read`,
+    advanceMessageReadReceiptSchema.parse(input),
+    {
+      decode: (value) => messageReadReceiptSchema.parse(value),
+    },
+  );
+
+export const listNotifications = (accessToken: string): Promise<NotificationPage> =>
+  createClient(accessToken).get('/api/v1/notifications?limit=100', {
+    decode: (value) => notificationPageSchema.parse(value),
+  });
+
+export const markNotificationRead = (
+  accessToken: string,
+  notificationId: string,
+): Promise<NotificationReadReceipt> =>
+  createClient(accessToken).post(`/api/v1/notifications/${notificationId}/read`, undefined, {
+    decode: (value) => notificationReadReceiptSchema.parse(value),
   });
 
 export const getUserFacingComplaintError = (error: unknown): string => {

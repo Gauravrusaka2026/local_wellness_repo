@@ -717,7 +717,8 @@ select is(
 select is((select workflow_version from complaints.complaints
   where id = 'd3300000-0000-4000-8000-000000000001'), 2::bigint);
 select is((select count(*)::integer from complaints.government_action_audit_events), 1);
-select is((select count(*)::integer from complaints.notification_outbox), 1);
+select is((select count(*)::integer from complaints.notification_outbox), 2,
+  'submission and acknowledgement each append an outbox event');
 select throws_ok(
   $$select * from public.perform_government_complaint_action(
     'd2000000-0000-4000-8000-000000000002',
@@ -1361,8 +1362,8 @@ select throws_ok(
   '23514', 'INVALID_STATUS_TRANSITION',
   'terminal resolution state rejects a status-preserving reassignment'
 );
-select is((select count(*)::integer from complaints.notification_outbox), 6,
-  'one outbox event is appended for every status transition only');
+select is((select count(*)::integer from complaints.notification_outbox), 9,
+  'outbox retains the submission, status transitions, and assignment changes');
 select ok(not ((select payload from complaints.notification_outbox limit 1)
   ?| array['latitude','longitude','description','citizenUserId']),
   'outbox payload contains no location, description, or citizen identifier');

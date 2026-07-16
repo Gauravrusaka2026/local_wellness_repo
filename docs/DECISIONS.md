@@ -410,3 +410,25 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   versioned synchronization scope rather than repointing history.
 - Ward-model selection is not verification. No selected ward becomes active, routable, or suitable
   for complaint delivery without official provenance and reviewed geometry.
+
+## 2026-07-14 — Phase 6 Realtime and Notification Conventions
+
+- A persistent event is committed to PostgreSQL before any Socket.IO emission. Realtime payloads
+  invalidate client views; authenticated REST history remains the recovery source of truth.
+- The Phase 5 notification outbox is the only domain-event ledger. Materialization and realtime
+  delivery use separate PostgreSQL `FOR UPDATE SKIP LOCKED` projections with opaque leases,
+  bounded exponential retry, five attempts, retained terminal state, and uniqueness-based replay.
+- Communication tables remain in the private, forced-RLS `complaints` schema. Runtime services use
+  narrow service-role RPCs that independently reauthorize the actor or current recipient; direct
+  service-role table access stays revoked.
+- `room_members` records effective participation evidence but never grants access. Complaint,
+  authority, ward, and department subscriptions resolve from current database ownership/scope.
+- Private-message responses expose an author class and request-relative `authoredByMe` flag, never
+  another user's Auth UUID. Message bodies, contact values, exact coordinates, object locators,
+  tokens, and lease capabilities stay out of notification metadata and structured logs.
+- In-app history is the implemented offline channel. Realtime is at-least-once with stable event
+  IDs and a single V1 instance. Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
+- Push and email intent is explicitly `unsupported` until provider, consent/preferences,
+  destination verification, localization, fallback, credential, and privacy policy are approved.
+- Public-comment storage is structural only. No create/read RPC, grant, event, or client route is
+  enabled while complaint visibility and moderation policy remain unresolved.

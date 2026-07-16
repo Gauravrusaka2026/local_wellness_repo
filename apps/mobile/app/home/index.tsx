@@ -95,6 +95,13 @@ export default function HomeScreen() {
           >
             <Text style={styles.linkText}>Profile and device security</Text>
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/notifications')}
+            style={styles.linkButton}
+          >
+            <Text style={styles.linkText}>Notifications</Text>
+          </Pressable>
         </View>
 
         <View style={styles.emergencyCard}>

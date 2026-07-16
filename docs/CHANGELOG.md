@@ -665,3 +665,73 @@ privileged roles from temporary Gmail aliases onto the owner's existing confirme
 ### Breaking Changes
 
 None. The change affects staging-only environment data and preserves prior access history.
+
+## 2026-07-14 — Phase 6 Private Realtime Communication and Durable Notifications
+
+### Summary
+
+Implemented the Phase 6 engineering boundary for private complaint conversations, durable in-app
+notifications, PostgreSQL-leased outbox processing, and authenticated single-instance realtime
+delivery. Realtime remains an enhancement over persisted REST history; no placeholder governance
+or routing record was activated.
+
+### Feature
+
+- Added forced-RLS private conversation rooms, immutable idempotent messages, monotonic read
+  receipts, durable notifications/read state, channel-delivery state, append-only attempts, and
+  leased materialization/realtime queues.
+- Extended complaint submission, workflow, assignment, status, and private-message events through
+  the existing source-bound transaction outbox with data-minimized metadata.
+- Added service-only current-access/message/notification/outbox/realtime RPCs with database
+  reauthorization, bounded leases, five-attempt retry/dead state, and uniqueness-based replay.
+- Added authenticated NestJS message/notification routes, a bounded notification worker, and a
+  Supabase-JWT-authenticated Socket.IO server with database-authorized user/complaint/authority/
+  ward/department rooms, persistence-before-broadcast, stable envelopes, and readiness/liveness.
+- Added mobile private conversations and durable notification history/read state plus a government
+  dashboard conversation panel. Clients reconcile authenticated REST data after realtime hints.
+- Kept push/email explicitly unsupported, public comments non-creatable/non-readable, and V1
+  realtime single-instance. Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
+
+### Files Modified
+
+- Communication/notification migrations and pgTAP plans under `supabase/`.
+- API communication module/store/tests, realtime server, notification worker, shared type/
+  validation/database packages, mobile client, and government dashboard.
+- `.env.example`, development Compose, workspace manifests/lockfile, README, ADR-0014, Phase 6
+  worklog, technical guides, and required project trackers.
+
+### Migrations Created
+
+- `20260714130000_phase_6_communication_and_notification_schema.sql`
+- `20260714131000_phase_6_communication_notification_security_and_rpc.sql`
+
+### Tests and Verification
+
+- Added pgTAP plans 024–025 plus shared-contract, API/controller/store, worker, realtime, mobile,
+  and dashboard coverage.
+- A clean reset applied all 25 migrations and reviewed seeds; all 967 assertions passed across 25
+  pgTAP plans. Strict application-schema lint reported no errors, and generated types are current.
+- Frozen install, formatting, lint, strict type-checking, 28 workspace test tasks, seven root safety
+  test files, all 16 workspace builds, Compose validation, Expo checks/Android export, and the
+  production dependency audit passed. The audit reported no known vulnerabilities.
+
+### Documentation Updated
+
+- Updated `README.md`, architecture, database, API, authentication, deployment, Supabase setup,
+  tasks, progress, decisions, known issues, and the Phase 6 worklog.
+- Added ADR-0014 for PostgreSQL-leased V1 notification delivery. `PLAN.md` and
+  `PROJECT_OVERVIEW.md` remain unchanged because product scope and roadmap order did not change.
+
+### Security and Operational Status
+
+- Persistent events commit before broadcast; current database scope is rechecked, direct table
+  access remains denied, and external payload/log metadata excludes identities, message bodies,
+  contacts, exact coordinates, media paths, tokens, and lease capabilities.
+- The two Phase 6 migrations and processes were not deployed to managed staging in this session.
+  Provider selection, managed/physical-device validation, verified pilot data, and public-comment
+  policy remain separate gates.
+
+### Breaking Changes
+
+None. The changes are additive and fail closed when access, routing, recipient, or provider evidence
+is unavailable.

@@ -1,11 +1,34 @@
-import { createServer } from 'node:http';
+import { createRealtimeApplication } from './application.js';
+import { loadRealtimeConfiguration } from './configuration.js';
+import { ConsoleRealtimeLogger } from './logger.js';
 
-import { Server } from 'socket.io';
+const logger = new ConsoleRealtimeLogger();
+const application = createRealtimeApplication({
+  configuration: loadRealtimeConfiguration(),
+  logger,
+});
 
-const httpServer = createServer();
-const socketServer = new Server(httpServer);
-const port = process.env['PORT'] ?? 3002;
+try {
+  const address = await application.listen();
+  logger.info('realtime_server_started', { port: address.port });
+} catch {
+  logger.error('realtime_server_start_failed');
+  process.exitCode = 1;
+}
 
-httpServer.listen(port);
+let shutdownStarted = false;
+const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  logger.info('realtime_server_stopping', { signal });
+  try {
+    await application.close();
+    logger.info('realtime_server_stopped');
+  } catch {
+    logger.error('realtime_server_stop_failed');
+    process.exitCode = 1;
+  }
+};
 
-export { httpServer, socketServer };
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));

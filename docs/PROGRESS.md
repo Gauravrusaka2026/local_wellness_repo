@@ -2,7 +2,7 @@
 
 ## Overall Completion
 
-51% implemented.
+59% implemented.
 
 Phase 0 and Phase 1 are complete. Phase 2's engineering baseline is complete and locally verified;
 its remaining exit work requires external, verified pilot identifiers, contacts and real boundary
@@ -19,14 +19,18 @@ database-enforced government workflow, an authenticated NestJS operations API, p
 resolution evidence, and an accessible access-scoped government dashboard. Its engineering is
 locally complete with synthetic verified fixtures; production-like use remains gated on verified
 pilot data, an authenticated managed-environment smoke test, map policy, and evidence operations.
-The dedicated staging Supabase project now uses owner-confirmed replacement credentials and has all
-23 migrations through Phase 5 plus the six reviewed non-production seed files. Its bootstrap still
+Phase 6 now provides forced-RLS private complaint conversations, durable in-app notifications,
+PostgreSQL-leased materialization/realtime delivery, authenticated database-authorized Socket.IO,
+strict communication APIs, and mobile/government client integration. Its local engineering and
+verification matrix are complete; managed activation, push/email providers, public-comment policy,
+and physical-device/hosted validation remain open. The dedicated staging Supabase project uses
+owner-confirmed replacement credentials and has all 23 migrations through Phase 5 plus the six
+reviewed non-production seed files; the two Phase 6 migrations are not yet deployed there. Its bootstrap still
 contains zero operational categories and zero active synchronization sources. A citizen profile,
 one active platform administrator, and one active Pune-scoped municipal administrator now exist as
 confirmed staging-only environment data. The initial invitation was accepted and temporary alias
 privileges were revoked with history retained; authenticated UI smoke testing remains pending.
-Realtime delivery, citizen resolution feedback, transparency, SLA/KPI and launch hardening remain
-in later phases.
+Citizen resolution feedback, transparency, SLA/KPI and launch hardening remain in later phases.
 
 ## Phase Completion
 
@@ -38,7 +42,7 @@ in later phases.
 | Phase 3 — Taxonomy and routing               | In progress |        85% |
 | Phase 4 — Citizen complaint capture          | In progress |        95% |
 | Phase 5 — Government dashboard               | In progress |        95% |
-| Phase 6 — Realtime and notifications         | Not started |         0% |
+| Phase 6 — Realtime and notifications         | In progress |        85% |
 | Phase 7 — Resolution, feedback and reopening | Not started |         0% |
 | Phase 8 — Nearby map and transparency        | Not started |         0% |
 | Phase 9 — SLA, escalation and KPI            | Not started |         0% |
@@ -74,6 +78,14 @@ interactive map needs an approved provider/coordinate policy, evidence needs sch
 cleanup and full media processing, and an authenticated production-like run needs verified pilot
 governance/routing/complaint data.
 
+Phase 6 engineering completion covers private conversation/message/read persistence, current-scope
+authorization, source-bound transaction-outbox materialization, durable in-app history, bounded
+PostgreSQL leases/retries/dead state, authenticated single-instance Socket.IO delivery, strict API
+contracts, and citizen/government client reconciliation. It is not marked 100% because push/email
+providers and preferences are unselected, public comments remain deliberately disabled, the two
+migrations and processes are not active in staging, and hosted/physical-device reconnect, expiry,
+revocation, and offline-delivery validation remains pending.
+
 ## Sprint Completion
 
 - Sprint 1 — Project Foundation: 100% complete.
@@ -82,6 +94,7 @@ governance/routing/complaint data.
 - Sprint 4 — Data-driven routing and governance synchronization foundation/retrieval: 85% complete.
 - Sprint 5 — Secure citizen complaint capture: 95% complete.
 - Sprint 6 — Access-scoped government complaint operations: 95% complete.
+- Sprint 7 — Persistent communication and durable notification delivery: 85% complete.
 
 ## Completed Milestones
 
@@ -157,21 +170,31 @@ governance/routing/complaint data.
   Pune-scoped municipal administrator.
 - BMC A–E administrative wards and Pune's officially current numeric ward model recorded as pilot
   identity selections without promoting the existing placeholder rows or activating routing.
+- Two additive Phase 6 migrations implementing private forced-RLS complaint rooms, immutable
+  messages, monotonic read receipts, durable notifications, provider-channel state, append-only
+  delivery attempts, and PostgreSQL-leased materialization/realtime queues.
+- Authenticated message/notification APIs, a bounded notification worker, and a Supabase-JWT-
+  authenticated Socket.IO server with current database room authorization, persistence-before-
+  broadcast, stable event envelopes, retry/dead evidence, readiness, and graceful shutdown.
+- Mobile private conversations and durable notification history/read state plus a government
+  dashboard conversation panel, all REST-recoverable when realtime is unavailable.
+- ADR-0014 and the Phase 6 realtime/notification implementation and testing worklog.
 
 ## Current Milestone
 
-Phase 5 engineering and its local verification matrix are complete, and the database portion is now
-deployed to dedicated staging. Invitation acceptance and role reconciliation are complete; the
-remaining closeout milestone is authenticated citizen/admin/government browser smoke testing. A
-populated operational queue still requires real verified pilot records; no placeholder recipient
-may be activated for a demo.
+Phase 6 engineering and its local verification matrix are complete. Private communication,
+durable in-app notification history, PostgreSQL delivery leases, the worker, authenticated
+single-instance realtime delivery, and citizen/government client surfaces are implemented. The
+remaining Phase 6 milestone is managed staging activation plus authenticated reconnect, token-
+expiry, scope-revocation, offline-history, and backlog smoke testing; no placeholder recipient may
+be activated for that test.
 
 ## Next Milestone
 
-Begin Phase 6 realtime and notification delivery from the Phase 5 transactional outbox with
-authorized events, PostgreSQL claiming/retry/replay, and single-instance Socket.IO delivery. Redis,
-BullMQ, Redis adapters/caching, and Sentry remain deferred. In parallel, continue reviewed PMC/BMC
-parsers and obtain verified pilot ward/contact/assignment/geometry/routing evidence.
+Begin Phase 7 resolution feedback and reopening engineering against the versioned Phase 5 workflow
+and Phase 6 notification boundaries. In parallel, activate Phase 6 in staging after applying its
+two reviewed migrations and configuring one worker/realtime instance. Redis, BullMQ, Redis
+adapters/caching, and Sentry remain deferred.
 
 ## Current Blockers
 
@@ -216,6 +239,13 @@ parsers and obtain verified pilot ward/contact/assignment/geometry/routing evide
 - The interactive government complaint map needs an approved provider and exact-coordinate sharing
   policy (`GOVDASH-001`). Resolution evidence still needs scheduled private-object cleanup, full
   media decoding, malware scanning/moderation, and bounded operational concurrency (`GOVDASH-002`).
+- Phase 6 push/email delivery needs approved providers, consent/preferences, destination
+  verification, privacy-safe templates, and credentials (`NOTIFY-001`). Its V1 realtime topology is
+  intentionally single-instance (`NOTIFY-002`), and public comments remain disabled until a
+  visibility/privacy/moderation decision is approved (`NOTIFY-003`).
+- The two Phase 6 migrations, worker, and realtime process are not yet active in staging. Hosted
+  reconnect/deduplication, token-expiry disconnect, revoked-scope denial, disconnected-recipient
+  history, exact-origin checks, and backlog monitoring remain environment validation work.
 
 ## Verification Summary
 
@@ -270,6 +300,18 @@ parsers and obtain verified pilot ward/contact/assignment/geometry/routing evide
 - Citizen web account regression coverage now verifies explicit signed-in identity, onboarding,
   profile-unavailable, API-error, and retry states. Delivered hosted links, SSR cookies, and
   cross-device behavior remain environment-gated under `AUTH-005`/`ENV-002`.
+- A clean local reset applied all 25 migrations and reviewed seeds. All 967 assertions passed across
+  25 pgTAP plans, including the new communication schema/ACL and integration plans. Strict lint of
+  the application-owned `complaints`, `governance`, `private`, `public`, and `routing` schemas
+  reported no errors; full extension lint still reports only installed PostGIS-owned diagnostics.
+- Phase 6 generated database types are current. Frozen install, Prettier, ESLint, strict TypeScript,
+  all 28 workspace test tasks, seven root safety test files, all 16 workspace builds, Compose
+  validation, Expo SDK alignment/Android export, and the production dependency audit passed. The
+  audit reported no known vulnerabilities.
+- Focused Phase 6 coverage passed for strict shared contracts, communication controllers/adapters,
+  worker configuration/lease/retry/dead behavior, authenticated room authorization, persistence-
+  before-broadcast, stale-scope reauthorization, client REST reconciliation, and privacy-safe
+  sender/event payloads.
 
 ## Last Updated
 

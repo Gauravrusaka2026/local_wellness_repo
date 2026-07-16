@@ -146,6 +146,11 @@ Representative current and later-phase contract codes:
 - `RESOLUTION_EVIDENCE_LIMIT_REACHED`
 - `RESOLUTION_EVIDENCE_INTEGRITY_MISMATCH`
 - `GOVERNMENT_COMPLAINT_REQUEST_INVALID`
+- `COMMUNICATION_ACCESS_DENIED`
+- `MESSAGE_NOT_FOUND`
+- `MESSAGE_IDEMPOTENCY_CONFLICT`
+- `MESSAGE_READ_POSITION_INVALID`
+- `NOTIFICATION_NOT_FOUND`
 - `RATE_LIMITED`
 - `INTERNAL_ERROR`
 
@@ -225,8 +230,17 @@ GET    /api/v1/complaints/:complaintId/timeline
 ```
 
 Phase 5 adds the authenticated, scope-aware government queue, detail, assignment and workflow
-surface documented below. Maps, public complaint views, realtime, governance administration,
-analytics, and human review/publication routes remain later-phase contracts.
+surface documented below. Phase 6 adds the private message and durable in-app notification routes
+documented below. Maps, public complaint views/comments, governance administration, analytics, and
+human review/publication routes remain later-phase contracts.
+
+```text
+GET  /api/v1/complaints/:complaintId/messages
+POST /api/v1/complaints/:complaintId/messages
+POST /api/v1/complaints/:complaintId/messages/read
+GET  /api/v1/notifications
+POST /api/v1/notifications/:notificationId/read
+```
 
 ## Governance Synchronization Runtime Boundary
 
@@ -591,6 +605,42 @@ safe media status/metadata, and sanitized routing receipt; it does not return si
 The Phase 4 timeline contains the immutable submission event and is designed for later official
 status events. There is no separate complaint-routing endpoint in Phase 4.
 
+### Private Complaint Communication
+
+```text
+GET  /api/v1/complaints/:complaintId/messages
+POST /api/v1/complaints/:complaintId/messages
+POST /api/v1/complaints/:complaintId/messages/read
+```
+
+These Phase 6 routes are available to the complaint owner or a government actor with current
+workflow access to the active assignment. A room-membership record never grants access by itself.
+Every route derives the actor from the verified bearer token, and every response sets
+`Cache-Control: private, no-store`.
+
+Message history uses a paired `beforeCreatedAt`/`beforeId` keyset cursor and limit 1–100 (default
+25). Message creation accepts only a caller-generated UUID `clientMessageId` and a trimmed body of
+1–4,000 characters. The sender/client ID plus a database fingerprint provides exact replay; reuse
+for another complaint or body returns `MESSAGE_IDEMPOTENCY_CONFLICT`. The response identifies the
+author only as `citizen` or `government` and does not expose an Auth user UUID.
+
+The read route accepts an exact message UUID and creation timestamp. It stores one monotonic
+read-through position for the actor; an older read does not move the cursor backwards, and a
+mismatched message/timestamp fails closed.
+
+### In-App Notifications
+
+```text
+GET  /api/v1/notifications
+POST /api/v1/notifications/:notificationId/read
+```
+
+Notification history uses the same paired keyset cursor and returns only durable notifications for
+the signed-in recipient while they retain complaint access. Payloads are restricted to complaint
+ID/number, status, and optional message ID; they do not contain complaint descriptions, private
+message bodies, exact coordinates, contacts, object locators, or tokens. Marking read is
+idempotent. Push and email delivery are not implied by these endpoints.
+
 ### Planned: Complaint Actions
 
 ```text
@@ -708,7 +758,8 @@ complaint, and evidence identifiers without the signed URL or object path. Signa
 not full decoding, malware scanning, or moderation. Service-only database cleanup functions can
 mark expired/failed reservation rows, but scheduled private Storage reconciliation/removal remains
 follow-up work. Successful state transitions append status history, audit, and a data-minimized
-notification-outbox event atomically. Phase 5 has no outbox delivery endpoint or worker.
+notification-outbox event atomically. The Phase 5 workflow performs no direct network delivery;
+Phase 6 consumes that committed event through separate worker and realtime boundaries.
 
 ### Planned: Analytics
 
@@ -758,33 +809,61 @@ PATCH  /api/v1/admin/sla-policies/:id
 
 ---
 
-## Planned Realtime Events (Phase 6)
+## Realtime Events (Phase 6)
+
+Connect to the standalone Socket.IO server with:
+
+```json
+{
+  "auth": {
+    "accessToken": "<supabase_jwt>"
+  }
+}
+```
+
+The server verifies the token through Supabase Auth, requires an active application profile, and
+disconnects at token expiry. A client must reconnect with a refreshed token. Exact-origin policy,
+per-socket operation limits, maximum room subscriptions, and strict payload schemas apply.
 
 ### Client to Server
 
 ```text
-complaint:join
-complaint:leave
+room:join
+room:leave
 message:create
-comment:create
 typing:start
 typing:stop
 message:read
 ```
 
+`room:join` and `room:leave` accept `{roomType, roomId}` where `roomType` is `complaint`,
+`authority`, `ward`, or `department`; the server constructs the actual room name after database
+authorization. Every client operation supports an acknowledgement shaped as either
+`{ok:true, occurredAt, resourceId?}` or `{ok:false, error:{code,message,retryable}}`.
+
+`message:create` accepts the same client message UUID/body as REST and commits through the same
+database function before any emission. `message:read` commits its monotonic read position first.
+Typing events are ephemeral, omit user identifiers/content, and are sent only to other currently
+authorized complaint-room sockets.
+
 ### Server to Client
 
 ```text
-complaint:updated
 complaint:status_changed
-complaint:assigned
 message:created
-comment:created
+message:read
 typing:changed
 notification:created
 ```
 
-Every Socket.IO event must use a validated payload schema.
+Persistent server events use `{schemaVersion:1,eventId,occurredAt,payload}`. Realtime delivery is
+at-least-once. Stable event IDs permit duplicate suppression, while current clients use events as
+debounced invalidation hints and reload authenticated REST history. They do not treat an event
+payload or a typing signal as durable state. A committed delivery can record zero sockets because
+in-app notification history is the offline fallback.
+
+There is no `comment:create`/`comment:created` contract in Phase 6. Public comments remain disabled
+until complaint visibility, moderation, abuse controls, and privacy policy are approved.
 
 ---
 
@@ -814,6 +893,21 @@ short-lived, forced-download, and non-cacheable. All government-workspace respon
 non-cacheable. Evidence access emits a structured identifier-only log; signed URLs and paths are
 never logged. Structured NestJS logging and the action audit/outbox tables are the implemented
 observability boundary; Redis, BullMQ, and Sentry are not used.
+
+Phase 6 communication controllers use the same bearer guard and return `private, no-store`.
+Database wrappers independently reauthorize the active profile and current citizen/government
+complaint access. Message bodies are permitted only in the private message table and authorized
+message response; notification/outbox metadata and structured logs omit message text, descriptions,
+coordinates, contacts, object locators, and tokens.
+
+The Socket.IO server accepts a token only in handshake auth, verifies it over the Supabase Auth
+boundary, checks the application account, and disconnects at expiry. The client cannot join a raw
+room name: typed complaint/authority/ward/department targets are resolved through a service-only
+authorization RPC. Queued per-user delivery rechecks active account and complaint access before
+emission, so a revoked scope does not receive stale payloads. Worker and realtime completion/failure
+RPCs require a matching, unexpired PostgreSQL lease token. Those tokens and the service credential
+are never returned or logged. Per-socket rate limits supplement—but do not replace—the broader HTTP
+rate-limit work tracked for launch.
 
 The following list is the V1 security target across all later endpoint groups. Endpoint rate limits and quotas remain tracked in `AUTH-004` rather than being claimed as a Phase 1 control.
 

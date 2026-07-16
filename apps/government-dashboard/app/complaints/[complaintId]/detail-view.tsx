@@ -4,10 +4,12 @@ import {
   governmentComplaintAllowedActions,
   type GovernmentComplaintAssignmentOption,
   type GovernmentComplaintDetail,
+  type ComplaintMessage,
 } from '@local-wellness/types';
 
 import { formatBytes, formatDateTime, getStatusLabel } from '../../../lib/complaints/presentation';
 import { GovernmentActionForms } from './action-forms';
+import { ConversationPanel } from './conversation-panel';
 
 const DefinitionList = ({
   items,
@@ -24,11 +26,15 @@ const DefinitionList = ({
 
 export const ComplaintDetailView = ({
   assignmentOptions,
+  communicationError = null,
   complaint,
+  messages,
   queueHref = '/',
 }: Readonly<{
   assignmentOptions: GovernmentComplaintAssignmentOption[];
+  communicationError?: string | null;
   complaint: GovernmentComplaintDetail;
+  messages: ComplaintMessage[];
   queueHref?: string;
 }>) => {
   const assignment = complaint.currentAssignment;
@@ -262,6 +268,12 @@ export const ComplaintDetailView = ({
               </ol>
             )}
           </section>
+
+          <ConversationPanel
+            complaintId={complaint.id}
+            loadError={communicationError}
+            messages={messages}
+          />
 
           <section aria-labelledby="resolution-evidence-heading" className="content-card">
             <p className="eyebrow">Private completion evidence</p>

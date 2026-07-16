@@ -3,6 +3,7 @@ import { Global, Module } from '@nestjs/common';
 import { AuthenticationGateway } from '../auth/authentication.gateway.js';
 import { ComplaintMediaGateway } from '../data/complaint-media.gateway.js';
 import { ComplaintStore } from '../data/complaint.store.js';
+import { CommunicationStore } from '../data/communication.store.js';
 import { IdentityStore } from '../data/identity.store.js';
 import { GovernmentComplaintStore } from '../data/government-complaint.store.js';
 import { ResolutionEvidenceGateway } from '../data/resolution-evidence.gateway.js';
@@ -10,6 +11,7 @@ import { RoutingStore } from '../data/routing.store.js';
 import { SupabaseAuthenticationGateway } from './supabase-authentication.gateway.js';
 import { SupabaseComplaintMediaGateway } from './supabase-complaint-media.gateway.js';
 import { SupabaseComplaintStore } from './supabase-complaint.store.js';
+import { SupabaseCommunicationStore } from './supabase-communication.store.js';
 import { SupabaseClients } from './supabase-clients.js';
 import { SupabaseIdentityStore } from './supabase-identity.store.js';
 import { SupabaseRoutingStore } from './supabase-routing.store.js';
@@ -23,6 +25,7 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
     SupabaseAuthenticationGateway,
     SupabaseComplaintMediaGateway,
     SupabaseComplaintStore,
+    SupabaseCommunicationStore,
     SupabaseIdentityStore,
     SupabaseRoutingStore,
     SupabaseGovernmentComplaintStore,
@@ -44,6 +47,10 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
       useExisting: SupabaseComplaintStore,
     },
     {
+      provide: CommunicationStore,
+      useExisting: SupabaseCommunicationStore,
+    },
+    {
       provide: ComplaintMediaGateway,
       useExisting: SupabaseComplaintMediaGateway,
     },
@@ -60,6 +67,7 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
     AuthenticationGateway,
     ComplaintMediaGateway,
     ComplaintStore,
+    CommunicationStore,
     IdentityStore,
     RoutingStore,
     GovernmentComplaintStore,
