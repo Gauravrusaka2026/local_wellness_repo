@@ -1,8 +1,15 @@
 import { getSafeReturnPath } from '../../../lib/auth/return-path';
-import { OtpSignInForm } from './otp-sign-in-form';
+import { getCitizenPhoneMfaMode } from '../../../lib/environment';
+import { PasswordAuthForm } from './password-auth-form';
 
 type LoginPageProperties = Readonly<{
-  searchParams: Promise<Readonly<{ error?: string | string[]; next?: string | string[] }>>;
+  searchParams: Promise<
+    Readonly<{
+      error?: string | string[];
+      next?: string | string[];
+      reset?: string | string[];
+    }>
+  >;
 }>;
 
 const firstValue = (value: string | string[] | undefined): string | undefined =>
@@ -14,9 +21,11 @@ export default async function LoginPage({ searchParams }: LoginPageProperties) {
 
   return (
     <main className="centered-page">
-      <OtpSignInForm
+      <PasswordAuthForm
         callbackError={firstValue(parameters.error) === 'callback'}
         nextPath={nextPath}
+        passwordReset={firstValue(parameters.reset) === 'success'}
+        phoneMfaMode={getCitizenPhoneMfaMode()}
       />
     </main>
   );

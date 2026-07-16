@@ -251,6 +251,35 @@ button:disabled {
   color: #14532d;
 }
 
+.security-note {
+  background: #f8fafc;
+  border-radius: 9px;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 1.5rem 0 0;
+  padding: 0.85rem 1rem;
+}
+
+.auth-help-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.auth-help-row a {
+  color: #166534;
+  font-weight: 700;
+}
+
+.verification-footer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.verification-footer .security-note {
+  margin-bottom: 0;
+}
+
 .account-shell {
   margin: 0 auto;
   max-width: 980px;
@@ -273,6 +302,55 @@ button:disabled {
 .profile-form,
 .content-card {
   width: 100%;
+}
+
+.profile-image-card {
+  margin-bottom: 1.5rem;
+}
+
+.profile-image-heading {
+  align-items: center;
+  display: flex;
+  gap: 1.25rem;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.profile-image-heading h2 {
+  margin-bottom: 0.5rem;
+}
+
+.profile-image-preview {
+  align-items: center;
+  background: #dcfce7;
+  border: 3px solid #bbf7d0;
+  border-radius: 50%;
+  color: #166534;
+  display: flex;
+  flex: 0 0 112px;
+  font-size: 2.5rem;
+  font-weight: 800;
+  height: 112px;
+  justify-content: center;
+  overflow: hidden;
+  width: 112px;
+}
+
+.profile-image-preview img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.profile-image-actions {
+  margin-top: 0;
+}
+
+.selected-file {
+  color: #334155;
+  font-size: 0.92rem;
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
 }
 
 .account-summary {
@@ -670,6 +748,11 @@ button:disabled {
   }
 
   .page-header {
+    display: grid;
+  }
+
+  .profile-image-heading {
+    align-items: flex-start;
     display: grid;
   }
 

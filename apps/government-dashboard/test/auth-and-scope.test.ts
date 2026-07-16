@@ -195,6 +195,24 @@ test('verifies a government email code and records successful OTP verification',
   ]);
 });
 
+test('rejects OTP verification without a session and does not record an audit event', async () => {
+  let auditCalls = 0;
+  const supabase = {
+    auth: {
+      verifyOtp: async () => ({ data: { session: null }, error: null }),
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(
+    verifyGovernmentOtp(supabase, 'officer@municipality.gov.in', '123456', async () => {
+      auditCalls += 1;
+      return true;
+    }),
+    /did not establish an authenticated session/u,
+  );
+  assert.equal(auditCalls, 0);
+});
+
 test('exempts only the exact authentication route segment from session protection', () => {
   assert.equal(isPublicAuthRoute('/auth'), true);
   assert.equal(isPublicAuthRoute('/auth/login'), true);

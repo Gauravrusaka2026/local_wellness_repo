@@ -16,6 +16,7 @@ import {
 import { BearerAuthGuard } from '../auth/bearer-auth.guard.js';
 import { Authenticated } from '../common/authenticated-user.decorator.js';
 import { requireIdempotencyKey } from '../common/idempotency-key.js';
+import { RateLimit, rateLimitPolicies } from '../common/rate-limit.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { ComplaintMediaService } from './complaint-media.service.js';
 
@@ -28,6 +29,7 @@ export class ComplaintMediaController {
   ) {}
 
   @Post('upload-intents')
+  @RateLimit(rateLimitPolicies.mediaMutation)
   public createUploadIntent(
     @Authenticated() actor: AuthenticatedUser,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
@@ -42,6 +44,7 @@ export class ComplaintMediaController {
   }
 
   @Post(':mediaId/finalize')
+  @RateLimit(rateLimitPolicies.mediaMutation)
   public finalizeMedia(
     @Authenticated() actor: AuthenticatedUser,
     @Param(new ZodValidationPipe(complaintMediaIdParametersSchema))

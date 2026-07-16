@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 
 import { getAdminEmailCallbackUrl } from '../../../lib/auth/callback';
+import { buildMfaPath } from '../../../lib/auth/mfa';
 import { getAdminLoginError, requestAdminOtp, verifyAdminOtp } from '../../../lib/auth/service';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
@@ -50,7 +51,7 @@ export const OtpSignInForm = ({
 
     try {
       await verifyAdminOtp(createBrowserSupabaseClient(), normalizedEmail, otp);
-      window.location.assign(nextPath);
+      window.location.assign(buildMfaPath(nextPath));
     } catch (verificationError) {
       setError(getAdminLoginError(verificationError));
       setIsPending(false);

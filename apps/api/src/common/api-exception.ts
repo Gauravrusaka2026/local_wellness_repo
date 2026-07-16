@@ -36,4 +36,8 @@ export class ApiException extends HttpException {
   public static dependencyUnavailable(message: string): ApiException {
     return new ApiException(HttpStatus.SERVICE_UNAVAILABLE, 'DEPENDENCY_UNAVAILABLE', message);
   }
+
+  public static rateLimited(message = 'Too many requests were received.'): ApiException {
+    return new ApiException(HttpStatus.TOO_MANY_REQUESTS, 'RATE_LIMITED', message);
+  }
 }

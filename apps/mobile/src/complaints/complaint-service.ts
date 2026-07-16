@@ -354,6 +354,7 @@ export const getUserFacingComplaintError = (error: unknown): string => {
     }
     if (
       error.code === 'LOCATION_LOW_ACCURACY' ||
+      error.code === 'COMPLAINT_LOCATION_ACCURACY_EXCEEDS_V1_LIMIT' ||
       error.code === 'COMPLAINT_LOCATION_NOT_VERIFIED'
     ) {
       return 'Location accuracy is too low. Move outdoors and capture it again.';

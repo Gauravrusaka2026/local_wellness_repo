@@ -27,6 +27,31 @@ const DefinitionList = ({
   </dl>
 );
 
+const getGovernmentQueueReadinessLabel = (
+  readiness: GovernmentComplaintDetail['currentAssignment']['deliveryReadiness'],
+): string => {
+  if (readiness?.governmentQueueStatus === 'verified_scope') return 'Verified government queue';
+  if (readiness?.governmentQueueStatus === 'unavailable') {
+    return 'Unavailable — assignment scope is not verified';
+  }
+  return 'Unavailable in this response';
+};
+
+const getExternalContactReadinessLabel = (
+  readiness: GovernmentComplaintDetail['currentAssignment']['deliveryReadiness'],
+): string => {
+  switch (readiness?.externalContactStatus) {
+    case 'verified_officer_contact':
+      return 'Approved officer contact available';
+    case 'verified_governing_body_contact':
+      return 'Approved governing-body contact available';
+    case 'not_available':
+      return 'No approved external contact available';
+    default:
+      return 'Unavailable in this response';
+  }
+};
+
 export const ComplaintDetailView = ({
   accountability = null,
   accountabilityError = null,
@@ -130,6 +155,27 @@ export const ComplaintDetailView = ({
                 ['Current officer', assignment.officerName ?? 'No verified incumbent assigned'],
                 ['Assignment source', assignment.source.replaceAll('_', ' ')],
                 ['Assigned', formatDateTime(assignment.assignedAt)],
+              ]}
+            />
+            <h3>Delivery readiness</h3>
+            <p>
+              Verification status is shown without exposing phone numbers, email addresses, or other
+              contact values.
+            </p>
+            <DefinitionList
+              items={[
+                [
+                  'Government queue',
+                  getGovernmentQueueReadinessLabel(assignment.deliveryReadiness),
+                ],
+                [
+                  'Approved external contact',
+                  getExternalContactReadinessLabel(assignment.deliveryReadiness),
+                ],
+                [
+                  'Automatic outbound delivery',
+                  'Disabled (false) — no external contact message is sent automatically',
+                ],
               ]}
             />
             <h3>Routing explanation</h3>

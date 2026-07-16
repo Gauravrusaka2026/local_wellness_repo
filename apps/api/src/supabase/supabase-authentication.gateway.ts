@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { AuthenticatedUser } from '@local-wellness/types';
 
 import {
   AuthenticationGateway,
@@ -14,17 +15,20 @@ const invitationConflictCodes = new Set([
   'user_already_exists',
 ]);
 
+const isAuthenticationRejection = (status: number | undefined): boolean =>
+  status === 400 || status === 401 || status === 403;
+
 @Injectable()
 export class SupabaseAuthenticationGateway extends AuthenticationGateway {
   public constructor(@Inject(SupabaseClients) private readonly clients: SupabaseClients) {
     super();
   }
 
-  public async verifyAccessToken(accessToken: string) {
+  public async verifyAccessToken(accessToken: string): Promise<AuthenticatedUser | null> {
     const { data, error } = await this.clients.publicClient.auth.getUser(accessToken);
 
     if (error) {
-      if (error.status === 400 || error.status === 401 || error.status === 403) {
+      if (isAuthenticationRejection(error.status)) {
         return null;
       }
 
@@ -35,7 +39,22 @@ export class SupabaseAuthenticationGateway extends AuthenticationGateway {
       return null;
     }
 
+    const claimsResult = await this.clients.publicClient.auth.getClaims(accessToken);
+
+    if (claimsResult.error) {
+      if (isAuthenticationRejection(claimsResult.error.status)) {
+        return null;
+      }
+
+      throw new AuthenticationProviderUnavailableError();
+    }
+
+    if (!claimsResult.data || claimsResult.data.claims.sub !== data.user.id) {
+      return null;
+    }
+
     return {
+      assuranceLevel: claimsResult.data.claims.aal === 'aal2' ? 'aal2' : 'aal1',
       id: data.user.id,
       email: data.user.email ?? null,
       phone: data.user.phone ?? null,

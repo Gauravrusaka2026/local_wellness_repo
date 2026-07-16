@@ -47,7 +47,7 @@ The initial implementation should begin with one municipality and 5 to 10 verifi
 
 - React Native 0.81.5
 - TypeScript 5.9.3
-- Expo SDK 54.0.33 development builds/Expo Go and Expo Router 6
+- Expo SDK 54.0.36 development builds/Expo Go and Expo Router 6
 - Expo Camera, Location, and Audio
 - Expo SecureStore
 - SQLite-backed complaint draft recovery
@@ -201,7 +201,7 @@ Before implementing any feature, contributors and coding agents should read:
 - Android Studio or Xcode as needed
 
 The repository pins the Supabase CLI and Expo toolchain as project dependencies.
-The mobile workspace is aligned to Expo SDK 54, React Native 0.81.5, and React 19.1 so the current
+The mobile workspace is aligned to Expo SDK 54.0.36, React Native 0.81.5, and React 19.1 so the current
 Android Expo Go SDK 54 client can open it. After changing SDK dependencies, reinstall from the
 lockfile and restart Metro with `pnpm --filter @local-wellness/mobile dev -- --clear`.
 
@@ -323,11 +323,13 @@ EXPO_PUBLIC_SUPABASE_URL
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 EXPO_PUBLIC_SUPABASE_ANON_KEY
 EXPO_PUBLIC_API_URL
+EXPO_PUBLIC_PHONE_MFA_MODE
 
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 NEXT_PUBLIC_API_URL
+NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE
 ```
 
 Only public client-safe variables may use `EXPO_PUBLIC_` or `NEXT_PUBLIC_`.
@@ -422,7 +424,8 @@ source, route, ward, complaint, or production deployment/activation is implied.
 The owner has since selected a replacement staging project and reports loading a generated master
 SQL artifact. Because that target's database connection and migration ledger were not available for
 this session, do not infer which master revision, seeds, Auth identities, or role assignments it
-contains. Reconcile it against all 34 current migrations before enabling managed features.
+contains. Reconcile it against all 40 current migrations through `20260716117000` before enabling
+managed features.
 
 Phase 4 adds the local mobile complaint-capture flow and authenticated complaint API. For local
 engineering, run the API and mobile workspaces after starting and resetting Supabase:
@@ -586,7 +589,9 @@ Current stage:
 - product architecture defined;
 - Maharashtra-first scope defined;
 - Phase 0 pnpm/Turborepo foundation implemented and verified;
-- Phase 1 identity schema, RLS, passwordless Auth clients, secure sessions, profile setup, audited device registration, scoped government access, and invitation APIs implemented and locally verified against its exit criteria;
+- Phase 1 identity schema, RLS, secure sessions, profile setup, audited device registration, scoped
+  government access, and invitation APIs are implemented; citizen clients now use Phase 10
+  email/password plus staged Supabase Phone MFA while privileged invitation callbacks remain;
 - Phase 2 governance schema, PostGIS/versioning, canonical CSV validation, deterministic normalized seed, governance RLS, canonical authority links, and migration/seed/routing-data tests implemented locally; the supplied baseline remains non-routable where identifiers, contacts, assignments, or geometry are unverified;
 - Phase 3 routing schema, deterministic routing and duplicate-scoring packages, authenticated
   routing contracts, accuracy-aware PostGIS candidate queries, append-only decision evidence, and
@@ -602,22 +607,23 @@ Current stage:
   duplicate suggestions, and idempotent server-orchestrated submission are implemented for local
   engineering; the bootstrap contains zero verified routable categories, so the valid-submission
   production exit remains data-gated;
-- the signed-in Expo client now has a modern five-destination shell for Home, Complaints, Report,
-  Nearby, and More; explicit passwordless sign-in, account creation, and recovery modes; a
-  refreshable owned-complaint dashboard/history; grouped account/help actions; and a data-driven,
-  category-aware report form;
+- the Expo client now has email/password signup/sign-in/recovery, staged Phone MFA, private profile
+  images, a modern five-destination shell for Home, Complaints, Report, Nearby, and More, a
+  refreshable owned-complaint dashboard/history, locality Feed and aggregate Heatmap, grouped
+  account/help actions, and a data-driven category-aware report form;
 - the authenticated Nearby directory captures foreground location through Expo Location and calls
   the NestJS API for an official-source, verified-only PostGIS governing-body projection. It shows
   explicit low-accuracy, unsupported, and ambiguous states and never substitutes placeholder names,
   contacts, internal IDs, or hardcoded Pune/Mumbai data;
-- the mobile dependency set is aligned to Expo SDK 54.0.33, React Native 0.81.5, React 19.1, and
+- the mobile dependency set is aligned to Expo SDK 54.0.36, React Native 0.81.5, React 19.1, and
   TypeScript 5.9.3; the SDK compatibility check, strict type-check, and Android export pass locally;
 - citizen web account rendering now shows authenticated identity and explicit onboarding,
   provisioning, profile-unavailable, API-error, and complete states; the web client and API must
   still target the same fully migrated Supabase environment;
 - an idempotent local migration repairs missing application profiles and global citizen roles for
   existing Supabase Auth users without overwriting profile data or reactivating a revoked citizen
-  role; local citizen email templates now deliver a six-digit OTP without a sign-in link;
+  role; password recovery stays provider-owned and Phone MFA remains in observe mode until an SMS
+  provider and recovery validation are operational;
 - routing activation validation reports overlapping operational rule/policy conflicts, and the
   authenticated nearby-asset endpoint returns only current verified, owned, jurisdiction-matching
   database assets; the mobile capture flow uses that picker and its database verification result;
@@ -652,6 +658,11 @@ Current stage:
   outbox evidence, immutable organizational KPI runs/snapshots, scoped accountability APIs, worker
   loops, and government dashboard surfaces. Operational targets, schedules, assignments, and
   managed-environment activation remain policy/data/deployment gates;
+- Phase 10 engineering adds PostgreSQL-backed API quotas, liveness/readiness, security headers,
+  secret scanning, operator runbooks, citizen/privileged MFA modes, owner-private avatars, 50 m
+  issue/media proximity, and routing-delivery readiness. A verified government queue is distinct
+  from optional approved officer/body contact readiness, and no automatic outbound delivery is
+  claimed;
 - Pune Municipal Corporation is the generic architecture and test reference only; no
   municipality-specific routing logic exists, and verified Pune boundaries, ownership mappings,
   officer-role assignments, confidence policy, and fallback records remain required before an

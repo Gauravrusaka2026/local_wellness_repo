@@ -153,7 +153,17 @@ describe('government complaint validation', () => {
           submittedAt: timestamp,
           updatedAt: timestamp,
           workflowVersion: 1,
-          currentAssignment: assignment,
+          currentAssignment: {
+            ...assignment,
+            deliveryReadiness: {
+              governmentQueueStatus: 'verified_scope',
+              externalContactStatus: 'not_available',
+              contactScope: null,
+              approvedChannelTypes: [],
+              automaticOutboundDelivery: false,
+              reason: 'verified_queue_no_approved_external_contact',
+            },
+          },
           flags: {
             isUnassigned: false,
             isReopened: false,

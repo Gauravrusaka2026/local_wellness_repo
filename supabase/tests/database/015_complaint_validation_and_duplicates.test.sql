@@ -138,17 +138,16 @@ select is(
   'mock-location evidence can never be promoted to verified'
 );
 
-update phase4_validation_fixture
-set low_accuracy_location_id = public.append_complaint_location_evidence(
-  'c1000000-0000-4000-8000-000000000001', draft_id, null,
-  'current_location', 0, 0, 101, 'gps', current_timestamp, current_timestamp,
-  false, '{}'::jsonb
-);
-select is(
-  (select verification_status from complaints.complaint_location_evidence
-    where id = (select low_accuracy_location_id from phase4_validation_fixture)),
-  'low_accuracy',
-  'category maximum accuracy is enforced by the database'
+select throws_ok(
+  $$select public.append_complaint_location_evidence(
+    'c1000000-0000-4000-8000-000000000001',
+    (select draft_id from phase4_validation_fixture), null,
+    'current_location', 0, 0, 101, 'gps', current_timestamp, current_timestamp,
+    false, '{}'::jsonb
+  )$$,
+  '23514',
+  'COMPLAINT_LOCATION_ACCURACY_EXCEEDS_V1_LIMIT',
+  'accuracy beyond the V1 50 metre limit is rejected before storage'
 );
 
 update phase4_validation_fixture

@@ -8,7 +8,11 @@ import type {
   GovernmentKpiSnapshotResult,
 } from '@local-wellness/types';
 
-import { KpiAuthorityRequired, KpiDashboard } from '../app/accountability/kpi-view';
+import {
+  AccountabilityUnavailableMessage,
+  KpiAuthorityRequired,
+  KpiDashboard,
+} from '../app/accountability/kpi-view';
 import { ComplaintSlaPanel } from '../app/complaints/[complaintId]/sla-panel';
 import {
   decodeGovernmentComplaintSlaSummary,
@@ -282,6 +286,28 @@ test('renders explicit guidance instead of requesting KPIs without authority acc
   );
   assert.match(markup, /No authority-scoped membership/u);
   assert.match(markup, /activate an authority membership/u);
+  assert.doesNotMatch(markup, /role="status"/u);
+
+  const authorityFormMarkup = renderToStaticMarkup(
+    <KpiAuthorityRequired accessScope={scope} selectedScopeRoleAssignmentId="" />,
+  );
+  assert.match(authorityFormMarkup, /Choose an authority/u);
+  assert.match(authorityFormMarkup, /Load KPIs/u);
+  assert.doesNotMatch(authorityFormMarkup, /role="status"/u);
+});
+
+test('announces KPI load errors but treats missing scope as an expected state', () => {
+  const noScopeMarkup = renderToStaticMarkup(
+    <AccountabilityUnavailableMessage status="no-scope" />,
+  );
+  assert.match(noScopeMarkup, /active government role is required/u);
+  assert.doesNotMatch(noScopeMarkup, /role="alert"/u);
+
+  const errorMarkup = renderToStaticMarkup(
+    <AccountabilityUnavailableMessage message="Try again later." status="error" />,
+  );
+  assert.match(errorMarkup, /role="alert"/u);
+  assert.match(errorMarkup, /Try again later/u);
 });
 
 test('renders reproducible organizational metrics without individual scoring', () => {

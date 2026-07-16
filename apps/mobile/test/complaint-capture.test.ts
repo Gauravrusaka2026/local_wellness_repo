@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, it, test } from 'node:test';
 import type {
   ComplaintDraft,
   ComplaintLocationCapture,
@@ -40,6 +40,7 @@ import {
   pendingMediaToPreparedMedia,
   serializePendingMediaResume,
 } from '../src/complaints/resume-record';
+import { runSingleFlight } from '../src/complaints/single-flight';
 
 const draft = (overrides: Partial<ComplaintDraft> = {}): ComplaintDraft => ({
   assetId: null,
@@ -182,12 +183,41 @@ describe('complaint capture reducer and readiness', () => {
   });
 });
 
+test('shares one duplicate-check operation until it settles', async () => {
+  const state: { current: Promise<string> | null } = { current: null };
+  let calls = 0;
+  let finish: ((value: string) => void) | undefined;
+  const operation = (): Promise<string> => {
+    calls += 1;
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  };
+
+  const first = runSingleFlight(state, operation);
+  const second = runSingleFlight(state, operation);
+  assert.equal(first, second);
+  assert.equal(calls, 1);
+
+  finish?.('checked');
+  assert.equal(await first, 'checked');
+  assert.equal(state.current, null);
+
+  const third = runSingleFlight(state, async () => {
+    calls += 1;
+    return 'checked-again';
+  });
+  assert.equal(await third, 'checked-again');
+  assert.equal(calls, 2);
+});
+
 describe('location evidence', () => {
   const now = Date.parse('2026-07-14T10:01:00.000Z');
 
   it('accepts fresh accurate device evidence and rejects risk states', () => {
     assert.equal(assessLocation(location(), now).status, 'verified');
-    assert.equal(assessLocation(location({ accuracyMeters: 150 }), now).status, 'low_accuracy');
+    assert.equal(assessLocation(location({ accuracyMeters: 50 }), now).status, 'verified');
+    assert.equal(assessLocation(location({ accuracyMeters: 50.01 }), now).status, 'low_accuracy');
     assert.equal(assessLocation(location({ isMockLocation: true }), now).status, 'mocked');
     assert.equal(
       assessLocation(location({ capturedAt: '2026-07-14T09:50:00.000Z' }), now).status,
@@ -202,6 +232,10 @@ describe('location evidence', () => {
   it('calculates media distance without retaining coordinates in resume state', () => {
     assert.equal(distanceBetweenLocationsMeters(location(), location()), 0);
     assert.equal(assessMediaDistance(location(), location()).isAcceptable, true);
+    assert.equal(
+      assessMediaDistance(location(), location({ longitude: 73.857 })).isAcceptable,
+      true,
+    );
     assert.equal(
       assessMediaDistance(location(), location({ latitude: 19.076, longitude: 72.8777 }))
         .isAcceptable,

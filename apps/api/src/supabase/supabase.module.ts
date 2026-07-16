@@ -9,6 +9,8 @@ import { CommunicationStore } from '../data/communication.store.js';
 import { IdentityStore } from '../data/identity.store.js';
 import { GovernmentComplaintStore } from '../data/government-complaint.store.js';
 import { GovernanceDirectoryStore } from '../data/governance-directory.store.js';
+import { HealthStore } from '../data/health.store.js';
+import { RateLimitStore } from '../data/rate-limit.store.js';
 import { ResolutionEvidenceGateway } from '../data/resolution-evidence.gateway.js';
 import { RoutingStore } from '../data/routing.store.js';
 import { TransparencyStore } from '../data/transparency.store.js';
@@ -24,6 +26,8 @@ import { SupabaseGovernanceDirectoryStore } from './supabase-governance-director
 import { SupabaseRoutingStore } from './supabase-routing.store.js';
 import { SupabaseTransparencyStore } from './supabase-transparency.store.js';
 import { SupabaseGovernmentComplaintStore } from './supabase-government-complaint.store.js';
+import { SupabaseHealthStore } from './supabase-health.store.js';
+import { SupabaseRateLimitStore } from './supabase-rate-limit.store.js';
 import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidence.gateway.js';
 
 @Global()
@@ -41,6 +45,8 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
     SupabaseRoutingStore,
     SupabaseTransparencyStore,
     SupabaseGovernmentComplaintStore,
+    SupabaseHealthStore,
+    SupabaseRateLimitStore,
     SupabaseResolutionEvidenceGateway,
     {
       provide: AccountabilityStore,
@@ -87,6 +93,14 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
       useExisting: SupabaseResolutionEvidenceGateway,
     },
     {
+      provide: HealthStore,
+      useExisting: SupabaseHealthStore,
+    },
+    {
+      provide: RateLimitStore,
+      useExisting: SupabaseRateLimitStore,
+    },
+    {
       provide: TransparencyStore,
       useExisting: SupabaseTransparencyStore,
     },
@@ -102,6 +116,8 @@ import { SupabaseResolutionEvidenceGateway } from './supabase-resolution-evidenc
     GovernanceDirectoryStore,
     RoutingStore,
     GovernmentComplaintStore,
+    HealthStore,
+    RateLimitStore,
     ResolutionEvidenceGateway,
     TransparencyStore,
   ],

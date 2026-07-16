@@ -4,6 +4,8 @@ import { describe, it } from 'node:test';
 import { decodeProfile, validateProfileUpdate } from '../src/profile/profile-service';
 
 const profile = {
+  avatarObjectPath: null,
+  avatarUpdatedAt: null,
   createdAt: '2026-07-14T10:00:00.000Z',
   displayName: 'Citizen Tester',
   email: 'citizen@example.test',

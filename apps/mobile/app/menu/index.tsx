@@ -28,6 +28,7 @@ export default function MenuScreen() {
     return <ErrorScreen message={auth.state.message} title="App configuration required" />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
+  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
 
   const identifier = auth.state.session.user.email ?? auth.state.session.user.phone ?? 'Citizen';
 

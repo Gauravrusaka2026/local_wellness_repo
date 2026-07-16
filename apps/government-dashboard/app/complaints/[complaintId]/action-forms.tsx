@@ -13,6 +13,7 @@ import {
   type GovernmentComplaintExternalDependency,
   type GovernmentComplaintInspection,
   type GovernmentComplaintWorkReference,
+  type GovernmentResolutionEvidenceKind,
   type GovernmentResolutionEvidence,
   type ComplaintLocationCapture,
 } from '@local-wellness/types';
@@ -57,6 +58,61 @@ type BrowserGeolocationPosition = Readonly<{
   }>;
   timestamp: number;
 }>;
+
+const maximumResolutionEvidenceBytes = 50 * 1_024 * 1_024;
+const resolutionEvidenceMimeTypes = [
+  'image/heic',
+  'image/heif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+] as const;
+type ResolutionEvidenceMimeType = (typeof resolutionEvidenceMimeTypes)[number];
+
+const resolutionEvidenceKindByMimeType: Readonly<
+  Record<ResolutionEvidenceMimeType, GovernmentResolutionEvidenceKind>
+> = {
+  'image/heic': 'photo',
+  'image/heif': 'photo',
+  'image/jpeg': 'photo',
+  'image/png': 'photo',
+  'image/webp': 'photo',
+  'video/mp4': 'video',
+  'video/quicktime': 'video',
+  'video/webm': 'video',
+};
+
+const isResolutionEvidenceMimeType = (value: string): value is ResolutionEvidenceMimeType =>
+  resolutionEvidenceMimeTypes.some((mimeType) => mimeType === value);
+
+export const validateResolutionEvidenceFile = (
+  file: Readonly<{ size: number; type: string }>,
+): Readonly<{
+  byteSize: number;
+  kind: GovernmentResolutionEvidenceKind;
+  mimeType: ResolutionEvidenceMimeType;
+}> => {
+  if (!isResolutionEvidenceMimeType(file.type)) {
+    throw new Error('Choose a supported JPEG, PNG, WebP, HEIC/HEIF, MP4, QuickTime, or WebM file.');
+  }
+
+  if (
+    !Number.isSafeInteger(file.size) ||
+    file.size <= 0 ||
+    file.size > maximumResolutionEvidenceBytes
+  ) {
+    throw new Error('Resolution evidence must be between 1 byte and 50 MiB.');
+  }
+
+  return {
+    byteSize: file.size,
+    kind: resolutionEvidenceKindByMimeType[file.type],
+    mimeType: file.type,
+  };
+};
 
 export const toCompletionLocation = (
   position: BrowserGeolocationPosition,
@@ -170,19 +226,19 @@ const EvidenceUploader = ({
     setIsError(false);
     setMessage('Preparing the private upload…');
     try {
+      const validatedFile = validateResolutionEvidenceFile(file);
       const bytes = await file.arrayBuffer();
       const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
       const sha256 = [...new Uint8Array(digest)]
         .map((value) => value.toString(16).padStart(2, '0'))
         .join('');
-      const kind = file.type.startsWith('image/') ? 'photo' : 'video';
       const intentForm = new FormData();
       intentForm.set('complaintId', complaintId);
       intentForm.set('expectedWorkflowVersion', String(workflowVersion));
       intentForm.set('idempotencyKey', globalThis.crypto.randomUUID());
-      intentForm.set('kind', kind);
-      intentForm.set('mimeType', file.type);
-      intentForm.set('byteSize', String(file.size));
+      intentForm.set('kind', validatedFile.kind);
+      intentForm.set('mimeType', validatedFile.mimeType);
+      intentForm.set('byteSize', String(validatedFile.byteSize));
       intentForm.set('sha256', sha256);
       const intentResult = await requestResolutionEvidenceUpload(intentForm);
       if (intentResult.status === 'error') throw new Error(intentResult.message);
@@ -194,7 +250,7 @@ const EvidenceUploader = ({
           intentResult.intent.upload.objectPath,
           intentResult.intent.upload.token,
           bytes,
-          { cacheControl: '0', contentType: file.type, upsert: false },
+          { cacheControl: '0', contentType: validatedFile.mimeType, upsert: false },
         );
       if (error) throw new Error('The private evidence upload failed. Reload and try again.');
 
@@ -203,7 +259,7 @@ const EvidenceUploader = ({
       finalizeForm.set('evidenceId', intentResult.intent.evidence.id);
       finalizeForm.set('expectedWorkflowVersion', String(intentResult.intent.workflowVersion));
       finalizeForm.set('idempotencyKey', globalThis.crypto.randomUUID());
-      finalizeForm.set('byteSize', String(file.size));
+      finalizeForm.set('byteSize', String(validatedFile.byteSize));
       finalizeForm.set('sha256', sha256);
       const finalized = await finalizeResolutionEvidenceUpload(finalizeForm);
       if (finalized.status !== 'success') throw new Error(finalized.message ?? 'Upload failed.');
@@ -224,7 +280,7 @@ const EvidenceUploader = ({
       <div className="field-group">
         <label htmlFor="resolution-evidence-file">Resolution photo or video</label>
         <input
-          accept="image/heic,image/heif,image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+          accept={resolutionEvidenceMimeTypes.join(',')}
           disabled={isPending}
           id="resolution-evidence-file"
           onChange={(event) => {
@@ -234,7 +290,7 @@ const EvidenceUploader = ({
           required
           type="file"
         />
-        <p className="field-hint">Private, maximum 50 MB. Originals are never made public here.</p>
+        <p className="field-hint">Private, maximum 50 MiB. Originals are never made public here.</p>
       </div>
       <button className="primary-button" disabled={isPending} type="submit">
         {isPending ? 'Uploading…' : 'Upload private evidence'}

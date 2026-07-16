@@ -76,6 +76,19 @@ can be repaired during upgrade.
 
 Phase 2 adds restrictive foreign keys from `authority_memberships`, non-global `user_roles`, and authority-attributed audit events to `governance.authorities`. The forward fix first preserves any older arbitrary identifier as a `placeholder`/`other` authority with routing disabled, so an upgrade does not discard access history or misrepresent a legacy UUID as verified governance data. Placeholder authority scopes are retained for remediation but excluded from effective access. Scoped role writes additionally validate authority, ward, and authority-department ownership.
 
+Phase 10 adds `avatar_object_path` and the server-maintained `avatar_updated_at` version to
+`profiles`. The path is nullable and must be exactly the owning profile UUID plus one bounded
+`avatar.jpg`, `avatar.jpeg`, `avatar.png`, or `avatar.webp` filename. The corresponding object stays
+in the private `profile-images-private` bucket; the path is application-profile metadata, not a
+public URL. A database trigger owns the version timestamp so clients cannot forge cache state.
+
+Supabase Auth remains the credential and factor source of truth. The service-only
+`user_has_verified_phone_mfa` function reports only whether a citizen has a verified Phone MFA
+factor; it does not return a phone number, factor identifier, or OTP. Privileged direct-RLS checks
+require a JWT at `aal2`, while the API independently evaluates citizen Phone MFA and privileged MFA
+in configurable observe/enforce rollout modes. No application OTP table or Storage-backed OTP
+mechanism exists.
+
 ### Governance
 
 - reference_sources;
@@ -250,6 +263,14 @@ Finalization records observed MIME type/size and a server-verified SHA-256 only 
 inspected the object. Photo/video and voice captures use separate private buckets. Processing and
 moderation states are modeled but no provider automatically advances them in Phase 4.
 
+Phase 10 makes the V1 proximity requirement a database invariant. Every issue category permits at
+most 50-metre current-location accuracy and declares a media-to-issue maximum between 1 and 50
+metres; the engineering seed uses 50 metres. The `complaint_location_evidence` insert trigger
+rejects evidence above the category accuracy threshold and rejects media-capture evidence whose
+PostGIS distance from the draft's selected current-location point exceeds the category threshold.
+The server still validates the request before persistence, but PostgreSQL is the final fail-closed
+boundary.
+
 Duplicate checks select exactly one current verified, non-placeholder, routing-eligible policy;
 use PostGIS distance, time, category, text similarity, media hashes, and asset evidence; cap the
 candidate set; and retain the scored advisory result. They never merge or automatically reject a
@@ -403,6 +424,18 @@ display/type names, and measured distances. The category, asset type, asset/vers
 owner authority and optional office/department/role relationships must all be current, verified,
 non-placeholder, and routing-eligible. Ambiguous/unsupported jurisdiction or missing ownership
 returns no selectable asset rather than weakening routing validation.
+
+Phase 10 separates a routed government queue from optional external contact readiness. The
+service-only `assignment_delivery_readiness` function first revalidates the complaint assignment's
+current verified governance scope. A valid scope reports `governmentQueueStatus = verified_scope`
+even when no incumbent or approved contact exists, because the complaint remains visible to the
+authorized government queue. It then chooses only the most specific current, public-official,
+manually verified, complaint-intake contact version with explicit delivery approval, preferring
+officer assignment/officer before office, authority department, ward, local body, and authority.
+The result reports only contact scope and approved channel types; it never returns the contact
+value. Placeholder, source-only, stale, superseded, or merely unverified contacts are ineligible.
+`automaticOutboundDelivery` is always `false`: this migration reports readiness and does not send
+email, SMS, or portal traffic.
 
 ### Communication
 
@@ -670,7 +703,7 @@ supabase db push
 
 ### Master bootstrap SQL
 
-`supabase/master.sql` is the deterministic, single-file bootstrap form of all 34 ordered SQL files
+`supabase/master.sql` is the deterministic, single-file bootstrap form of all 40 ordered SQL files
 in `supabase/migrations/`. Each source migration retains its own transaction boundary, and the
 header records the exact source filename and SHA-256 digest. Seed artifacts remain separate because
 they contain environment/bootstrap data rather than table definitions and security policy.
@@ -849,6 +882,16 @@ authority membership, complaint assignment, and requested municipality/ward/depa
 Policy evidence, lease tokens, complaint clocks, escalation jobs/events, and KPI source rows are
 not client tables.
 
+Phase 10 stores fixed-window API quota counters in the forced-RLS
+`private.api_rate_limit_windows` table. Subjects are SHA-256 values produced by the API rather than
+raw user IDs or client addresses. Only narrow service-role functions may consume a quota or purge
+a bounded batch of expired windows. The service-only readiness function checks the citizen role and
+all five required private Storage buckets without exposing their rows. Phone-factor and privileged-
+MFA helper functions expose only boolean authorization decisions. Profile-image object policies
+permit an authenticated user to select, insert, replace, or delete only allowed avatar paths under
+their own UUID prefix; the single current profile metadata path remains validated by the API and
+database constraints.
+
 ---
 
 ## Storage Metadata
@@ -905,6 +948,13 @@ no-store`, and evidence access is logged with safe identifiers rather than priva
 is no public evidence object or direct Storage policy for dashboard clients. Binary signatures are
 not full media decoding, malware scanning, or moderation; those providers/policies and scheduled
 cleanup of expired/failed Storage objects remain pre-production work.
+
+Phase 10 adds `profile-images-private` with a 5 MiB limit and an allowlist of JPEG, PNG, and WebP.
+Citizen web and mobile validate the declared type, size, extension, and supported file signature,
+then use owner-scoped Storage policies and short-lived signed read URLs. The API records only the
+validated owner path and the database versions its timestamp. There is no public bucket or public
+profile-image URL. Signature validation is not full image decoding, malware scanning, metadata
+stripping, or moderation; those controls and orphan reconciliation remain deployment follow-up.
 
 ---
 
@@ -1049,7 +1099,7 @@ production deployment was created by that database operation.
 The owner later switched the configured staging target and reports applying a generated master SQL
 file. The exact artifact revision and current target ledger were not independently verified, so the
 historical deployment above must not be treated as evidence for the replacement project. Reconcile
-that target against all 34 current migrations before activation.
+that target against all 40 current migrations through `20260716117000` before activation.
 
 ## Phase 8 Public Projection Model
 
@@ -1141,6 +1191,23 @@ behavior, lease/retry/dead semantics, KPI reproducibility and scope isolation, s
 and immutability. The focused Phase 9 plans pass 48/48 and 51/51 assertions; the clean aggregate
 database run passes 1,275 assertions across all 32 plans. These rollback-isolated fixtures verify
 engineering and do not activate operational policy.
+
+Phase 10 adds six forward migrations:
+
+- `20260716112000_phase_10_api_hardening.sql`;
+- `20260716113000_phase_10_privileged_mfa.sql`;
+- `20260716114000_phase_10_citizen_phone_mfa.sql`;
+- `20260716115000_phase_10_profile_images.sql`;
+- `20260716116000_phase_10_complaint_location_proximity.sql`;
+- `20260716117000_phase_10_routing_delivery_readiness.sql`.
+
+The current repository cutoff is 40 ordered migrations through `20260716117000`. Plans 033–039
+define 124 assertions for quota/readiness ACLs and behavior, privileged and citizen-factor MFA,
+private profile-image metadata/Storage policies, the 50-metre location/media invariant, and the
+queue-versus-contact readiness boundary. Existing routing and government-workflow plans also assert
+the exact authority, department, role, assignment, and placeholder fail-closed behavior. These
+tests use rollback-isolated fixtures and do not activate a real municipality, contact, routing
+rule, or outbound-delivery channel.
 
 Required:
 

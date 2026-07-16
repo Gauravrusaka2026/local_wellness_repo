@@ -33,6 +33,7 @@ import {
 
 import { BearerAuthGuard } from '../auth/bearer-auth.guard.js';
 import { Authenticated } from '../common/authenticated-user.decorator.js';
+import { RateLimit, rateLimitPolicies } from '../common/rate-limit.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { CommunicationsService } from './communications.service.js';
 
@@ -57,6 +58,7 @@ export class CommunicationsController {
 
   @Post('complaints/:complaintId/messages')
   @Header('Cache-Control', 'private, no-store')
+  @RateLimit(rateLimitPolicies.privateMessage)
   public createMessage(
     @Authenticated() actor: AuthenticatedUser,
     @Param(new ZodValidationPipe(complaintCommunicationPathSchema))

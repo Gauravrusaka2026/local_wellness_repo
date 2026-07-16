@@ -1,10 +1,14 @@
 import type {
   PublicComplaintDetail,
+  PublicComplaintHotspotQuery,
+  PublicComplaintHotspotResult,
   PublicComplaintMapQuery,
   PublicComplaintMapResult,
 } from '@local-wellness/types';
 import {
   publicComplaintDetailSchema,
+  publicComplaintHotspotQuerySchema,
+  publicComplaintHotspotResultSchema,
   publicComplaintIdParametersSchema,
   publicComplaintMapQuerySchema,
   publicComplaintMapResultSchema,
@@ -93,6 +97,26 @@ export const buildPublicComplaintMapPath = (query: PublicComplaintMapQuery): `/$
   return `/api/v1/transparency/complaints?${parameters.toString()}`;
 };
 
+export const buildPublicComplaintHotspotPath = (
+  query: PublicComplaintHotspotQuery,
+): `/${string}` => {
+  const validatedQuery = publicComplaintHotspotQuerySchema.safeParse(query);
+  if (!validatedQuery.success) throw invalidRequest();
+  const parameters = new URLSearchParams({
+    east: String(validatedQuery.data.east),
+    limit: String(validatedQuery.data.limit),
+    north: String(validatedQuery.data.north),
+    south: String(validatedQuery.data.south),
+    west: String(validatedQuery.data.west),
+    zoom: String(validatedQuery.data.zoom),
+  });
+  validatedQuery.data.categoryCodes?.forEach((code) => parameters.append('categoryCodes', code));
+  validatedQuery.data.statuses?.forEach((status) => parameters.append('statuses', status));
+  if (validatedQuery.data.from !== undefined) parameters.set('from', validatedQuery.data.from);
+  if (validatedQuery.data.to !== undefined) parameters.set('to', validatedQuery.data.to);
+  return `/api/v1/transparency/hotspots?${parameters.toString()}`;
+};
+
 const invalidResponse = (): ApiError =>
   new ApiError({
     code: 'INVALID_RESPONSE',
@@ -119,6 +143,16 @@ export const listPublicComplaints = async (
 ): Promise<PublicComplaintMapResult> => {
   const result = publicComplaintMapResultSchema.safeParse(
     await requestPublicTransparency(buildPublicComplaintMapPath(query)),
+  );
+  if (!result.success) throw invalidResponse();
+  return result.data;
+};
+
+export const listPublicComplaintHotspots = async (
+  query: PublicComplaintHotspotQuery,
+): Promise<PublicComplaintHotspotResult> => {
+  const result = publicComplaintHotspotResultSchema.safeParse(
+    await requestPublicTransparency(buildPublicComplaintHotspotPath(query)),
   );
   if (!result.success) throw invalidResponse();
   return result.data;

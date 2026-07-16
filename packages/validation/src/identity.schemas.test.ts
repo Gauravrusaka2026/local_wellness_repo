@@ -36,6 +36,24 @@ describe('identity validation schemas', () => {
     );
   });
 
+  it('accepts only account-scoped supported profile image paths or removal', () => {
+    assert.deepEqual(
+      updateProfileSchema.parse({
+        avatarObjectPath: 'a93fe312-6f26-4d4b-a9da-e1cd0ad68dc6/avatar.webp',
+      }),
+      { avatarObjectPath: 'a93fe312-6f26-4d4b-a9da-e1cd0ad68dc6/avatar.webp' },
+    );
+    assert.deepEqual(updateProfileSchema.parse({ avatarObjectPath: null }), {
+      avatarObjectPath: null,
+    });
+    assert.equal(
+      updateProfileSchema.safeParse({
+        avatarObjectPath: 'a93fe312-6f26-4d4b-a9da-e1cd0ad68dc6/avatar.svg',
+      }).success,
+      false,
+    );
+  });
+
   it('accepts only an exact lowercase SHA-256 device identifier', () => {
     const digest = '8cb3134f9945efd5727c816ef1226edcbb949b8af948fd8babe6487a3dfb23ec';
 

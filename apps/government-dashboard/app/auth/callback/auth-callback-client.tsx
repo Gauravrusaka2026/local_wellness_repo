@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 
 import { recordAuthAuditEventSafely } from '../../../lib/api/auth-audit';
 import { completeEmailAuthCallback } from '../../../lib/auth/callback';
+import { buildMfaPath } from '../../../lib/auth/mfa';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
 export const AuthCallbackClient = ({ nextPath }: Readonly<{ nextPath: string }>) => {
@@ -23,7 +24,7 @@ export const AuthCallbackClient = ({ nextPath }: Readonly<{ nextPath: string }>)
           callbackUrl,
         );
         await recordAuthAuditEventSafely(accessToken, 'sign_in_succeeded');
-        window.location.replace(nextPath);
+        window.location.replace(buildMfaPath(nextPath));
       } catch {
         const loginUrl = new URL('/auth/login', window.location.origin);
         loginUrl.searchParams.set('error', 'callback');

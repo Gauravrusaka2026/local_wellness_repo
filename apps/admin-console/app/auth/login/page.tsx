@@ -1,4 +1,4 @@
-import { getSafeReturnPath } from '../../../lib/auth/return-path';
+import { getSafeMfaReturnPath } from '../../../lib/auth/return-path';
 import { OtpSignInForm } from './otp-sign-in-form';
 
 type LoginPageProperties = Readonly<{
@@ -10,7 +10,7 @@ const firstValue = (value: string | string[] | undefined): string | undefined =>
 
 export default async function LoginPage({ searchParams }: LoginPageProperties) {
   const parameters = await searchParams;
-  const nextPath = getSafeReturnPath(firstValue(parameters.next), '/');
+  const nextPath = getSafeMfaReturnPath(firstValue(parameters.next), '/');
 
   return (
     <main className="centered-page">

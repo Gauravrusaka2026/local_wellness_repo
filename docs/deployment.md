@@ -80,7 +80,7 @@ Each project should have:
 - Android Play Console;
 - Apple App Store later.
 
-The current mobile compatibility baseline is Expo SDK 54.0.33, React Native 0.81.5, React 19.1,
+The current mobile compatibility baseline is Expo SDK 54.0.36, React Native 0.81.5, React 19.1,
 and TypeScript 5.9.3. Local Android Expo Go testing requires an SDK 54-capable client. Every mobile
 SDK change must pass `expo install --check`, strict type-checking, and an Android export before a
 device or EAS release is attempted.
@@ -100,6 +100,8 @@ not maintain an app-local environment copy or put a secret/service-role credenti
 
 - containerized NestJS application;
 - Railway, Fly.io, Render, AWS ECS, or equivalent.
+- `GET /health/live` checks process liveness and `GET /health/ready` checks the narrow identity/
+  private-Storage database dependency before traffic is admitted.
 
 ### Realtime
 
@@ -274,17 +276,16 @@ key in Expo configuration.
 
 Citizen web account testing likewise requires the web deployment and NestJS API to use the same
 Supabase environment and the correct reachable `NEXT_PUBLIC_API_URL`. Apply the identity migrations
-and profile-provisioning trigger before allowing signup. A successful Auth callback without a
+and profile-provisioning trigger before allowing email/password signup. A successful Auth session without a
 profile row is an environment/provisioning failure that the account UI reports explicitly; do not
 mask it with Auth metadata or an empty profile.
 
 The identity forward fix repairs missing application profiles/global citizen roles for existing
-Auth users during migration without overwriting existing application state. Local Auth uses the
-committed code-only confirmation and magic-link templates for deterministic tests. Managed projects
-may retain Supabase's default secure-link templates or use a reviewed token template; the clients
-support both modes. Configure each exact web/mobile callback in the managed redirect allow-list and
-smoke-test the actual delivered message, expiry/rate limits, session cookie, profile lookup, and
-signed-in landing page. A local template file does not update a hosted Supabase project.
+Auth users without overwriting existing state. Citizen recovery uses the managed recovery link;
+government/admin entry remains compatible with provider-default links or reviewed codes. Configure
+exact recovery/invite callbacks. Keep all citizen Phone MFA modes in `observe` until Advanced Phone
+MFA, a real SMS provider, recovery, abuse limits, and hosted device tests pass; then switch web,
+mobile, and API enforcement together. A local template file does not update a hosted project.
 
 Production complaint activation additionally requires:
 
@@ -401,6 +402,7 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 EXPO_PUBLIC_SUPABASE_ANON_KEY
 EXPO_PUBLIC_API_URL
 EXPO_PUBLIC_REALTIME_URL
+EXPO_PUBLIC_PHONE_MFA_MODE
 EXPO_PUBLIC_MAPS_KEY
 ```
 
@@ -412,6 +414,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 NEXT_PUBLIC_API_URL
 NEXT_PUBLIC_REALTIME_URL
+NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE
 ```
 
 ### Server
@@ -426,6 +429,8 @@ SUPABASE_DB_URL
 GOVERNMENT_INVITE_REDIRECT_URL
 EMAIL_PROVIDER_API_KEY
 SMS_PROVIDER_API_KEY
+API_PRIVILEGED_MFA_MODE
+API_CITIZEN_PHONE_MFA_MODE
 REALTIME_ALLOWED_ORIGINS
 REALTIME_DELIVERY_BATCH_SIZE
 REALTIME_DELIVERY_LEASE_SECONDS
@@ -495,8 +500,8 @@ service credential and lease tokens must never enter a browser/mobile bundle or 
 
 ## Health Checks
 
-Required before launch. Phase 6 implements both endpoints on the realtime-server process; other
-runtime readiness implementations remain service-specific:
+Required before launch. The API and realtime server implement both endpoints with service-specific
+readiness probes:
 
 ```text
 /health/live
@@ -637,15 +642,17 @@ blocked on approved operational policy/data and environment verification.
 
 ## Mobile Citizen Experience and Governance Directory Activation
 
-The current mobile shell, OTP modes, complaint dashboard/history, category-aware report form, and
-Nearby directory are locally implemented. Before a managed demo or release:
+The current mobile shell, email/password/recovery modes, staged phone verification, complaint
+dashboard/history, private profile image, category-aware report form, reviewed locality Feed/
+Heatmap, and Nearby directory are locally implemented. Before a managed demo or release:
 
 - deploy the matching API and apply the additive
   `20260716104000_verified_governing_body_projection.sql` migration through the ordinary
   incremental workflow; never apply the master bootstrap to an already migrated project;
 - source one reviewed root environment, confirm the public Supabase URL/key belong to the same
   staging project, and use a LAN-reachable API/realtime URL for Expo Go;
-- run a physical-device signed-out → OTP → dashboard → Nearby → live photo/video/voice → draft
+- run a physical-device signed-out → email/password → optional phone MFA → dashboard → profile
+  image → Feed/Heatmap → Nearby → live photo/video/voice → draft
   resume smoke, including denied permissions, weak GPS accuracy, network interruption, and logout;
 - review the known pilot UX limits: an individual finalized draft attachment cannot yet be removed,
   submitted original media has no owner signed-read view, and mobile notification history currently
@@ -686,4 +693,7 @@ Create ADRs when changing:
 - infrastructure as code tool;
 - secret management approach.
 
-Redis, BullMQ and Sentry are intentionally deferred beyond V1. The approved V1 monitoring target is structured logs, request correlation, health checks, uptime checks and provider-native metrics without a Sentry SDK or DSN. Phase 1 implements request correlation and application error logging; health endpoints, uptime checks and hosted metrics remain deployment work.
+Redis, BullMQ and Sentry are intentionally deferred beyond V1. The approved V1 monitoring target is
+structured logs, request correlation, implemented API/realtime health checks, uptime checks and
+provider-native metrics without a Sentry SDK or DSN. Hosted alerts and provider metrics remain an
+operator activation task.

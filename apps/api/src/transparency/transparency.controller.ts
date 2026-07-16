@@ -17,11 +17,13 @@ import {
 } from '@local-wellness/validation';
 
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { RateLimit, rateLimitPolicies } from '../common/rate-limit.js';
 import { TransparencyService } from './transparency.service.js';
 
 const publicCacheControl = 'no-store';
 
 @Controller('transparency')
+@RateLimit(rateLimitPolicies.publicTransparencyRead)
 export class TransparencyController {
   public constructor(
     @Inject(TransparencyService)

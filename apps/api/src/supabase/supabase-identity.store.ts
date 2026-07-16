@@ -19,6 +19,7 @@ import {
 
 import {
   DeviceBlockedError,
+  DeviceLimitReachedError,
   DeviceRevokedError,
   IdentityDataAccessError,
   IdentityStore,
@@ -42,7 +43,7 @@ type ProvisionGovernmentInvitationArguments =
   Database['public']['Functions']['provision_government_invitation']['Args'];
 
 const profileColumns =
-  'id,display_name,phone,email,preferred_language,status,onboarding_completed_at,created_at,updated_at';
+  'id,display_name,avatar_object_path,avatar_updated_at,phone,email,preferred_language,status,onboarding_completed_at,created_at,updated_at';
 const deviceColumns =
   'id,platform,app_version,push_token,last_seen_at,risk_status,revoked_at,created_at,updated_at';
 const roleColumns = 'id,code,name,description,is_government,is_privileged';
@@ -62,6 +63,8 @@ const decodeProfile = (
     ProfileRow,
     | 'id'
     | 'display_name'
+    | 'avatar_object_path'
+    | 'avatar_updated_at'
     | 'phone'
     | 'email'
     | 'preferred_language'
@@ -81,6 +84,8 @@ const decodeProfile = (
   return {
     id: row.id,
     displayName: row.display_name,
+    avatarObjectPath: row.avatar_object_path,
+    avatarUpdatedAt: row.avatar_updated_at,
     phone: row.phone,
     email: row.email,
     preferredLanguage: row.preferred_language as SupportedLanguage,
@@ -209,8 +214,40 @@ export class SupabaseIdentityStore extends IdentityStore {
     return data ? decodeProfile(data) : null;
   }
 
+  public async userRequiresPrivilegedMfa(userId: string, at: string): Promise<boolean> {
+    const { data, error } = await this.clients.serviceRoleClient.rpc(
+      'user_requires_privileged_mfa',
+      {
+        p_at: at,
+        p_user_id: userId,
+      },
+    );
+
+    if (error || typeof data !== 'boolean') {
+      throw new IdentityDataAccessError('determine privileged MFA requirement');
+    }
+
+    return data;
+  }
+
+  public async userHasVerifiedPhoneMfa(userId: string): Promise<boolean> {
+    const { data, error } = await this.clients.serviceRoleClient.rpc(
+      'user_has_verified_phone_mfa',
+      { p_user_id: userId },
+    );
+
+    if (error || typeof data !== 'boolean') {
+      throw new IdentityDataAccessError('determine verified phone MFA state');
+    }
+
+    return data;
+  }
+
   public async updateProfile(userId: string, update: ProfileUpdate): Promise<Profile> {
     const persistenceUpdate: TablesUpdate<'profiles'> = {
+      ...(update.avatarObjectPath === undefined
+        ? {}
+        : { avatar_object_path: update.avatarObjectPath }),
       ...(update.displayName === undefined ? {} : { display_name: update.displayName }),
       ...(update.onboardingCompletedAt === undefined
         ? {}
@@ -268,6 +305,10 @@ export class SupabaseIdentityStore extends IdentityStore {
 
     if (hasDatabaseErrorMarker(error, 'DEVICE_REVOKED')) {
       throw new DeviceRevokedError();
+    }
+
+    if (hasDatabaseErrorMarker(error, 'DEVICE_LIMIT_REACHED')) {
+      throw new DeviceLimitReachedError();
     }
 
     if (error || !data) {

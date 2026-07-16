@@ -88,5 +88,18 @@ max_frequency = "1m"
 [auth.sms.test_otp]
 12025550123 = "123456"
 
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = true
+verify_enabled = true
+otp_length = 6
+max_frequency = "1m"
+
 [functions.governance-sync-fetch]
 verify_jwt = false

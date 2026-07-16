@@ -142,6 +142,7 @@ export default function GovernanceDirectoryScreen() {
     return <ErrorScreen message={auth.state.message} title="App configuration required" />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
+  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
   const accessToken = auth.state.session.access_token;
 
   const locate = async (): Promise<void> => {

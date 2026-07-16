@@ -20,6 +20,7 @@ import {
 
 import { BearerAuthGuard } from '../auth/bearer-auth.guard.js';
 import { Authenticated } from '../common/authenticated-user.decorator.js';
+import { RateLimit, rateLimitPolicies } from '../common/rate-limit.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { DevicesService } from './devices.service.js';
 
@@ -35,6 +36,7 @@ export class DevicesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RateLimit(rateLimitPolicies.deviceMutation)
   public registerDevice(
     @Authenticated() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(registerDeviceSchema)) input: RegisterDeviceRequest,
@@ -43,6 +45,7 @@ export class DevicesController {
   }
 
   @Delete(':deviceId')
+  @RateLimit(rateLimitPolicies.deviceMutation)
   public revokeDevice(
     @Authenticated() user: AuthenticatedUser,
     @Param(new ZodValidationPipe(deviceIdParametersSchema)) parameters: DeviceIdParameters,

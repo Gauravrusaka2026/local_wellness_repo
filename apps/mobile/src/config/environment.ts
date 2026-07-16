@@ -6,6 +6,7 @@ import {
 } from '@local-wellness/config';
 
 type MobileRuntimeEnvironment = Readonly<{ isNativeRuntime: boolean }>;
+export type PhoneMfaMode = 'enforce' | 'observe';
 
 const readJwtPayload = (key: string): Record<string, unknown> | null => {
   const encodedPayload = key.split('.')[1];
@@ -115,7 +116,18 @@ export const getPublicRealtimeUrl = (): string | null => {
   return value ? parsePublicHttpUrl(value, 'EXPO_PUBLIC_REALTIME_URL') : null;
 };
 
+export const getPublicPhoneMfaMode = (
+  value: string | undefined = process.env.EXPO_PUBLIC_PHONE_MFA_MODE,
+): PhoneMfaMode => {
+  const mode = value?.trim().toLowerCase() || 'observe';
+  if (mode !== 'observe' && mode !== 'enforce') {
+    throw new ConfigurationError('EXPO_PUBLIC_PHONE_MFA_MODE must be observe or enforce.');
+  }
+  return mode;
+};
+
 export const validateMobileRuntimeEnvironment = (runtime: MobileRuntimeEnvironment): void => {
+  getPublicPhoneMfaMode();
   const supabase = getPublicSupabaseConfiguration();
   assertNativeUrlIsReachable(supabase.url, 'EXPO_PUBLIC_SUPABASE_URL', runtime);
   assertNativeUrlIsReachable(getPublicApiUrl(), 'EXPO_PUBLIC_API_URL', runtime);

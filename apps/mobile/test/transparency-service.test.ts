@@ -2,13 +2,21 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { ApiError } from '../src/api/client';
-import { createNearbyViewport, projectApproximatePoint } from '../src/transparency/nearby-viewport';
+import {
+  createNearbyViewport,
+  NearbyLocationError,
+  projectApproximatePoint,
+  requiresNearbyLocationSettings,
+} from '../src/transparency/nearby-viewport';
+import { buildHotspotVisuals } from '../src/transparency/hotspot-visualization';
 import {
   getPublicComplaint,
+  listPublicComplaintHotspots,
   listPublicComplaints,
   mergePublicComplaintPages,
 } from '../src/transparency/transparency-service';
 import {
+  createMobileHotspotQuery,
   createMobileTransparencyQuery,
   defaultMobileTransparencyFilters,
 } from '../src/transparency/transparency-query';
@@ -47,6 +55,17 @@ afterEach(() => {
 });
 
 describe('mobile transparency service', () => {
+  it('offers settings recovery only for permanent nearby-location denial', () => {
+    assert.equal(
+      requiresNearbyLocationSettings(
+        new NearbyLocationError('Enable permission.', { requiresAppSettings: true }),
+      ),
+      true,
+    );
+    assert.equal(requiresNearbyLocationSettings(new NearbyLocationError('Try again.')), false);
+    assert.equal(requiresNearbyLocationSettings(new Error('unrelated')), false);
+  });
+
   it('uses an anonymous request and validates the shared list contract', async () => {
     let requestInit: RequestInit | undefined;
     globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
@@ -69,6 +88,44 @@ describe('mobile transparency service', () => {
     assert.equal(result.items[0]?.publicId, identifiers.publicComplaint);
     assert.equal(requestInit?.method, 'GET');
     assert.deepEqual(requestInit?.headers, { Accept: 'application/json' });
+  });
+
+  it('loads only allowlisted aggregate hotspot cohorts without credentials', async () => {
+    let requestedUrl = '';
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      requestedUrl = String(input);
+      assert.deepEqual(init?.headers, { Accept: 'application/json' });
+      return new Response(
+        JSON.stringify({
+          data: {
+            items: [
+              {
+                categoryCount: 2,
+                complaintCount: 4,
+                from: '2026-07-01T00:00:00.000Z',
+                id: 'hotspot:reviewed:1',
+                location: { latitude: 19.08, longitude: 72.88, precisionMeters: 1_000 },
+                radiusMeters: 1_200,
+                to: '2026-07-16T00:00:00.000Z',
+              },
+            ],
+          },
+        }),
+        { headers: { 'Content-Type': 'application/json' }, status: 200 },
+      );
+    }) as typeof fetch;
+
+    const result = await listPublicComplaintHotspots(
+      createMobileHotspotQuery(
+        { east: 73, north: 20, south: 19, west: 72 },
+        defaultMobileTransparencyFilters,
+      ),
+    );
+    assert.equal(result.items[0]?.complaintCount, 4);
+    assert.match(requestedUrl, /\/api\/v1\/transparency\/hotspots\?/u);
+    assert.match(requestedUrl, /statuses=reported/u);
+    assert.match(requestedUrl, /statuses=in_progress/u);
+    assert.doesNotMatch(requestedUrl, /Authorization/u);
   });
 
   it('fails closed when a public response contains an undeclared private field', async () => {
@@ -165,6 +222,12 @@ describe('mobile transparency service', () => {
   });
 
   it('keeps applied filters on pagination and deduplicates overlapping pages', () => {
+    const ongoingQuery = createMobileTransparencyQuery(
+      { east: 73, north: 20, south: 19, west: 72 },
+      defaultMobileTransparencyFilters,
+    );
+    assert.deepEqual(ongoingQuery.statuses, ['reported', 'in_progress']);
+
     const query = createMobileTransparencyQuery(
       { east: 73, north: 20, south: 19, west: 72 },
       {
@@ -196,5 +259,39 @@ describe('mobile transparency service', () => {
       xPercent: 50,
       yPercent: 50,
     });
+  });
+
+  it('scales provider-neutral density visuals without exposing raw coordinate labels', () => {
+    const viewport = { east: 73.03, north: 19.23, south: 18.93, west: 72.73 };
+    const visuals = buildHotspotVisuals(
+      [
+        {
+          categoryCount: 1,
+          complaintCount: 4,
+          from: '2026-07-01T00:00:00.000Z',
+          id: 'hotspot:one',
+          location: { latitude: 19.08, longitude: 72.88, precisionMeters: 1_000 },
+          radiusMeters: 1_200,
+          to: '2026-07-16T00:00:00.000Z',
+        },
+        {
+          categoryCount: 2,
+          complaintCount: 16,
+          from: '2026-07-01T00:00:00.000Z',
+          id: 'hotspot:two',
+          location: { latitude: 19.1, longitude: 72.9, precisionMeters: 1_000 },
+          radiusMeters: 1_500,
+          to: '2026-07-16T00:00:00.000Z',
+        },
+      ],
+      viewport,
+    );
+    assert.equal(visuals.length, 2);
+    assert.ok((visuals[1]?.diameter ?? 0) > (visuals[0]?.diameter ?? 0));
+    assert.ok((visuals[1]?.intensity ?? 0) > (visuals[0]?.intensity ?? 0));
+    assert.deepEqual(
+      { xPercent: visuals[0]?.xPercent, yPercent: visuals[0]?.yPercent },
+      { xPercent: 50, yPercent: 50 },
+    );
   });
 });

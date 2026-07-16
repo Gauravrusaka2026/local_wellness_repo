@@ -7,7 +7,7 @@
 -- Do not place it in supabase/migrations or apply it after the incremental
 -- migrations. Seed data remains intentionally separate under supabase/seed.
 -- Source migration cutoff: 20260716
--- Source migration count: 34
+-- Source migration count: 40
 --
 -- Source manifest (SHA-256 of the exact source file bytes):
 -- 863ce6c718de64ae702385e979c44b011fd979c271ba5f400fe2db658f90d513  20260713100000_phase_1_identity_and_access.sql
@@ -44,6 +44,12 @@
 -- 06a25ec9659a49d222ef559f8af6dd354db7bd6a561fefd204c029e12f728dd1  20260716106000_phase_8_duplicate_group_publication.sql
 -- f0b563a50149d23f2ebf3f95aefdbb1520c60dbaea24897a3add6f4c92f6a9f6  20260716110000_phase_9_sla_escalation_kpi_schema.sql
 -- 22e4ce7839563b690c0c2516a409d3bcec8af14e52e0182abda1daa2e903cc73  20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql
+-- 6ab94f07e47d080785014db93940c339a6a0d85d9ebc37fd3f2f6a938ad0ef4d  20260716112000_phase_10_api_hardening.sql
+-- 07f658b859729addb0c7fe15ab53c2a50be37108ce8c1f41e6387ab4716dac56  20260716113000_phase_10_privileged_mfa.sql
+-- 2cef00c3237e2a741d121b852d5f22fcd681ebeedcdb8d1a0604c2823c2becec  20260716114000_phase_10_citizen_phone_mfa.sql
+-- 51f4a44339e26e79ab051d9c00b43d6416512595de932750f88231a1dd57f914  20260716115000_phase_10_profile_images.sql
+-- 522b3c83ae3817cfc438912c7bde7b2d9e2948ef2646b51ff73dafbfce04e9b0  20260716116000_phase_10_complaint_location_proximity.sql
+-- 3270d23cc41dbfccb53552dc8698642fc311095da50b89085e4cb8904ca44715  20260716117000_phase_10_routing_delivery_readiness.sql
 
 -- ============================================================================
 -- BEGIN SOURCE MIGRATION: 20260713100000_phase_1_identity_and_access.sql
@@ -31150,4 +31156,999 @@ comment on function public.list_government_kpi_snapshots(
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716112000_phase_10_api_hardening.sql
+-- ============================================================================
+begin;
+
+create table private.api_rate_limit_windows (
+  scope text not null,
+  subject_sha256 text not null,
+  window_started_at timestamptz not null,
+  request_count integer not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default current_timestamp,
+  updated_at timestamptz not null default current_timestamp,
+  primary key (scope, subject_sha256, window_started_at),
+  constraint api_rate_limit_windows_scope_format check (
+    scope ~ '^[a-z][a-z0-9_]{2,63}$'
+  ),
+  constraint api_rate_limit_windows_subject_sha256_format check (
+    subject_sha256 ~ '^[0-9a-f]{64}$'
+  ),
+  constraint api_rate_limit_windows_request_count_positive check (request_count > 0),
+  constraint api_rate_limit_windows_expiry_order check (
+    expires_at > window_started_at
+  )
+);
+
+create index api_rate_limit_windows_expiry_idx
+  on private.api_rate_limit_windows (expires_at);
+
+alter table private.api_rate_limit_windows enable row level security;
+alter table private.api_rate_limit_windows force row level security;
+
+revoke all on private.api_rate_limit_windows from public, anon, authenticated, service_role;
+
+comment on table private.api_rate_limit_windows is
+  'Privacy-safe fixed-window API quota counters. Subjects are one-way hashes and rows are accessible only through narrow service functions.';
+
+create function public.consume_api_rate_limit(
+  p_scope text,
+  p_subject_sha256 text,
+  p_limit integer,
+  p_window_seconds integer
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_checked_at timestamptz := clock_timestamp();
+  v_window_started_at timestamptz;
+  v_reset_at timestamptz;
+  v_observed_count integer;
+begin
+  if p_scope is null
+    or p_scope !~ '^[a-z][a-z0-9_]{2,63}$'
+    or p_subject_sha256 is null
+    or p_subject_sha256 !~ '^[0-9a-f]{64}$'
+    or p_limit is null
+    or p_limit < 1
+    or p_limit > 10000
+    or p_window_seconds is null
+    or p_window_seconds < 1
+    or p_window_seconds > 86400 then
+    raise exception using
+      errcode = '22023',
+      message = 'API_RATE_LIMIT_INVALID';
+  end if;
+
+  v_window_started_at := to_timestamp(
+    floor(extract(epoch from v_checked_at) / p_window_seconds) * p_window_seconds
+  );
+  v_reset_at := v_window_started_at + make_interval(secs => p_window_seconds);
+
+  insert into private.api_rate_limit_windows as rate_window (
+    scope,
+    subject_sha256,
+    window_started_at,
+    request_count,
+    expires_at,
+    created_at,
+    updated_at
+  )
+  values (
+    p_scope,
+    p_subject_sha256,
+    v_window_started_at,
+    1,
+    v_reset_at + interval '5 minutes',
+    v_checked_at,
+    v_checked_at
+  )
+  on conflict (scope, subject_sha256, window_started_at) do update
+  set
+    request_count = least(rate_window.request_count + 1, p_limit + 1),
+    expires_at = greatest(rate_window.expires_at, excluded.expires_at),
+    updated_at = v_checked_at
+  returning request_count into v_observed_count;
+
+  return jsonb_build_object(
+    'allowed', v_observed_count <= p_limit,
+    'limit', p_limit,
+    'remaining', greatest(p_limit - v_observed_count, 0),
+    'reset_at', v_reset_at
+  );
+end;
+$$;
+
+create function public.purge_expired_api_rate_limits(
+  p_max_rows integer default 1000
+)
+returns integer
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  deleted_count integer;
+begin
+  if p_max_rows is null or p_max_rows < 1 or p_max_rows > 10000 then
+    raise exception using
+      errcode = '22023',
+      message = 'API_RATE_LIMIT_PURGE_INVALID';
+  end if;
+
+  delete from private.api_rate_limit_windows as rate_window
+  where rate_window.ctid in (
+    select candidate.ctid
+    from private.api_rate_limit_windows as candidate
+    where candidate.expires_at <= clock_timestamp()
+    order by candidate.expires_at, candidate.scope, candidate.subject_sha256
+    limit p_max_rows
+  );
+
+  get diagnostics deleted_count = row_count;
+  return deleted_count;
+end;
+$$;
+
+create function public.api_readiness_check()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    exists (
+      select 1
+      from public.roles as role
+      where role.code = 'citizen'
+    )
+    and (
+      select count(*) = 4
+      from storage.buckets as bucket
+      where bucket.id in (
+        'complaint-originals-private',
+        'governance-raw-snapshots',
+        'resolution-evidence-private',
+        'voice-recordings-private'
+      )
+        and bucket.public = false
+    );
+$$;
+
+revoke all on function public.consume_api_rate_limit(text, text, integer, integer)
+  from public, anon, authenticated;
+revoke all on function public.purge_expired_api_rate_limits(integer)
+  from public, anon, authenticated;
+revoke all on function public.api_readiness_check()
+  from public, anon, authenticated;
+
+grant execute on function public.consume_api_rate_limit(text, text, integer, integer)
+  to service_role;
+grant execute on function public.purge_expired_api_rate_limits(integer)
+  to service_role;
+grant execute on function public.api_readiness_check()
+  to service_role;
+
+comment on function public.consume_api_rate_limit(text, text, integer, integer) is
+  'Consumes one shared PostgreSQL-backed API quota unit for an already-hashed subject.';
+comment on function public.purge_expired_api_rate_limits(integer) is
+  'Deletes a bounded batch of expired API quota windows for platform scheduling.';
+comment on function public.api_readiness_check() is
+  'Narrow service-only dependency probe for required V1 database and private Storage configuration.';
+
+create or replace function public.register_device(
+  p_user_id uuid,
+  p_device_identifier_hash text,
+  p_platform text,
+  p_last_seen_at timestamptz,
+  p_app_version text default null,
+  p_push_token text default null,
+  p_push_token_supplied boolean default false,
+  p_request_id uuid default null,
+  p_ip_address inet default null,
+  p_user_agent text default null
+)
+returns public.devices
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  registered_device public.devices%rowtype;
+  conflicting_risk_status text;
+  conflicting_revoked_at timestamptz;
+begin
+  if p_user_id is null
+    or p_device_identifier_hash is null
+    or p_platform is null
+    or p_last_seen_at is null then
+    raise exception using
+      errcode = '22004',
+      message = 'DEVICE_REGISTRATION_INVALID';
+  end if;
+
+  perform 1
+  from public.profiles as profile
+  where profile.id = p_user_id
+    and profile.status in ('pending', 'active')
+  for update;
+
+  if not found then
+    raise exception using
+      errcode = 'P0001',
+      message = 'DEVICE_OWNER_INACTIVE';
+  end if;
+
+  if not exists (
+    select 1
+    from public.devices as existing_device
+    where existing_device.user_id = p_user_id
+      and existing_device.device_identifier_hash = p_device_identifier_hash
+  ) and (
+    select count(*)
+    from public.devices as active_device
+    where active_device.user_id = p_user_id
+      and active_device.revoked_at is null
+  ) >= 10 then
+    raise exception using
+      errcode = 'P0001',
+      message = 'DEVICE_LIMIT_REACHED';
+  end if;
+
+  insert into public.devices as existing_device (
+    user_id,
+    device_identifier_hash,
+    platform,
+    app_version,
+    push_token,
+    last_seen_at
+  )
+  values (
+    p_user_id,
+    p_device_identifier_hash,
+    p_platform,
+    p_app_version,
+    case when p_push_token_supplied then p_push_token else null end,
+    p_last_seen_at
+  )
+  on conflict (user_id, device_identifier_hash) do update
+  set
+    platform = excluded.platform,
+    app_version = coalesce(excluded.app_version, existing_device.app_version),
+    push_token = case
+      when p_push_token_supplied then excluded.push_token
+      else existing_device.push_token
+    end,
+    last_seen_at = excluded.last_seen_at
+  where existing_device.risk_status <> 'blocked'
+    and existing_device.revoked_at is null
+  returning * into registered_device;
+
+  if registered_device.id is null then
+    select device.risk_status, device.revoked_at
+    into conflicting_risk_status, conflicting_revoked_at
+    from public.devices as device
+    where device.user_id = p_user_id
+      and device.device_identifier_hash = p_device_identifier_hash;
+
+    if conflicting_risk_status = 'blocked' then
+      raise exception using
+        errcode = 'P0001',
+        message = 'DEVICE_BLOCKED';
+    end if;
+
+    if conflicting_revoked_at is not null then
+      raise exception using
+        errcode = 'P0001',
+        message = 'DEVICE_REVOKED';
+    end if;
+
+    raise exception using
+      errcode = 'P0001',
+      message = 'DEVICE_REGISTRATION_CONFLICT';
+  end if;
+
+  insert into public.auth_audit_events (
+    actor_user_id,
+    subject_user_id,
+    device_id,
+    event_type,
+    outcome,
+    request_id,
+    ip_address,
+    user_agent,
+    metadata
+  )
+  values (
+    p_user_id,
+    p_user_id,
+    registered_device.id,
+    'device_registered',
+    'success',
+    p_request_id,
+    p_ip_address,
+    p_user_agent,
+    jsonb_build_object('platform', registered_device.platform)
+  );
+
+  return registered_device;
+end;
+$$;
+
+comment on function public.register_device(
+  uuid, text, text, timestamptz, text, text, boolean, uuid, inet, text
+) is
+  'Atomically registers or refreshes an owned installation, appends audit evidence, rejects revoked/blocked identifiers, and caps active installations per account.';
+
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716112000_phase_10_api_hardening.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716113000_phase_10_privileged_mfa.sql
+-- ============================================================================
+begin;
+
+create function private.jwt_has_aal2()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((select auth.jwt() ->> 'aal'), 'aal1') = 'aal2';
+$$;
+
+revoke all on function private.jwt_has_aal2() from public;
+grant execute on function private.jwt_has_aal2() to authenticated, service_role;
+
+comment on function private.jwt_has_aal2() is
+  'Returns true only for a verified authenticated JWT carrying Supabase Auth AAL2.';
+
+create or replace function private.has_active_role(
+  required_role_code text,
+  required_scope_type text default null,
+  required_scope_id uuid default null
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    private.jwt_has_aal2()
+    and private.user_has_active_role(
+      (select auth.uid()),
+      required_role_code,
+      required_scope_type,
+      required_scope_id
+    );
+$$;
+
+create or replace function private.can_manage_authority(target_authority_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    private.jwt_has_aal2()
+    and private.user_can_manage_authority(
+      (select auth.uid()),
+      target_authority_id
+    );
+$$;
+
+comment on function private.has_active_role(text, text, uuid) is
+  'AAL2-gated current-session role check used by privileged direct RLS policies.';
+comment on function private.can_manage_authority(uuid) is
+  'AAL2-gated current-session authority-management check used by privileged direct RLS policies.';
+
+create function public.user_requires_privileged_mfa(
+  p_user_id uuid,
+  p_at timestamptz default current_timestamp
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.user_roles as user_role
+    inner join public.roles as role on role.id = user_role.role_id
+    inner join public.profiles as profile on profile.id = user_role.user_id
+    where user_role.user_id = p_user_id
+      and profile.status = 'active'
+      and (role.is_government or role.is_privileged)
+      and user_role.status = 'active'
+      and user_role.effective_from <= p_at
+      and (user_role.effective_until is null or user_role.effective_until > p_at)
+      and (
+        user_role.scope_type = 'global'
+        or exists (
+          select 1
+          from public.authority_memberships as membership
+          where membership.user_id = user_role.user_id
+            and membership.authority_id = user_role.authority_id
+            and membership.status = 'active'
+            and membership.effective_from <= p_at
+            and (membership.effective_until is null or membership.effective_until > p_at)
+        )
+      )
+  );
+$$;
+
+revoke all on function public.user_requires_privileged_mfa(uuid, timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.user_requires_privileged_mfa(uuid, timestamptz)
+  to service_role;
+
+comment on function public.user_requires_privileged_mfa(uuid, timestamptz) is
+  'Service-only decision for whether current government or privileged access requires AAL2.';
+
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716113000_phase_10_privileged_mfa.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716114000_phase_10_citizen_phone_mfa.sql
+-- ============================================================================
+begin;
+
+create function public.user_has_verified_phone_mfa(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from auth.mfa_factors as factor
+    where factor.user_id = p_user_id
+      and factor.factor_type::text = 'phone'
+      and factor.status::text = 'verified'
+  );
+$$;
+
+revoke all on function public.user_has_verified_phone_mfa(uuid)
+  from public, anon, authenticated;
+grant execute on function public.user_has_verified_phone_mfa(uuid)
+  to service_role;
+
+comment on function public.user_has_verified_phone_mfa(uuid) is
+  'Service-only phone-factor check used to enforce citizen phone verification without exposing factor details.';
+
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716114000_phase_10_citizen_phone_mfa.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716115000_phase_10_profile_images.sql
+-- ============================================================================
+begin;
+
+alter table public.profiles
+  add column avatar_object_path text,
+  add column avatar_updated_at timestamptz,
+  add constraint profiles_avatar_object_path_check check (
+    avatar_object_path is null
+    or avatar_object_path ~ (
+      '^' || id::text || '/avatar\.(jpe?g|png|webp)$'
+    )
+  ),
+  add constraint profiles_avatar_timestamp_check check (
+    (avatar_object_path is null and avatar_updated_at is null)
+    or (avatar_object_path is not null and avatar_updated_at is not null)
+  );
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'profile-images-private',
+  'profile-images-private',
+  false,
+  5242880,
+  array['image/jpeg', 'image/png', 'image/webp']::text[]
+)
+on conflict (id) do update
+set
+  public = false,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+create function private.set_profile_avatar_version()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  new.avatar_updated_at := case
+    when new.avatar_object_path is null then null
+    else clock_timestamp()
+  end;
+
+  return new;
+end;
+$$;
+
+create function private.reject_profile_avatar_version_update()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  raise exception using
+    errcode = '55000',
+    message = 'PROFILE_AVATAR_VERSION_SERVER_OWNED';
+end;
+$$;
+
+create trigger profiles_set_avatar_version
+before update of avatar_object_path on public.profiles
+for each row
+execute function private.set_profile_avatar_version();
+
+create trigger profiles_reject_avatar_version_update
+before update of avatar_updated_at on public.profiles
+for each row
+execute function private.reject_profile_avatar_version_update();
+
+create policy profile_images_select_own
+on storage.objects
+for select
+to authenticated
+using (
+  bucket_id = 'profile-images-private'
+  and split_part(name, '/', 1) = (select auth.uid())::text
+  and name ~ '^[0-9a-f-]{36}/avatar\.(jpe?g|png|webp)$'
+);
+
+create policy profile_images_insert_own
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'profile-images-private'
+  and split_part(name, '/', 1) = (select auth.uid())::text
+  and name ~ '^[0-9a-f-]{36}/avatar\.(jpe?g|png|webp)$'
+);
+
+create policy profile_images_update_own
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'profile-images-private'
+  and split_part(name, '/', 1) = (select auth.uid())::text
+  and name ~ '^[0-9a-f-]{36}/avatar\.(jpe?g|png|webp)$'
+)
+with check (
+  bucket_id = 'profile-images-private'
+  and split_part(name, '/', 1) = (select auth.uid())::text
+  and name ~ '^[0-9a-f-]{36}/avatar\.(jpe?g|png|webp)$'
+);
+
+create policy profile_images_delete_own
+on storage.objects
+for delete
+to authenticated
+using (
+  bucket_id = 'profile-images-private'
+  and split_part(name, '/', 1) = (select auth.uid())::text
+  and name ~ '^[0-9a-f-]{36}/avatar\.(jpe?g|png|webp)$'
+);
+
+create or replace function public.api_readiness_check()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    exists (
+      select 1
+      from public.roles as role
+      where role.code = 'citizen'
+    )
+    and (
+      select count(*) = 5
+      from storage.buckets as bucket
+      where bucket.id in (
+        'complaint-originals-private',
+        'governance-raw-snapshots',
+        'profile-images-private',
+        'resolution-evidence-private',
+        'voice-recordings-private'
+      )
+        and bucket.public = false
+    );
+$$;
+
+revoke all on function private.set_profile_avatar_version() from public;
+revoke all on function private.reject_profile_avatar_version_update() from public;
+revoke all on function public.api_readiness_check() from public, anon, authenticated;
+grant execute on function public.api_readiness_check() to service_role;
+
+comment on column public.profiles.avatar_object_path is
+  'Owner-private Supabase Storage path for the current profile image; never exposed in public complaint projections.';
+comment on column public.profiles.avatar_updated_at is
+  'Server-maintained cache/version timestamp for the current private profile image.';
+comment on function private.set_profile_avatar_version() is
+  'Versions private profile-image metadata without trusting a client-supplied timestamp.';
+comment on function private.reject_profile_avatar_version_update() is
+  'Rejects direct changes to the server-owned private profile-image version timestamp.';
+
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716115000_phase_10_profile_images.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716116000_phase_10_complaint_location_proximity.sql
+-- ============================================================================
+begin;
+
+alter table routing.issue_categories
+  alter column location_verification_requirements set default jsonb_build_object(
+    'maximumAccuracyMeters', 50,
+    'maximumAgeSeconds', 300
+  ),
+  alter column media_requirements set default jsonb_build_object(
+    'maximumCaptureDistanceMeters', 50
+  );
+
+update routing.issue_categories
+set
+  location_verification_requirements = jsonb_set(
+    location_verification_requirements,
+    '{maximumAccuracyMeters}',
+    '50'::jsonb,
+    true
+  ),
+  media_requirements = jsonb_set(
+    media_requirements,
+    '{maximumCaptureDistanceMeters}',
+    '50'::jsonb,
+    true
+  );
+
+alter table routing.issue_categories
+  add constraint issue_categories_v1_location_accuracy_check check (
+    (location_verification_requirements ->> 'maximumAccuracyMeters')::numeric <= 50
+  ),
+  add constraint issue_categories_v1_media_proximity_check check (
+    jsonb_typeof(media_requirements -> 'maximumCaptureDistanceMeters') = 'number'
+    and (media_requirements ->> 'maximumCaptureDistanceMeters')::numeric between 1 and 50
+  );
+
+create function complaints.enforce_v1_location_proximity()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  maximum_accuracy double precision;
+  maximum_media_distance double precision;
+  selected_location extensions.geometry(Point, 4326);
+  capture_distance double precision;
+begin
+  select
+    (category.location_verification_requirements ->> 'maximumAccuracyMeters')::double precision,
+    (category.media_requirements ->> 'maximumCaptureDistanceMeters')::double precision,
+    selected.location
+  into maximum_accuracy, maximum_media_distance, selected_location
+  from complaints.complaint_drafts as draft
+  inner join routing.issue_categories as category on category.id = draft.category_id
+  left join complaints.complaint_location_evidence as selected
+    on selected.id = draft.selected_location_evidence_id
+  where draft.id = new.draft_id
+    and draft.citizen_user_id = new.actor_user_id;
+
+  if not found then
+    raise exception using
+      errcode = '23514',
+      message = 'COMPLAINT_LOCATION_CATEGORY_REQUIRED';
+  end if;
+
+  if new.accuracy_meters > maximum_accuracy then
+    raise exception using
+      errcode = '23514',
+      message = 'COMPLAINT_LOCATION_ACCURACY_EXCEEDS_V1_LIMIT';
+  end if;
+
+  if new.evidence_type = 'media_capture' then
+    if selected_location is null then
+      raise exception using
+        errcode = '23514',
+        message = 'COMPLAINT_CURRENT_LOCATION_REQUIRED';
+    end if;
+
+    capture_distance := extensions.st_distance(
+      new.location::extensions.geography,
+      selected_location::extensions.geography
+    );
+
+    if capture_distance > maximum_media_distance then
+      raise exception using
+        errcode = '23514',
+        message = 'COMPLAINT_MEDIA_LOCATION_MISMATCH';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger complaint_location_evidence_enforce_v1_proximity
+before insert on complaints.complaint_location_evidence
+for each row
+execute function complaints.enforce_v1_location_proximity();
+
+revoke all on function complaints.enforce_v1_location_proximity() from public;
+
+comment on function complaints.enforce_v1_location_proximity() is
+  'Fail-closed V1 guard requiring at most 50 metre device accuracy and at most 50 metre media-to-issue distance.';
+
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716116000_phase_10_complaint_location_proximity.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716117000_phase_10_routing_delivery_readiness.sql
+-- ============================================================================
+begin;
+
+create function governance.resolve_complaint_contact_readiness(
+  p_authority_id uuid,
+  p_local_body_id uuid,
+  p_ward_id uuid,
+  p_authority_department_id uuid,
+  p_office_id uuid,
+  p_officer_id uuid,
+  p_officer_assignment_id uuid
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with matching_contacts as (
+    select
+      case
+        when contact.officer_assignment_id = p_officer_assignment_id
+          then 'officer_assignment'
+        when contact.officer_id = p_officer_id then 'officer'
+        when contact.office_id = p_office_id then 'office'
+        when contact.authority_department_id = p_authority_department_id
+          then 'authority_department'
+        when contact.ward_id = p_ward_id then 'ward'
+        when contact.local_body_id = p_local_body_id then 'local_body'
+        when contact.authority_id = p_authority_id then 'authority'
+      end as contact_scope,
+      case
+        when contact.officer_assignment_id = p_officer_assignment_id then 1
+        when contact.officer_id = p_officer_id then 2
+        when contact.office_id = p_office_id then 3
+        when contact.authority_department_id = p_authority_department_id then 4
+        when contact.ward_id = p_ward_id then 5
+        when contact.local_body_id = p_local_body_id then 6
+        when contact.authority_id = p_authority_id then 7
+      end as scope_priority,
+      contact.channel_type
+    from governance.current_verified_contacts as contact
+    where contact.is_complaint_delivery_approved
+      and contact.intended_use = 'complaint_intake'
+      and (
+        (p_officer_assignment_id is not null
+          and contact.officer_assignment_id = p_officer_assignment_id)
+        or (p_officer_id is not null and contact.officer_id = p_officer_id)
+        or (p_office_id is not null and contact.office_id = p_office_id)
+        or (
+          p_authority_department_id is not null
+          and contact.authority_department_id = p_authority_department_id
+        )
+        or (p_ward_id is not null and contact.ward_id = p_ward_id)
+        or (p_local_body_id is not null and contact.local_body_id = p_local_body_id)
+        or (p_authority_id is not null and contact.authority_id = p_authority_id)
+      )
+  ),
+  selected_scope as (
+    select
+      contact_scope,
+      scope_priority,
+      array_agg(distinct channel_type order by channel_type) as channel_types
+    from matching_contacts
+    where contact_scope is not null
+    group by contact_scope, scope_priority
+    order by scope_priority
+    limit 1
+  )
+  select case
+    when selected_scope.contact_scope is null then jsonb_build_object(
+      'externalContactStatus', 'not_available',
+      'contactScope', null,
+      'approvedChannelTypes', '[]'::jsonb,
+      'automaticOutboundDelivery', false,
+      'reason', 'verified_queue_no_approved_external_contact'
+    )
+    when selected_scope.contact_scope in ('officer_assignment', 'officer')
+      then jsonb_build_object(
+        'externalContactStatus', 'verified_officer_contact',
+        'contactScope', selected_scope.contact_scope,
+        'approvedChannelTypes', to_jsonb(selected_scope.channel_types),
+        'automaticOutboundDelivery', false,
+        'reason', 'verified_officer_contact_available'
+      )
+    else jsonb_build_object(
+      'externalContactStatus', 'verified_governing_body_contact',
+      'contactScope', selected_scope.contact_scope,
+      'approvedChannelTypes', to_jsonb(selected_scope.channel_types),
+      'automaticOutboundDelivery', false,
+      'reason', 'verified_governing_body_contact_available'
+    )
+  end
+  from (select 1) as singleton
+  left join selected_scope on true;
+$$;
+
+create function complaints.assignment_delivery_readiness(p_assignment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  target complaints.complaint_assignments%rowtype;
+  current_officer_id uuid;
+  current_office_id uuid;
+  current_officer_assignment_id uuid;
+begin
+  select assignment.* into target
+  from complaints.complaint_assignments as assignment
+  where assignment.id = p_assignment_id;
+
+  if not found or not complaints.is_verified_assignment_scope(
+    target.authority_id,
+    target.local_body_id,
+    target.ward_id,
+    target.department_id,
+    target.authority_department_id,
+    target.officer_role_id,
+    null,
+    current_timestamp
+  ) then
+    return jsonb_build_object(
+      'governmentQueueStatus', 'unavailable',
+      'externalContactStatus', 'not_available',
+      'contactScope', null,
+      'approvedChannelTypes', '[]'::jsonb,
+      'automaticOutboundDelivery', false,
+      'reason', 'verified_assignment_scope_unavailable'
+    );
+  end if;
+
+  if complaints.assignment_has_current_verified_officer(target.id, current_timestamp) then
+    select
+      officer_assignment.id,
+      officer_assignment.officer_id,
+      officer_assignment.office_id
+    into
+      current_officer_assignment_id,
+      current_officer_id,
+      current_office_id
+    from governance.officer_assignments as officer_assignment
+    where officer_assignment.id = target.officer_assignment_id;
+  end if;
+
+  return jsonb_build_object('governmentQueueStatus', 'verified_scope')
+    || governance.resolve_complaint_contact_readiness(
+      target.authority_id,
+      target.local_body_id,
+      target.ward_id,
+      target.authority_department_id,
+      current_office_id,
+      current_officer_id,
+      current_officer_assignment_id
+    );
+end;
+$$;
+
+create or replace function complaints.assignment_summary(p_assignment_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', assignment.id,
+    'authorityId', assignment.authority_id,
+    'authorityName', authority.name,
+    'localBodyId', assignment.local_body_id,
+    'localBodyName', local_body.name,
+    'wardId', assignment.ward_id,
+    'wardName', ward.name,
+    'departmentId', assignment.department_id,
+    'departmentName', department.name,
+    'authorityDepartmentId', assignment.authority_department_id,
+    'officerRoleId', assignment.officer_role_id,
+    'officerRoleName', officer_role.name,
+    'officerAssignmentId', officer_assignment.id,
+    'officerName', officer.full_name,
+    'source', case
+      when assignment.assignment_source = 'routing_decision' then 'routing_decision'
+      when assignment.assignment_source = 'government_transfer' then 'transfer'
+      else 'manual_assignment'
+    end,
+    'status', assignment.status,
+    'assignedAt', assignment.effective_from,
+    'endedAt', assignment.effective_to,
+    'deliveryReadiness', complaints.assignment_delivery_readiness(assignment.id)
+  )
+  from complaints.complaint_assignments as assignment
+  inner join governance.authorities as authority on authority.id = assignment.authority_id
+  inner join governance.local_bodies as local_body on local_body.id = assignment.local_body_id
+  left join governance.wards as ward on ward.id = assignment.ward_id
+  inner join governance.departments as department on department.id = assignment.department_id
+  inner join governance.officer_roles as officer_role on officer_role.id = assignment.officer_role_id
+  left join governance.officer_assignments as officer_assignment
+    on officer_assignment.id = assignment.officer_assignment_id
+   and (
+     assignment.status <> 'active'
+     or assignment.effective_to is not null
+     or complaints.assignment_has_current_verified_officer(
+       assignment.id,
+       current_timestamp
+     )
+   )
+  left join governance.officers as officer on officer.id = officer_assignment.officer_id
+  where assignment.id = p_assignment_id;
+$$;
+
+revoke all on function governance.resolve_complaint_contact_readiness(
+  uuid, uuid, uuid, uuid, uuid, uuid, uuid
+) from public, anon, authenticated;
+revoke all on function complaints.assignment_delivery_readiness(uuid)
+  from public, anon, authenticated;
+
+grant execute on function governance.resolve_complaint_contact_readiness(
+  uuid, uuid, uuid, uuid, uuid, uuid, uuid
+) to service_role;
+grant execute on function complaints.assignment_delivery_readiness(uuid)
+  to service_role;
+
+comment on function governance.resolve_complaint_contact_readiness(
+  uuid, uuid, uuid, uuid, uuid, uuid, uuid
+) is
+  'Reports the most specific manually verified, complaint-delivery-approved contact scope without exposing contact values or performing outbound delivery.';
+comment on function complaints.assignment_delivery_readiness(uuid) is
+  'Distinguishes verified government-queue routing from optional external official-contact readiness; no outbound delivery is implied.';
+
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716117000_phase_10_routing_delivery_readiness.sql
 -- ============================================================================

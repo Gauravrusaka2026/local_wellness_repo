@@ -64,6 +64,7 @@ import {
   type PendingMediaResume,
 } from './resume-record';
 import { clearComplaintResume, loadComplaintResume, saveComplaintResume } from './resume-store';
+import { runSingleFlight } from './single-flight';
 
 type ComplaintContextValue = Readonly<{
   acknowledgeDuplicates: (value: boolean) => void;
@@ -121,6 +122,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
   const auth = useAuth();
   const session = useMemo(() => currentSession(auth.state), [auth.state]);
   const [state, dispatch] = useReducer(complaintCaptureReducer, initialComplaintCaptureState);
+  const duplicateCheckOperationRef = useRef<Promise<void> | null>(null);
   const resumeRef = useRef<ComplaintResumeRecord | null>(null);
 
   const persistResume = useCallback(async (overrides: Partial<ComplaintResumeRecord> = {}) => {
@@ -586,22 +588,29 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     }
   }, [performUpload]);
 
-  const checkDuplicates = useCallback(async (): Promise<void> => {
-    const activeSession = requireSession();
-    const draft = requireDraft();
-    dispatch({ type: 'busy', value: true });
-    try {
-      const duplicateCheck = await checkComplaintDuplicates(activeSession.accessToken, draft.id);
-      dispatch({ duplicateCheck, type: 'duplicates_loaded' });
-      await persistWithRotatedSubmitKey({ step: 'duplicates' });
-      dispatch({ step: 'duplicates', type: 'step_changed' });
-    } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-      throw error;
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [persistWithRotatedSubmitKey, requireDraft, requireSession]);
+  const checkDuplicates = useCallback(
+    (): Promise<void> =>
+      runSingleFlight(duplicateCheckOperationRef, async () => {
+        const activeSession = requireSession();
+        const draft = requireDraft();
+        dispatch({ type: 'busy', value: true });
+        try {
+          const duplicateCheck = await checkComplaintDuplicates(
+            activeSession.accessToken,
+            draft.id,
+          );
+          dispatch({ duplicateCheck, type: 'duplicates_loaded' });
+          await persistWithRotatedSubmitKey({ step: 'duplicates' });
+          dispatch({ step: 'duplicates', type: 'step_changed' });
+        } catch (error) {
+          dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+          throw error;
+        } finally {
+          dispatch({ type: 'busy', value: false });
+        }
+      }),
+    [persistWithRotatedSubmitKey, requireDraft, requireSession],
+  );
 
   const submit = useCallback(async (): Promise<void> => {
     const activeSession = requireSession();

@@ -23,6 +23,12 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Local Wellness to choose a private profile photo."
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "Allow Local Wellness to record a private voice description for your complaint."

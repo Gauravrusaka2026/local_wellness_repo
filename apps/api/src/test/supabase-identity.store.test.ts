@@ -4,6 +4,7 @@ import type { Tables } from '@local-wellness/database';
 
 import {
   DeviceBlockedError,
+  DeviceLimitReachedError,
   DeviceRevokedError,
   IdentityDataAccessError,
 } from '../data/identity.store.js';
@@ -94,7 +95,7 @@ describe('Supabase identity store device lifecycle', () => {
     assert.equal(capturedArguments?.['p_push_token'], null);
   });
 
-  it('maps blocked and revoked registration markers to safe domain errors', async () => {
+  it('maps blocked, revoked, and account-limit registration markers to safe domain errors', async () => {
     const registration = {
       deviceIdentifierHash,
       lastSeenAt: registeredAt,
@@ -108,9 +109,14 @@ describe('Supabase identity store device lifecycle', () => {
       data: null,
       error: { message: 'DEVICE_REVOKED' },
     }));
+    const limitedStore = createStore(async () => ({
+      data: null,
+      error: { message: 'DEVICE_LIMIT_REACHED' },
+    }));
 
     await assert.rejects(blockedStore.upsertDevice(userId, registration), DeviceBlockedError);
     await assert.rejects(revokedStore.upsertDevice(userId, registration), DeviceRevokedError);
+    await assert.rejects(limitedStore.upsertDevice(userId, registration), DeviceLimitReachedError);
   });
 
   it('maps missing device revocation to null without leaking database details', async () => {
@@ -243,5 +249,38 @@ describe('Supabase identity store effective access', () => {
     );
     assert.equal(access.roles[0]?.code, 'government_operator');
     assert.equal(access.authorities[0]?.authorityId, authorityId);
+  });
+});
+
+describe('Supabase identity store MFA state', () => {
+  it('queries verified phone MFA through the service-only RPC', async () => {
+    const calls: Array<Readonly<{ arguments_: Record<string, unknown>; functionName: string }>> =
+      [];
+    const store = new SupabaseIdentityStore({
+      serviceRoleClient: {
+        rpc: async (functionName: string, arguments_: Record<string, unknown>) => {
+          calls.push({ arguments_, functionName });
+          return { data: true, error: null };
+        },
+      },
+    } as unknown as SupabaseClients);
+
+    assert.equal(await store.userHasVerifiedPhoneMfa(userId), true);
+    assert.deepEqual(calls, [
+      {
+        arguments_: { p_user_id: userId },
+        functionName: 'user_has_verified_phone_mfa',
+      },
+    ]);
+  });
+
+  it('fails closed when verified phone MFA state cannot be loaded', async () => {
+    const store = new SupabaseIdentityStore({
+      serviceRoleClient: {
+        rpc: async () => ({ data: null, error: { message: 'internal detail' } }),
+      },
+    } as unknown as SupabaseClients);
+
+    await assert.rejects(store.userHasVerifiedPhoneMfa(userId), IdentityDataAccessError);
   });
 });

@@ -1,7 +1,12 @@
-import { Redirect } from 'expo-router';
+import type { Href } from 'expo-router';
+import { Link, Redirect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +18,7 @@ import {
 import { getUserFacingApiError } from '../../src/api/client';
 import { useAuth } from '../../src/auth/auth-context';
 import { getUserFacingAuthError } from '../../src/auth/auth-service';
+import { getPublicPhoneMfaMode } from '../../src/config/environment';
 import { useDeviceRegistration } from '../../src/device/use-device-registration';
 import {
   getProfile,
@@ -21,6 +27,13 @@ import {
   type PreferredLanguage,
   type Profile,
 } from '../../src/profile/profile-service';
+import {
+  createProfileImageSignedUrl,
+  getProfileImageError,
+  removePrivateProfileImage,
+  uploadPrivateProfileImage,
+} from '../../src/profile/profile-image';
+import { getSupabaseClient } from '../../src/auth/supabase';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
 
 type ProfileLoadState =
@@ -139,6 +152,229 @@ const SignedInProfile = ({
 
 type DeviceRegistrationResult = ReturnType<typeof useDeviceRegistration>;
 
+const getProfileInitial = (profile: Profile): string => {
+  const label = profile.displayName ?? profile.email ?? 'Citizen';
+  return label.trim().charAt(0).toLocaleUpperCase() || 'C';
+};
+
+const ProfileImageCard = ({
+  onProfileUpdated,
+  profile,
+}: Readonly<{ onProfileUpdated: (profile: Profile) => void; profile: Profile }>) => {
+  const [avatarLoadError, setAvatarLoadError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [settingsRequired, setSettingsRequired] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isCurrent = true;
+    if (!profile.avatarObjectPath) {
+      return undefined;
+    }
+
+    void createProfileImageSignedUrl(getSupabaseClient(), profile.id, profile.avatarObjectPath)
+      .then((url) => {
+        if (!isCurrent) return;
+        setSignedUrl(url);
+        setAvatarLoadError(null);
+      })
+      .catch((loadError: unknown) => {
+        if (!isCurrent) return;
+        setSignedUrl(null);
+        setAvatarLoadError(getProfileImageError(loadError));
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [profile.avatarObjectPath, profile.avatarUpdatedAt, profile.id]);
+
+  const choose = async (): Promise<void> => {
+    setError(null);
+    setSuccess(null);
+    setSettingsRequired(false);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setSettingsRequired(!permission.canAskAgain);
+      setError(
+        permission.canAskAgain
+          ? 'Photo library access is needed to choose a profile photo.'
+          : 'Enable photo access for Local Wellness in device settings.',
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      mediaTypes: ['images'],
+      quality: 0.85,
+      selectionLimit: 1,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset) {
+      setError('The selected image is unavailable. Choose another photo.');
+      return;
+    }
+    setSelectedAsset(asset);
+  };
+
+  const upload = async (): Promise<void> => {
+    if (!selectedAsset) {
+      setError('Choose a JPEG, PNG, or WebP image first.');
+      return;
+    }
+    setError(null);
+    setSuccess(null);
+    setIsPending(true);
+    try {
+      const result = await uploadPrivateProfileImage(getSupabaseClient(), profile, selectedAsset);
+      setSelectedAsset(null);
+      setSignedUrl(null);
+      setAvatarLoadError(null);
+      onProfileUpdated(result.profile);
+      setSuccess(
+        result.previousObjectCleanupFailed
+          ? 'Your photo was saved. An older private image is awaiting cleanup.'
+          : 'Your private profile photo was saved.',
+      );
+    } catch (uploadError) {
+      setError(getProfileImageError(uploadError));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const confirmRemoval = (): void => {
+    Alert.alert('Remove profile photo?', 'The private image will be permanently removed.', [
+      { style: 'cancel', text: 'Keep photo' },
+      {
+        onPress: () => {
+          setError(null);
+          setSuccess(null);
+          setIsPending(true);
+          void removePrivateProfileImage(getSupabaseClient(), profile)
+            .then((updatedProfile) => {
+              setSelectedAsset(null);
+              setSignedUrl(null);
+              setAvatarLoadError(null);
+              onProfileUpdated(updatedProfile);
+              setSuccess('Your private profile photo was removed.');
+            })
+            .catch((removalError: unknown) => {
+              setError(getProfileImageError(removalError));
+            })
+            .finally(() => setIsPending(false));
+        },
+        style: 'destructive',
+        text: 'Remove',
+      },
+    ]);
+  };
+
+  const previewUrl = selectedAsset?.uri ?? signedUrl;
+  return (
+    <View style={styles.card}>
+      <View style={styles.avatarHeading}>
+        <View style={styles.avatarCopy}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>
+            Profile photo
+          </Text>
+          <Text style={styles.mutedText}>
+            Private by default. Only your signed-in account receives a short-lived viewing link.
+          </Text>
+        </View>
+        <View accessibilityLabel="Current profile photo" style={styles.avatarPreview}>
+          {previewUrl ? (
+            <Image
+              accessibilityLabel="Citizen profile photo"
+              onError={() => {
+                if (!selectedAsset) {
+                  setSignedUrl(null);
+                  setAvatarLoadError('The profile photo is temporarily unavailable.');
+                }
+              }}
+              source={{ uri: previewUrl }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Text accessibilityElementsHidden style={styles.avatarInitial}>
+              {getProfileInitial(profile)}
+            </Text>
+          )}
+        </View>
+      </View>
+      <Text style={styles.mutedText}>JPEG, PNG, or WebP. Maximum size: 5 MiB.</Text>
+      <View style={styles.avatarActions}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isPending}
+          onPress={() => void choose()}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {selectedAsset ? 'Choose another' : 'Choose photo'}
+          </Text>
+        </Pressable>
+        {selectedAsset ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={isPending}
+            onPress={() => void upload()}
+            style={styles.primaryButton}
+          >
+            {isPending ? (
+              <ActivityIndicator accessibilityLabel="Uploading profile photo" color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>
+                {profile.avatarObjectPath ? 'Replace photo' : 'Upload photo'}
+              </Text>
+            )}
+          </Pressable>
+        ) : null}
+      </View>
+      {profile.avatarObjectPath && !selectedAsset ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={isPending}
+          onPress={confirmRemoval}
+          style={styles.removeAvatarButton}
+        >
+          <Text style={styles.removeAvatarText}>Remove photo</Text>
+        </Pressable>
+      ) : null}
+      {settingsRequired ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void Linking.openSettings()}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>Open photo settings</Text>
+        </Pressable>
+      ) : null}
+      {avatarLoadError ? <Text style={styles.mutedText}>{avatarLoadError}</Text> : null}
+      {error ? (
+        <Text
+          accessibilityLiveRegion="assertive"
+          accessibilityRole="alert"
+          style={styles.errorText}
+        >
+          {error}
+        </Text>
+      ) : null}
+      {success ? (
+        <Text accessibilityLiveRegion="polite" style={styles.successText}>
+          {success}
+        </Text>
+      ) : null}
+    </View>
+  );
+};
+
 const ProfileEditor = ({
   accessToken,
   deviceRegistration,
@@ -193,6 +429,8 @@ const ProfileEditor = ({
           Your name is private account information. Your language preference controls future Local
           Wellness content.
         </Text>
+
+        <ProfileImageCard onProfileUpdated={onProfileUpdated} profile={profile} />
 
         <View style={styles.card}>
           <Text style={styles.label}>Name</Text>
@@ -268,6 +506,23 @@ const ProfileEditor = ({
           )}
         </View>
 
+        {getPublicPhoneMfaMode() === 'observe' ? (
+          <View style={styles.card}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>
+              Phone verification
+            </Text>
+            <Text style={styles.mutedText}>
+              Phone MFA is optional while the Supabase SMS provider is being configured. You can
+              prepare your verified phone factor now if the provider is available.
+            </Text>
+            <Link href={'/auth/phone-verification?optional=1' as Href} asChild>
+              <Pressable accessibilityRole="button" style={styles.secondaryButton}>
+                <Text style={styles.secondaryButtonText}>Set up phone verification</Text>
+              </Pressable>
+            </Link>
+          </View>
+        ) : null}
+
         <View style={styles.card}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>
             Device security
@@ -337,10 +592,30 @@ export default function ProfileScreen() {
     return <Redirect href="/auth" />;
   }
 
+  if (state.status === 'mfa-required') {
+    return <Redirect href="/auth/phone-verification" />;
+  }
+
   return <SignedInProfile accessToken={state.session.access_token} signOut={signOut} />;
 }
 
 const styles = StyleSheet.create({
+  avatarActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  avatarCopy: { flex: 1, gap: 6 },
+  avatarHeading: { alignItems: 'center', flexDirection: 'row', gap: 16 },
+  avatarImage: { height: 92, width: 92 },
+  avatarInitial: { color: '#166534', fontSize: 34, fontWeight: '900' },
+  avatarPreview: {
+    alignItems: 'center',
+    backgroundColor: '#dcfce7',
+    borderColor: '#86efac',
+    borderRadius: 46,
+    borderWidth: 1,
+    height: 92,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    width: 92,
+  },
   card: {
     backgroundColor: '#ffffff',
     borderColor: '#e2e8f0',
@@ -387,6 +662,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  removeAvatarButton: { alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, padding: 10 },
+  removeAvatarText: { color: '#991b1b', fontSize: 15, fontWeight: '700' },
   secondaryButton: { alignItems: 'center', minHeight: 46, padding: 10 },
   secondaryButtonText: { color: '#166534', fontSize: 15, fontWeight: '700' },
   sectionTitle: { color: '#1e293b', fontSize: 20, fontWeight: '700' },

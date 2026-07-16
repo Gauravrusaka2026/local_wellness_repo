@@ -69,6 +69,20 @@ const AuthorityField = ({
   </div>
 );
 
+export const AccountabilityUnavailableMessage = ({
+  message,
+  status,
+}: Readonly<{ message?: string; status: 'error' | 'no-scope' }>) => (
+  <p
+    className={status === 'error' ? 'error-notice' : undefined}
+    role={status === 'error' ? 'alert' : undefined}
+  >
+    {status === 'no-scope'
+      ? 'An active government role is required to view organizational snapshots.'
+      : message}
+  </p>
+);
+
 export const KpiAuthorityRequired = ({
   accessScope,
   selectedScopeRoleAssignmentId,
@@ -79,7 +93,7 @@ export const KpiAuthorityRequired = ({
   const authorityIds = getKpiAuthorityIds(accessScope);
   if (authorityIds.length === 0) {
     return (
-      <section className="content-card denied-card" role="status">
+      <section className="content-card denied-card">
         <p className="eyebrow">Organizational accountability</p>
         <h1>No authority-scoped membership</h1>
         <p>
@@ -91,7 +105,7 @@ export const KpiAuthorityRequired = ({
   }
 
   return (
-    <section className="content-card" role="status">
+    <section className="content-card">
       <p className="eyebrow">Organizational accountability</p>
       <h1>Choose an authority</h1>
       <p>Select one of your active authority memberships before loading KPI snapshots.</p>

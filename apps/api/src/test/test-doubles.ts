@@ -1,5 +1,10 @@
 import type { ApiConfiguration } from '@local-wellness/config';
-import type { Device, Profile, RecordedAuthAuditEvent } from '@local-wellness/types';
+import type {
+  AuthenticatedUser,
+  Device,
+  Profile,
+  RecordedAuthAuditEvent,
+} from '@local-wellness/types';
 import type {
   ActiveAccess,
   AppendAuthAuditEvent,
@@ -18,6 +23,8 @@ import { Clock } from '../common/clock.js';
 export const activeProfile: Profile = {
   id: '7cd50865-9ebd-4a79-abaa-f059a1632985',
   displayName: 'Asha Patil',
+  avatarObjectPath: null,
+  avatarUpdatedAt: null,
   phone: null,
   email: 'asha@example.com',
   preferredLanguage: 'mr',
@@ -29,8 +36,10 @@ export const activeProfile: Profile = {
 
 export const apiConfiguration: ApiConfiguration = {
   allowedOrigins: ['https://citizen.example.com', 'https://government.example.com'],
+  citizenPhoneMfaMode: 'observe',
   governmentInviteRedirectUrl: 'https://government.example.com/auth/callback',
   port: 3001,
+  privilegedMfaMode: 'observe',
   supabase: {
     anonKey: 'anon-key-for-tests',
     serviceRoleKey: 'service-role-key-for-tests',
@@ -62,6 +71,8 @@ export class FakeIdentityStore extends IdentityStore {
   public auditEvents: AppendAuthAuditEvent[] = [];
   public devices: Device[] = [];
   public revokeDeviceCalls = 0;
+  public privilegedMfaRequired = false;
+  public verifiedPhoneMfa = true;
 
   public async appendAuthAuditEvent(input: AppendAuthAuditEvent): Promise<RecordedAuthAuditEvent> {
     this.auditEvents.push(input);
@@ -95,6 +106,14 @@ export class FakeIdentityStore extends IdentityStore {
     return this.devices;
   }
 
+  public async userRequiresPrivilegedMfa(): Promise<boolean> {
+    return this.privilegedMfaRequired;
+  }
+
+  public async userHasVerifiedPhoneMfa(): Promise<boolean> {
+    return this.verifiedPhoneMfa;
+  }
+
   public async persistGovernmentInvitation(): Promise<PersistedGovernmentInvitation> {
     if (this.persistenceError) {
       throw this.persistenceError;
@@ -115,6 +134,12 @@ export class FakeIdentityStore extends IdentityStore {
 
     this.profile = {
       ...this.profile,
+      ...(update.avatarObjectPath === undefined
+        ? {}
+        : {
+            avatarObjectPath: update.avatarObjectPath,
+            avatarUpdatedAt: update.avatarObjectPath === null ? null : '2026-07-13T10:00:00.000Z',
+          }),
       ...(update.displayName === undefined ? {} : { displayName: update.displayName }),
       ...(update.preferredLanguage === undefined
         ? {}
@@ -145,7 +170,8 @@ export class FakeIdentityStore extends IdentityStore {
 }
 
 export class FakeAuthenticationGateway extends AuthenticationGateway {
-  public verifiedUser = {
+  public verifiedUser: AuthenticatedUser = {
+    assuranceLevel: 'aal1',
     id: activeProfile.id,
     email: activeProfile.email,
     phone: activeProfile.phone,

@@ -20,6 +20,7 @@ import { realtimeEventMatchesComplaint } from '../app/complaints/[complaintId]/c
 import {
   getAvailableResolutionEvidence,
   toCompletionLocation,
+  validateResolutionEvidenceFile,
 } from '../app/complaints/[complaintId]/action-forms';
 import {
   decodeGovernmentComplaintAccountability,
@@ -99,6 +100,14 @@ const currentAssignment = {
   authorityName: 'Reference Municipal Authority',
   departmentId,
   departmentName: 'Roads Department',
+  deliveryReadiness: {
+    approvedChannelTypes: ['email' as const, 'phone' as const],
+    automaticOutboundDelivery: false as const,
+    contactScope: 'officer_assignment' as const,
+    externalContactStatus: 'verified_officer_contact' as const,
+    governmentQueueStatus: 'verified_scope' as const,
+    reason: 'verified_officer_contact_available' as const,
+  },
   endedAt: null,
   id: assignmentId,
   localBodyId,
@@ -205,6 +214,8 @@ test('renders an accessible queue, filters, scoped links, and cursor navigation'
   );
 
   assert.match(markup, /aria-label="Complaint queues"/u);
+  assert.match(markup, /aria-label="Complaint queue table"/u);
+  assert.match(markup, /role="region"/u);
   assert.match(
     markup,
     /<caption class="visually-hidden">Access-scoped government complaint queue/u,
@@ -339,6 +350,12 @@ test('renders authorized text location context without an external map or coordi
   assert.match(markup, /Interactive map not configured/u);
   assert.match(markup, /Routing explanation/u);
   assert.match(markup, /Explanation code.*Unavailable/u);
+  assert.match(markup, /Delivery readiness/u);
+  assert.match(markup, /Government queue.*Verified government queue/u);
+  assert.match(markup, /Approved external contact.*Approved officer contact available/u);
+  assert.match(markup, /Automatic outbound delivery.*Disabled \(false\)/u);
+  assert.match(markup, /without exposing phone numbers, email addresses/u);
+  assert.doesNotMatch(markup, /officer@example\.gov\.in/u);
   assert.match(markup, /Resolution:.*Clearance received/u);
   assert.doesNotMatch(markup, /google\.com|openstreetmap|mapbox|maps\.apple/u);
   assert.doesNotMatch(markup, /href="[^"]*18\.520400/u);
@@ -358,6 +375,61 @@ test('renders authorized text location context without an external map or coordi
       resolutionHistory: [{ ...accountability.resolutionHistory[0], officerPhone: 'private' }],
     }),
   );
+});
+
+test('shows governing-body contact readiness without exposing a contact value', () => {
+  const governingBodyAssignment = {
+    ...currentAssignment,
+    deliveryReadiness: {
+      approvedChannelTypes: ['contact_directory' as const],
+      automaticOutboundDelivery: false as const,
+      contactScope: 'local_body' as const,
+      externalContactStatus: 'verified_governing_body_contact' as const,
+      governmentQueueStatus: 'verified_scope' as const,
+      reason: 'verified_governing_body_contact_available' as const,
+    },
+  };
+  const detail: GovernmentComplaintDetail = {
+    ...queueItem,
+    allowedActions: [],
+    allowedStatusTransitions: [],
+    assignmentHistory: [governingBodyAssignment],
+    currentAssignment: governingBodyAssignment,
+    description: 'A road surface defect requires inspection.',
+    externalDependencies: [],
+    inspections: [],
+    internalNotes: [],
+    location: {
+      accuracyMeters: 8,
+      capturedAt: '2026-07-14T09:00:00+05:30',
+      latitude: 18.5204,
+      longitude: 73.8567,
+      provider: 'gps',
+      verificationScore: 0.95,
+      verificationStatus: 'verified',
+    },
+    media: [],
+    resolutionEvidence: [],
+    routingSummary: {
+      confidenceScore: 0.86,
+      decisionStatus: 'routed',
+      explanationCode: null,
+      fallbackDepth: 0,
+      fallbackUsed: false,
+      resolvedAt: '2026-07-14T09:00:00+05:30',
+    },
+    timeline: [],
+    workReferences: [],
+  };
+  const markup = renderToStaticMarkup(
+    <AppRouterContext.Provider value={testRouter}>
+      <ComplaintDetailView assignmentOptions={[]} complaint={detail} messages={[]} />
+    </AppRouterContext.Provider>,
+  );
+
+  assert.match(markup, /Approved governing-body contact available/u);
+  assert.doesNotMatch(markup, /contact_directory|local_body/u);
+  assert.match(markup, /Disabled \(false\)/u);
 });
 
 test('refreshes durable complaint data only for matching realtime event envelopes', () => {
@@ -428,6 +500,45 @@ test('offers only finalized evidence that has not already been linked to a resol
   assert.deepEqual(
     available.map(({ id }) => id),
     ['cccccccc-cccc-4ccc-8ccc-ccccccccccc2'],
+  );
+});
+
+test('classifies only allow-listed resolution evidence MIME types', () => {
+  assert.deepEqual(validateResolutionEvidenceFile({ size: 1, type: 'image/jpeg' }), {
+    byteSize: 1,
+    kind: 'photo',
+    mimeType: 'image/jpeg',
+  });
+  assert.deepEqual(validateResolutionEvidenceFile({ size: 1, type: 'video/webm' }), {
+    byteSize: 1,
+    kind: 'video',
+    mimeType: 'video/webm',
+  });
+  assert.throws(
+    () => validateResolutionEvidenceFile({ size: 1, type: 'image/svg+xml' }),
+    /supported JPEG/u,
+  );
+  assert.throws(
+    () => validateResolutionEvidenceFile({ size: 1, type: 'application/octet-stream' }),
+    /supported JPEG/u,
+  );
+});
+
+test('accepts only non-empty resolution evidence up to the 50 MiB boundary', () => {
+  const maximumBytes = 50 * 1_024 * 1_024;
+
+  assert.equal(validateResolutionEvidenceFile({ size: 1, type: 'image/png' }).byteSize, 1);
+  assert.equal(
+    validateResolutionEvidenceFile({ size: maximumBytes, type: 'video/mp4' }).byteSize,
+    maximumBytes,
+  );
+  assert.throws(
+    () => validateResolutionEvidenceFile({ size: 0, type: 'image/png' }),
+    /between 1 byte and 50 MiB/u,
+  );
+  assert.throws(
+    () => validateResolutionEvidenceFile({ size: maximumBytes + 1, type: 'video/mp4' }),
+    /between 1 byte and 50 MiB/u,
   );
 });
 

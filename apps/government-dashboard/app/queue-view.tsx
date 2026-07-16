@@ -149,7 +149,7 @@ export const ComplaintQueue = ({
         <p>No complaint currently matches this access scope and filter set.</p>
       </div>
     ) : (
-      <div className="table-scroll" tabIndex={0}>
+      <div aria-label="Complaint queue table" className="table-scroll" role="region" tabIndex={0}>
         <table>
           <caption className="visually-hidden">Access-scoped government complaint queue</caption>
           <thead>

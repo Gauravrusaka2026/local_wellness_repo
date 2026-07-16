@@ -203,7 +203,7 @@ select throws_ok($$select * from public.profiles$$);
 select throws_ok($$select * from public.roles$$);
 
 reset role;
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000003"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000003","aal":"aal2"}';
 set local role authenticated;
 select ok(private.can_manage_authority('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'municipal admin manages own authority');
 select is((select count(*)::integer from public.profiles where id = '10000000-0000-4000-8000-000000000004'), 1, 'municipal admin reads same-authority profile');
@@ -225,7 +225,7 @@ set
 where user_id = '10000000-0000-4000-8000-000000000004'
   and authority_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000003"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000003","aal":"aal2"}';
 set local role authenticated;
 select is((select count(*)::integer from public.profiles where id = '10000000-0000-4000-8000-000000000004'), 0, 'municipal admin cannot read a former member profile after membership expiry');
 select is((select count(*)::integer from public.devices where user_id = '10000000-0000-4000-8000-000000000004'), 0, 'municipal admin cannot read former member devices after membership expiry');
@@ -240,7 +240,7 @@ set
 where user_id = '10000000-0000-4000-8000-000000000004'
   and authority_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000003"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000003","aal":"aal2"}';
 set local role authenticated;
 select is((select count(*)::integer from public.profiles where id = '10000000-0000-4000-8000-000000000004'), 0, 'municipal admin cannot read a former member profile after membership revocation');
 select is((select count(*)::integer from public.devices where user_id = '10000000-0000-4000-8000-000000000004'), 0, 'municipal admin cannot read former member devices after membership revocation');
@@ -255,14 +255,14 @@ set
 where user_id = '10000000-0000-4000-8000-000000000004'
   and authority_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000007"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000007","aal":"aal2"}';
 set local role authenticated;
 select ok(not private.has_active_role('municipal_admin', 'authority', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'past effective_until makes an active-status role inactive');
 select ok(not private.can_manage_authority('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'expired role cannot manage an authority');
 select is((select count(*)::integer from public.profiles where id = '10000000-0000-4000-8000-000000000004'), 0, 'expired admin cannot read scoped profile');
 
 reset role;
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000008"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000008","aal":"aal2"}';
 set local role authenticated;
 select ok(not private.has_active_role('municipal_admin', 'authority', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'revoked role is inactive');
 select ok(not private.can_manage_authority('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'revoked role cannot manage an authority');
@@ -280,7 +280,7 @@ set
 where user_id = '10000000-0000-4000-8000-000000000007'
   and authority_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000007"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000007","aal":"aal2"}';
 set local role authenticated;
 select ok(not private.has_active_role('municipal_admin', 'authority', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'expired membership makes an otherwise-active scoped role inactive');
 select ok(not private.can_manage_authority('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'expired membership cannot manage an authority');
@@ -295,7 +295,7 @@ set
 where user_id = '10000000-0000-4000-8000-000000000007'
   and authority_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000007"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000007","aal":"aal2"}';
 set local role authenticated;
 select ok(not private.has_active_role('municipal_admin', 'authority', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'revoked membership makes an otherwise-active scoped role inactive');
 select ok(not private.can_manage_authority('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'revoked membership cannot manage an authority');
@@ -321,7 +321,7 @@ select is((select count(*)::integer from public.authority_memberships where user
 select is((select count(*)::integer from public.user_roles where user_id = '10000000-0000-4000-8000-000000000010' and role_id = '00000000-0000-4000-8000-000000000002' and status = 'active'), 1, 'invitation creates the active scoped role');
 select is((select count(*)::integer from public.auth_audit_events where subject_user_id = '10000000-0000-4000-8000-000000000010' and event_type = 'government_invitation_created'), 1, 'invitation appends its audit event');
 
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000010"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"10000000-0000-4000-8000-000000000010","aal":"aal2"}';
 set local role authenticated;
 select ok(private.has_active_role('government_operator', 'authority', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'invited government user has scope at first sign-in');
 

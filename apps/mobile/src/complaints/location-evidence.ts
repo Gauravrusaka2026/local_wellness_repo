@@ -3,7 +3,8 @@ import type { ComplaintLocationCapture, ComplaintLocationProvider } from '@local
 const EARTH_RADIUS_METERS = 6_371_000;
 export const LOCATION_FUTURE_TOLERANCE_MILLISECONDS = 2 * 60 * 1_000;
 export const LOCATION_MAXIMUM_AGE_MILLISECONDS = 5 * 60 * 1_000;
-export const LOCATION_LOW_ACCURACY_METERS = 100;
+export const LOCATION_LOW_ACCURACY_METERS = 50;
+export const MAXIMUM_MEDIA_TO_ISSUE_DISTANCE_METERS = 50;
 
 export type LocationAssessment = Readonly<{
   isAcceptable: boolean;
@@ -82,12 +83,10 @@ export const assessMediaDistance = (
   mediaLocation: ComplaintLocationCapture,
 ): Readonly<{ distanceMeters: number; isAcceptable: boolean }> => {
   const distanceMeters = distanceBetweenLocationsMeters(complaintLocation, mediaLocation);
-  const allowedDistanceMeters = Math.max(
-    100,
-    complaintLocation.accuracyMeters + mediaLocation.accuracyMeters,
-  );
-
-  return { distanceMeters, isAcceptable: distanceMeters <= allowedDistanceMeters };
+  return {
+    distanceMeters,
+    isAcceptable: distanceMeters <= MAXIMUM_MEDIA_TO_ISSUE_DISTANCE_METERS,
+  };
 };
 
 export const inferLocationProvider = (

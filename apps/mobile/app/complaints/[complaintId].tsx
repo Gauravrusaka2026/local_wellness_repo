@@ -138,11 +138,24 @@ export default function ComplaintDetailScreen() {
   if (auth.state.status === 'configuration-error')
     return <ErrorScreen message={auth.state.message} />;
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
+  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
   if (accessToken === null) return <Redirect href="/auth" />;
   if (complaintId === undefined) return <ErrorScreen message="The complaint link is incomplete." />;
   if (state.status === 'loading') return <LoadingScreen label="Loading complaint…" />;
   if (state.status === 'error')
-    return <ErrorScreen message={state.message} title="Complaint unavailable" />;
+    return (
+      <ErrorScreen
+        action={{
+          label: 'Try again',
+          onPress: () => {
+            setState({ status: 'loading' });
+            void load();
+          },
+        }}
+        message={state.message}
+        title="Complaint unavailable"
+      />
+    );
 
   const sendMessage = async (): Promise<void> => {
     const body = messageBody.trim();

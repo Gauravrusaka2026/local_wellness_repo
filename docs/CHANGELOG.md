@@ -1025,3 +1025,98 @@ Operational data, policies, managed schedules, and public records remain deliber
 The three Next.js `/auth/callback` implementations changed from route handlers to dynamic pages so
 the browser can safely process provider-default callbacks. The public callback URL is unchanged.
 No API endpoint was removed; new transparency and accountability contracts are additive.
+
+## 2026-07-16 — Phase 10 Citizen Access, Routing Delivery, and Launch Hardening
+
+### Summary
+
+Implemented the locally safe Phase 10 citizen-access and launch-hardening slice: email/password
+authentication with staged Phone MFA, private profile images, stricter issue-location evidence,
+modern mobile locality views, PostgreSQL-backed API protections, operational health/runbooks, and
+explicit complaint queue/contact delivery readiness. Managed provider/data activation remains
+deliberately separate.
+
+### Feature
+
+- Replaced citizen passwordless entry on web/mobile with email/password signup/sign-in, generic
+  password recovery, logout, and Supabase Phone MFA enrollment/challenge/verification behind
+  matching `observe`/`enforce` modes.
+- Added privileged TOTP enrollment/challenge and API AAL enforcement modes for government and
+  administrator access without enabling lockout-prone managed enforcement prematurely.
+- Added owner-private profile-photo upload, signed display, replacement, and removal on citizen
+  web/mobile with bounded file size/type/magic-byte checks and no public avatar projection.
+- Enforced a maximum 50 m current-location accuracy and media-to-issue distance at mobile, API, and
+  PostgreSQL boundaries.
+- Added modern reviewed-public locality Feed and provider-neutral aggregate Heatmap mobile views;
+  exact coordinates, identity, private media, and unreviewed reports remain excluded.
+- Added atomic PostgreSQL API quotas, endpoint-specific limits, security headers, liveness/
+  readiness, graceful shutdown, bounded HTTP checks, secret scanning, monitoring signals, and V1
+  operator runbooks without Redis or Sentry.
+- Added routing-delivery readiness that proves database-driven authority/department/role/current-
+  assignment resolution and distinguishes verified government queue placement from optional
+  approved officer/governing-body contact readiness. Automatic outbound delivery remains false.
+
+### Files Modified
+
+- Citizen authentication, profile, transparency, and complaint-location modules in
+  `apps/citizen-web`, `apps/mobile`, and their focused tests.
+- Privileged authentication and MFA modules in `apps/government-dashboard`, `apps/admin-console`,
+  and their tests.
+- API health, quotas, MFA assurance, identity/profile, complaint, routing-delivery, configuration,
+  exception, and Supabase adapter modules plus tests.
+- Shared configuration/types/validation/routing contracts, generated database types,
+  `supabase/master.sql`, CI/release scripts, monitoring guidance, and operator runbooks.
+- Required product, architecture, database, API, authentication, deployment, setup, tracking,
+  decision, issue, and ADR documentation.
+
+### Migrations Created
+
+- `20260716112000_phase_10_api_hardening.sql`
+- `20260716113000_phase_10_privileged_mfa.sql`
+- `20260716114000_phase_10_citizen_phone_mfa.sql`
+- `20260716115000_phase_10_profile_images.sql`
+- `20260716116000_phase_10_complaint_location_proximity.sql`
+- `20260716117000_phase_10_routing_delivery_readiness.sql`
+
+### Tests and Verification
+
+- Added pgTAP plans 033–039 for quotas/readiness, privileged and citizen MFA, profile images,
+  50 m location/media enforcement, and routing-delivery readiness.
+- Focused routing/database verification passed 175 assertions; profile-image and location plans
+  passed 31 and 15 assertions respectively. Routing API passed 17/17, government complaint API
+  passed 11/11, and the government dashboard passed 46/46 tests.
+- A clean local reset applied all 40 migrations and reviewed seeds; all 1,405 assertions across 39
+  pgTAP plans passed after legacy complaint fixtures were aligned with the new 50 m guard.
+- The aggregate application/package test command passed; the API passed 196 tests, mobile passed all
+  15 test files, and the government dashboard passed 46/46 focused tests. All 16 workspaces passed
+  lint, strict type-check, and production builds; the final Android Expo export bundled 1,275
+  modules.
+- Generated database types and the deterministic 40-migration master SQL passed drift checks;
+  governance artifacts remained byte-current, application-schema database lint reported no errors,
+  Expo dependency compatibility passed, Docker Compose validation passed, the tracked/full-local-
+  history secret scan passed, and the production dependency audit found no known vulnerabilities.
+
+### Documentation Updated
+
+- Updated `README.md`, `PROJECT_OVERVIEW.md`, `PLAN.md`, `docs/TASKS.md`, `docs/PROGRESS.md`,
+  `docs/DECISIONS.md`, `docs/KNOWN_ISSUES.md`, and the architecture/authentication/API/database/
+  deployment/Supabase setup guides.
+- Added ADR-0020 through ADR-0023 and V1 operational runbooks.
+
+### Security and Operational Status
+
+- Passwords, OTPs, TOTP secrets, recovery material, bearer tokens, private object paths, exact
+  public coordinates, and contact values are not logged or exposed in public/citizen responses.
+- Phone MFA and privileged AAL enforcement default to observe mode until delivery/recovery and
+  managed smoke pass. Placeholder/unverified governance and contacts remain non-routable.
+- A live local API process passed liveness on 2026-07-16, but the configured managed project's
+  readiness probe returned 503. Its 40-migration ledger must be reconciled before API-backed demo
+  flows are considered available.
+- Redis, BullMQ, Redis adapters/caching, Sentry, a homemade OTP store, external map tiles, and
+  automatic outbound complaint delivery were not introduced.
+
+### Breaking Changes
+
+Citizen entry now uses email/password rather than passwordless email as the primary flow. Phone
+verification remains additive and unenforced in observe mode. API profile and government-assignment
+responses gained additive avatar and delivery-readiness fields; no existing endpoint was removed.

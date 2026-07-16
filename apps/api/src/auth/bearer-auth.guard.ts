@@ -1,8 +1,17 @@
-import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import {
+  Inject,
+  HttpStatus,
+  Injectable,
+  Logger,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
+import type { ApiConfiguration } from '@local-wellness/config';
 
 import { ApiException } from '../common/api-exception.js';
 import type { RequestContext } from '../common/request-context.js';
 import { IdentityStore } from '../data/identity.store.js';
+import { API_CONFIGURATION } from '../configuration.js';
 import {
   AuthenticationGateway,
   AuthenticationProviderUnavailableError,
@@ -12,11 +21,15 @@ const bearerTokenPattern = /^Bearer[ \t]+([^\s]+)$/iu;
 
 @Injectable()
 export class BearerAuthGuard implements CanActivate {
+  private readonly logger = new Logger(BearerAuthGuard.name);
+
   public constructor(
     @Inject(AuthenticationGateway)
     private readonly authenticationGateway: AuthenticationGateway,
     @Inject(IdentityStore)
     private readonly identityStore: IdentityStore,
+    @Inject(API_CONFIGURATION)
+    private readonly configuration: ApiConfiguration,
   ) {}
 
   public async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -57,6 +70,44 @@ export class BearerAuthGuard implements CanActivate {
 
     if (profile.status !== 'active' && profile.status !== 'pending') {
       throw new ApiException(403, 'ACCOUNT_INACTIVE', 'This account is not active.');
+    }
+
+    const requiresPrivilegedMfa = await this.identityStore.userRequiresPrivilegedMfa(
+      user.id,
+      new Date().toISOString(),
+    );
+
+    if (requiresPrivilegedMfa && user.assuranceLevel !== 'aal2') {
+      if (this.configuration.privilegedMfaMode === 'enforce') {
+        throw new ApiException(
+          HttpStatus.FORBIDDEN,
+          'MFA_REQUIRED',
+          'Multi-factor authentication is required for this account.',
+        );
+      }
+
+      this.logger.warn(
+        `Privileged request ${request.requestId ?? 'unavailable'} is below AAL2 while MFA is in observe mode.`,
+      );
+    }
+
+    if (!requiresPrivilegedMfa) {
+      const hasVerifiedPhoneMfa = await this.identityStore.userHasVerifiedPhoneMfa(user.id);
+      const hasVerifiedPhoneSession = hasVerifiedPhoneMfa && user.assuranceLevel === 'aal2';
+
+      if (!hasVerifiedPhoneSession) {
+        if (this.configuration.citizenPhoneMfaMode === 'enforce') {
+          throw new ApiException(
+            HttpStatus.FORBIDDEN,
+            'PHONE_MFA_REQUIRED',
+            'Phone verification is required for this account.',
+          );
+        }
+
+        this.logger.warn(
+          `Citizen request ${request.requestId ?? 'unavailable'} lacks verified phone AAL2 while phone MFA is in observe mode.`,
+        );
+      }
     }
 
     request.authenticatedUser = user;

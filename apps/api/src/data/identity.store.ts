@@ -11,6 +11,7 @@ import type {
 } from '@local-wellness/types';
 
 export interface ProfileUpdate {
+  avatarObjectPath?: string | null;
   displayName?: string;
   onboardingCompletedAt?: string;
   preferredLanguage?: SupportedLanguage;
@@ -86,6 +87,13 @@ export class DeviceRevokedError extends Error {
   }
 }
 
+export class DeviceLimitReachedError extends Error {
+  public constructor() {
+    super('The active device limit has been reached.');
+    this.name = 'DeviceLimitReachedError';
+  }
+}
+
 export abstract class IdentityStore {
   public abstract appendAuthAuditEvent(
     input: AppendAuthAuditEvent,
@@ -122,4 +130,8 @@ export abstract class IdentityStore {
   public abstract updateProfile(userId: string, update: ProfileUpdate): Promise<Profile>;
 
   public abstract upsertDevice(userId: string, input: DeviceRegistration): Promise<Device>;
+
+  public abstract userHasVerifiedPhoneMfa(userId: string): Promise<boolean>;
+
+  public abstract userRequiresPrivilegedMfa(userId: string, at: string): Promise<boolean>;
 }

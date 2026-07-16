@@ -289,6 +289,12 @@ The generic routing schema, PostGIS queries, deterministic evaluator, authentica
 confidence/fallback behavior, and decision-audit boundary can be tested with rollback-isolated
 synthetic verified fixtures. That engineering does not make the bootstrap production-routable.
 
+Routing delivery readiness now also distinguishes a verified internal government queue from an
+approved officer or governing-body complaint-intake contact. It never exposes contact values or
+claims automatic outbound delivery. A valid verified department/role queue remains usable during
+officer turnover, but no placeholder or discovered-only contact can become a recipient. Actual
+email/SMS/contact delivery remains a separate future provider, privacy, retry, and audit decision.
+
 Pune Municipal Corporation still requires reviewed municipality and selected-ward polygons,
 current LGD identifiers where applicable, authority-department availability, durable officer roles,
 current officer assignments where safely verified, asset types/assets/owners for asset-dependent
@@ -313,7 +319,7 @@ The current managed migration ledger has not been reconciled with
 geometry is documented as active. Reconcile/apply the additive migration through the incremental
 workflow, then load and review current non-placeholder geometry and entity provenance before
 expecting Nearby to resolve. Until then, dependency/unsupported output is correct. Never use the
-34-migration master file as an upgrade, copy synthetic pgTAP fixtures into staging, or hardcode
+40-migration master file as an upgrade, copy synthetic pgTAP fixtures into staging, or hardcode
 Pune/BMC names to close this issue.
 
 ### COMPLAINT-001 — Transcription and media moderation providers are not configured
@@ -507,6 +513,12 @@ Auth identities, profiles, and privileged assignments were not independently ver
 working database connection was unavailable. The successful 2026-07-14 deployment of 23 migrations
 and six seeds applies to the previous staging target and is historical evidence only.
 
+On 2026-07-16 the current API liveness endpoint succeeded, but its readiness endpoint returned 503.
+A direct, credential-safe RPC probe returned PostgREST `PGRST202`: the managed project does not have
+`public.api_readiness_check()`, which is introduced by
+`20260716112000_phase_10_api_hardening.sql`. This proves the target is not at the current 40-
+migration cutoff and API-backed profile/complaint/routing demos must not be represented as ready.
+
 The current target still needs fully reviewed SMS/email provider settings, exact redirects,
 delivered code/link/invite behavior, rate limits, backup settings, managed secrets, and application
 smoke tests. Separate development and production projects remain operator-managed inputs. Custom
@@ -516,12 +528,13 @@ as well as delivered codes.
 Before completing hosted identity activation:
 
 - finish the historical security audit under `SEC-001` without reusing prior values;
-- reconcile the current target against all 34 migrations and verify its seed/Auth/profile/role
+- reconcile the current target against all 40 migrations and verify its seed/Auth/profile/role
   state before starting managed workers or treating privileged access as active;
 - configure exact citizen, government, administrator, and installed-mobile callback allow-list
   entries; custom token/code templates are optional;
-- configure and verify email and Indian SMS delivery;
-- smoke-test OTP delivery, redirects, SSR cookies, and effective government scope in the browser;
+- configure and verify password recovery email and Indian SMS delivery;
+- smoke-test email/password signup/sign-in/recovery, Phone MFA delivery, redirects, SSR cookies,
+  and effective government scope in the browser and installed mobile build;
 - repeat migration/RLS smoke in development where used, and never promote to production without an
   independently reviewed production project/deployment.
 
@@ -546,13 +559,20 @@ A one-time trusted staging transaction reconciled the demo privileges between al
 identities while retaining revoked rows and audit history. That environment operation does not
 provide the missing application/API lifecycle and does not close this issue.
 
-### AUTH-002 — Privileged MFA enforcement is not implemented
+### AUTH-002 — Privileged MFA needs managed enforcement and recovery validation
 
 - Severity: High before pilot launch
-- Status: Open hardening task
+- Status: Engineering implemented; managed activation and recovery validation pending
 - Discovered: 2026-07-13
 
-The identity model is MFA-ready, but the government dashboard, admin console and privileged API operations do not yet enforce an Authenticator Assurance Level. Add enrollment/recovery UX and reject privileged actions below the required AAL before production access.
+The government dashboard and admin console now provide TOTP enrollment/challenge UX, and the API
+can enforce `aal2` for privileged operations. Matching `observe` and `enforce` modes keep the local
+and staging rollout from locking operators out before enrollment and recovery are proven.
+
+Keep privileged enforcement in observe mode until current administrators and government users can
+enroll, a documented recovery procedure is rehearsed, exact hosted callbacks work, and both AAL1
+rejection and AAL2 success are verified against the managed project. Client redirects remain a UX
+aid; the API and database access boundary remain authoritative.
 
 ### AUTH-003 — Device revocation does not invalidate active sessions
 
@@ -562,13 +582,50 @@ The identity model is MFA-ready, but the government dashboard, admin console and
 
 Soft revocation atomically clears the push token, records an audit event and prevents the same installation identifier from silently re-registering. Phase 1 does not bind Supabase sessions to device rows or revoke an already-issued session. Add provider-side session revocation and device-bound authorization before presenting device revocation as forced logout.
 
-### AUTH-004 — Identity append paths need abuse quotas
+### AUTH-004 — Identity append-path abuse quotas
 
 - Severity: Medium
-- Status: Open hardening task
+- Status: Resolved locally; managed concurrency/load validation remains a release check
 - Discovered: 2026-07-13
+- Resolved: 2026-07-16
 
-Authenticated clients can submit unlimited client-reported session events and can generate many distinct device registrations. Both create append-only rows. The privileged government-invitation endpoint also lacks an application-level request quota beyond provider controls. Add PostgreSQL/platform-backed endpoint limits, per-account device quotas, deduplication and monitoring before public launch. Do not introduce Redis for this V1 work.
+Phase 10 adds atomic PostgreSQL-backed fixed-window quotas with privacy-safe subject hashes, bounded
+cleanup, endpoint-specific limits, `429`/`Retry-After` behavior, and a ten-device active cap. Identity
+audit, device, invitation, messaging, complaint, transparency, and privileged mutation paths have
+focused database/API coverage. The managed environment still needs representative concurrency and
+alert-threshold validation; no Redis counter was introduced.
+
+### AUTH-010 — Citizen Phone MFA cannot be enforced until SMS and recovery are operational
+
+- Severity: High before phone verification becomes mandatory
+- Status: Engineering implemented in observe mode; provider/operational activation pending
+- Discovered: 2026-07-16
+
+Citizen web/mobile now support email/password signup and sign-in, password recovery, and Supabase
+Phone MFA enrollment/challenge/verification. The API can require both a verified phone factor and
+`aal2`, but all boundaries default to observe mode because the managed project has no approved SMS
+provider and the recovery path has not been exercised.
+
+Enable Supabase Advanced Phone MFA, configure a supported SMS provider or reviewed Send SMS Hook,
+complete India TRAI/DLT requirements where applicable, set provider/project rate limits and CAPTCHA,
+allow-list exact mobile/web redirects, and test enroll/retry/expiry/recovery/sign-out on real devices.
+Only then switch API, citizen web, and mobile to enforce together. Supabase Storage and an Edge
+Function are not an SMS carrier and must not be used as a homemade OTP credential store.
+
+### PROFILE-001 — Profile images need production media scanning and orphan reconciliation
+
+- Severity: Medium before sustained public use
+- Status: Core private upload engineering complete; operational hardening pending
+- Discovered: 2026-07-16
+
+Profile images are owner-private, size/type bounded, validated by extension/content type and common
+image magic bytes, read through short-lived signed URLs, and excluded from public complaint
+projections. Replacement and removal update only the authenticated owner's path.
+
+Before sustained public operation, add provider-backed full image decoding and malware scanning,
+moderation policy, scheduled reconciliation for abandoned/replaced objects, and approved retention
+and deletion auditing. Never make the source bucket public or include avatar paths in transparency
+responses.
 
 ### AUTH-005 — Real-device and hosted callback smoke tests remain
 
@@ -755,7 +812,7 @@ effective-time scope. Runtime resolution retains its fail-closed guard as defens
 
 The mobile workspace previously targeted an unsupported newer Expo SDK and could not open in the
 user's Android Expo Go client, which supports SDK 54. The workspace is now aligned to Expo SDK
-54.0.33, React Native 0.81.5, React 19.1, compatible SDK 54 native modules, and TypeScript 5.9.3.
+54.0.36, React Native 0.81.5, React 19.1, compatible SDK 54 native modules, and TypeScript 5.9.3.
 `expo install --check`, mobile strict type-check, and the Android export passed (1,202 modules).
 Camera, microphone, GPS, SecureStore, deep-link, and interruption behavior still require the
 separate representative physical-device test tracked by `COMPLAINT-002`.

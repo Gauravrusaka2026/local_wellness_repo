@@ -108,5 +108,12 @@ export class ComplaintDraftsService {
         'The location capture timestamps do not match.',
       );
     }
+
+    if (input.accuracyMeters > 50) {
+      throw ApiException.badRequest(
+        'LOCATION_LOW_ACCURACY',
+        'Complaint locations require device accuracy of 50 metres or better.',
+      );
+    }
   }
 }

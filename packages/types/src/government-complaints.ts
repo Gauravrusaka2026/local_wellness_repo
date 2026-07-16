@@ -82,6 +82,49 @@ export const governmentResolutionEvidenceUploadStatuses = [
 export type GovernmentResolutionEvidenceUploadStatus =
   (typeof governmentResolutionEvidenceUploadStatuses)[number];
 
+export const governmentComplaintExternalContactStatuses = [
+  'verified_officer_contact',
+  'verified_governing_body_contact',
+  'not_available',
+] as const;
+export type GovernmentComplaintExternalContactStatus =
+  (typeof governmentComplaintExternalContactStatuses)[number];
+
+export const governmentComplaintContactScopes = [
+  'officer_assignment',
+  'officer',
+  'office',
+  'authority_department',
+  'ward',
+  'local_body',
+  'authority',
+] as const;
+export type GovernmentComplaintContactScope = (typeof governmentComplaintContactScopes)[number];
+
+export const governmentComplaintContactChannelTypes = [
+  'address',
+  'contact_directory',
+  'email',
+  'helpline',
+  'phone',
+  'website',
+] as const;
+export type GovernmentComplaintContactChannelType =
+  (typeof governmentComplaintContactChannelTypes)[number];
+
+export interface GovernmentComplaintDeliveryReadiness {
+  governmentQueueStatus: 'verified_scope' | 'unavailable';
+  externalContactStatus: GovernmentComplaintExternalContactStatus;
+  contactScope: GovernmentComplaintContactScope | null;
+  approvedChannelTypes: GovernmentComplaintContactChannelType[];
+  automaticOutboundDelivery: false;
+  reason:
+    | 'verified_officer_contact_available'
+    | 'verified_governing_body_contact_available'
+    | 'verified_queue_no_approved_external_contact'
+    | 'verified_assignment_scope_unavailable';
+}
+
 export interface GovernmentComplaintQueueQuery {
   cursor?: string | undefined;
   limit: number;
@@ -120,6 +163,10 @@ export interface GovernmentComplaintAssignmentSummary {
   status: 'active' | 'superseded' | 'cancelled';
   assignedAt: string;
   endedAt: string | null;
+  /**
+   * Present on current API responses. Optional for compatibility with previously cached payloads.
+   */
+  deliveryReadiness?: GovernmentComplaintDeliveryReadiness | undefined;
 }
 
 export interface GovernmentComplaintQueueFlags {

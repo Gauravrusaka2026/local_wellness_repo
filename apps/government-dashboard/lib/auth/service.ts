@@ -46,9 +46,12 @@ export const verifyGovernmentOtp = async (
     throw result.error;
   }
 
-  if (result.data.session?.access_token) {
-    await recordAuditEvent(result.data.session.access_token, 'otp_verified');
+  const accessToken = result.data.session?.access_token;
+  if (!accessToken) {
+    throw new Error('OTP verification did not establish an authenticated session.');
   }
+
+  await recordAuditEvent(accessToken, 'otp_verified');
 };
 
 export const signOutGovernmentSession = async (

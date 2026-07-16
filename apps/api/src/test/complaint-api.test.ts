@@ -676,6 +676,21 @@ describe('API complaint capture contract', () => {
     assert.equal(JSON.stringify(complaintStore.createdDrafts).includes(idempotencyKey), false);
   });
 
+  it('rejects complaint location accuracy above the 50 metre V1 limit', async () => {
+    const response = await request(application.getHttpServer())
+      .post('/api/v1/complaints/drafts')
+      .set('authorization', 'Bearer valid-access-token')
+      .set('idempotency-key', idempotencyKey)
+      .send({
+        categoryId: ids.category,
+        location: { ...locationCapture, accuracyMeters: 50.01 },
+      })
+      .expect(400);
+
+    assert.equal(response.body.error.code, 'LOCATION_LOW_ACCURACY');
+    assert.equal(complaintStore.createdDrafts.length, 0);
+  });
+
   it('delegates draft ownership checks to the store using the authenticated actor', async () => {
     await request(application.getHttpServer())
       .get(`/api/v1/complaints/drafts/${ids.draft}`)

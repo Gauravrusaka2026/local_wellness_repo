@@ -12,8 +12,10 @@ import {
   isProfileSetupRequired,
 } from '../../lib/api/profile';
 import { signOutAction } from '../../lib/auth/actions';
+import { getCitizenPhoneMfaMode } from '../../lib/environment';
 import { createServerSupabaseClient } from '../../lib/supabase/server';
 import { ProfileForm } from './profile-form';
+import { ProfileImageCard } from './profile-image-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +78,7 @@ const AccountActions = () => (
 
 export default async function AccountPage() {
   const result = await loadAccount();
+  const phoneMfaIsEnforced = getCitizenPhoneMfaMode() === 'enforce';
 
   if (result.status === 'signed-out') {
     redirect('/auth/login?next=/account');
@@ -142,6 +145,13 @@ export default async function AccountPage() {
           <strong>{onboardingComplete ? 'Complete' : 'Setup needed'}</strong>
         </div>
       </section>
+      {!phoneMfaIsEnforced ? (
+        <p className="setup-notice" role="status">
+          Email-and-password access is active. Phone OTP verification is staged and will become
+          required after the project SMS provider is configured.
+        </p>
+      ) : null}
+      <ProfileImageCard profile={result.profile} />
       <section aria-labelledby="profile-heading" className="content-card">
         <h2 id="profile-heading">Personal details</h2>
         {onboardingComplete ? null : (

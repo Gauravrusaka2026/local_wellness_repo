@@ -28,6 +28,7 @@
     "expo-crypto": "catalog:",
     "expo-file-system": "catalog:",
     "expo-image-manipulator": "catalog:",
+    "expo-image-picker": "catalog:",
     "expo-linking": "catalog:",
     "expo-location": "catalog:",
     "expo-router": "catalog:",

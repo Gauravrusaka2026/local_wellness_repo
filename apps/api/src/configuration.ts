@@ -11,8 +11,10 @@ export const loadApiConfiguration = (
 ): ApiConfiguration =>
   parseApiConfiguration({
     allowedOrigins: environment['API_ALLOWED_ORIGINS'],
+    citizenPhoneMfaMode: environment['API_CITIZEN_PHONE_MFA_MODE'],
     governmentInviteRedirectUrl: environment['GOVERNMENT_INVITE_REDIRECT_URL'],
     port: environment['PORT'],
+    privilegedMfaMode: environment['API_PRIVILEGED_MFA_MODE'],
     supabaseAnonKey: firstConfiguredValue(
       environment['SUPABASE_PUBLISHABLE_KEY'],
       environment['SUPABASE_ANON_KEY'],

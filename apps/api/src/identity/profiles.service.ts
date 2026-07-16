@@ -25,9 +25,21 @@ export class ProfilesService {
   }
 
   public async updateProfile(userId: string, input: UpdateProfileInput): Promise<Profile> {
+    if (
+      input.avatarObjectPath !== undefined &&
+      input.avatarObjectPath !== null &&
+      !input.avatarObjectPath.startsWith(`${userId}/avatar.`)
+    ) {
+      throw ApiException.badRequest(
+        'PROFILE_IMAGE_PATH_INVALID',
+        'The profile image does not belong to this account.',
+      );
+    }
+
     const existingProfile =
       input.onboardingCompleted === true ? await this.getProfile(userId) : null;
     const update: ProfileUpdate = {
+      ...(input.avatarObjectPath === undefined ? {} : { avatarObjectPath: input.avatarObjectPath }),
       ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
       ...(input.preferredLanguage === undefined
         ? {}

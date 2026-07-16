@@ -36,7 +36,7 @@ export default function AuthCallbackScreen() {
         });
 
         if (isCurrent) {
-          router.replace('/home');
+          router.replace('/auth/phone-verification');
         }
       } catch (callbackError) {
         if (isCurrent) {

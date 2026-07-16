@@ -8,9 +8,11 @@ import { ComplaintsModule } from './complaints/complaints.module.js';
 import { CitizenResolutionModule } from './complaints/citizen-resolution.module.js';
 import { CommunicationsModule } from './communications/communications.module.js';
 import { ConfigurationModule } from './configuration.module.js';
+import { RateLimitInterceptor } from './common/rate-limit.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { GovernmentComplaintsModule } from './government-complaints/government-complaints.module.js';
 import { GovernanceDirectoryModule } from './governance-directory/governance-directory.module.js';
+import { HealthModule } from './health/health.module.js';
 import { RoutingModule } from './routing/routing.module.js';
 import { SupabaseModule } from './supabase/supabase.module.js';
 import { TransparencyModule } from './transparency/transparency.module.js';
@@ -30,8 +32,10 @@ import { TransparencyModule } from './transparency/transparency.module.js';
     CommunicationsModule,
     GovernmentComplaintsModule,
     GovernanceDirectoryModule,
+    HealthModule,
     TransparencyModule,
   ],
+  providers: [RateLimitInterceptor],
 })
 // Nest uses the decorated class itself as the application module token.
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class

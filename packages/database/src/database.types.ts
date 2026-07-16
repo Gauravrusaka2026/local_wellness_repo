@@ -3983,6 +3983,10 @@ export type Database = {
         };
         Returns: string;
       };
+      assignment_delivery_readiness: {
+        Args: { p_assignment_id: string };
+        Returns: Json;
+      };
       assignment_has_current_verified_officer: {
         Args: { p_assignment_id: string; p_at?: string };
         Returns: boolean;
@@ -7248,6 +7252,18 @@ export type Database = {
       };
     };
     Functions: {
+      resolve_complaint_contact_readiness: {
+        Args: {
+          p_authority_department_id: string;
+          p_authority_id: string;
+          p_local_body_id: string;
+          p_office_id: string;
+          p_officer_assignment_id: string;
+          p_officer_id: string;
+          p_ward_id: string;
+        };
+        Returns: Json;
+      };
       resolve_jurisdiction: {
         Args: {
           p_latitude: number;
@@ -7414,6 +7430,8 @@ export type Database = {
       };
       profiles: {
         Row: {
+          avatar_object_path: string | null;
+          avatar_updated_at: string | null;
           created_at: string;
           display_name: string | null;
           email: string | null;
@@ -7426,6 +7444,8 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          avatar_object_path?: string | null;
+          avatar_updated_at?: string | null;
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
@@ -7438,6 +7458,8 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          avatar_object_path?: string | null;
+          avatar_updated_at?: string | null;
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
@@ -7551,6 +7573,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      api_readiness_check: { Args: never; Returns: boolean };
       append_complaint_location_evidence: {
         Args: {
           p_accuracy_meters: number;
@@ -7677,6 +7700,15 @@ export type Database = {
           p_instance_id: string;
         };
         Returns: undefined;
+      };
+      consume_api_rate_limit: {
+        Args: {
+          p_limit: number;
+          p_scope: string;
+          p_subject_sha256: string;
+          p_window_seconds: number;
+        };
+        Returns: Json;
       };
       create_complaint_draft: {
         Args: {
@@ -8570,6 +8602,10 @@ export type Database = {
         Args: { p_actor_user_id: string; p_policy_version_id: string };
         Returns: string;
       };
+      purge_expired_api_rate_limits: {
+        Args: { p_max_rows?: number };
+        Returns: number;
+      };
       record_complaint_duplicate_check: {
         Args: {
           p_actor_user_id: string;
@@ -9064,6 +9100,14 @@ export type Database = {
           status: string;
           updated_at: string;
         }[];
+      };
+      user_has_verified_phone_mfa: {
+        Args: { p_user_id: string };
+        Returns: boolean;
+      };
+      user_requires_privileged_mfa: {
+        Args: { p_at?: string; p_user_id: string };
+        Returns: boolean;
       };
       withdraw_public_complaint_projection: {
         Args: {

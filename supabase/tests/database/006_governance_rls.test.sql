@@ -574,7 +574,7 @@ select throws_ok(
 );
 
 reset role;
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"61000000-0000-4000-8000-000000000002"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"61000000-0000-4000-8000-000000000002","aal":"aal2"}';
 set local role authenticated;
 select ok(
   private.can_manage_authority('60000000-0000-4000-8000-000000000011'),
@@ -607,7 +607,7 @@ select throws_ok(
 );
 
 reset role;
-set local "request.jwt.claims" = '{"role":"authenticated","sub":"61000000-0000-4000-8000-000000000003"}';
+set local "request.jwt.claims" = '{"role":"authenticated","sub":"61000000-0000-4000-8000-000000000003","aal":"aal2"}';
 set local role authenticated;
 select is(
   (select count(*)::integer from governance.import_batches where id = '60000000-0000-4000-8000-000000000050'),

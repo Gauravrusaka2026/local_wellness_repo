@@ -80,6 +80,28 @@ describe('API identity contract', () => {
     assert.equal(identityStore.profile?.displayName, activeProfile.displayName);
   });
 
+  it('updates only an owner-scoped private profile image path', async () => {
+    const ownerPath = `${activeProfile.id}/avatar.webp`;
+    const response = await request(application.getHttpServer())
+      .patch('/api/v1/me')
+      .set('authorization', 'Bearer valid-access-token')
+      .send({ avatarObjectPath: ownerPath })
+      .expect(200);
+
+    assert.equal(response.body.data.avatarObjectPath, ownerPath);
+    assert.equal(typeof response.body.data.avatarUpdatedAt, 'string');
+
+    const deniedResponse = await request(application.getHttpServer())
+      .patch('/api/v1/me')
+      .set('authorization', 'Bearer valid-access-token')
+      .send({
+        avatarObjectPath: 'a93fe312-6f26-4d4b-a9da-e1cd0ad68dc6/avatar.webp',
+      })
+      .expect(400);
+
+    assert.equal(deniedResponse.body.error.code, 'PROFILE_IMAGE_PATH_INVALID');
+  });
+
   it('rejects requests without a bearer token using the error envelope', async () => {
     const response = await request(application.getHttpServer()).get('/api/v1/me').expect(401);
 

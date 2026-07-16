@@ -1,4 +1,4 @@
-export type AuthChannel = 'email' | 'phone';
+export type CitizenAuthMode = 'create_account' | 'sign_in';
 
 export class AuthInputError extends Error {
   public constructor(message: string) {
@@ -25,6 +25,14 @@ export const normalizePhone = (value: string): string => {
   }
 
   return phone;
+};
+
+export const normalizePassword = (value: string): string => {
+  if (value.length < 8 || value.length > 128) {
+    throw new AuthInputError('Use a password between 8 and 128 characters.');
+  }
+
+  return value;
 };
 
 export const normalizeOtp = (value: string): string => {

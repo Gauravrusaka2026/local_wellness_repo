@@ -24,12 +24,13 @@ values
   );
 
 insert into complaints.complaint_drafts (
-  id, citizen_user_id, creation_idempotency_key_hash, creation_request_fingerprint
+  id, citizen_user_id, creation_idempotency_key_hash, creation_request_fingerprint, category_id
 )
 values (
   'a2000000-0000-4000-8000-000000000001',
   'a1000000-0000-4000-8000-000000000001',
-  repeat('a', 64), repeat('b', 64)
+  repeat('a', 64), repeat('b', 64),
+  '93000000-0000-4000-8000-000000000101'
 );
 
 insert into complaints.complaint_location_evidence (

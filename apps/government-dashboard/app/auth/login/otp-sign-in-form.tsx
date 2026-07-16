@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 
 import { getGovernmentEmailCallbackUrl } from '../../../lib/auth/callback';
+import { buildMfaPath } from '../../../lib/auth/mfa';
 import {
   getGovernmentLoginError,
   requestGovernmentOtp,
@@ -54,7 +55,7 @@ export const OtpSignInForm = ({
 
     try {
       await verifyGovernmentOtp(createBrowserSupabaseClient(), normalizedEmail, otp);
-      window.location.assign(nextPath);
+      window.location.assign(buildMfaPath(nextPath));
     } catch (verificationError) {
       setError(getGovernmentLoginError(verificationError));
       setIsPending(false);

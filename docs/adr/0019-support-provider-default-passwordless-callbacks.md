@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded
 
 ## Date
 
@@ -87,6 +87,7 @@ Auth, and introduce an unrelated provider solely to work around presentation tem
 
 ## Related Documents
 
+- `docs/adr/0020-use-email-password-and-staged-mfa.md`
 - `docs/adr/0006-use-supabase-auth-and-database-enforced-access-control.md`
 - `docs/authentication.md`
 - `docs/architecture.md`

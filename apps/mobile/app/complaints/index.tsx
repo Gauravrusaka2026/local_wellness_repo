@@ -101,6 +101,7 @@ export default function ComplaintListScreen() {
     return <ErrorScreen message={auth.state.message} />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
+  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
   if (loadState.status === 'loading') return <LoadingScreen label="Loading your complaints…" />;
   if (loadState.status === 'error') {
     return (

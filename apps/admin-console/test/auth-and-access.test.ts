@@ -129,6 +129,27 @@ test('verifies an administrator email code and records successful OTP verificati
   ]);
 });
 
+test('rejects administrator OTP verification without a session and skips audit', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      verifyOtp: async (request: unknown) => {
+        calls.push(request);
+        return { data: { session: null }, error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(
+    verifyAdminOtp(supabase, 'admin@example.org', '123456', async (...audit) => {
+      calls.push(audit);
+      return true;
+    }),
+    /session was not established/u,
+  );
+  assert.deepEqual(calls, [{ email: 'admin@example.org', token: '123456', type: 'email' }]);
+});
+
 test('exempts only the exact authentication route segment from session protection', () => {
   assert.equal(isPublicAuthRoute('/auth'), true);
   assert.equal(isPublicAuthRoute('/auth/login'), true);

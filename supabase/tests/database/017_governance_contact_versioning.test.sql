@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, governance, extensions;
 
-select plan(26);
+select plan(29);
 
 select has_table('governance', 'contact_channels', 'durable contact channels exist');
 select has_table('governance', 'contact_channel_versions', 'contact value versions exist');
@@ -226,6 +226,19 @@ select is(
   0,
   'source-verified contact values remain staged and invisible'
 );
+select is(
+  governance.resolve_complaint_contact_readiness(
+    null,
+    '1c814ec3-0126-527a-9888-a4a00b70551d',
+    null,
+    null,
+    null,
+    null,
+    null
+  ) ->> 'externalContactStatus',
+  'not_available',
+  'source-verified contacts cannot be treated as complaint-delivery ready'
+);
 select throws_ok(
   $$
     insert into governance.contact_channel_versions (
@@ -308,6 +321,18 @@ select is(
   'info@example.gov.in',
   'the effective manually verified value is projected'
 );
+select ok(
+  governance.resolve_complaint_contact_readiness(
+    null,
+    '1c814ec3-0126-527a-9888-a4a00b70551d',
+    null,
+    null,
+    null,
+    null,
+    null
+  ) @> '{"externalContactStatus":"verified_governing_body_contact","contactScope":"local_body","approvedChannelTypes":["email"],"automaticOutboundDelivery":false}'::jsonb,
+  'a reviewed complaint-intake channel makes only its verified governing body scope contact-ready'
+);
 select throws_ok(
   $$
     update governance.contact_channel_versions
@@ -371,6 +396,19 @@ select is(
   (select count(*)::integer from governance.current_verified_contacts),
   0,
   'superseded values disappear from the current verified projection'
+);
+select is(
+  governance.resolve_complaint_contact_readiness(
+    null,
+    '1c814ec3-0126-527a-9888-a4a00b70551d',
+    null,
+    null,
+    null,
+    null,
+    null
+  ) ->> 'externalContactStatus',
+  'not_available',
+  'superseded complaint-intake contacts immediately stop being delivery-ready'
 );
 select is(
   (

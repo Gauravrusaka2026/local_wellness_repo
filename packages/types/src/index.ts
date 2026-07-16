@@ -96,6 +96,7 @@ export interface ApiErrorResponse {
 }
 
 export interface AuthenticatedUser {
+  assuranceLevel: 'aal1' | 'aal2';
   id: string;
   email: string | null;
   phone: string | null;
@@ -104,6 +105,8 @@ export interface AuthenticatedUser {
 export interface Profile {
   id: string;
   displayName: string | null;
+  avatarObjectPath: string | null;
+  avatarUpdatedAt: string | null;
   phone: string | null;
   email: string | null;
   preferredLanguage: SupportedLanguage;
@@ -115,6 +118,7 @@ export interface Profile {
 
 export interface UpdateProfileInput {
   displayName?: string | undefined;
+  avatarObjectPath?: string | null | undefined;
   preferredLanguage?: SupportedLanguage | undefined;
   onboardingCompleted?: true | undefined;
 }

@@ -3,6 +3,7 @@ import type { AuthenticatedUser } from '@local-wellness/types';
 export interface RequestContext {
   authenticatedUser?: AuthenticatedUser;
   headers: Record<string, string | string[] | undefined>;
+  ip?: string;
   method: string;
   originalUrl?: string;
   requestId?: string;

@@ -1,11 +1,12 @@
-import type { Session } from '@supabase/supabase-js';
 import { ConfigurationError } from '@local-wellness/config';
+import type { Session } from '@supabase/supabase-js';
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -13,16 +14,17 @@ import { Platform } from 'react-native';
 
 import { signOut as signOutFromSupabase } from './auth-service';
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
-import { validateMobileRuntimeEnvironment } from '../config/environment';
+import { getPublicPhoneMfaMode, validateMobileRuntimeEnvironment } from '../config/environment';
+import { resolveSessionAssurance, type AssuredAuthState } from './auth-state';
 import { getSupabaseClient } from './supabase';
 
 type AuthState =
   | Readonly<{ status: 'configuration-error'; message: string }>
   | Readonly<{ status: 'loading' }>
-  | Readonly<{ status: 'signed-in'; session: Session }>
-  | Readonly<{ status: 'signed-out' }>;
+  | AssuredAuthState;
 
 type AuthContextValue = Readonly<{
+  refreshAssurance: () => Promise<void>;
   signOut: () => Promise<void>;
   state: AuthState;
 }>;
@@ -31,6 +33,23 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) => {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
+  const authResolutionId = useRef(0);
+
+  const resolveSession = useCallback(async (session: Session) => {
+    const resolutionId = ++authResolutionId.current;
+    const supabase = getSupabaseClient();
+    const nextState = await resolveSessionAssurance(
+      session,
+      () => supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      async () => {
+        const factors = await supabase.auth.mfa.listFactors();
+        if (factors.error) throw factors.error;
+        return factors.data.phone.length > 0;
+      },
+      getPublicPhoneMfaMode() === 'enforce',
+    );
+    if (authResolutionId.current === resolutionId) setState(nextState);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -40,20 +59,12 @@ export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) =>
       const supabase = getSupabaseClient();
 
       void supabase.auth.getSession().then(({ data, error }) => {
-        if (!isMounted) {
-          return;
-        }
-
-        if (error) {
+        if (!isMounted) return;
+        if (error || data.session === null) {
           setState({ status: 'signed-out' });
           return;
         }
-
-        setState(
-          data.session === null
-            ? { status: 'signed-out' }
-            : { session: data.session, status: 'signed-in' },
-        );
+        void resolveSession(data.session);
       });
 
       const {
@@ -63,7 +74,12 @@ export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) =>
           return;
         }
 
-        setState(session === null ? { status: 'signed-out' } : { session, status: 'signed-in' });
+        if (session === null) {
+          authResolutionId.current += 1;
+          setState({ status: 'signed-out' });
+        } else {
+          void resolveSession(session);
+        }
 
         if (event === 'TOKEN_REFRESHED' && session?.access_token) {
           void recordAuthAuditEventSafely(session.access_token, 'session_refreshed');
@@ -91,7 +107,17 @@ export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) =>
         isMounted = false;
       };
     }
-  }, []);
+  }, [resolveSession]);
+
+  const refreshAssurance = useCallback(async (): Promise<void> => {
+    const { data, error } = await getSupabaseClient().auth.getSession();
+    if (error) throw error;
+    if (data.session === null) {
+      setState({ status: 'signed-out' });
+      return;
+    }
+    await resolveSession(data.session);
+  }, [resolveSession]);
 
   const signOut = useCallback(async (): Promise<void> => {
     await signOutFromSupabase();
@@ -99,10 +125,11 @@ export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) =>
 
   const value = useMemo<AuthContextValue>(
     () => ({
+      refreshAssurance,
       signOut,
       state,
     }),
-    [signOut, state],
+    [refreshAssurance, signOut, state],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

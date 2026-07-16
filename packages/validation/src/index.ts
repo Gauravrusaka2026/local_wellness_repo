@@ -11,6 +11,14 @@ const nonEmptyTrimmedString = (maximumLength: number) =>
 
 export const updateProfileSchema = z
   .object({
+    avatarObjectPath: z
+      .union([
+        z
+          .string()
+          .regex(/^[0-9a-f-]{36}\/avatar\.(?:jpe?g|png|webp)$/u, 'Profile image path is invalid.'),
+        z.null(),
+      ])
+      .optional(),
     displayName: nonEmptyTrimmedString(100).optional(),
     preferredLanguage: z.enum(supportedLanguages).optional(),
     onboardingCompleted: z.literal(true).optional(),

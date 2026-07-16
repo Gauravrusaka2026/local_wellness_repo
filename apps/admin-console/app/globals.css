@@ -208,6 +208,42 @@ button:disabled {
   margin: 1.5rem 0 0;
 }
 
+.mfa-setup {
+  border-top: 1px solid #dfe3ee;
+  padding-top: 1.25rem;
+}
+
+.mfa-qr {
+  align-self: center;
+  background: #ffffff;
+  border: 1px solid #dfe3ee;
+  border-radius: 12px;
+  height: auto;
+  max-width: 100%;
+  padding: 0.75rem;
+}
+
+.mfa-secret {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  color: #172033;
+  display: block;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+  padding: 0.85rem 1rem;
+  user-select: all;
+}
+
+.mfa-footer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.mfa-footer .security-note {
+  margin-bottom: 0;
+}
+
 .admin-shell {
   display: grid;
   gap: 1.5rem;

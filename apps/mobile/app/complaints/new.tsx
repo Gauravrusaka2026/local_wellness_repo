@@ -2,6 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -67,6 +68,7 @@ export default function NewComplaintScreen() {
     return <ErrorScreen message={auth.state.message} title="App configuration required" />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
+  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
   if (capture.state.isBusy && draft === null) return <LoadingScreen label="Loading your draft…" />;
   if (draft === null) {
     return (
@@ -110,6 +112,26 @@ export default function NewComplaintScreen() {
     }
   };
 
+  const confirmDiscardDraft = (): void => {
+    Alert.alert(
+      'Discard this draft?',
+      'This permanently removes the saved report and its pending evidence.',
+      [
+        { style: 'cancel', text: 'Keep editing' },
+        {
+          onPress: () => {
+            void capture
+              .discardDraft()
+              .then(() => router.replace('/home'))
+              .catch(() => undefined);
+          },
+          style: 'destructive',
+          text: 'Discard draft',
+        },
+      ],
+    );
+  };
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -120,7 +142,17 @@ export default function NewComplaintScreen() {
               Step {stepNumber} of {orderedSteps.length}
             </Text>
           </View>
-          <View accessibilityRole="progressbar" style={styles.progressTrack}>
+          <View
+            accessibilityLabel="Complaint progress"
+            accessibilityRole="progressbar"
+            accessibilityValue={{
+              max: orderedSteps.length,
+              min: 1,
+              now: stepNumber,
+              text: `${stepLabels[capture.state.step]}, step ${stepNumber} of ${orderedSteps.length}`,
+            }}
+            style={styles.progressTrack}
+          >
             <View style={[styles.progressFill, { width: progressWidth }]} />
           </View>
         </View>
@@ -389,7 +421,8 @@ export default function NewComplaintScreen() {
               disabled={
                 finalizedEvidenceCount < minimumMediaCount ||
                 finalizedEvidenceCount > maximumMediaCount ||
-                capture.state.upload !== null
+                capture.state.upload !== null ||
+                capture.state.isBusy
               }
               label="Check for similar reports"
               loading={capture.state.isBusy}
@@ -566,13 +599,9 @@ export default function NewComplaintScreen() {
         {capture.state.step !== 'submitted' ? (
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled: capture.state.isBusy }}
             disabled={capture.state.isBusy}
-            onPress={() =>
-              void capture
-                .discardDraft()
-                .then(() => router.replace('/home'))
-                .catch(() => undefined)
-            }
+            onPress={confirmDiscardDraft}
             style={styles.discardButton}
           >
             <Text style={styles.discardText}>Discard this draft</Text>
@@ -588,21 +617,26 @@ const PrimaryAction = ({
   label,
   loading = false,
   onPress,
-}: Readonly<{ disabled?: boolean; label: string; loading?: boolean; onPress: () => void }>) => (
-  <Pressable
-    accessibilityRole="button"
-    accessibilityState={{ disabled }}
-    disabled={disabled}
-    onPress={onPress}
-    style={[styles.primaryButton, disabled && styles.disabledButton]}
-  >
-    {loading ? (
-      <ActivityIndicator color="#ffffff" />
-    ) : (
-      <Text style={styles.primaryButtonText}>{label}</Text>
-    )}
-  </Pressable>
-);
+}: Readonly<{ disabled?: boolean; label: string; loading?: boolean; onPress: () => void }>) => {
+  const isDisabled = disabled || loading;
+
+  return (
+    <Pressable
+      accessibilityLabel={loading ? `${label} in progress` : label}
+      accessibilityRole="button"
+      accessibilityState={{ busy: loading, disabled: isDisabled }}
+      disabled={isDisabled}
+      onPress={onPress}
+      style={[styles.primaryButton, isDisabled && styles.disabledButton]}
+    >
+      {loading ? (
+        <ActivityIndicator accessibilityElementsHidden color="#ffffff" />
+      ) : (
+        <Text style={styles.primaryButtonText}>{label}</Text>
+      )}
+    </Pressable>
+  );
+};
 
 const SecondaryAction = ({ label, onPress }: Readonly<{ label: string; onPress: () => void }>) => (
   <Pressable accessibilityRole="button" onPress={onPress} style={styles.secondaryButton}>

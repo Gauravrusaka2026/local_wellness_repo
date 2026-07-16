@@ -32,18 +32,19 @@ catalog:
   eslint: 10.6.0
   eslint-config-prettier: 10.1.8
   eslint-plugin-react-hooks: 7.1.1
-  expo: 54.0.33
+  expo: 54.0.36
   '@react-native-community/netinfo': 11.4.1
   expo-audio: 1.1.1
   expo-asset: 12.0.13
   expo-camera: 17.0.10
   expo-constants: 18.0.13
-  expo-crypto: 15.0.8
-  expo-file-system: 19.0.21
+  expo-crypto: 15.0.9
+  expo-file-system: 19.0.23
   expo-image-manipulator: 14.0.8
-  expo-linking: 8.0.11
+  expo-image-picker: 17.0.11
+  expo-linking: 8.0.12
   expo-location: 19.0.8
-  expo-router: 6.0.23
+  expo-router: 6.0.24
   expo-secure-store: 15.0.8
   expo-sqlite: 16.0.10
   expo-video-thumbnails: 10.0.8

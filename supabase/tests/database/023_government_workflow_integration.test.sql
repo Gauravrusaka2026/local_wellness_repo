@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, complaints, routing, governance, extensions;
 
-select plan(94);
+select plan(96);
 
 insert into governance.reference_sources (id, title, url, source_type, last_checked_on)
 values (
@@ -621,6 +621,24 @@ select is((select count(*)::integer from public.list_government_complaints(
   'd2000000-0000-4000-8000-000000000002', 25, null, null, null, null,
   null, null, null, null, null, null, null, null
 )), 1, 'operator sees its verified authority queue');
+select is(
+  (select current_assignment -> 'deliveryReadiness' ->> 'governmentQueueStatus'
+   from public.list_government_complaints(
+     'd2000000-0000-4000-8000-000000000002', 25, null, null, null, null,
+     null, null, null, null, null, null, null, null
+   )),
+  'verified_scope',
+  'the complaint is explicitly available in the correctly scoped verified government queue'
+);
+select ok(
+  (select current_assignment -> 'deliveryReadiness'
+    @> '{"externalContactStatus":"not_available","contactScope":null,"approvedChannelTypes":[],"automaticOutboundDelivery":false,"reason":"verified_queue_no_approved_external_contact"}'::jsonb
+   from public.list_government_complaints(
+     'd2000000-0000-4000-8000-000000000002', 25, null, null, null, null,
+     null, null, null, null, null, null, null, null
+   )),
+  'missing approved contacts produce an explicit queue-only safe state rather than false external delivery'
+);
 select is((select count(*)::integer from public.list_government_complaints(
   'd2000000-0000-4000-8000-000000000004', 25, null, null, null, null,
   null, null, null, null, null, null, null, null

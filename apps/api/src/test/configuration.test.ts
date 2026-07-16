@@ -35,4 +35,40 @@ describe('API environment aliases', () => {
     assert.equal(configuration.supabase.anonKey, 'legacy-anon');
     assert.equal(configuration.supabase.serviceRoleKey, 'legacy-service-role');
   });
+
+  it('defaults MFA controls to observe and accepts only explicit enforcement', () => {
+    const defaultConfiguration = loadApiConfiguration({
+      ...baseEnvironment,
+      SUPABASE_PUBLISHABLE_KEY: 'publishable',
+      SUPABASE_SECRET_KEY: 'secret',
+    });
+    const enforcedConfiguration = loadApiConfiguration({
+      ...baseEnvironment,
+      API_CITIZEN_PHONE_MFA_MODE: 'enforce',
+      API_PRIVILEGED_MFA_MODE: 'enforce',
+      SUPABASE_PUBLISHABLE_KEY: 'publishable',
+      SUPABASE_SECRET_KEY: 'secret',
+    });
+
+    assert.equal(defaultConfiguration.citizenPhoneMfaMode, 'observe');
+    assert.equal(defaultConfiguration.privilegedMfaMode, 'observe');
+    assert.equal(enforcedConfiguration.citizenPhoneMfaMode, 'enforce');
+    assert.equal(enforcedConfiguration.privilegedMfaMode, 'enforce');
+    assert.throws(() =>
+      loadApiConfiguration({
+        ...baseEnvironment,
+        API_PRIVILEGED_MFA_MODE: 'disabled',
+        SUPABASE_PUBLISHABLE_KEY: 'publishable',
+        SUPABASE_SECRET_KEY: 'secret',
+      }),
+    );
+    assert.throws(() =>
+      loadApiConfiguration({
+        ...baseEnvironment,
+        API_CITIZEN_PHONE_MFA_MODE: 'disabled',
+        SUPABASE_PUBLISHABLE_KEY: 'publishable',
+        SUPABASE_SECRET_KEY: 'secret',
+      }),
+    );
+  });
 });

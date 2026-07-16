@@ -14,6 +14,8 @@ import {
 } from '../lib/api/profile';
 
 const incompleteProfile = {
+  avatarObjectPath: null,
+  avatarUpdatedAt: null,
   createdAt: '2026-07-14T10:00:00.000Z',
   displayName: null,
   email: 'citizen@example.org',
@@ -86,6 +88,10 @@ test('rejects missing profile data instead of allowing a blank account render', 
   );
   assert.throws(
     () => decodeProfile({ ...incompleteProfile, preferredLanguage: 'unsupported' }),
+    (error: unknown) => error instanceof ApiError && error.code === 'INVALID_RESPONSE',
+  );
+  assert.throws(
+    () => decodeProfile({ ...incompleteProfile, avatarObjectPath: 42 }),
     (error: unknown) => error instanceof ApiError && error.code === 'INVALID_RESPONSE',
   );
 });

@@ -267,7 +267,7 @@ These conventions implement ADR-0011 and do not activate unverified Pune routing
 - Citizen account rendering validates the profile API response and always shows the authenticated
   identity plus an explicit onboarding, provisioning, unavailable, API-error, or complete-profile
   state. It does not fabricate a profile when Auth and the API/database environment are misaligned.
-- The mobile toolchain targets Expo SDK 54.0.33, React Native 0.81.5, React 19.1, and SDK-compatible
+- The mobile toolchain targets Expo SDK 54.0.36, React Native 0.81.5, React 19.1, and SDK-compatible
   native modules so it remains loadable by the current Android Expo Go SDK 54 client. TypeScript
   5.9.3 is the repository compiler compatibility point; future Expo upgrades must run
   `expo install --check`, strict type-checking, and an Android export before acceptance.
@@ -482,10 +482,9 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   central Report action, Nearby, and More. Secondary profile, language, notification,
   transparency, device-help, and sign-out actions live in grouped More sections so existing
   complaint/deep-link paths do not change.
-- Passwordless citizen authentication presents explicit sign-in, create-account, and recovery
-  modes. Only account creation may set `shouldCreateUser`; sign-in and recovery remain
-  existing-user flows with generic anti-enumeration responses. “Forgot password” is expressed as
-  account recovery because the citizen flow stores no password.
+- Citizen authentication presents explicit email/password sign-in, account creation, and password
+  recovery. Requests and error messages remain non-enumerating. Supabase Phone MFA is the phone-
+  verification mechanism and remains in observe mode until provider and recovery gates pass.
 - Category requirements are runtime data. Required attributes, photo/video minimum/maximum counts,
   recommended media kinds, asset selection, and routing readiness travel through shared/API/mobile
   contracts and must not be duplicated in municipality/category UI branches.
@@ -500,7 +499,7 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   verified projection data and renders low-accuracy, unsupported, or ambiguous outcomes instead of
   inventing a local body, ward, officer, or contact.
 
-## 2026-07-16 — Template-Compatible Passwordless Callback Conventions
+## 2026-07-16 — Template-Compatible Privileged and Legacy Callback Conventions
 
 - Email request screens describe both possible provider outcomes: a six-digit token, a secure
   link, or both. Template presentation never changes the database authorization boundary.
@@ -532,3 +531,27 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   officer rankings.
 - No operational SLA target, calendar, override, escalation rule, KPI schedule, or public metric is
   seeded by engineering fixtures.
+
+## 2026-07-16 — Phase 10 Citizen Access and Hardening Conventions
+
+- Citizens use Supabase email/password plus provider-owned recovery. Phone verification is a
+  Supabase Phone MFA factor with a verified factor and `aal2`; the application never stores or
+  verifies homemade OTPs in PostgreSQL, Storage, Edge Functions, logs, or resume state.
+- Citizen and privileged MFA use matching API/client `observe` and `enforce` modes. Enforcement is
+  changed across all participating boundaries only after managed enrollment, delivery, recovery,
+  and representative-device smoke tests pass.
+- Profile originals remain in the owner-private `profile-images-private` bucket. Clients use
+  short-lived signed reads; the public transparency projection excludes avatar metadata and paths.
+- Complaint location accuracy and media-to-current-location distance are capped at 50 m by both
+  application validation and PostgreSQL. The device's foreground capture point is the issue point;
+  a client cannot submit an arbitrary remote location.
+- Locality Feed and Heatmap surfaces consume only reviewed public projections. The heatmap renders
+  provider-neutral aggregate circles and never receives exact complaint coordinates, identity, or
+  private media.
+- V1 API abuse quotas are atomic PostgreSQL fixed-window counters with privacy-safe subject hashes,
+  endpoint-specific limits, bounded cleanup, and `Retry-After`; Redis is not a fallback.
+- Complaint queue routing and external contact delivery are separate states. A verified
+  authority/department/role queue is authoritative; approved officer/body contact readiness is
+  optional metadata, and persistence never implies an email, SMS, or telephone delivery.
+- Expo SDK 54 stays on a compatible current patch release (`54.0.36`) while Expo Go is the demo
+  target. Native-module changes require a Metro restart and installed-build smoke before release.

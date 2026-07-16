@@ -36,9 +36,11 @@ import { GovernanceDirectoryDataAccessError } from '../data/governance-directory
 import { ResolutionEvidenceGatewayError } from '../data/resolution-evidence.gateway.js';
 import {
   DeviceBlockedError,
+  DeviceLimitReachedError,
   DeviceRevokedError,
   IdentityDataAccessError,
 } from '../data/identity.store.js';
+import { RateLimitDataAccessError } from '../data/rate-limit.store.js';
 import {
   RoutingDataAccessError,
   RoutingDecisionIdempotencyConflictError,
@@ -61,6 +63,8 @@ const statusCodeToErrorCode = (status: number): string => {
       return 'CONFLICT';
     case HttpStatus.TOO_MANY_REQUESTS:
       return 'RATE_LIMITED';
+    case HttpStatus.SERVICE_UNAVAILABLE:
+      return 'DEPENDENCY_UNAVAILABLE';
     default:
       return 'INTERNAL_ERROR';
   }
@@ -84,6 +88,8 @@ const safeHttpMessage = (status: number): string => {
       return 'The request conflicts with the current resource state.';
     case HttpStatus.TOO_MANY_REQUESTS:
       return 'Too many requests were received.';
+    case HttpStatus.SERVICE_UNAVAILABLE:
+      return 'A required dependency is temporarily unavailable.';
     default:
       return 'The request could not be completed.';
   }
@@ -147,11 +153,23 @@ export class ApiExceptionFilter implements ExceptionFilter {
         code: 'DEVICE_REVOKED',
         message: 'This device registration has been revoked.',
       };
+    } else if (exception instanceof DeviceLimitReachedError) {
+      status = HttpStatus.CONFLICT;
+      error = {
+        code: 'DEVICE_LIMIT_REACHED',
+        message: 'Revoke an existing device before registering another one.',
+      };
     } else if (exception instanceof IdentityDataAccessError) {
       status = HttpStatus.SERVICE_UNAVAILABLE;
       error = {
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'Identity data is temporarily unavailable.',
+      };
+    } else if (exception instanceof RateLimitDataAccessError) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      error = {
+        code: 'DEPENDENCY_UNAVAILABLE',
+        message: 'Request quota enforcement is temporarily unavailable.',
       };
     } else if (exception instanceof ComplaintNotFoundError) {
       status = HttpStatus.NOT_FOUND;

@@ -7,6 +7,7 @@ import {
 
 import { BearerAuthGuard } from '../auth/bearer-auth.guard.js';
 import { Authenticated } from '../common/authenticated-user.decorator.js';
+import { RateLimit, rateLimitPolicies } from '../common/rate-limit.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { GovernmentInvitationsService } from './government-invitations.service.js';
 
@@ -20,6 +21,7 @@ export class GovernmentInvitationsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RateLimit(rateLimitPolicies.governmentInvitation)
   public createInvitation(
     @Authenticated() user: AuthenticatedUser,
     @Body(new ZodValidationPipe(createGovernmentInvitationSchema))

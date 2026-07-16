@@ -12,8 +12,10 @@ export type PublicSupabaseConfiguration = Readonly<{
 
 export type ApiConfiguration = Readonly<{
   allowedOrigins: readonly string[];
+  citizenPhoneMfaMode: 'enforce' | 'observe';
   governmentInviteRedirectUrl: string;
   port: number;
+  privilegedMfaMode: 'enforce' | 'observe';
   supabase: Readonly<{
     anonKey: string;
     serviceRoleKey: string;
@@ -46,8 +48,10 @@ type PublicSupabaseInput = Readonly<{
 
 type ApiConfigurationInput = Readonly<{
   allowedOrigins: string | undefined;
+  citizenPhoneMfaMode: string | undefined;
   governmentInviteRedirectUrl: string | undefined;
   port: string | undefined;
+  privilegedMfaMode: string | undefined;
   supabaseAnonKey: string | undefined;
   supabaseServiceRoleKey: string | undefined;
   supabaseUrl: string | undefined;
@@ -133,6 +137,16 @@ const parseAllowedOrigins = (value: string | undefined, name: string): readonly 
   return [...new Set(allowedOrigins)];
 };
 
+const parseMfaMode = (value: string | undefined, name: string): 'enforce' | 'observe' => {
+  const normalizedValue = value?.trim() || 'observe';
+
+  if (normalizedValue !== 'observe' && normalizedValue !== 'enforce') {
+    throw new ConfigurationError(`${name} must be either observe or enforce.`);
+  }
+
+  return normalizedValue;
+};
+
 export const parsePublicHttpUrl = (value: string | undefined, name = 'Public API URL'): string =>
   requireHttpUrl(value, name);
 
@@ -153,11 +167,13 @@ export const parseApiConfiguration = (input: ApiConfigurationInput): ApiConfigur
 
   return {
     allowedOrigins: parseAllowedOrigins(input.allowedOrigins, 'API allowed origin'),
+    citizenPhoneMfaMode: parseMfaMode(input.citizenPhoneMfaMode, 'API citizen phone MFA mode'),
     governmentInviteRedirectUrl: requireHttpUrl(
       input.governmentInviteRedirectUrl,
       'Government invitation redirect URL',
     ),
     port,
+    privilegedMfaMode: parseMfaMode(input.privilegedMfaMode, 'API privileged MFA mode'),
     supabase: {
       ...parsePublicSupabaseConfiguration({
         anonKey: input.supabaseAnonKey,

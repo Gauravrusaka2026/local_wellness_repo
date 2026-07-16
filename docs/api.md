@@ -28,6 +28,15 @@ application/json
 Authorization: Bearer <supabase_jwt>
 ```
 
+Citizen web and mobile obtain that bearer session through Supabase email/password sign-up,
+sign-in, and provider-managed password recovery. Phone verification is a Supabase Phone MFA factor,
+not an application OTP endpoint. `API_CITIZEN_PHONE_MFA_MODE=observe` logs missing verified-phone
+`aal2` assurance while preserving access during provider rollout; `enforce` rejects it with
+`PHONE_MFA_REQUIRED`. Government or privileged users are evaluated separately through
+`API_PRIVILEGED_MFA_MODE` and receive `MFA_REQUIRED` when enforcement is enabled. Both modes default
+to the documented safe rollout setting and must be coordinated with the client and Supabase Auth
+configuration.
+
 ### Request ID
 
 Clients may send:
@@ -106,6 +115,7 @@ Representative current and later-phase contract codes:
 - `ACCOUNT_UNAVAILABLE`
 - `VALIDATION_ERROR`
 - `PROFILE_NOT_FOUND`
+- `PROFILE_IMAGE_PATH_INVALID`
 - `DEVICE_NOT_FOUND`
 - `DEVICE_BLOCKED`
 - `DEVICE_REVOKED`
@@ -157,6 +167,8 @@ Representative current and later-phase contract codes:
 - `MESSAGE_IDEMPOTENCY_CONFLICT`
 - `MESSAGE_READ_POSITION_INVALID`
 - `NOTIFICATION_NOT_FOUND`
+- `MFA_REQUIRED`
+- `PHONE_MFA_REQUIRED`
 - `RATE_LIMITED`
 - `INTERNAL_ERROR`
 
@@ -190,6 +202,18 @@ Response:
 ---
 
 ## Implemented Endpoints
+
+The unversioned operational endpoints are intentionally outside the `/api/v1` application prefix:
+
+```text
+GET /health/live
+GET /health/ready
+```
+
+Liveness proves that the API process can serve a request and does not query dependencies. Readiness
+uses a short-cached, service-only database probe for the citizen role and five required private
+Storage buckets; incomplete evidence returns `503 DEPENDENCY_UNAVAILABLE`. Both responses are
+`Cache-Control: no-store` and disclose no schema, bucket, credential, or failure detail.
 
 Phase 1 implements the following identity endpoints:
 
@@ -320,7 +344,17 @@ DELETE /api/v1/me/devices/:deviceId
 GET    /api/v1/me/access
 ```
 
-`PATCH /me` accepts only display name, preferred language and onboarding completion. Device registration accepts an installation digest over authenticated TLS, hashes it again before persistence, and never returns the identifier hash or push token. Registration and soft revocation commit their device mutation and audit event atomically; direct authenticated table mutation is denied. Repeating an owned revocation is idempotent and does not duplicate its audit event, while a revoked identifier cannot silently re-register.
+`PATCH /me` accepts only display name, preferred language, onboarding completion, and the nullable
+owner-private `avatarObjectPath`. The path must use the authenticated user UUID and the single
+bounded avatar filename accepted by the database. `GET /me` returns that path plus the
+server-maintained `avatarUpdatedAt` cache version, but neither field is a public URL. Citizen web
+and mobile use the owner-only `profile-images-private` Storage policies and a short-lived signed URL
+for display; profile images never enter anonymous transparency responses. Device registration
+accepts an installation digest over authenticated TLS, hashes it again before persistence, and
+never returns the identifier hash or push token. Registration and soft revocation commit their
+device mutation and audit event atomically; direct authenticated table mutation is denied.
+Repeating an owned revocation is idempotent and does not duplicate its audit event, while a revoked
+identifier cannot silently re-register. At most ten active device records may exist for one user.
 
 The citizen-web account page validates the `/me` payload before rendering and shows explicit
 signed-in, onboarding, profile-unavailable, and API-unavailable states. Authentication alone does
@@ -581,6 +615,13 @@ officer, status, visibility, storage path, and routing fields—fail strict vali
 database revision checks; terminal, expired, missing, cross-owner, and conflicting drafts fail
 closed. `DELETE` records a retained discard transition and is replay-safe.
 
+V1 complaint location evidence must report device accuracy of 50 metres or better. The API returns
+`LOCATION_LOW_ACCURACY` before persistence when that bound is exceeded, and PostgreSQL enforces the
+same category-capped rule. Any recorded media-capture point must also be no more than the
+database category's configured distance from the draft's selected issue point; every V1 category
+is constrained to a maximum of 50 metres. A mismatch fails closed and cannot be bypassed with a
+client-selected ward, authority, or route.
+
 The duplicate-check route requires a draft with a category and selected location. PostgreSQL loads
 capped candidates using exactly one current verified policy and PostGIS distance; the pure routing
 package scores them and the database records the run. A suggestion contains only the complaint ID/
@@ -816,6 +857,12 @@ when no current reviewed projection exists; it never falls back to private sourc
 are non-cacheable initially so an audited withdrawal takes effect without an application-cache
 invalidation dependency.
 
+The mobile locality Feed consumes the reviewed complaint list, and its provider-neutral Heatmap
+consumes only the minimum-cohort hotspot aggregates. Neither mobile view queries the private
+complaint tables, reconstructs exact locations, or requires a third-party map-tile provider. An
+empty or unavailable reviewed projection remains an explicit empty/unavailable state rather than a
+fallback to private reports.
+
 When a current reviewed duplicate group exists, detail adds only:
 
 ```json
@@ -870,6 +917,16 @@ references, external dependencies, and resolution-evidence metadata. It also ret
 options contain only current verified, non-placeholder, routable officer assignments inside the
 complaint authority and indicate whether each can be used for assign and/or transfer. A missing,
 inactive, or cross-scope complaint is not disclosed.
+
+An assignment summary may include `deliveryReadiness`. `governmentQueueStatus = verified_scope`
+means the persisted complaint assignment is available to the correctly scoped government queue;
+it does not require a named incumbent. `externalContactStatus` separately reports
+`verified_officer_contact`, `verified_governing_body_contact`, or `not_available`, with only the
+approved channel types and owner scope. A contact qualifies only when its current version is
+public-official, manually verified, intended for complaint intake, and explicitly delivery
+approved. No phone number or email value is returned. `automaticOutboundDelivery` is always
+`false`; queue routing does not claim that email, SMS, or a municipal portal submission was sent.
+Placeholder or unverified data can satisfy neither readiness boundary.
 
 Each evidence item includes `availableForResolution`. It is true only for finalized evidence from
 the complaint's current assignment that is not already linked to a resolution. Evidence from a
@@ -1111,8 +1168,7 @@ room name: typed complaint/authority/ward/department targets are resolved throug
 authorization RPC. Queued per-user delivery rechecks active account and complaint access before
 emission, so a revoked scope does not receive stale payloads. Worker and realtime completion/failure
 RPCs require a matching, unexpired PostgreSQL lease token. Those tokens and the service credential
-are never returned or logged. Per-socket rate limits supplement—but do not replace—the broader HTTP
-rate-limit work tracked for launch.
+are never returned or logged. Per-socket limits supplement the separate shared HTTP quota boundary.
 
 Phase 8 anonymous transparency routes decode allowlisted public projection DTOs and never fall back
 to private complaint queries. Duplicate relationships appear only after service-role review of
@@ -1125,7 +1181,16 @@ trigger escalation, enqueue a KPI run, or rank an officer. Worker logs omit comp
 policy review notes, contacts, source evidence, and lease tokens. Atomic escalation persistence
 ensures a notification cannot represent an uncommitted status/escalation change.
 
-The following list is the V1 security target across all later endpoint groups. Endpoint rate limits and quotas remain tracked in `AUTH-004` rather than being claimed as a Phase 1 control.
+Phase 10 applies shared PostgreSQL-backed fixed-window quotas to every authenticated mutation and
+tighter named policies to complaint submission, media mutations, private messages, device
+mutations, government invitations, and authentication-audit writes. Anonymous transparency reads
+use a separate client-address quota. The API hashes the subject before database access and stores
+no raw user ID or address in the quota table. Responses include `RateLimit-Limit`,
+`RateLimit-Remaining`, and `RateLimit-Reset`; exhausted windows return `429 RATE_LIMITED` plus
+`Retry-After`. Counter cleanup is a bounded service-only database operation. These application
+quotas complement, rather than replace, provider-edge abuse controls and Supabase Auth limits.
+
+The following list is the V1 security baseline across endpoint groups.
 
 - verify Supabase JWT;
 - reject disabled or suspended application profiles;

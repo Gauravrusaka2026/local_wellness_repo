@@ -29,6 +29,7 @@ const identifiers = {
   districtBoundary: '30000000-0000-4000-8000-000000000003',
   localBody: '40000000-0000-4000-8000-000000000001',
   localBodyBoundary: '40000000-0000-4000-8000-000000000002',
+  officerAssignment: '50000000-0000-4000-8000-000000000002',
   officerRole: '50000000-0000-4000-8000-000000000001',
   rule: '60000000-0000-4000-8000-000000000001',
   ruleVersion: '60000000-0000-4000-8000-000000000002',
@@ -122,6 +123,7 @@ interface CandidateOptions {
   ruleId?: string;
   ruleVersionId?: string;
   departmentId?: string;
+  officerAssignmentId?: string | null;
   wardId?: string | null;
   assetSpecific?: boolean;
   fallbackDepth?: number;
@@ -136,6 +138,7 @@ const makeCandidate = (options: CandidateOptions = {}): RoutingCandidate => {
   const departmentId = options.departmentId ?? identifiers.department;
   const wardId = options.wardId === undefined ? identifiers.ward : options.wardId;
   const assetSpecific = options.assetSpecific ?? false;
+  const officerAssignmentId = options.officerAssignmentId ?? null;
   const target: RoutingTarget = {
     authorityId: identifiers.authority,
     localBodyId: identifiers.localBody,
@@ -143,7 +146,7 @@ const makeCandidate = (options: CandidateOptions = {}): RoutingCandidate => {
     departmentId,
     authorityDepartmentId: identifiers.authorityDepartment,
     officerRoleId: identifiers.officerRole,
-    officerAssignmentId: null,
+    officerAssignmentId,
     assetTypeId: assetSpecific ? identifiers.assetType : null,
     assetId: assetSpecific ? identifiers.asset : null,
     assetVersionId: assetSpecific ? identifiers.assetVersion : null,
@@ -157,6 +160,9 @@ const makeCandidate = (options: CandidateOptions = {}): RoutingCandidate => {
     verifiedEvidence('department', target.departmentId),
     verifiedEvidence('authority_department', target.authorityDepartmentId),
     verifiedEvidence('officer_role', target.officerRoleId),
+    ...(officerAssignmentId === null
+      ? []
+      : [verifiedEvidence('officer_assignment', officerAssignmentId, officerAssignmentId)]),
     verifiedEvidence('routing_rule', ruleId, ruleVersionId),
     ...(wardId === null ? [] : [verifiedEvidence('ward', wardId)]),
     ...(assetSpecific
@@ -200,6 +206,50 @@ describe('routing candidate evaluation', () => {
     assert.equal(decision.explanation.policyId, policy.id);
     assert.equal(decision.explanation.policyVersionId, policy.versionId);
     assert.equal(decision.explanation.fallbackUsed, false);
+  });
+
+  it('preserves the exact verified authority, department, role, and current assignment target', () => {
+    const decision = evaluateRoutingCandidates(
+      input,
+      jurisdiction,
+      [makeCandidate({ officerAssignmentId: identifiers.officerAssignment })],
+      policy,
+    );
+
+    assert.equal(decision.status, 'routed');
+    assert.equal(decision.target?.authorityId, identifiers.authority);
+    assert.equal(decision.target?.localBodyId, identifiers.localBody);
+    assert.equal(decision.target?.departmentId, identifiers.department);
+    assert.equal(decision.target?.authorityDepartmentId, identifiers.authorityDepartment);
+    assert.equal(decision.target?.officerRoleId, identifiers.officerRole);
+    assert.equal(decision.target?.officerAssignmentId, identifiers.officerAssignment);
+    assert.equal(decision.explanation.reason, 'route_resolved');
+    assert.equal(decision.explanation.selectedRoutingRuleId, identifiers.rule);
+  });
+
+  it('never routes a placeholder current officer assignment', () => {
+    const candidate = makeCandidate({ officerAssignmentId: identifiers.officerAssignment });
+    candidate.evidence = candidate.evidence.map((evidence) =>
+      evidence.entityType === 'officer_assignment'
+        ? {
+            ...evidence,
+            verificationStatus: 'placeholder',
+            isPlaceholder: true,
+            isRoutingEligible: false,
+          }
+        : evidence,
+    );
+
+    const decision = evaluateRoutingCandidates(input, jurisdiction, [candidate], policy);
+
+    assert.equal(decision.status, 'mapping_required');
+    assert.equal(decision.target, null);
+    assert.equal(
+      decision.explanation.candidateEvaluations[0]?.rejectionReasons.some((reason) =>
+        reason.startsWith('placeholder_entity:officer_assignment:'),
+      ),
+      true,
+    );
   });
 
   it('never routes a placeholder entity even when every confidence signal matches', () => {

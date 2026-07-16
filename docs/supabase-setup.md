@@ -86,8 +86,9 @@ create extension if not exists unaccent;
 
 Enable:
 
-- phone authentication;
-- email OTP for citizen clients;
+- email/password for citizen clients;
+- Advanced Phone MFA enrollment and verification for staged citizen verification;
+- TOTP MFA for government and platform-administrator assurance;
 - reviewed invitation/PKCE flows for government users.
 
 Google and Apple providers are deferred until an approved product phase requests them.
@@ -99,6 +100,7 @@ Configure:
 - staging redirect URLs;
 - production redirect URLs;
 - mobile deep links;
+- password-recovery redirects;
 - OTP expiry;
 - rate limits;
 - email templates;
@@ -114,12 +116,12 @@ Use a final scheme after naming is finalized.
 
 The local redirect allow-list includes the citizen web, government dashboard, admin console and mobile callback routes. Each managed environment must replace these with its exact deployed HTTPS origins while retaining only required development URLs in non-production projects.
 
-The committed local confirmation and magic-link templates contain `{{ .Token }}` for deterministic
-code-entry tests. Managed Supabase templates may contain `{{ .Token }}`, `{{ .ConfirmationURL }}`,
-or both: web and mobile clients retain code verification and support provider-default PKCE links.
-Template editing is therefore optional, but exact callback allow-list entries are required. Verify
-the actual hosted email, expiry/rate limits, session cookie, and authenticated landing page before
-enabling users. Local template files do not update a hosted project automatically.
+Citizen account creation/sign-in uses email/password, and password recovery uses the managed
+recovery email plus an exact allow-listed callback. Turn **Confirm Email** off only when verified
+phone MFA is intentionally the account-verification step; otherwise signup may return no usable
+session until email is confirmed. Government/admin code and provider-default link templates remain
+supported. Template editing is optional, but redirect configuration and delivered-flow testing are
+not. Local template files do not update a hosted project automatically.
 
 The authenticated citizen account page reads the application profile through the NestJS
 `GET /api/v1/me` endpoint; it does not read a fabricated profile from Auth metadata. Configure
@@ -148,9 +150,11 @@ government users.
 
 ---
 
-## 6. Configure Phone OTP
+## 6. Configure Citizen Phone MFA
 
-Select an SMS provider supported by your deployment plan.
+Enable Advanced Phone MFA enrollment and verification, then select a supported SMS provider or a
+reviewed Send SMS Hook backed by a real carrier. Supabase Storage and Edge Functions do not deliver
+SMS by themselves and must not be used as a custom OTP credential store.
 
 Before production:
 
@@ -163,6 +167,10 @@ Before production:
 - test invalid OTP;
 - monitor cost.
 
+Keep `API_CITIZEN_PHONE_MFA_MODE`, `NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE`, and
+`EXPO_PUBLIC_PHONE_MFA_MODE` at `observe` until these checks and a recovery test pass. Then switch
+all three to `enforce` together and rebuild/restart the clients and API.
+
 Do not rely on Supabase test OTP settings in production.
 
 The committed local configuration reserves one development-only phone/OTP mapping for repeatable tests. Supabase CLI Auth still disables phone sign-in unless an SMS provider is configured, so the phone E2E case is skipped by default and runs only when a real local provider is available and `LOCAL_SUPABASE_SMS_ENABLED=true`. Never copy the reserved mapping into a hosted environment.
@@ -171,13 +179,14 @@ The committed local configuration reserves one development-only phone/OTP mappin
 
 ## 7. Configure Storage Buckets
 
-Phase 4 migrations create and maintain these private buckets:
+Phase 4, Phase 5, and Phase 10 migrations create and maintain these private buckets:
 
 ```text
 complaint-originals-private
 complaint-thumbnails
 resolution-evidence-private
 voice-recordings-private
+profile-images-private
 ```
 
 The complaint API reserves owner/draft/media-scoped object paths and returns transient signed
@@ -185,14 +194,14 @@ upload tokens for originals or voice recordings. It inspects the stored object a
 type, byte size, and SHA-256 before finalization. `complaint-thumbnails` is reserved for a later
 processor. Phase 5 uses `resolution-evidence-private` for server-reserved government completion
 evidence, with signed upload, server integrity verification, and scope-authorized short-lived signed
-read access. All four buckets remain private; no direct anonymous/authenticated object policy is
-added.
+read access. Complaint-evidence buckets have no broad client policy. `profile-images-private` is a
+separate owner-private surface limited to a 5 MiB JPEG/PNG/WebP object at the exact Auth-user avatar
+path; owner CRUD uses Storage RLS and display uses a short-lived signed URL.
 
 These buckets are later-phase plans and are not created by Phase 4:
 
 ```text
 complaint-public-media
-profile-images
 government-documents-private
 ```
 
@@ -558,15 +567,19 @@ SUPABASE_DB_URL=
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_PHONE_MFA_MODE=observe
 
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_REALTIME_URL=http://localhost:3002
+NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE=observe
 
 GOVERNMENT_INVITE_REDIRECT_URL=
 API_ALLOWED_ORIGINS=
+API_PRIVILEGED_MFA_MODE=observe
+API_CITIZEN_PHONE_MFA_MODE=observe
 GOVERNANCE_SYNC_DISPATCH_SECRET=
 
 EXPO_PUBLIC_API_URL=
@@ -619,8 +632,9 @@ Phase 1 local verification is complete:
 - repository-pinned CLI and committed local configuration validated;
 - identity migrations reset successfully;
 - migration, RLS and generated-type checks pass locally and are enforced by CI;
-- local six-digit code-only citizen email OTP and delivered government-invite flows pass;
-- phone request/verification has unit coverage and remains provider-gated for E2E.
+- citizen email/password, recovery, and staged Phone MFA client tests pass;
+- privileged TOTP/AAL and citizen verified-phone/AAL API policy tests pass;
+- real phone delivery remains provider-gated for E2E.
 
 Phase 2 local verification is complete for the available baseline:
 
@@ -733,6 +747,26 @@ active calendar, policy target, category override, or escalation rule is seeded.
 applied all 34 migrations and passed all 1,275 assertions across 32 pgTAP plans; generated types and
 the deterministic master SQL also passed drift checks.
 
+Phase 10 adds six migrations through
+`20260716117000_phase_10_routing_delivery_readiness.sql`. They add PostgreSQL-backed API quotas and
+readiness probes, privileged and citizen MFA verification helpers, the owner-private profile-image
+bucket/metadata, 50 m complaint/media proximity constraints, and routing delivery-readiness
+metadata. The current clean-bootstrap artifact contains 40 ordered migrations. Apply these as
+incremental migrations to an existing project; never apply `supabase/master.sql` as an upgrade.
+
+Before managed Phase 10 activation:
+
+- keep citizen and privileged MFA modes at `observe` while enrollment, recovery, and AAL behavior
+  are tested; enable all matching API/client enforcement values together only afterward;
+- enable Advanced Phone MFA and configure an approved SMS provider or reviewed Send SMS Hook;
+  complete India TRAI/DLT requirements, provider/project limits, CAPTCHA, and real-device tests;
+- verify `profile-images-private` remains private, owner Storage policies work, and signed reads do
+  not leak into transparency responses;
+- verify `/health/live` and `/health/ready`, quota concurrency/`Retry-After`, secret scanning, and
+  release smoke without logging secrets, OTPs, object paths, or exact locations;
+- load only reviewed official pilot geometry, routes, authority memberships, assignments, and
+  complaint-intake contacts. Queue routing does not imply automatic email/SMS/contact delivery.
+
 ### Previous dedicated staging deployment — historical record, 2026-07-14
 
 The connected managed project is owner-confirmed as staging, and its privileged/database
@@ -757,7 +791,7 @@ explicitly applied to staging.
 The owner subsequently replaced the configured staging project and reports applying a generated
 master SQL file to it. That report does not identify the artifact revision and the database ledger
 was not reachable for independent verification in this session. Treat the current target as
-unreconciled: compare `supabase_migrations.schema_migrations` with all 34 current migration files,
+unreconciled: compare `supabase_migrations.schema_migrations` with all 40 current migration files,
 verify schema objects and RLS, and establish the seed/Auth/profile/role state before enabling any
 application, worker, Edge Function, schedule, routing, transparency, SLA, or KPI capability.
 
@@ -771,8 +805,11 @@ Before managed identity activation, operators must:
 - create separate development, staging and production projects;
 - link only the intended non-production project from developer environments;
 - enable required extensions through reviewed migrations;
-- configure Auth providers and exact redirect allow-lists; custom code-only OTP and token-hash
-  invite templates are optional because the clients also support the managed defaults;
+- enable citizen email/password and decide whether email confirmation or phone MFA is the signup-
+  verification step;
+- configure exact password-recovery/invite redirect allow-lists; custom government/admin code-only
+  and token-hash invite templates remain optional;
+- enable TOTP plus Advanced Phone MFA, then configure a real SMS provider before enforcement;
 - configure SMS/email delivery, provider rate limits and abuse controls;
 - select secret storage and restrict production credentials;
 - configure environment-specific CI/deployment secrets;
@@ -873,7 +910,7 @@ Before managed Phase 7 activation, operators must also:
 Before enabling the mobile verified-governance directory, operators must also:
 
 - apply `20260716104000_verified_governing_body_projection.sql` through the incremental migration
-  workflow and regenerate/check the committed database types; the 34-migration master SQL is only
+  workflow and regenerate/check the committed database types; the 40-migration master SQL is only
   for a clean database and must not be applied over staging history;
 - repeat plan `028_verified_governing_body_projection.test.sql` and application-schema database
   lint in managed development, then verify `anon`/`authenticated` cannot execute the RPC while the

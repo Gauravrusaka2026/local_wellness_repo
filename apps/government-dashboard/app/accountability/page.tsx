@@ -15,7 +15,7 @@ import {
   type ParsedKpiSearch,
 } from '../../lib/accountability/query';
 import { createServerSupabaseClient } from '../../lib/supabase/server';
-import { KpiAuthorityRequired, KpiDashboard } from './kpi-view';
+import { AccountabilityUnavailableMessage, KpiAuthorityRequired, KpiDashboard } from './kpi-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,11 +110,11 @@ export default async function AccountabilityPage({ searchParams }: PagePropertie
           <h1>
             {loaded.status === 'no-scope' ? 'No active government scope' : 'KPIs unavailable'}
           </h1>
-          <p className={loaded.status === 'error' ? 'error-notice' : undefined} role="alert">
-            {loaded.status === 'no-scope'
-              ? 'An active government role is required to view organizational snapshots.'
-              : loaded.message}
-          </p>
+          {loaded.status === 'error' ? (
+            <AccountabilityUnavailableMessage message={loaded.message} status="error" />
+          ) : (
+            <AccountabilityUnavailableMessage status="no-scope" />
+          )}
           <div className="button-row">
             <a className="primary-link" href="/">
               Return to complaint queue

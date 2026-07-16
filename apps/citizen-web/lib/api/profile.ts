@@ -22,6 +22,8 @@ export const decodeProfile = (value: unknown): Profile => {
     !isRecord(value) ||
     typeof value['id'] !== 'string' ||
     !isNullableString(value['displayName']) ||
+    !isNullableString(value['avatarObjectPath']) ||
+    !isNullableString(value['avatarUpdatedAt']) ||
     !isNullableString(value['phone']) ||
     !isNullableString(value['email']) ||
     !supportedLanguages.includes(value['preferredLanguage'] as SupportedLanguage) ||
@@ -60,5 +62,15 @@ export const saveProfile = (
       ...input,
       onboardingCompleted: true,
     },
+    method: 'PATCH',
+  }).then(decodeProfile);
+
+export const saveProfileAvatar = (
+  accessToken: string,
+  avatarObjectPath: string | null,
+): Promise<Profile> =>
+  apiRequest<unknown>('/api/v1/me', {
+    accessToken,
+    body: { avatarObjectPath },
     method: 'PATCH',
   }).then(decodeProfile);

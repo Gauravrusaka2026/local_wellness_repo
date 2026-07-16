@@ -1,5 +1,6 @@
 declare namespace NodeJS {
   interface ProcessEnv {
+    readonly NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE?: 'enforce' | 'observe';
     readonly NEXT_PUBLIC_API_URL?: string;
     readonly NEXT_PUBLIC_SUPABASE_ANON_KEY?: string;
     readonly NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;

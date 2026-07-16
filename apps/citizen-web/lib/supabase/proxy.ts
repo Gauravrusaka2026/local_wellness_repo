@@ -2,7 +2,9 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
-import { getPublicSupabaseConfiguration } from '../environment';
+import { buildCitizenPhoneMfaPath, getCitizenPhoneMfaState } from '../auth/phone-mfa';
+import { getSafeReturnPath } from '../auth/return-path';
+import { getCitizenPhoneMfaMode, getPublicSupabaseConfiguration } from '../environment';
 
 const copySessionCookies = (source: NextResponse, destination: NextResponse): void => {
   source.cookies.getAll().forEach((cookie) => {
@@ -25,6 +27,7 @@ export const updateSession = async (
   let response = NextResponse.next({ request });
   let sessionWasRefreshed = false;
   const configuration = getPublicSupabaseConfiguration();
+  const phoneMfaIsEnforced = getCitizenPhoneMfaMode() === 'enforce';
   const supabase = createServerClient(configuration.url, configuration.anonKey, {
     cookies: {
       getAll() {
@@ -48,23 +51,65 @@ export const updateSession = async (
 
   // Keep this immediately after client creation so refresh cookies stay synchronized.
   const { data, error } = await supabase.auth.getClaims();
+  const hasSession = !error && Boolean(data?.claims);
+  const isLoginRoute = request.nextUrl.pathname === '/auth/login';
+  const isPhoneVerificationRoute = request.nextUrl.pathname === '/auth/verify-phone';
+  const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const safeRequestedPath = getSafeReturnPath(requestedPath, '/account');
+  const safeAuthReturnPath = getSafeReturnPath(
+    request.nextUrl.searchParams.get('next'),
+    '/account',
+  );
 
-  if (!error && data?.claims && sessionWasRefreshed) {
+  const redirectWithSessionCookies = (path: string): NextResponse => {
+    const redirectResponse = NextResponse.redirect(new URL(path, request.url));
+    copySessionCookies(response, redirectResponse);
+    return redirectResponse;
+  };
+
+  if (hasSession && sessionWasRefreshed) {
     const { data: sessionData } = await supabase.auth.getSession();
     if (sessionData.session?.access_token) {
       await recordAuthAuditEventSafely(sessionData.session.access_token, 'session_refreshed');
     }
   }
 
-  if (isProtectedRoute && (error || !data?.claims)) {
-    const redirectUrl = request.nextUrl.clone();
-    const returnPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-    redirectUrl.pathname = '/auth/login';
-    redirectUrl.search = '';
-    redirectUrl.searchParams.set('next', returnPath);
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-    copySessionCookies(response, redirectResponse);
-    return redirectResponse;
+  if (!hasSession && (isProtectedRoute || isPhoneVerificationRoute)) {
+    const parameters = new URLSearchParams({
+      next: isPhoneVerificationRoute ? safeAuthReturnPath : safeRequestedPath,
+    });
+    return redirectWithSessionCookies(`/auth/login?${parameters.toString()}`);
+  }
+
+  if (hasSession && isLoginRoute && !phoneMfaIsEnforced) {
+    return redirectWithSessionCookies(safeAuthReturnPath);
+  }
+
+  if (
+    hasSession &&
+    phoneMfaIsEnforced &&
+    (isProtectedRoute || isLoginRoute || isPhoneVerificationRoute)
+  ) {
+    let phoneMfaIsVerified = false;
+    try {
+      phoneMfaIsVerified = (await getCitizenPhoneMfaState(supabase)).status === 'verified';
+    } catch {
+      // The verification page renders a recoverable provider error. Protected routes fail closed.
+    }
+
+    if (isPhoneVerificationRoute) {
+      return phoneMfaIsVerified ? redirectWithSessionCookies(safeAuthReturnPath) : response;
+    }
+
+    if (isLoginRoute) {
+      return redirectWithSessionCookies(
+        phoneMfaIsVerified ? safeAuthReturnPath : buildCitizenPhoneMfaPath(safeAuthReturnPath),
+      );
+    }
+
+    if (!phoneMfaIsVerified) {
+      return redirectWithSessionCookies(buildCitizenPhoneMfaPath(safeRequestedPath));
+    }
   }
 
   return response;

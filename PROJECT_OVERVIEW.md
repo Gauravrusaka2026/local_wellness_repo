@@ -92,12 +92,18 @@ View non-sensitive public complaints, maps, locality trends and aggregate perfor
 
 ### Authentication
 
-- phone OTP;
-- email OTP or magic link;
-- profile;
+- email/password account creation and sign-in;
+- password recovery;
+- staged phone OTP verification through a verified Supabase Phone MFA factor;
+- profile and owner-private profile image;
 - language preference;
 - device registration;
 - secure session management.
+
+Citizen phone verification remains in observe mode until a real SMS provider, recovery path,
+abuse controls, and representative-device validation are operational. Government and platform
+administrators retain invitation-controlled entry and require TOTP/AAL2 when privileged MFA is
+enforced.
 
 ### Complaint capture
 
@@ -147,7 +153,8 @@ View non-sensitive public complaints, maps, locality trends and aggregate perfor
 - status filters;
 - ward view;
 - clustering;
-- locality feed.
+- Reddit-like reviewed locality feed;
+- privacy-preserving reviewed hotspot heatmap.
 
 ## V1 government features
 

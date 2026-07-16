@@ -77,8 +77,9 @@ The authenticated Expo shell exposes five stable destinations: Home, Complaints,
 action, Nearby, and More. Home aggregates the owner's complaint history and provides honest empty,
 loading, refresh, and API-error states; Complaints adds filter, pagination, detail, and timeline
 navigation; More groups profile, language, notification, transparency, device-help, and sign-out
-actions. Authentication has explicit passwordless sign-in, create-account, and recovery modes so
-an existing-user flow cannot silently register a new account.
+actions. Authentication has explicit email/password sign-in, create-account, and password-recovery
+modes plus staged Phone MFA. Observe mode keeps access usable before SMS activation; enforce mode
+requires a verified phone factor and `aal2` at both client and API boundaries.
 
 Phase 4 implements resumable drafts, current-location evidence through Expo Location, live
 photo/video/voice capture through Expo Camera and Audio, private upload, duplicate review,
@@ -87,7 +88,8 @@ database-driven end to end; they are not duplicated as municipality/category con
 client. Asset-dependent categories use an authenticated database-driven nearby-asset picker and
 remain unavailable unless the category, jurisdiction, asset/version, ownership, and owner scope are
 current, verified, non-placeholder, and routable. The client advances only when server-derived
-location evidence is `verified` or `partially_verified`.
+location evidence is `verified` or `partially_verified`. V1 requires at most 50 metre accuracy and
+keeps captured media within 50 metres of the selected issue point in both client and PostgreSQL.
 
 Phase 6 adds durable in-app notification history/read state and private complaint messages. Its
 optional Socket.IO connection refreshes REST-backed state and does not replace durable history.
@@ -95,7 +97,8 @@ OS-level push is deliberately not installed until an Expo/EAS project, FCM/APNs 
 consent/preferences, destination verification, and delivery policy are approved. Phase 7 adds
 private before/after resolution review, policy-driven outcome ratings and confirmation, and
 policy-controlled reopening with live additional evidence. Phase 8 adds provider-neutral public
-transparency views. Phase 9 adds private policy-derived SLA clocks, overdue escalation, and
+transparency views; mobile presents reviewed ongoing reports as a locality-first Feed and aggregate
+hotspots as a tile-provider-free Heatmap. Phase 9 adds private policy-derived SLA clocks, overdue escalation, and
 persisted organizational KPI snapshots; background governance normalization and a third-party
 native basemap remain deferred.
 
@@ -113,7 +116,11 @@ The current account slice treats Supabase Auth and the application profile as se
 The SSR callback establishes the session; the page then loads the validated profile through the
 NestJS API. It renders explicit onboarding, missing-profile, and API-unavailable states rather than
 showing a blank account or trusting Auth metadata as application state. Web, API, and Auth must use
-the same Supabase environment.
+the same Supabase environment. Citizen access uses email/password sign-up and sign-in plus
+provider-managed password recovery. Phone verification is staged through Supabase Phone MFA with
+the same observe/enforce policy used by the API, so the web app does not create or store OTPs.
+Profile images use an owner-private Storage bucket, API-owned metadata, and short-lived signed
+display URLs; they never enter public transparency projections.
 
 ### Government Dashboard
 
@@ -155,6 +162,12 @@ only database-materialized clocks, pauses, deadlines, and escalation evidence; t
 latest completed municipality/ward/department KPI snapshots at their explicit source cutoff. Both
 re-authorize the selected government scope. Missing/ambiguous policy is an explicit unavailable
 state, and no view ranks an individual officer.
+
+The assignment summary distinguishes internal queue routing from external contact readiness. A
+verified assignment scope places the complaint in the authorized government queue even when a
+current named incumbent or approved external channel does not exist. Optional readiness metadata
+may report a manually verified, complaint-intake-approved officer or governing-body contact scope,
+but it exposes no address or phone value and never claims automatic outbound delivery.
 
 ### Admin Console
 
@@ -388,6 +401,7 @@ Business logic should not be implemented directly inside React components.
 
 - Supabase Auth identities;
 - citizen profiles and preferred language;
+- owner-private profile images and server-owned image versions;
 - hashed device registrations;
 - immutable system roles;
 - time-bound scoped role assignments;
@@ -396,15 +410,14 @@ Business logic should not be implemented directly inside React components.
 
 Supabase Auth proves identity. Current database state determines authorization so revoked or expired access does not remain valid until a JWT refresh. Client applications receive only the public project URL and publishable key (or legacy anonymous key); the secret/service-role key exists only in the trusted API runtime. The API verifies each bearer token with Supabase Auth, reauthorizes ownership and scope, and performs identity writes through audited database operations. RLS and column privileges remain a second boundary for direct data-API access.
 
-Passwordless email delivery is template-compatible rather than template-dependent. Browser clients
-request ordinary sign-in links through the Supabase SSR PKCE flow and may also verify a delivered
-code. Dynamic callback pages consume one reviewed method, remove callback material from browser
-history before session completion, and reload through current application authorization. Citizen
-and administrator callbacks reject implicit fragment sessions. Because a trusted Supabase admin
-invitation has no PKCE verifier, only the government invitation callback accepts a complete default
-fragment whose provider type is exactly `invite`; authentication still cannot create the required
-membership or role. Mobile accepts PKCE or reviewed token hashes only and stores the resulting
-session in SecureStore.
+Citizens use Supabase email/password and provider-managed recovery; phone verification is a
+Supabase Phone MFA factor rather than application metadata or a custom OTP table. Government and
+administrator email delivery remains template-compatible. Their callback pages consume one
+reviewed method and reload through current authorization. Citizen/admin callbacks reject implicit
+fragments; only the government invitation callback accepts a complete default fragment typed
+`invite`, and authentication still cannot create membership or role. Mobile stores sessions only
+in SecureStore. Privileged TOTP and citizen phone-factor policies are independently verified by the
+API and use observe/enforce rollout modes.
 
 Device registration and soft revocation are atomic with their audit events. Sensitive device hashes and push tokens remain server-only. Client session events are explicitly marked as client-reported; provider logs and server-generated access events carry the authoritative security meaning.
 
@@ -464,6 +477,11 @@ with zero operational and 11 synchronization endpoints with zero active. This va
 managed database baseline: applications, the Edge Function, Cron, source/scope activation,
 official ward records or geometry, routes, complaints, and production remain undeployed or
 inactive.
+
+That paragraph records a historical managed-environment observation, not the current repository
+cutoff. The incremental schema now contains 40 migrations through
+`20260716117000_phase_10_routing_delivery_readiness.sql`; each managed target must reconcile its own
+migration ledger before activation.
 
 The citizen-facing governance directory is a separate narrow projection over this private domain:
 
@@ -728,6 +746,22 @@ stable routing request ID and reuses the same stored routing decision across an 
 retry. Exact coordinates and internal candidate evaluations remain service-only. Citizen-facing
 responses contain the selected target, score band, reason, policy/version, boundary versions,
 selected rule/version, and fallback summary, but no officer contact or candidate rejection graph.
+
+Complaint submission turns only a `routed` decision into an initial, versioned complaint
+assignment. That assignment identifies the verified authority, local body, optional ward,
+department, durable officer role, and optional current officer assignment entirely from database
+records. The authorized government dashboard queries that scope, so the complaint reaches the
+correct internal government queue even when an incumbent changes or no named officer is available.
+
+External official-contact readiness is evaluated separately from routing. The database searches
+only current public-official, manually verified, complaint-intake contact versions with explicit
+delivery approval and prefers the most specific owner: officer assignment/officer, then office,
+authority department, ward, local body, and authority. The assignment summary exposes only whether
+an approved officer or governing-body contact scope exists and which channel types are available.
+It does not expose the contact value or perform an outbound send. Placeholder, unverified,
+source-only, stale, or superseded records cannot make either routing or delivery readiness appear
+operational; `automaticOutboundDelivery` remains false until a separately reviewed delivery
+integration is implemented.
 
 The duplicate-detection package scores configurable category, distance, time, text-similarity,
 media-hash, and asset evidence. Phase 4 connects it to capped, versioned-policy candidate loading,
@@ -1028,8 +1062,14 @@ database-derived status changes. Phase 8 adds a separately reviewed public read 
 widening private complaint access. Phase 9 adds immutable policy bindings/clocks/KPI evidence,
 atomic policy supersession, scope-authorized accountability reads, and transactional escalation/
 notification evidence.
-Broader HTTP rate limits, provider-specific controls, and device-risk enforcement remain tracked
-hardening work.
+Phase 10 adds shared PostgreSQL-backed API quotas with hashed subjects, security headers, graceful
+shutdown, a narrow database/private-Storage readiness probe, dependency-free smoke/load tooling,
+secret scanning, owner-private profile images, and staged MFA assurance enforcement. It also makes
+the 50-metre complaint-location/media-proximity limit a client-and-database invariant, gives mobile
+reviewed locality Feed and aggregate Heatmap views, and separates verified government-queue
+routing from approved external-contact readiness without performing automatic outbound delivery.
+Provider edge controls, managed alerting, full profile-image processing, SMS-provider activation,
+and device-to-provider-session revocation remain rollout work.
 
 - Supabase Auth for identity;
 - JWT verification at API;

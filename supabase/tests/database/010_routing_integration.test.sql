@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, governance, routing, extensions;
 
-select plan(39);
+select plan(40);
 
 insert into governance.reference_sources (
   id, title, url, source_type, last_checked_on
@@ -362,6 +362,18 @@ values
     '94310000-0000-4000-8000-000000000002',
     'active', 'verified', timestamptz '2026-01-01 00:00:00+00',
     date '2026-07-13', '94000000-0000-4000-8000-000000000001'
+  ),
+  (
+    '94c00000-0000-4000-8000-000000000003', 'routing:test:placeholder-assignment', 1,
+    '94100000-0000-4000-8000-000000000004',
+    '94900000-0000-4000-8000-000000000002',
+    '94b00000-0000-4000-8000-000000000001',
+    '94a00000-0000-4000-8000-000000000001',
+    '94800000-0000-4000-8000-000000000002',
+    '94300000-0000-4000-8000-000000000001',
+    '94310000-0000-4000-8000-000000000001',
+    'active', 'placeholder', timestamptz '2026-01-01 00:00:00+00',
+    null, '94000000-0000-4000-8000-000000000001'
   );
 
 insert into routing.issue_domains (
@@ -723,6 +735,20 @@ select is(
   ),
   0,
   'district- and taluka-scoped assignments fail closed outside their exact context'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.resolve_routing_candidates(
+      73.84, 18.54, 5,
+      '94e00000-0000-4000-8000-000000000001',
+      '95100000-0000-4000-8000-000000000001',
+      timestamptz '2026-07-13 12:00:00+00'
+    )
+    where officer_assignment_id = '94c00000-0000-4000-8000-000000000003'
+  ),
+  0,
+  'placeholder officer assignments never become routing recipients'
 );
 select is(
   (

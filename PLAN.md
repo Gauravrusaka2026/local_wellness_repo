@@ -99,9 +99,11 @@ Implement citizen and government authentication with scoped authorization.
 
 ## Tasks
 
-- phone OTP;
-- email OTP or magic link;
+- email/password citizen account creation and sign-in;
+- password recovery;
+- staged Supabase Phone MFA verification after SMS-provider activation;
 - profile setup;
+- private profile images;
 - preferred language;
 - secure session storage;
 - device registration;
@@ -475,7 +477,8 @@ Add measurable accountability.
 
 - penetration test;
 - RLS audit;
-- rate limits;
+- PostgreSQL-backed API rate limits without Redis;
+- citizen Phone MFA and privileged TOTP/AAL2 staged enforcement;
 - storage-policy audit;
 - dependency and secret scanning;
 - abuse controls;
@@ -515,6 +518,7 @@ Add measurable accountability.
 
 - verify production seed data;
 - verify every routing rule and contact;
+- verify queue assignment separately from any approved external contact-delivery channel;
 - internal test;
 - officer test;
 - closed citizen beta;

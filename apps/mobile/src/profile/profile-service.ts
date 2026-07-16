@@ -26,6 +26,8 @@ export class ProfileValidationError extends Error {
 
 const profileSchema = z
   .object({
+    avatarObjectPath: z.string().min(1).max(160).nullable(),
+    avatarUpdatedAt: z.iso.datetime({ offset: true }).nullable(),
     createdAt: z.iso.datetime({ offset: true }),
     displayName: z.string().min(1).max(100).nullable(),
     email: z.email().max(254).nullable(),
@@ -72,3 +74,13 @@ export const updateProfile = (accessToken: string, input: ProfileUpdate): Promis
     method: 'PATCH',
   }).then(decodeProfile);
 };
+
+export const updateProfileAvatar = (
+  accessToken: string,
+  avatarObjectPath: string | null,
+): Promise<Profile> =>
+  apiRequest<unknown>('/api/v1/me', {
+    accessToken,
+    body: { avatarObjectPath },
+    method: 'PATCH',
+  }).then(decodeProfile);

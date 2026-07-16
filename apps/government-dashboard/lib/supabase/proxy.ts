@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
+import { buildMfaPath } from '../auth/mfa';
+import { getSafeMfaReturnPath } from '../auth/return-path';
 import { getPublicSupabaseConfiguration } from '../environment';
 
 const copySessionCookies = (source: NextResponse, destination: NextResponse): void => {
@@ -41,22 +43,46 @@ export const updateSession = async (
 
   // Keep verification adjacent to client creation so refreshed cookies cannot be lost.
   const { data, error } = await supabase.auth.getClaims();
+  const hasSession = !error && Boolean(data?.claims);
+  const isLoginRoute = request.nextUrl.pathname === '/auth/login';
+  const isMfaRoute = request.nextUrl.pathname === '/auth/mfa';
+  const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const safeRequestedPath = getSafeMfaReturnPath(requestedPath, '/');
+  const safeAuthReturnPath = getSafeMfaReturnPath(request.nextUrl.searchParams.get('next'), '/');
 
-  if (!error && data?.claims && sessionWasRefreshed) {
+  const redirectWithSessionCookies = (path: string): NextResponse => {
+    const redirectResponse = NextResponse.redirect(new URL(path, request.url));
+    copySessionCookies(response, redirectResponse);
+    return redirectResponse;
+  };
+
+  if (hasSession && sessionWasRefreshed) {
     const { data: sessionData } = await supabase.auth.getSession();
     if (sessionData.session?.access_token) {
       await recordAuthAuditEventSafely(sessionData.session.access_token, 'session_refreshed');
     }
   }
 
-  if (isProtectedRoute && (error || !data?.claims)) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/auth/login';
-    redirectUrl.search = '';
-    redirectUrl.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    const redirectResponse = NextResponse.redirect(redirectUrl);
-    copySessionCookies(response, redirectResponse);
-    return redirectResponse;
+  if (!hasSession && (isProtectedRoute || isMfaRoute)) {
+    const parameters = new URLSearchParams({
+      next: isMfaRoute ? safeAuthReturnPath : safeRequestedPath,
+    });
+    return redirectWithSessionCookies(`/auth/login?${parameters.toString()}`);
+  }
+
+  if (hasSession && (isProtectedRoute || isLoginRoute)) {
+    const assuranceResult = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const hasAal2 = !assuranceResult.error && assuranceResult.data?.currentLevel === 'aal2';
+
+    if (isLoginRoute) {
+      return redirectWithSessionCookies(
+        hasAal2 ? safeAuthReturnPath : buildMfaPath(safeAuthReturnPath),
+      );
+    }
+
+    if (!hasAal2) {
+      return redirectWithSessionCookies(buildMfaPath(safeRequestedPath));
+    }
   }
 
   return response;

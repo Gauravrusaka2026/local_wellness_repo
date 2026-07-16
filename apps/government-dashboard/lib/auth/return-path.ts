@@ -12,3 +12,16 @@ export const getSafeReturnPath = (value: string | null | undefined, fallback: st
     return fallback;
   }
 };
+
+export const getSafeMfaReturnPath = (
+  value: string | null | undefined,
+  fallback: string,
+): string => {
+  const returnPath = getSafeReturnPath(value, fallback);
+
+  if (returnPath === '/auth' || returnPath.startsWith('/auth/')) {
+    return fallback;
+  }
+
+  return returnPath;
+};

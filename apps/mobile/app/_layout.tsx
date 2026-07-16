@@ -42,6 +42,14 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="auth/index" options={{ headerShown: false, title: 'Sign in' }} />
             <Stack.Screen
+              name="auth/phone-verification"
+              options={{ headerBackVisible: false, title: 'Verify phone' }}
+            />
+            <Stack.Screen
+              name="auth/reset-password"
+              options={{ headerBackVisible: false, title: 'Reset password' }}
+            />
+            <Stack.Screen
               name="auth/callback"
               options={{ headerBackVisible: false, title: 'Completing sign in' }}
             />

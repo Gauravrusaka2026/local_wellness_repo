@@ -8,6 +8,9 @@ import {
   complaintStatuses,
   governmentComplaintAllowedActions,
   governmentComplaintAssignmentReasons,
+  governmentComplaintContactChannelTypes,
+  governmentComplaintContactScopes,
+  governmentComplaintExternalContactStatuses,
   governmentComplaintQueues,
   governmentComplaintTransferReasons,
   governmentExternalDependencyTypes,
@@ -286,6 +289,22 @@ const assignmentSchema = z
     status: z.enum(['active', 'superseded', 'cancelled']),
     assignedAt: offsetTimestampSchema,
     endedAt: offsetTimestampSchema.nullable(),
+    deliveryReadiness: z
+      .object({
+        governmentQueueStatus: z.enum(['verified_scope', 'unavailable']),
+        externalContactStatus: z.enum(governmentComplaintExternalContactStatuses),
+        contactScope: z.enum(governmentComplaintContactScopes).nullable(),
+        approvedChannelTypes: z.array(z.enum(governmentComplaintContactChannelTypes)).max(6),
+        automaticOutboundDelivery: z.literal(false),
+        reason: z.enum([
+          'verified_officer_contact_available',
+          'verified_governing_body_contact_available',
+          'verified_queue_no_approved_external_contact',
+          'verified_assignment_scope_unavailable',
+        ]),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
