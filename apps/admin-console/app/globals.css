@@ -140,7 +140,8 @@ select {
 .primary-button,
 .secondary-button,
 .text-button,
-.primary-link {
+.primary-link,
+.secondary-link {
   align-items: center;
   border-radius: 9px;
   cursor: pointer;
@@ -159,7 +160,8 @@ select {
   color: #ffffff;
 }
 
-.secondary-button {
+.secondary-button,
+.secondary-link {
   background: #ffffff;
   border: 1px solid #4338ca;
   color: #3730a3;
@@ -208,6 +210,77 @@ button:disabled {
   margin: 1.5rem 0 0;
 }
 
+.auth-guidance,
+.auth-status-note,
+.recovery-panel {
+  border: 1px solid #dbe3f4;
+  border-radius: 9px;
+  color: #39465d;
+  line-height: 1.55;
+  padding: 0.9rem 1rem;
+}
+
+.auth-guidance {
+  background: #f8fafc;
+  margin: 1.25rem 0;
+}
+
+.auth-guidance p,
+.auth-status-note,
+.recovery-panel p {
+  margin: 0.35rem 0 0;
+}
+
+.auth-status-note {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}
+
+.account-context {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 9px;
+  color: #3730a3;
+  display: grid;
+  gap: 0.25rem;
+  margin: 1.25rem 0;
+  overflow-wrap: anywhere;
+  padding: 0.9rem 1rem;
+}
+
+.account-context span,
+.account-context small {
+  color: #5b6480;
+}
+
+.account-context strong {
+  font-size: 1.05rem;
+}
+
+.account-context form {
+  margin-top: 0.25rem;
+}
+
+.account-context-wide {
+  margin: 0;
+  min-width: min(100%, 280px);
+}
+
+.recovery-panel {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #78350f;
+}
+
+.help-link {
+  color: #4338ca;
+  display: inline-flex;
+  font-weight: 750;
+  margin-top: 1rem;
+  text-underline-offset: 0.2rem;
+}
+
 .mfa-setup {
   border-top: 1px solid #dfe3ee;
   padding-top: 1.25rem;
@@ -242,6 +315,38 @@ button:disabled {
 
 .mfa-footer .security-note {
   margin-bottom: 0;
+}
+
+.auth-help-card {
+  width: min(100%, 760px);
+}
+
+.help-section {
+  border-top: 1px solid #dfe3ee;
+  line-height: 1.6;
+  padding-top: 1.25rem;
+}
+
+.help-section + .help-section {
+  margin-top: 1.25rem;
+}
+
+.help-section h2 {
+  font-size: 1.15rem;
+}
+
+.help-section li + li,
+.onboarding-guidance li + li {
+  margin-top: 0.55rem;
+}
+
+.auth-help-actions {
+  justify-content: flex-start;
+}
+
+.onboarding-guidance ol {
+  line-height: 1.55;
+  padding-left: 1.3rem;
 }
 
 .admin-shell {

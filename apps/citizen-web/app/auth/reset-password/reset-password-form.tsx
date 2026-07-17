@@ -19,6 +19,7 @@ export const ResetPasswordForm = () => {
   const [isPending, setIsPending] = useState(false);
   const [password, setPassword] = useState('');
   const [recoveryState, setRecoveryState] = useState<RecoveryState>('loading');
+  const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null);
   const started = useRef(false);
 
   useEffect(() => {
@@ -29,7 +30,8 @@ export const ResetPasswordForm = () => {
 
     const establishSession = async (): Promise<void> => {
       try {
-        await establishCitizenPasswordRecoverySession(supabase, callbackUrl);
+        const email = await establishCitizenPasswordRecoverySession(supabase, callbackUrl);
+        setRecoveryEmail(email);
         setRecoveryState('ready');
       } catch (recoveryError) {
         setError(getUserFacingAuthError(recoveryError));
@@ -80,41 +82,48 @@ export const ResetPasswordForm = () => {
       ) : null}
 
       {recoveryState === 'ready' ? (
-        <form aria-busy={isPending} className="stack" onSubmit={(event) => void submit(event)}>
-          <label htmlFor="new-password">New password</label>
-          <input
-            autoComplete="new-password"
-            disabled={isPending}
-            id="new-password"
-            maxLength={128}
-            minLength={8}
-            onChange={(event) => {
-              setPassword(event.target.value);
-              setError(null);
-            }}
-            required
-            type="password"
-            value={password}
-          />
-          <label htmlFor="confirm-new-password">Confirm new password</label>
-          <input
-            autoComplete="new-password"
-            disabled={isPending}
-            id="confirm-new-password"
-            maxLength={128}
-            minLength={8}
-            onChange={(event) => {
-              setConfirmPassword(event.target.value);
-              setError(null);
-            }}
-            required
-            type="password"
-            value={confirmPassword}
-          />
-          <button className="primary-button" disabled={isPending} type="submit">
-            {isPending ? 'Updating…' : 'Update password'}
-          </button>
-        </form>
+        <div className="stack">
+          <p className="auth-context compact">
+            Resetting the password for{' '}
+            <strong>{recoveryEmail ?? 'the account verified by this recovery link'}</strong>.
+            Updating it will sign out other sessions for this account.
+          </p>
+          <form aria-busy={isPending} className="stack" onSubmit={(event) => void submit(event)}>
+            <label htmlFor="new-password">New password</label>
+            <input
+              autoComplete="new-password"
+              disabled={isPending}
+              id="new-password"
+              maxLength={128}
+              minLength={8}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setError(null);
+              }}
+              required
+              type="password"
+              value={password}
+            />
+            <label htmlFor="confirm-new-password">Confirm new password</label>
+            <input
+              autoComplete="new-password"
+              disabled={isPending}
+              id="confirm-new-password"
+              maxLength={128}
+              minLength={8}
+              onChange={(event) => {
+                setConfirmPassword(event.target.value);
+                setError(null);
+              }}
+              required
+              type="password"
+              value={confirmPassword}
+            />
+            <button className="primary-button" disabled={isPending} type="submit">
+              {isPending ? 'Updating…' : 'Update password'}
+            </button>
+          </form>
+        </div>
       ) : null}
 
       {error === null ? null : (

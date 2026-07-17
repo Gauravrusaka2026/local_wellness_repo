@@ -63,6 +63,93 @@ const createService = (
   );
 
 describe('government invitation service', () => {
+  it('lists every verified invitation option for a platform administrator', async () => {
+    const identityStore = new FakeIdentityStore();
+    const authenticationGateway = new FakeAuthenticationGateway();
+    identityStore.access.roles = [
+      {
+        assignmentId: 'dd5df9ca-0e7f-45c4-93c5-c6db4c8161bf',
+        authorityId: null,
+        roleId: '6e59a3c4-7853-499d-b61c-cbc503d495fb',
+        code: 'platform_admin',
+        name: 'Platform administrator',
+        description: null,
+        isGovernment: false,
+        isPrivileged: true,
+        scopeType: 'global',
+        scopeId: null,
+        effectiveFrom: '2026-07-01T00:00:00.000Z',
+        effectiveUntil: null,
+      },
+    ];
+    identityStore.governmentInvitationOptions = {
+      authorities: [
+        {
+          authorityType: 'municipal_corporation',
+          code: 'BMC',
+          id: authorityId,
+          name: 'Brihanmumbai Municipal Corporation',
+        },
+      ],
+      departments: [],
+      wards: [],
+    };
+
+    const options = await createService(identityStore, authenticationGateway).listInvitationOptions(
+      identityStore.profile?.id ?? '',
+    );
+
+    assert.equal(options.authorities[0]?.code, 'BMC');
+    assert.equal(identityStore.governmentInvitationAuthorityFilter, null);
+  });
+
+  it('limits municipal invitation options to the administrator authority', async () => {
+    const identityStore = new FakeIdentityStore();
+    const authenticationGateway = new FakeAuthenticationGateway();
+    configureMunicipalAdmin(identityStore);
+
+    await createService(identityStore, authenticationGateway).listInvitationOptions(
+      identityStore.profile?.id ?? '',
+    );
+
+    assert.deepEqual(identityStore.governmentInvitationAuthorityFilter, [authorityId]);
+  });
+
+  it('does not expose invitation options to a signed-in user without administrator scope', async () => {
+    const identityStore = new FakeIdentityStore();
+    const authenticationGateway = new FakeAuthenticationGateway();
+
+    await assert.rejects(
+      createService(identityStore, authenticationGateway).listInvitationOptions(
+        identityStore.profile?.id ?? '',
+      ),
+      (error: unknown) => error instanceof ApiException && error.code === 'ACCESS_DENIED',
+    );
+
+    assert.equal(identityStore.governmentInvitationAuthorityFilter, undefined);
+  });
+
+  it('does not expose invitation options for an inactive administrator profile', async () => {
+    const identityStore = new FakeIdentityStore();
+    const authenticationGateway = new FakeAuthenticationGateway();
+    configureMunicipalAdmin(identityStore);
+
+    if (!identityStore.profile) {
+      throw new Error('The test profile is required.');
+    }
+
+    identityStore.profile = { ...identityStore.profile, status: 'disabled' };
+
+    await assert.rejects(
+      createService(identityStore, authenticationGateway).listInvitationOptions(
+        identityStore.profile.id,
+      ),
+      (error: unknown) => error instanceof ApiException && error.code === 'ACCESS_DENIED',
+    );
+
+    assert.equal(identityStore.governmentInvitationAuthorityFilter, undefined);
+  });
+
   it('allows a municipal admin to invite a non-privileged user in matching scope', async () => {
     const identityStore = new FakeIdentityStore();
     const authenticationGateway = new FakeAuthenticationGateway();

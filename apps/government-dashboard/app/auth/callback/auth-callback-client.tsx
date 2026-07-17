@@ -41,7 +41,10 @@ export const AuthCallbackClient = ({ nextPath }: Readonly<{ nextPath: string }>)
       <section aria-live="polite" className="auth-card" role="status">
         <p className="eyebrow">Restricted government access</p>
         <h1>Completing secure sign-in</h1>
-        <p className="lede">Verifying the one-time email link and checking your session.</p>
+        <p className="lede">
+          Verifying the one-time email link. The next screen will show the exact signed-in account
+          before authenticator setup or verification.
+        </p>
       </section>
     </main>
   );

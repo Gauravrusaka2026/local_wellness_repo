@@ -176,8 +176,8 @@ select is(
       and not is_placeholder
       and not is_routing_eligible
   ),
-  12,
-  'every pilot category remains explicitly unverified and non-routable'
+  9,
+  'nine asset-dependent or otherwise pending pilot categories remain unverified and non-routable'
 );
 select is(
   (
@@ -202,8 +202,8 @@ select is(
 );
 select is(
   (select count(*)::integer from public.list_routing_categories(false)),
-  0,
-  'production category lookup excludes every unverified engineering category'
+  3,
+  'operational category lookup returns only the three reviewed BMC internal-demo categories'
 );
 select ok(
   exists (

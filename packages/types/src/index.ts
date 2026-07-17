@@ -231,6 +231,27 @@ export interface GovernmentInvitation {
   roleStatus: 'active';
 }
 
+export interface GovernmentInvitationAuthorityOption {
+  authorityType: string;
+  code: string;
+  id: string;
+  name: string;
+}
+
+export interface GovernmentInvitationScopeOption {
+  authorityId: string;
+  code: string;
+  id: string;
+  name: string;
+  type: 'department' | 'ward';
+}
+
+export interface GovernmentInvitationOptions {
+  authorities: GovernmentInvitationAuthorityOption[];
+  departments: GovernmentInvitationScopeOption[];
+  wards: GovernmentInvitationScopeOption[];
+}
+
 export * from './complaints.js';
 export * from './complaint-resolution.js';
 export * from './accountability.js';

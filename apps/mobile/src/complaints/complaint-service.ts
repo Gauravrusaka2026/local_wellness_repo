@@ -28,7 +28,7 @@ import type {
   ReopenComplaintResult,
   CreateComplaintDraftInput,
   CreateComplaintMediaUploadIntentInput,
-  RoutingCategory,
+  RoutingCategoryCatalogItem,
   RoutingAssetDiscoveryResult,
   SubmitComplaintInput,
   UpdateComplaintDraftInput,
@@ -69,15 +69,19 @@ import {
   decodeComplaintResolutionFeedbackResult,
   decodeComplaintTimeline,
   decodeReopenComplaintResult,
-  decodeRoutingCategories,
+  decodeRoutingCategoryCatalog,
   decodeRoutingAssetDiscovery,
 } from './response-decoders';
 
 const createClient = (accessToken: string) =>
   createApiClient({ baseUrl: getPublicApiUrl(), getAccessToken: () => accessToken });
 
-export const listRoutingCategories = (accessToken: string): Promise<RoutingCategory[]> =>
-  createClient(accessToken).get('/api/v1/routing/categories', { decode: decodeRoutingCategories });
+export const listRoutingCategoryCatalog = (
+  accessToken: string,
+): Promise<RoutingCategoryCatalogItem[]> =>
+  createClient(accessToken).get('/api/v1/routing/categories/catalog', {
+    decode: decodeRoutingCategoryCatalog,
+  });
 
 export const discoverRoutingAssets = (
   accessToken: string,

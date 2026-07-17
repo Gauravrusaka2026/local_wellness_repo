@@ -356,6 +356,66 @@ describe('Supabase routing category catalog', () => {
     ]);
   });
 
+  it('derives catalog availability from the verified-only RPC result and omits placeholders', async () => {
+    const calls: RpcCall[] = [];
+    const unavailableRow = {
+      ...categoryRow,
+      category_id: '30000000-0000-4000-8000-000000000003',
+      category_code: 'awaiting_verified_route',
+      category_name: 'Awaiting verified route',
+      verification_status: 'unverified',
+      is_routing_eligible: false,
+    } as const;
+    const placeholderRow = {
+      ...categoryRow,
+      category_id: '30000000-0000-4000-8000-000000000004',
+      category_code: 'placeholder_issue',
+      category_name: 'Placeholder issue',
+      verification_status: 'placeholder',
+      is_placeholder: true,
+      is_routing_eligible: false,
+    } as const;
+    const store = createStore(async (functionName, arguments_) => {
+      calls.push({ functionName, arguments_ });
+      return arguments_['p_include_non_routable'] === true
+        ? { data: [categoryRow, unavailableRow, placeholderRow], error: null }
+        : { data: [categoryRow], error: null };
+    });
+
+    const catalog = await store.listRoutingCategoryCatalog();
+
+    assert.deepEqual(
+      catalog.map((item) => ({
+        id: item.id,
+        submissionAvailability: item.submissionAvailability,
+      })),
+      [
+        { id: identifiers.category, submissionAvailability: 'available' },
+        { id: unavailableRow.category_id, submissionAvailability: 'unavailable' },
+      ],
+    );
+    assert.deepEqual(calls, [
+      {
+        functionName: 'list_routing_categories',
+        arguments_: { p_include_non_routable: true },
+      },
+      {
+        functionName: 'list_routing_categories',
+        arguments_: { p_include_non_routable: false },
+      },
+    ]);
+  });
+
+  it('fails the catalog closed when the verified snapshot is not present in the full snapshot', async () => {
+    const store = createStore(async (_functionName, arguments_) =>
+      arguments_['p_include_non_routable'] === true
+        ? { data: [], error: null }
+        : { data: [categoryRow], error: null },
+    );
+
+    await assert.rejects(store.listRoutingCategoryCatalog(), RoutingDataAccessError);
+  });
+
   it('does not expose placeholder categories through list or direct lookup', async () => {
     const placeholder = {
       ...categoryRow,

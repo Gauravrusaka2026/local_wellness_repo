@@ -81,6 +81,9 @@ export default function NewComplaintScreen() {
   }
 
   const category = getSelectedCategory(capture.state);
+  const availableCategoryCount = capture.state.categories.filter(
+    (candidate) => candidate.submissionAvailability === 'available',
+  ).length;
   const readiness = getDraftReadiness(draft, category);
   const locationEligible = isLocationEvidenceEligible(draft.location);
   const selectedAsset =
@@ -183,12 +186,15 @@ export default function NewComplaintScreen() {
             <Text accessibilityRole="header" style={styles.title}>
               What needs attention?
             </Text>
-            <Text style={styles.help}>Only verified, currently routable categories are shown.</Text>
+            <Text style={styles.help}>
+              All configured issue categories are listed. Only categories with verified routing can
+              be selected and submitted.
+            </Text>
             {capture.state.categories.length === 0 ? (
               <View style={styles.options}>
                 <Text accessibilityRole="alert" style={styles.warning}>
-                  No verified operational categories are available. Placeholder categories are never
-                  offered for submission.
+                  No non-placeholder category definitions are available. Placeholder categories are
+                  never shown or offered for submission.
                 </Text>
                 <SecondaryAction
                   label="Check for available categories"
@@ -197,34 +203,60 @@ export default function NewComplaintScreen() {
               </View>
             ) : (
               <View style={styles.options}>
-                {capture.state.categories.map((candidate) => (
-                  <Pressable
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: draft.categoryId === candidate.id }}
-                    key={candidate.id}
-                    onPress={() => {
-                      if (candidate.id === draft.categoryId) return;
-                      setAttributeEdit({ draftId: draft.id, values: {} });
-                      void capture
-                        .updateDetails({ categoryId: candidate.id, customAttributes: {} })
-                        .catch(() => undefined);
-                    }}
-                    style={[
-                      styles.option,
-                      draft.categoryId === candidate.id && styles.optionSelected,
-                    ]}
-                  >
-                    <Text style={styles.optionTitle}>{candidate.name}</Text>
-                    {candidate.description === null ? null : (
-                      <Text style={styles.optionDescription}>{candidate.description}</Text>
-                    )}
-                    {candidate.isEmergency ? (
-                      <Text style={styles.emergencyTag}>May involve immediate danger</Text>
-                    ) : null}
-                  </Pressable>
-                ))}
+                {capture.state.categories.map((candidate) => {
+                  const isAvailable = candidate.submissionAvailability === 'available';
+                  return (
+                    <Pressable
+                      accessibilityHint={
+                        isAvailable
+                          ? 'Select this category for the complaint'
+                          : 'This category cannot be selected until verified routing is available'
+                      }
+                      accessibilityRole="radio"
+                      accessibilityState={{
+                        checked: draft.categoryId === candidate.id,
+                        disabled: !isAvailable || capture.state.isBusy,
+                      }}
+                      disabled={!isAvailable || capture.state.isBusy}
+                      key={candidate.id}
+                      onPress={() => {
+                        if (candidate.id === draft.categoryId) return;
+                        setAttributeEdit({ draftId: draft.id, values: {} });
+                        void capture
+                          .updateDetails({ categoryId: candidate.id, customAttributes: {} })
+                          .catch(() => undefined);
+                      }}
+                      style={[
+                        styles.option,
+                        !isAvailable && styles.optionUnavailable,
+                        draft.categoryId === candidate.id && styles.optionSelected,
+                      ]}
+                    >
+                      <Text style={[styles.optionTitle, !isAvailable && styles.unavailableText]}>
+                        {candidate.name}
+                      </Text>
+                      {candidate.description === null ? null : (
+                        <Text style={styles.optionDescription}>{candidate.description}</Text>
+                      )}
+                      {!isAvailable ? (
+                        <Text style={styles.unavailableTag}>
+                          Verified routing not available yet
+                        </Text>
+                      ) : null}
+                      {candidate.isEmergency ? (
+                        <Text style={styles.emergencyTag}>May involve immediate danger</Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
             )}
+            {capture.state.categories.length > 0 && availableCategoryCount === 0 ? (
+              <Text accessibilityRole="alert" style={styles.warning}>
+                These categories are visible for coverage transparency, but none can be submitted in
+                this environment yet.
+              </Text>
+            ) : null}
             {category?.requiredAttributes.map((attribute) => (
               <View key={attribute} style={styles.fieldGroup}>
                 <Text style={styles.label}>{attribute.replaceAll('_', ' ')}</Text>
@@ -259,7 +291,9 @@ export default function NewComplaintScreen() {
             <Text style={styles.counter}>{description.trim().length} / 4,000</Text>
             <PrimaryAction
               disabled={
-                capture.state.isBusy || draft.categoryId === null || description.trim().length === 0
+                capture.state.isBusy ||
+                category?.submissionAvailability !== 'available' ||
+                description.trim().length === 0
               }
               label="Save and verify location"
               loading={capture.state.isBusy}
@@ -727,6 +761,7 @@ const styles = StyleSheet.create({
   optionDescription: { color: '#64748b', lineHeight: 20 },
   optionSelected: { backgroundColor: '#ecfdf5', borderColor: '#166534', borderWidth: 2 },
   optionTitle: { color: '#1e293b', fontSize: 16, fontWeight: '800' },
+  optionUnavailable: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0', opacity: 0.8 },
   options: { gap: 10 },
   primaryButton: {
     alignItems: 'center',
@@ -781,6 +816,8 @@ const styles = StyleSheet.create({
   successTitle: { color: '#14532d', fontSize: 17, fontWeight: '800' },
   title: { color: '#14281d', fontSize: 27, fontWeight: '900' },
   uploadCard: { backgroundColor: '#eff6ff', borderRadius: 10, gap: 6, padding: 13 },
+  unavailableTag: { color: '#92400e', fontSize: 13, fontWeight: '800' },
+  unavailableText: { color: '#64748b' },
   warning: {
     backgroundColor: '#fffbeb',
     borderRadius: 10,

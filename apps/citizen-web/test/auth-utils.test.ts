@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   completeEmailAuthCallback,
+  getEmailAuthCallbackPurpose,
   getSupportedEmailOtpType,
   resolveEmailAuthCallback,
 } from '../lib/auth/callback';
@@ -18,8 +19,8 @@ import { getSafeReturnPath } from '../lib/auth/return-path';
 import { parseCitizenPhoneMfaMode } from '../lib/environment';
 import {
   createCitizenPasswordAccount,
-  EmailConfirmationRequiredError,
   establishCitizenPasswordRecoverySession,
+  getUserFacingAuthError,
   requestCitizenPasswordReset,
   signInCitizenWithPassword,
   signOutCitizenSession,
@@ -64,6 +65,16 @@ test('accepts PKCE and reviewed token hashes while rejecting fragment sessions',
   assert.deepEqual(
     resolveEmailAuthCallback('https://citizen.example/auth/callback?token_hash=hashed&type=signup'),
     { method: 'token_hash', tokenHash: 'hashed', type: 'signup' },
+  );
+  assert.equal(
+    getEmailAuthCallbackPurpose(
+      'https://citizen.example/auth/callback?token_hash=hashed&type=signup',
+    ),
+    'email-confirmation',
+  );
+  assert.equal(
+    getEmailAuthCallbackPurpose('https://citizen.example/auth/callback?code=pkce'),
+    'sign-in',
   );
   assert.throws(() =>
     resolveEmailAuthCallback(
@@ -112,14 +123,17 @@ test('creates a citizen with normalized email and password then records sign-in'
     },
   } as unknown as SupabaseClient;
 
-  await createCitizenPasswordAccount(
-    supabase,
-    ' Citizen@Example.ORG ',
-    'secure password',
-    async (accessToken, eventType) => {
-      calls.push({ accessToken, eventType });
-      return true;
-    },
+  assert.deepEqual(
+    await createCitizenPasswordAccount(
+      supabase,
+      ' Citizen@Example.ORG ',
+      'secure password',
+      async (accessToken, eventType) => {
+        calls.push({ accessToken, eventType });
+        return true;
+      },
+    ),
+    { status: 'authenticated' },
   );
 
   assert.deepEqual(calls, [
@@ -128,16 +142,16 @@ test('creates a citizen with normalized email and password then records sign-in'
   ]);
 });
 
-test('fails account creation clearly when Supabase still requires email confirmation', async () => {
+test('keeps a selected email explicit when account creation requires confirmation', async () => {
   const supabase = {
     auth: {
       signUp: async () => ({ data: { session: null }, error: null }),
     },
   } as unknown as SupabaseClient;
 
-  await assert.rejects(
-    createCitizenPasswordAccount(supabase, 'citizen@example.org', 'secure password'),
-    EmailConfirmationRequiredError,
+  assert.deepEqual(
+    await createCitizenPasswordAccount(supabase, ' Citizen@Example.org ', 'secure password'),
+    { email: 'citizen@example.org', status: 'email-confirmation-required' },
   );
 });
 
@@ -179,10 +193,13 @@ test('requests a non-enumerating password recovery redirect', async () => {
     },
   } as unknown as SupabaseClient;
 
-  await requestCitizenPasswordReset(
-    supabase,
-    ' Citizen@Example.ORG ',
-    'https://citizen.example/auth/reset-password',
+  assert.equal(
+    await requestCitizenPasswordReset(
+      supabase,
+      ' Citizen@Example.ORG ',
+      'https://citizen.example/auth/reset-password',
+    ),
+    'citizen@example.org',
   );
   assert.deepEqual(calls, [
     {
@@ -198,22 +215,46 @@ test('establishes password recovery only from PKCE or a recovery token hash', as
     auth: {
       exchangeCodeForSession: async (code: string) => {
         calls.push({ code });
-        return { data: { session: { access_token: 'recovery-token' } }, error: null };
+        return {
+          data: {
+            session: {
+              access_token: 'recovery-token',
+              user: { email: 'citizen@example.org' },
+            },
+            user: { email: 'citizen@example.org' },
+          },
+          error: null,
+        };
       },
       verifyOtp: async (input: unknown) => {
         calls.push(input);
-        return { data: { session: { access_token: 'recovery-token' } }, error: null };
+        return {
+          data: {
+            session: {
+              access_token: 'recovery-token',
+              user: { email: 'citizen@example.org' },
+            },
+            user: { email: 'citizen@example.org' },
+          },
+          error: null,
+        };
       },
     },
   } as unknown as SupabaseClient;
 
-  await establishCitizenPasswordRecoverySession(
-    supabase,
-    'https://citizen.example/auth/reset-password?code=pkce',
+  assert.equal(
+    await establishCitizenPasswordRecoverySession(
+      supabase,
+      'https://citizen.example/auth/reset-password?code=pkce',
+    ),
+    'citizen@example.org',
   );
-  await establishCitizenPasswordRecoverySession(
-    supabase,
-    'https://citizen.example/auth/reset-password?token_hash=hashed&type=recovery',
+  assert.equal(
+    await establishCitizenPasswordRecoverySession(
+      supabase,
+      'https://citizen.example/auth/reset-password?token_hash=hashed&type=recovery',
+    ),
+    'citizen@example.org',
   );
   await assert.rejects(
     establishCitizenPasswordRecoverySession(
@@ -229,6 +270,21 @@ test('establishes password recovery only from PKCE or a recovery token hash', as
   );
 
   assert.deepEqual(calls, [{ code: 'pkce' }, { token_hash: 'hashed', type: 'recovery' }]);
+});
+
+test('maps provider auth failures to specific safe recovery guidance', () => {
+  assert.equal(
+    getUserFacingAuthError(new Error('Email not confirmed')),
+    'Confirm this email address before signing in. Check its inbox, including spam, for the confirmation message.',
+  );
+  assert.equal(
+    getUserFacingAuthError(new Error('User already registered')),
+    'An account may already use this email address. Sign in or reset its password.',
+  );
+  assert.equal(
+    getUserFacingAuthError(new Error('Failed to fetch')),
+    'The authentication service could not be reached. Check your connection and try again.',
+  );
 });
 
 test('updates the password and globally revokes prior sessions', async () => {

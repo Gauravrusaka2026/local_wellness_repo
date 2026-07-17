@@ -6,15 +6,17 @@ import {
   ApiError,
   AuthenticationRequiredError,
   getUserFacingApiError,
-  getVerifiedAccessToken,
+  getVerifiedGovernmentSession,
+  type VerifiedGovernmentIdentity,
 } from '../lib/api/client';
-import { signOutAction } from '../lib/auth/actions';
 import {
   parseQueueSearch,
   type DashboardSearchParameters,
   type ParsedQueueSearch,
 } from '../lib/complaints/query';
 import { createServerSupabaseClient } from '../lib/supabase/server';
+import { GovernmentAuthorizationNote } from './auth/government-authorization-note';
+import { GovernmentAccountContext } from './government-account-context';
 import { ComplaintQueue, QueueFilters, QueueNavigation } from './queue-view';
 
 export const dynamic = 'force-dynamic';
@@ -24,11 +26,12 @@ type PageProperties = Readonly<{
 }>;
 
 type DashboardLoadResult =
-  | Readonly<{ status: 'error'; message: string }>
-  | Readonly<{ status: 'no-scope' }>
+  | Readonly<{ status: 'error'; identity: VerifiedGovernmentIdentity | null; message: string }>
+  | Readonly<{ status: 'no-scope'; identity: VerifiedGovernmentIdentity }>
   | Readonly<{ status: 'signed-out' }>
   | Readonly<{
       status: 'success';
+      identity: VerifiedGovernmentIdentity;
       parsed: ParsedQueueSearch;
       queue: Awaited<ReturnType<typeof getGovernmentComplaintQueue>>;
       scope: GovernmentAccessScope;
@@ -37,21 +40,31 @@ type DashboardLoadResult =
 const loadDashboard = async (
   searchParameters: DashboardSearchParameters,
 ): Promise<DashboardLoadResult> => {
+  let session: Awaited<ReturnType<typeof getVerifiedGovernmentSession>>;
+
   try {
     const supabase = await createServerSupabaseClient();
-    const accessToken = await getVerifiedAccessToken(supabase);
+    session = await getVerifiedGovernmentSession(supabase);
+  } catch (error) {
+    if (error instanceof AuthenticationRequiredError) return { status: 'signed-out' };
+    return { identity: null, message: getUserFacingApiError(error), status: 'error' };
+  }
+
+  try {
     let scope: GovernmentAccessScope;
 
     try {
-      scope = await getGovernmentAccessScope(accessToken);
+      scope = await getGovernmentAccessScope(session.accessToken);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) return { status: 'no-scope' };
+      if (error instanceof ApiError && error.status === 403) {
+        return { identity: session.identity, status: 'no-scope' };
+      }
       throw error;
     }
 
     const parsed = parseQueueSearch(searchParameters, scope);
-    const queue = await getGovernmentComplaintQueue(accessToken, parsed.query);
-    return { parsed, queue, scope, status: 'success' };
+    const queue = await getGovernmentComplaintQueue(session.accessToken, parsed.query);
+    return { identity: session.identity, parsed, queue, scope, status: 'success' };
   } catch (error) {
     if (
       error instanceof AuthenticationRequiredError ||
@@ -59,17 +72,13 @@ const loadDashboard = async (
     ) {
       return { status: 'signed-out' };
     }
-    return { message: getUserFacingApiError(error), status: 'error' };
+    return {
+      identity: session.identity,
+      message: getUserFacingApiError(error),
+      status: 'error',
+    };
   }
 };
-
-const SignOutButton = () => (
-  <form action={signOutAction}>
-    <button className="secondary-button" type="submit">
-      Sign out
-    </button>
-  </form>
-);
 
 export default async function Page({ searchParams }: PageProperties) {
   const result = await loadDashboard(await searchParams);
@@ -81,16 +90,35 @@ export default async function Page({ searchParams }: PageProperties) {
       <main className="centered-page" id="main-content">
         <section className="content-card denied-card">
           <p className="eyebrow">Access pending</p>
-          <h1>No active government scope</h1>
+          <h1>Signed in, but government access is not active</h1>
           <p>
-            Your identity is verified, but no active role assignment is available. Contact your
-            municipal administrator; this dashboard cannot grant access.
+            Authentication and authenticator verification are complete. An administrator must now
+            confirm that this exact account has both an active authority membership and a current
+            role assignment for the correct authority, ward, or department.
           </p>
-          <div className="header-actions">
-            <a className="secondary-link" href="/accountability">
-              Organizational KPIs
+          <ol aria-label="Government access status" className="auth-stage-list">
+            <li className="complete">
+              <strong>1. Email identity</strong>
+              <span>Verified</span>
+            </li>
+            <li className="complete">
+              <strong>2. Authenticator</strong>
+              <span>Verified</span>
+            </li>
+            <li className="attention">
+              <strong>3. Government authorization</strong>
+              <span>Membership or scoped role needs administrator review</span>
+            </li>
+          </ol>
+          <GovernmentAuthorizationNote />
+          <GovernmentAccountContext
+            authorizationLabel="Government authorization needs review"
+            identity={result.identity}
+          />
+          <div className="button-row">
+            <a className="primary-link" href="/">
+              Check access again
             </a>
-            <SignOutButton />
           </div>
         </section>
       </main>
@@ -106,11 +134,16 @@ export default async function Page({ searchParams }: PageProperties) {
           <p aria-live="assertive" className="error-notice" role="alert">
             {result.message}
           </p>
+          {result.identity === null ? null : (
+            <GovernmentAccountContext
+              authorizationLabel="Signed-in session verified; workspace check failed"
+              identity={result.identity}
+            />
+          )}
           <div className="button-row">
             <a className="primary-link" href="/">
               Try again
             </a>
-            <SignOutButton />
           </div>
         </section>
       </main>
@@ -132,7 +165,10 @@ export default async function Page({ searchParams }: PageProperties) {
               assignments. Every workflow action is validated and audited by the server.
             </p>
           </div>
-          <SignOutButton />
+          <GovernmentAccountContext
+            authorizationLabel={`${result.scope.roles.length} active scoped role${result.scope.roles.length === 1 ? '' : 's'}`}
+            identity={result.identity}
+          />
         </header>
         <QueueNavigation parsed={result.parsed} />
         <QueueFilters parsed={result.parsed} scope={result.scope} />

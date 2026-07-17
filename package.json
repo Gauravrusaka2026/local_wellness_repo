@@ -29,6 +29,8 @@
     "governance:data:validate": "corepack pnpm governance:data:prepare && corepack pnpm --filter @local-wellness/database governance:validate",
     "governance:data:generate": "corepack pnpm governance:data:prepare && corepack pnpm --filter @local-wellness/database governance:generate",
     "governance:data:check": "corepack pnpm governance:data:prepare && corepack pnpm --filter @local-wellness/database governance:check",
+    "governance:bmc:check": "node scripts/generate-bmc-demo-governance.mjs --check",
+    "governance:bmc:generate": "node scripts/generate-bmc-demo-governance.mjs",
     "http:load": "node scripts/http-check.mjs --mode=load",
     "http:smoke": "node scripts/http-check.mjs --mode=smoke",
     "lint": "turbo run lint",

@@ -41,7 +41,10 @@ export const AuthCallbackClient = ({ nextPath }: Readonly<{ nextPath: string }>)
       <section aria-live="polite" className="auth-card" role="status">
         <p className="eyebrow">Restricted platform access</p>
         <h1>Completing secure sign-in</h1>
-        <p className="lede">Verifying the one-time email link and checking your session.</p>
+        <p className="lede">
+          Verifying the one-time email link. Next, the console will show the signed-in email and
+          whether that account needs authenticator setup or an existing authenticator code.
+        </p>
       </section>
     </main>
   );

@@ -12,6 +12,7 @@ import {
   hasPlatformAdminAccess,
   type AdminAccessScope,
 } from '../lib/api/access-scope';
+import { ApiError, getUserFacingApiError } from '../lib/api/client';
 import {
   completeEmailAuthCallback,
   getAdminEmailCallbackUrl,
@@ -20,7 +21,12 @@ import {
 } from '../lib/auth/callback';
 import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
-import { requestAdminOtp, signOutAdminSession, verifyAdminOtp } from '../lib/auth/service';
+import {
+  getSignedInAdminEmail,
+  requestAdminOtp,
+  signOutAdminSession,
+  verifyAdminOtp,
+} from '../lib/auth/service';
 import { isPublicAuthRoute } from '../proxy';
 
 test('normalizes administrator email and constrains callbacks', () => {
@@ -104,6 +110,29 @@ test('requests an administrator email code without creating an account', async (
   ]);
 });
 
+test('reads and normalizes the exact signed-in administrator email', async () => {
+  const supabase = {
+    auth: {
+      getUser: async () => ({
+        data: { user: { email: ' Platform.Admin@Example.ORG ' } },
+        error: null,
+      }),
+    },
+  } as unknown as SupabaseClient;
+
+  assert.equal(await getSignedInAdminEmail(supabase), 'platform.admin@example.org');
+});
+
+test('fails closed when the signed-in administrator email is unavailable', async () => {
+  const supabase = {
+    auth: {
+      getUser: async () => ({ data: { user: { email: null } }, error: null }),
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(getSignedInAdminEmail(supabase), /email is unavailable/u);
+});
+
 test('verifies an administrator email code and records successful OTP verification', async () => {
   const calls: unknown[] = [];
   const supabase = {
@@ -154,6 +183,7 @@ test('exempts only the exact authentication route segment from session protectio
   assert.equal(isPublicAuthRoute('/auth'), true);
   assert.equal(isPublicAuthRoute('/auth/login'), true);
   assert.equal(isPublicAuthRoute('/auth/callback'), true);
+  assert.equal(isPublicAuthRoute('/auth/help'), true);
   assert.equal(isPublicAuthRoute('/authority'), false);
   assert.equal(isPublicAuthRoute('/authentication'), false);
 });
@@ -218,6 +248,19 @@ test('admits an active municipal administrator only for a matching authority mem
 
   assert.equal(hasGovernmentInvitationAccess(municipalScope), true);
   assert.equal(hasGovernmentInvitationAccess({ ...municipalScope, authorities: [] }), false);
+});
+
+test('describes both administrator roles when authorization is denied', () => {
+  const error = new ApiError({
+    code: 'ACCESS_DENIED',
+    message: 'Internal authorization wording.',
+    status: 403,
+  });
+
+  assert.equal(
+    getUserFacingApiError(error),
+    'An active platform or municipal administrator role is required.',
+  );
 });
 
 test('shared invitation roles map to their required scope types', () => {

@@ -23,7 +23,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -35,6 +36,7 @@ a {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 a:focus-visible {
   outline: 3px solid #4ade80;
   outline-offset: 3px;
@@ -123,7 +125,8 @@ legend {
 }
 
 input,
-select {
+select,
+textarea {
   background: #ffffff;
   border: 1px solid #94a3b8;
   border-radius: 10px;
@@ -131,6 +134,11 @@ select {
   min-height: 48px;
   padding: 0.75rem 0.9rem;
   width: 100%;
+}
+
+textarea {
+  min-height: 112px;
+  resize: vertical;
 }
 
 select {
@@ -271,6 +279,43 @@ button:disabled {
   font-weight: 700;
 }
 
+.auth-context {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  display: grid;
+  gap: 0.4rem;
+  margin: 1.25rem 0;
+  padding: 1rem;
+}
+
+.auth-context.compact {
+  margin: 0 0 1rem;
+}
+
+.auth-context span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.auth-context strong {
+  overflow-wrap: anywhere;
+}
+
+.auth-context p {
+  color: #475569;
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+
+.auth-context-actions {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
 .verification-footer {
   display: grid;
   gap: 0.75rem;
@@ -378,8 +423,31 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.account-summary small {
+  color: #475569;
+  line-height: 1.45;
+}
+
+.account-summary a {
+  color: #166534;
+  font-size: 0.9rem;
+  font-weight: 750;
+  margin-top: 0.25rem;
+}
+
 .account-contact {
   overflow-wrap: anywhere;
+}
+
+.account-header-actions {
+  align-items: stretch;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.account-header-actions form,
+.account-header-actions button {
+  width: 100%;
 }
 
 .setup-notice {
@@ -741,6 +809,350 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.complaint-shell {
+  margin: 0 auto;
+  max-width: 1180px;
+  min-height: 100vh;
+  padding: clamp(1.25rem, 4vw, 3.5rem);
+}
+
+.complaint-detail-shell {
+  max-width: 1040px;
+}
+
+.complaint-page-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.complaint-page-header > div:first-child {
+  max-width: 720px;
+}
+
+.complaint-navigation {
+  align-items: stretch;
+  display: grid;
+  gap: 0.7rem;
+  min-width: 220px;
+}
+
+.complaint-navigation form,
+.complaint-navigation button {
+  width: 100%;
+}
+
+.complaint-state-card,
+.complaint-panel,
+.complaint-history-card {
+  background: #ffffff;
+  border: 1px solid #dce7df;
+  border-radius: 18px;
+  box-shadow: 0 14px 35px rgba(20, 40, 29, 0.06);
+}
+
+.complaint-state-card,
+.complaint-panel {
+  padding: clamp(1.25rem, 4vw, 2.25rem);
+}
+
+.complaint-state-card {
+  margin: 5vh auto 0;
+  max-width: 720px;
+  text-align: center;
+}
+
+.complaint-state-card > p:not(.eyebrow, .error-notice) {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.complaint-history-list {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.complaint-history-card {
+  display: grid;
+  gap: 1rem;
+  height: 100%;
+  padding: 1.3rem;
+}
+
+.complaint-history-card h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.complaint-card-topline,
+.complaint-section-heading,
+.timeline-topline {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.complaint-card-topline time,
+.timeline-topline time,
+.accountability-history-list time,
+.workflow-label {
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.complaint-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.25;
+  padding: 0.4rem 0.65rem;
+}
+
+.complaint-status-active {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.complaint-status-attention {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.complaint-status-complete {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.complaint-status-stopped {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.complaint-card-metadata,
+.complaint-detail-grid {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+}
+
+.complaint-card-metadata {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.complaint-card-metadata div,
+.complaint-detail-grid div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.complaint-card-metadata dt,
+.complaint-detail-grid dt {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.complaint-card-metadata dd,
+.complaint-detail-grid dd {
+  font-weight: 750;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.complaint-card-link {
+  justify-self: start;
+  margin-top: auto;
+}
+
+.complaint-pagination {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+}
+
+.complaint-panel {
+  margin-bottom: 1.25rem;
+}
+
+.complaint-section-heading {
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 1.4rem;
+  padding-bottom: 1rem;
+}
+
+.complaint-section-heading h2,
+.complaint-section-heading p {
+  margin-bottom: 0;
+}
+
+.complaint-detail-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 1.5rem;
+}
+
+.complaint-detail-grid > div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+
+.complaint-copy-block {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1.1rem;
+}
+
+.complaint-copy-block + .complaint-copy-block {
+  margin-top: 1.1rem;
+}
+
+.complaint-copy-block h3,
+.complaint-action-card h3 {
+  margin: 0 0 0.65rem;
+}
+
+.complaint-copy-block p,
+.resolution-summary > p,
+.complaint-empty-copy,
+.accountability-history-list p,
+.complaint-timeline p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.complaint-action-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.complaint-action-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.15rem;
+}
+
+.complaint-action-form {
+  margin-top: 1rem;
+}
+
+.complaint-rating-grid,
+.complaint-evidence-picker {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1rem;
+}
+
+.complaint-rating-grid legend,
+.complaint-evidence-picker legend {
+  padding: 0 0.35rem;
+}
+
+.complaint-rating-grid label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.complaint-evidence-picker label {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.complaint-evidence-picker input {
+  flex: 0 0 auto;
+  min-height: auto;
+  width: auto;
+}
+
+.policy-notice {
+  background: #fffbeb;
+  border-left: 4px solid #d97706;
+  color: #78350f;
+  line-height: 1.55;
+  margin: 0;
+  padding: 0.85rem 1rem;
+}
+
+.accountability-history-list,
+.complaint-timeline {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.accountability-history-list {
+  gap: 0.8rem;
+}
+
+.accountability-history-list li {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: grid;
+  gap: 0.4rem;
+  padding: 1rem;
+}
+
+.accountability-history-list p {
+  margin: 0;
+}
+
+.complaint-timeline li {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 18px minmax(0, 1fr);
+  padding-bottom: 1.4rem;
+  position: relative;
+}
+
+.complaint-timeline li:not(:last-child)::before {
+  background: #bbf7d0;
+  content: '';
+  left: 7px;
+  position: absolute;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+}
+
+.timeline-marker {
+  background: #166534;
+  border: 3px solid #dcfce7;
+  border-radius: 50%;
+  height: 16px;
+  margin-top: 0.15rem;
+  width: 16px;
+  z-index: 1;
+}
+
+.timeline-status {
+  color: #166534;
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 750;
+  margin-top: 0.35rem;
+}
+
+.complaint-timeline p {
+  margin: 0.5rem 0 0;
+}
+
 @media (max-width: 640px) {
   .landing-page,
   .centered-page {
@@ -749,6 +1161,33 @@ button:disabled {
 
   .page-header {
     display: grid;
+  }
+
+  .complaint-page-header,
+  .complaint-card-topline,
+  .complaint-section-heading,
+  .timeline-topline {
+    display: grid;
+  }
+
+  .complaint-navigation {
+    width: 100%;
+  }
+
+  .complaint-history-list,
+  .complaint-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .complaint-card-link,
+  .complaint-pagination > * {
+    width: 100%;
+  }
+
+  .complaint-pagination {
+    align-items: stretch;
+    display: grid;
+    gap: 0.75rem;
   }
 
   .profile-image-heading {

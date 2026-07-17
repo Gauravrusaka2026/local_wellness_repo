@@ -2,6 +2,7 @@ import type { ApiConfiguration } from '@local-wellness/config';
 import type {
   AuthenticatedUser,
   Device,
+  GovernmentInvitationOptions,
   Profile,
   RecordedAuthAuditEvent,
 } from '@local-wellness/types';
@@ -70,6 +71,12 @@ export class FakeIdentityStore extends IdentityStore {
   public lastDeviceRegistration: DeviceRegistration | null = null;
   public auditEvents: AppendAuthAuditEvent[] = [];
   public devices: Device[] = [];
+  public governmentInvitationOptions: GovernmentInvitationOptions = {
+    authorities: [],
+    departments: [],
+    wards: [],
+  };
+  public governmentInvitationAuthorityFilter: readonly string[] | null | undefined;
   public revokeDeviceCalls = 0;
   public privilegedMfaRequired = false;
   public verifiedPhoneMfa = true;
@@ -104,6 +111,13 @@ export class FakeIdentityStore extends IdentityStore {
 
   public async listDevices(): Promise<Device[]> {
     return this.devices;
+  }
+
+  public async listGovernmentInvitationOptions(
+    authorityIds: readonly string[] | null,
+  ): Promise<GovernmentInvitationOptions> {
+    this.governmentInvitationAuthorityFilter = authorityIds;
+    return this.governmentInvitationOptions;
   }
 
   public async userRequiresPrivilegedMfa(): Promise<boolean> {

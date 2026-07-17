@@ -112,6 +112,9 @@ export default function HomeScreen() {
       : null;
   const recentComplaints =
     dashboardState.status === 'ready' ? getRecentComplaints(dashboardState.complaints) : [];
+  const availableCategoryCount = complaintCapture.state.categories.filter(
+    (category) => category.submissionAvailability === 'available',
+  ).length;
 
   return (
     <Screen>
@@ -306,13 +309,13 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
-        {complaintCapture.state.categories.length === 0 && !complaintCapture.state.isBusy ? (
+        {availableCategoryCount === 0 && !complaintCapture.state.isBusy ? (
           <View style={styles.coverageCard}>
             <Text style={styles.coverageTitle}>Complaint coverage update</Text>
             <Text accessibilityRole="alert" style={styles.coverageText}>
-              No verified operational categories are available in this environment. You can explore
-              the app, but submission remains safely unavailable until verified routing data is
-              activated.
+              No category currently has verified operational routing in this environment. You can
+              inspect every configured category in the complaint flow, but unavailable categories
+              remain safely disabled.
             </Text>
             <Pressable
               accessibilityRole="button"

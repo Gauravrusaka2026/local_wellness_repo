@@ -5,10 +5,10 @@
   "type": "module",
   "main": "expo-router/entry",
   "scripts": {
-    "build": "expo export --platform android --output-dir dist/app",
-    "dev": "expo start",
+    "build": "node ../../scripts/run-with-root-env.mjs node node_modules/expo/bin/cli export --platform android --output-dir dist/app",
+    "dev": "node ../../scripts/run-with-root-env.mjs node node_modules/expo/bin/cli start",
     "lint": "eslint .",
-    "start": "expo start",
+    "start": "node ../../scripts/run-with-root-env.mjs node node_modules/expo/bin/cli start",
     "test": "node --test --import tsx test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },

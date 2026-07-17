@@ -278,6 +278,126 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.mfa-account-context,
+.government-account-context {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 12px;
+  color: #14532d;
+}
+
+.mfa-account-context {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+}
+
+.mfa-account-context span,
+.government-account-identity span {
+  color: #3f6351;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mfa-account-context strong,
+.government-account-identity strong {
+  overflow-wrap: anywhere;
+}
+
+.mfa-account-context p {
+  font-size: 0.9rem;
+  margin: 0.35rem 0 0;
+}
+
+.auth-help {
+  border-top: 1px solid #dbe5df;
+  color: #526359;
+  line-height: 1.5;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+}
+
+.auth-help summary {
+  color: #065f46;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.auth-help p {
+  margin: 0.75rem 0 0;
+}
+
+.government-account-context {
+  display: grid;
+  gap: 0.9rem;
+  min-width: min(100%, 300px);
+  padding: 1rem;
+}
+
+.government-account-identity {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.government-account-identity small {
+  color: #3f6351;
+  line-height: 1.4;
+}
+
+.government-account-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.government-account-actions form {
+  margin: 0;
+}
+
+.header-account-stack {
+  align-items: flex-end;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: end;
+}
+
+.complaint-account-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.auth-stage-list {
+  display: grid;
+  gap: 0.65rem;
+  list-style: none;
+  margin: 1.5rem 0;
+  padding: 0;
+}
+
+.auth-stage-list li {
+  border: 1px solid #dbe5df;
+  border-left: 4px solid #16a34a;
+  border-radius: 9px;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.auth-stage-list li.attention {
+  background: #fffbeb;
+  border-left-color: #d97706;
+}
+
+.auth-stage-list span {
+  color: #526359;
+  font-size: 0.9rem;
+}
+
 .dashboard-shell {
   display: grid;
   gap: 1.5rem;
@@ -980,6 +1100,15 @@ input[type='file'] {
   .header-actions,
   .membership-list li {
     display: grid;
+  }
+
+  .header-account-stack {
+    align-items: stretch;
+    justify-items: stretch;
+  }
+
+  .complaint-account-bar {
+    display: block;
   }
 
   .status-badge {

@@ -54,6 +54,24 @@ Phase 1 provides the one-time bootstrap for the first platform administrator and
 admin console. Phase 10 adds TOTP enrollment/challenge UX and API assurance enforcement behind an
 observe/enforce rollout gate. Existing-user assignment lifecycle remains tracked pre-launch work.
 
+### Portal account context
+
+Every web authentication surface makes the active identity understandable without exposing whether
+another account exists. Citizen Web shows the current email/phone label and an explicit
+switch-account action. The Government Dashboard and Admin Console display the exact verified email
+after a session exists, including MFA, authorized, denied, and dependency-error states.
+
+Privileged screens describe three independent gates:
+
+1. Supabase Auth verifies the invited email identity.
+2. That same identity completes its own TOTP enrollment or returning challenge and reaches AAL2.
+3. The API/database verifies the current authority membership and scoped role.
+
+First-time TOTP enrollment is the only state that displays a QR code. Returning users are told to
+enter the code from their existing authenticator entry and not scan another QR. Wrong-account and
+lost-authenticator paths sign out or enter reviewed administrator-mediated recovery; there is no
+client-side bypass.
+
 ---
 
 ## Identity Model
@@ -189,7 +207,14 @@ User verifies the one-time invite token hash
 Current role and membership scope evaluated
 ```
 
-The trusted API creates invitations through Supabase Auth, then persists the invited authority membership and scoped role assignment. The caller must already hold active `platform_admin` access or active `municipal_admin` access for the same authority. Client applications cannot submit `granted_by`, membership status, or privileged role state.
+The trusted API creates invitations through Supabase Auth, then persists the invited authority
+membership and scoped role assignment. The caller must already hold active `platform_admin` access
+or active `municipal_admin` access for the same authority. Client applications cannot submit
+`granted_by`, membership status, or privileged role state. The Admin Console loads names through a
+service-role-only catalog that admits only active, verified, non-placeholder, routing-eligible
+authority, ward, and authority-department records. Municipal administrators receive only their own
+authority choices. Operators do not manually enter or see raw UUID fields; the authorized selector
+values carry the opaque IDs required by the API.
 
 Supabase administrator invitations do not originate a PKCE verifier. The government callback—the
 only configured destination for this invitation workflow—therefore supports the reviewed one-time
@@ -200,6 +225,11 @@ or bypass the database access gate. The invitation workflow must persist the rev
 and role before the recipient can enter the restricted application. Subsequent government and
 administrator sign-in requests keep `shouldCreateUser` disabled and accept either a delivered
 `email` OTP or PKCE secure link.
+
+The invitation endpoint intentionally returns a non-enumerating conflict when the email already
+exists in Supabase Auth. Until the audited assign/revoke/renew lifecycle under `AUTH-001` is
+implemented, use a new official-controlled email for onboarding. Do not grant access through Auth
+metadata, manual client state, or another user's authenticator factor.
 
 ---
 
@@ -281,6 +311,14 @@ trigger. A valid Auth session with no matching `public.profiles` row is a provis
 empty profile. The page renders explicit signed-in, onboarding, profile-unavailable, and
 API-unavailable states and offers retry/sign-out; it never trusts Auth metadata as a replacement for
 the server-authorized profile.
+
+For local development, the API, mobile, and three portal package scripts load the untracked
+repository-root `.env`. Shell/deployment values take precedence. Do not add an app-local
+`.env.local`: Next.js gives it higher priority and it can split Auth from the API even when both
+commands appear to start normally. The local runner fails fast if a supported app-local environment
+file exists, and build cache inputs include root/public-client configuration. After correcting an
+environment mismatch, rebuild/restart the portal and create a fresh session rather than reusing
+cookies issued by the previous project.
 
 Avoid storing privileged tokens in local storage.
 
@@ -499,8 +537,10 @@ contracts or logs.
 
 Government and platform users enroll a Supabase TOTP factor. Restricted clients redirect an
 `aal1` privileged session through challenge/verification and the API independently requires `aal2`
-when `API_PRIVILEGED_MFA_MODE=enforce`. Observe mode avoids locking existing operators out while
-managed recovery and browser smoke testing remain incomplete.
+when `API_PRIVILEGED_MFA_MODE=enforce`. The MFA screen displays the exact signed-in email, labels
+new enrollment and returning challenge separately, and offers a sign-out/switch-account path.
+Observe mode avoids locking existing operators out while managed recovery and browser smoke testing
+remain incomplete.
 
 Citizens use Supabase Phone MFA separately. `API_CITIZEN_PHONE_MFA_MODE=enforce` requires both a
 current verified phone factor and `aal2` for citizen-only accounts. It remains `observe` until

@@ -1,5 +1,19 @@
-import { Body, Controller, HttpCode, HttpStatus, Inject, Post, UseGuards } from '@nestjs/common';
-import type { AuthenticatedUser, GovernmentInvitation } from '@local-wellness/types';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import type {
+  AuthenticatedUser,
+  GovernmentInvitation,
+  GovernmentInvitationOptions,
+} from '@local-wellness/types';
 import {
   createGovernmentInvitationSchema,
   type CreateGovernmentInvitationRequest,
@@ -18,6 +32,14 @@ export class GovernmentInvitationsController {
     @Inject(GovernmentInvitationsService)
     private readonly governmentInvitationsService: GovernmentInvitationsService,
   ) {}
+
+  @Get('options')
+  @Header('Cache-Control', 'private, no-store')
+  public listInvitationOptions(
+    @Authenticated() user: AuthenticatedUser,
+  ): Promise<GovernmentInvitationOptions> {
+    return this.governmentInvitationsService.listInvitationOptions(user.id);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

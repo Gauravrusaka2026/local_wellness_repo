@@ -12,6 +12,7 @@ import {
   createCitizenPasswordAccount,
   getUserFacingAuthError,
   signInCitizenWithPassword,
+  signOutCitizenSession,
 } from '../../../lib/auth/service';
 import type { CitizenPhoneMfaMode } from '../../../lib/environment';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
@@ -31,18 +32,23 @@ const modeContent: Record<CitizenAuthMode, Readonly<{ heading: string; introduct
 
 export const PasswordAuthForm = ({
   callbackError,
+  currentAccount,
+  initialEmail,
   nextPath,
   passwordReset,
   phoneMfaMode,
 }: Readonly<{
   callbackError: boolean;
+  currentAccount: string | null;
+  initialEmail: string;
   nextPath: string;
   passwordReset: boolean;
   phoneMfaMode: CitizenPhoneMfaMode;
 }>) => {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [email, setEmail] = useState('');
+  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState(initialEmail);
   const [error, setError] = useState<string | null>(
     callbackError ? 'The authentication request is invalid or expired. Sign in again.' : null,
   );
@@ -50,6 +56,7 @@ export const PasswordAuthForm = ({
   const [mode, setMode] = useState<CitizenAuthMode>('sign_in');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
+  const [signedInAccount, setSignedInAccount] = useState(currentAccount);
   const introduction =
     phoneMfaMode === 'enforce'
       ? modeContent[mode].introduction
@@ -60,9 +67,25 @@ export const PasswordAuthForm = ({
   const chooseMode = (nextMode: CitizenAuthMode): void => {
     setMode(nextMode);
     setConfirmPassword('');
+    setConfirmationEmail(null);
     setError(null);
     setPassword('');
     setPhone('');
+  };
+
+  const signOutAndSwitchAccount = async (): Promise<void> => {
+    setError(null);
+    setIsPending(true);
+
+    try {
+      await signOutCitizenSession(supabase);
+      setSignedInAccount(null);
+      setPassword('');
+    } catch (signOutError) {
+      setError(getUserFacingAuthError(signOutError));
+    } finally {
+      setIsPending(false);
+    }
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -78,7 +101,15 @@ export const PasswordAuthForm = ({
 
     try {
       if (mode === 'create_account') {
-        await createCitizenPasswordAccount(supabase, email, password);
+        const creationResult = await createCitizenPasswordAccount(supabase, email, password);
+        if (creationResult.status === 'email-confirmation-required') {
+          setConfirmationEmail(creationResult.email);
+          setConfirmPassword('');
+          setPassword('');
+          setIsPending(false);
+          return;
+        }
+
         if (phoneMfaMode === 'enforce') {
           await enrollCitizenPhoneFactor(supabase, phone);
         }
@@ -96,8 +127,35 @@ export const PasswordAuthForm = ({
   return (
     <section aria-labelledby="sign-in-heading" className="auth-card">
       <p className="eyebrow">Citizen account</p>
-      <h1 id="sign-in-heading">{modeContent[mode].heading}</h1>
-      <p className="lede">{introduction}</p>
+      <h1 id="sign-in-heading">
+        {signedInAccount === null ? modeContent[mode].heading : 'Choose how to continue'}
+      </h1>
+      <p className="lede">
+        {signedInAccount === null
+          ? introduction
+          : 'A citizen session is already active in this browser.'}
+      </p>
+
+      {signedInAccount === null ? null : (
+        <div className="auth-context" role="status">
+          <span>Currently signed in as</span>
+          <strong>{signedInAccount}</strong>
+          <p>Continue with this account, or sign out before using a different one.</p>
+          <div className="auth-context-actions">
+            <Link className="primary-link" href={nextPath}>
+              Continue to your account
+            </Link>
+            <button
+              className="secondary-button"
+              disabled={isPending}
+              onClick={() => void signOutAndSwitchAccount()}
+              type="button"
+            >
+              {isPending ? 'Signing out…' : 'Sign out and switch account'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {phoneMfaMode === 'observe' ? (
         <p className="setup-notice" role="status">
@@ -112,124 +170,161 @@ export const PasswordAuthForm = ({
         </p>
       ) : null}
 
-      <fieldset className="channel-picker" disabled={isPending}>
-        <legend>Account action</legend>
-        <label className={mode === 'sign_in' ? 'choice selected' : 'choice'}>
-          <input
-            checked={mode === 'sign_in'}
-            name="account-mode"
-            onChange={() => chooseMode('sign_in')}
-            type="radio"
-          />
-          Sign in
-        </label>
-        <label className={mode === 'create_account' ? 'choice selected' : 'choice'}>
-          <input
-            checked={mode === 'create_account'}
-            name="account-mode"
-            onChange={() => chooseMode('create_account')}
-            type="radio"
-          />
-          Create account
-        </label>
-      </fieldset>
-
-      <form aria-busy={isPending} className="stack" onSubmit={(event) => void submit(event)}>
-        <label htmlFor="email">Email address</label>
-        <input
-          autoCapitalize="none"
-          autoComplete="email"
-          disabled={isPending}
-          id="email"
-          inputMode="email"
-          onChange={(event) => {
-            setEmail(event.target.value);
-            setError(null);
-          }}
-          placeholder="you@example.org"
-          required
-          type="email"
-          value={email}
-        />
-
-        <label htmlFor="password">Password</label>
-        <input
-          autoComplete={mode === 'create_account' ? 'new-password' : 'current-password'}
-          disabled={isPending}
-          id="password"
-          maxLength={128}
-          minLength={8}
-          onChange={(event) => {
-            setPassword(event.target.value);
-            setError(null);
-          }}
-          required
-          type="password"
-          value={password}
-        />
-
-        {mode === 'create_account' ? (
-          <>
-            <label htmlFor="confirm-password">Confirm password</label>
+      {signedInAccount === null ? (
+        <fieldset className="channel-picker" disabled={isPending}>
+          <legend>Account action</legend>
+          <label className={mode === 'sign_in' ? 'choice selected' : 'choice'}>
             <input
-              autoComplete="new-password"
-              disabled={isPending}
-              id="confirm-password"
-              maxLength={128}
-              minLength={8}
-              onChange={(event) => {
-                setConfirmPassword(event.target.value);
-                setError(null);
-              }}
-              required
-              type="password"
-              value={confirmPassword}
+              checked={mode === 'sign_in'}
+              name="account-mode"
+              onChange={() => chooseMode('sign_in')}
+              type="radio"
             />
+            Sign in
+          </label>
+          <label className={mode === 'create_account' ? 'choice selected' : 'choice'}>
+            <input
+              checked={mode === 'create_account'}
+              name="account-mode"
+              onChange={() => chooseMode('create_account')}
+              type="radio"
+            />
+            Create account
+          </label>
+        </fieldset>
+      ) : null}
 
-            {phoneMfaMode === 'enforce' ? (
-              <>
-                <label htmlFor="phone">Mobile number</label>
-                <input
-                  autoComplete="tel"
-                  disabled={isPending}
-                  id="phone"
-                  inputMode="tel"
-                  onChange={(event) => {
-                    setPhone(event.target.value);
-                    setError(null);
-                  }}
-                  placeholder="+91 98765 43210"
-                  required
-                  type="tel"
-                  value={phone}
-                />
-                <p className="field-hint">
-                  Include the country code. We use this number as your Supabase Phone MFA factor,
-                  not as a separate sign-in identity. Standard SMS charges may apply.
-                </p>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <div className="auth-help-row">
-            <Link href="/auth/forgot-password">Forgot password?</Link>
-          </div>
-        )}
+      {signedInAccount === null && confirmationEmail !== null ? (
+        <div className="stack">
+          <p aria-live="polite" className="success-notice" role="status">
+            No signed-in session was started. Check <strong>{confirmationEmail}</strong> for an
+            email-confirmation message, including its spam folder. If no message arrives, return to
+            sign in or reset the password for that address.
+          </p>
+          {phoneMfaMode === 'enforce' ? (
+            <p className="setup-notice">
+              Phone verification starts after the email is confirmed and you sign in.
+            </p>
+          ) : null}
+          <button
+            className="secondary-button"
+            onClick={() => setConfirmationEmail(null)}
+            type="button"
+          >
+            Use a different email
+          </button>
+          <button className="text-button" onClick={() => chooseMode('sign_in')} type="button">
+            Return to sign in
+          </button>
+        </div>
+      ) : null}
 
-        <button className="primary-button" disabled={isPending} type="submit">
-          {isPending
-            ? mode === 'create_account'
-              ? 'Creating account…'
-              : 'Signing in…'
-            : mode === 'create_account'
-              ? phoneMfaMode === 'enforce'
-                ? 'Create account and verify phone'
-                : 'Create account'
-              : phoneMfaMode === 'enforce'
-                ? 'Sign in and verify phone'
-                : 'Sign in'}
-        </button>
-      </form>
+      {signedInAccount === null && confirmationEmail === null ? (
+        <form aria-busy={isPending} className="stack" onSubmit={(event) => void submit(event)}>
+          <label htmlFor="email">Email address</label>
+          <input
+            autoCapitalize="none"
+            autoComplete="email"
+            disabled={isPending}
+            id="email"
+            inputMode="email"
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+            placeholder="you@example.org"
+            required
+            type="email"
+            value={email}
+          />
+
+          <label htmlFor="password">Password</label>
+          <input
+            autoComplete={mode === 'create_account' ? 'new-password' : 'current-password'}
+            disabled={isPending}
+            id="password"
+            maxLength={128}
+            minLength={8}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setError(null);
+            }}
+            required
+            type="password"
+            value={password}
+          />
+
+          {mode === 'create_account' ? (
+            <>
+              <label htmlFor="confirm-password">Confirm password</label>
+              <input
+                autoComplete="new-password"
+                disabled={isPending}
+                id="confirm-password"
+                maxLength={128}
+                minLength={8}
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value);
+                  setError(null);
+                }}
+                required
+                type="password"
+                value={confirmPassword}
+              />
+
+              {phoneMfaMode === 'enforce' ? (
+                <>
+                  <label htmlFor="phone">Mobile number</label>
+                  <input
+                    autoComplete="tel"
+                    disabled={isPending}
+                    id="phone"
+                    inputMode="tel"
+                    onChange={(event) => {
+                      setPhone(event.target.value);
+                      setError(null);
+                    }}
+                    placeholder="+91 98765 43210"
+                    required
+                    type="tel"
+                    value={phone}
+                  />
+                  <p className="field-hint">
+                    Include the country code. We use this number as your Supabase Phone MFA factor,
+                    not as a separate sign-in identity. Standard SMS charges may apply.
+                  </p>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <div className="auth-help-row">
+              <Link
+                href={
+                  email.trim() === ''
+                    ? '/auth/forgot-password'
+                    : `/auth/forgot-password?email=${encodeURIComponent(email)}`
+                }
+              >
+                Forgot password?
+              </Link>
+            </div>
+          )}
+
+          <button className="primary-button" disabled={isPending} type="submit">
+            {isPending
+              ? mode === 'create_account'
+                ? 'Creating account…'
+                : 'Signing in…'
+              : mode === 'create_account'
+                ? phoneMfaMode === 'enforce'
+                  ? 'Create account and verify phone'
+                  : 'Create account'
+                : phoneMfaMode === 'enforce'
+                  ? 'Sign in and verify phone'
+                  : 'Sign in'}
+          </button>
+        </form>
+      ) : null}
 
       {error === null ? null : (
         <p aria-live="assertive" className="error-notice" role="alert">

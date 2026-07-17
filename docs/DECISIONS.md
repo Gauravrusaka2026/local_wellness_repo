@@ -248,9 +248,10 @@ These conventions implement ADR-0011 and do not activate unverified Pune routing
 
 ### Citizen Capture UX
 
-- Categories come only from the verified, active, routing-eligible database catalog. With the
-  current non-routable bootstrap the app displays an explicit unavailable state instead of a
-  hardcoded or placeholder category list.
+- Category identities and requirements come only from the database, never a hardcoded client list.
+  The later complaint-category presentation convention may display every non-placeholder category,
+  but only the independently verified, active, routing-eligible projection is selectable and
+  submittable. A non-routable bootstrap therefore displays an explicit unavailable state.
 - Phase 4 accepts live camera photo/video and live microphone evidence. Gallery import is excluded
   from this V1 evidence flow so the capture-source assertion remains meaningful.
 - Device location evidence is freshness-, accuracy-, mock-location-, and media-distance-checked;
@@ -555,3 +556,116 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   optional metadata, and persistence never implies an email, SMS, or telephone delivery.
 - Expo SDK 54 stays on a compatible current patch release (`54.0.36`) while Expo Go is the demo
   target. Native-module changes require a Metro restart and installed-build smoke before release.
+
+## 2026-07-17 — Split Master Bootstrap Conventions
+
+- Retain `supabase/master.sql` as the complete deterministic empty-database artifact and generate
+  `supabase/master.part-1.sql` plus `supabase/master.part-2.sql` for Dashboard SQL Editor query-size
+  limits.
+- Split after the complete Phase 5 schema/security pair so a successful Part 1 does not leave that
+  phase's new tables waiting for their matching forced-RLS and RPC boundary. Part 1 must complete
+  before Part 2; a migration is never divided between queries.
+- The existing generate/check commands own all three files and preserve exact source SHA-256
+  manifests. Seeds remain separate under `supabase/seed/`.
+- Neither split execution nor the complete master is an upgrade path or a migration-ledger repair.
+  Dashboard execution on a clean database does not itself record all source versions in Supabase's
+  migration-history table.
+
+## 2026-07-17 — Existing-Database SQL Editor Upgrade Convention
+
+- This convention supersedes using `master.part-1.sql` and `master.part-2.sql` as clean-bootstrap
+  slices. `master.sql` remains the complete clean-database bootstrap.
+- The current parts target the repository's previously generated 34-migration Phase 9 baseline and
+  contain only the six later Phase 10 migrations. Part 1 ends after citizen Phone MFA; Part 2
+  contains profile-image, proximity, and routing-delivery work.
+- Each part is one transaction and fails closed against representative baseline, prior-part, and
+  target markers. A mismatch requires reconciliation or a new forward-only bundle; operators must
+  never add `IF NOT EXISTS` to conceal drift.
+- SQL Editor execution remains separate from the Supabase migration ledger. The parts neither seed
+  data nor claim to repair `supabase_migrations.schema_migrations`.
+
+## 2026-07-17 — Adaptive Full-History SQL Editor Reconciliation
+
+- This supersedes the fixed Phase 9 baseline assumption, which was not supported by managed-schema
+  evidence. The two parts cover all current migrations at the reviewed Phase 5 boundary; as of
+  2026-07-17, that is 42 migrations split 23/19.
+- Idempotence is migration-level: catalog fingerprints identify a coherent complete prefix, exact
+  immutable source migrations after that prefix execute dynamically, and reruns skip complete
+  migrations as units. Blanket statement-level `IF NOT EXISTS` is prohibited because it cannot
+  validate policies, triggers, functions, constraints, grants, RLS, or prior DML.
+- Each part uses one advisory-locked transaction and fails on partial/non-contiguous fingerprints.
+  Seeds and `supabase_migrations.schema_migrations` remain separate operator concerns.
+
+## 2026-07-17 — Explicit Portal Identity and Official-Onboarding Conventions
+
+- After Supabase establishes a session, every portal shows the exact current account email (or the
+  available citizen phone label) and a clear sign-out/switch-account action. Pre-authentication
+  responses remain non-enumerating and never reveal whether another account exists.
+- Privileged access is explained and enforced as three independent gates: Supabase Auth identity,
+  that user's own TOTP factor at AAL2 when enforced, and current database authority membership plus
+  scoped role. Passing one gate never implies another.
+- A QR code is displayed only to enroll a new TOTP factor. Returning users challenge an existing
+  factor with its six-digit code. Lost-factor recovery is administrator-mediated and cannot bypass
+  API or RLS authorization.
+- Government invitation scope choices come from a trusted service-role projection of active,
+  verified, non-placeholder, routing-eligible governance records. Platform administrators may see
+  all eligible choices; municipal administrators are filtered to their own authority. Operators
+  select names while opaque IDs remain transport values, not manually entered fields.
+- Each official uses an individual invited email and individual authenticator enrollment. Existing
+  Auth identities continue to require the future audited lifecycle under `AUTH-001`; Auth metadata
+  is never used to grant application access.
+- No ADR was added for this slice because it implements and clarifies ADR-0006 and ADR-0020 without
+  changing the accepted identity, MFA, database-authorization, or deployment architecture.
+
+## 2026-07-17 — Single Root Environment for Authentication-Facing Local Runtimes
+
+- The untracked repository-root `.env` is the only local environment file for the API, mobile
+  client, Citizen Web, Government Dashboard, and Admin Console. Their package scripts load it
+  before build/start/development commands.
+- Values already present in the shell or injected by a deployment platform take precedence over
+  the local file. A missing root file is valid in CI and managed deployment environments.
+- App-local `.env.local` copies are prohibited because Next.js precedence can silently split the
+  browser Auth project from the API's database project. The runner rejects supported local
+  environment filenames, and Turbo hashes the root file plus explicitly injected public build
+  variables. After changing projects, rebuild/restart the client and establish a fresh session.
+- This is an implementation/setup convention, not a deployment-topology or authentication
+  architecture change, so no ADR is required.
+
+## 2026-07-17 — Citizen Profile, Web Accountability, and BMC Demo-Routing Conventions
+
+- Mobile profile photos may come from Expo Camera or the existing gallery picker, but both paths
+  use the same owner-private validation, upload, replacement, signed-read, and removal boundary.
+  Permission denial is explicit and permanent denial links to operating-system settings.
+- “Use current area” on the mobile profile performs a fresh foreground-location lookup through the
+  verified governance projection and retains only derived authority/local-body/ward labels in
+  component memory. It does not store exact coordinates or create a persisted street address.
+  Persisted addresses require a separate private schema/API, consent/retention rules, RLS review,
+  and an approved reverse-geocoding/provider policy.
+- Citizen Web complaint history, detail, timeline, feedback, confirmation, and reopening use the
+  existing owner-authorized server APIs. Server actions reload the current resolution/workflow
+  context instead of trusting client-supplied workflow or resolution identifiers. When policy
+  requires new location-bound evidence, the web client sends the citizen to the mobile capture flow.
+- Optional BMC internal routing is activated only by generated seeds `52`/`53` and only for
+  `garbage_dump`, `missed_sweeping`, and `mosquito_breeding` across the 22 exact one-to-one ward
+  crosswalks. The 66 rules are data records, not municipality/category branches in application
+  source. Nine asset-dependent categories and the K/P split child wards remain fail closed.
+- Internal queue routing never claims BMC official-system submission or external email/SMS delivery.
+  The optional seeds remain separate from incremental migrations and must be deliberately applied
+  and smoke-tested in a reconciled non-production environment.
+- Community support, following, trending, ranking, and comments remain disabled until public
+  visibility, privacy, moderation, abuse, retention, and ranking semantics are approved. A future
+  community signal must not silently override official routing, status, escalation, or SLA priority.
+- No ADR was added for this slice because it applies ADR-0009, ADR-0011, ADR-0015, ADR-0016,
+  ADR-0017, ADR-0021, and ADR-0023 without changing their accepted boundaries.
+
+## 2026-07-17 — Complaint Category Catalog Presentation
+
+- The authenticated category catalog may show every non-placeholder database category, including
+  categories whose routing is not operational, so citizens can understand the supported taxonomy.
+- Availability is derived server-side by comparing the bounded full catalog with the existing
+  verified-only operational projection. Clients cannot promote a category, and placeholder or
+  malformed records are never returned.
+- Unavailable categories are visibly disabled. An available category is only eligible for the
+  subsequent location-specific routing check; it is not a promise of coverage at every coordinate.
+- The existing verified-only category lookup and complaint submission checks remain authoritative.
+  This additive presentation convention does not change ADR-0009 or require a new ADR.

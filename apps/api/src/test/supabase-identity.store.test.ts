@@ -252,6 +252,149 @@ describe('Supabase identity store effective access', () => {
   });
 });
 
+describe('Supabase identity store government invitation options', () => {
+  const authorityId = '984805ee-52b9-5be0-bed2-3951cc6cab2d';
+  const departmentId = '7a6af88b-d00e-44dc-b21d-af5b778d1441';
+  const wardId = 'a93fe312-6f26-4d4b-a9da-e1cd0ad68dc6';
+  const validOptions = {
+    authorities: [
+      {
+        authorityType: 'municipal_corporation',
+        code: 'BMC',
+        id: authorityId,
+        name: 'Brihanmumbai Municipal Corporation',
+      },
+    ],
+    departments: [
+      {
+        authorityId,
+        code: 'HEALTH',
+        id: departmentId,
+        name: 'Public Health Department',
+        type: 'department',
+      },
+    ],
+    wards: [
+      {
+        authorityId,
+        code: 'A',
+        id: wardId,
+        name: 'Ward A',
+        type: 'ward',
+      },
+    ],
+  } as const;
+
+  it('uses only the bound service-role RPC and forwards an authority filter exactly', async () => {
+    const calls: Array<Readonly<{ arguments_: Record<string, unknown>; functionName: string }>> =
+      [];
+    const serviceRoleClient = {
+      rpc(this: unknown, functionName: string, arguments_: Record<string, unknown>) {
+        assert.equal(this, serviceRoleClient);
+        calls.push({ arguments_, functionName });
+        return Promise.resolve({ data: validOptions, error: null });
+      },
+    };
+    const store = new SupabaseIdentityStore({ serviceRoleClient } as unknown as SupabaseClients);
+
+    const options = await store.listGovernmentInvitationOptions([authorityId]);
+
+    assert.deepEqual(options, validOptions);
+    assert.deepEqual(calls, [
+      {
+        arguments_: { p_authority_ids: [authorityId] },
+        functionName: 'list_government_invitation_options',
+      },
+    ]);
+  });
+
+  it('omits the optional authority argument for platform-wide options', async () => {
+    const calls: Array<Readonly<{ arguments_: Record<string, unknown>; functionName: string }>> =
+      [];
+    const store = new SupabaseIdentityStore({
+      serviceRoleClient: {
+        rpc: (functionName: string, arguments_: Record<string, unknown>) => {
+          calls.push({ arguments_, functionName });
+          return Promise.resolve({ data: validOptions, error: null });
+        },
+      },
+    } as unknown as SupabaseClients);
+
+    await store.listGovernmentInvitationOptions(null);
+
+    assert.deepEqual(calls, [
+      { arguments_: {}, functionName: 'list_government_invitation_options' },
+    ]);
+  });
+
+  it('returns an empty contract without querying when no authority can be managed', async () => {
+    let rpcCalled = false;
+    const store = new SupabaseIdentityStore({
+      serviceRoleClient: {
+        rpc: () => {
+          rpcCalled = true;
+          return Promise.resolve({ data: validOptions, error: null });
+        },
+      },
+    } as unknown as SupabaseClients);
+
+    assert.deepEqual(await store.listGovernmentInvitationOptions([]), {
+      authorities: [],
+      departments: [],
+      wards: [],
+    });
+    assert.equal(rpcCalled, false);
+  });
+
+  it('fails closed for malformed, duplicate, orphaned, or filter-broadening RPC output', async () => {
+    const otherAuthorityId = '1579439f-6e87-46d4-8411-e6559f4ddf51';
+    const invalidPayloads: unknown[] = [
+      { ...validOptions, extra: true },
+      {
+        ...validOptions,
+        departments: [{ ...validOptions.departments[0], type: 'ward' }],
+      },
+      {
+        ...validOptions,
+        wards: [{ ...validOptions.wards[0], id: departmentId }],
+      },
+      {
+        ...validOptions,
+        wards: [{ ...validOptions.wards[0], authorityId: otherAuthorityId }],
+      },
+      {
+        ...validOptions,
+        authorities: [{ ...validOptions.authorities[0], id: otherAuthorityId }],
+        departments: [],
+        wards: [],
+      },
+    ];
+
+    for (const payload of invalidPayloads) {
+      const store = new SupabaseIdentityStore({
+        serviceRoleClient: {
+          rpc: () => Promise.resolve({ data: payload, error: null }),
+        },
+      } as unknown as SupabaseClients);
+
+      await assert.rejects(
+        store.listGovernmentInvitationOptions([authorityId]),
+        IdentityDataAccessError,
+      );
+    }
+  });
+
+  it('normalizes RPC failures to the identity data-access boundary', async () => {
+    const store = new SupabaseIdentityStore({
+      serviceRoleClient: {
+        rpc: () => Promise.resolve({ data: validOptions, error: { message: 'private detail' } }),
+      },
+    } as unknown as SupabaseClients);
+
+    await assert.rejects(store.listGovernmentInvitationOptions(null), IdentityDataAccessError);
+  });
+});
+
 describe('Supabase identity store MFA state', () => {
   it('queries verified phone MFA through the service-only RPC', async () => {
     const calls: Array<Readonly<{ arguments_: Record<string, unknown>; functionName: string }>> =

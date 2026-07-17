@@ -3,6 +3,7 @@ import type {
   AuthorityMembership,
   Device,
   DevicePlatform,
+  GovernmentInvitationOptions,
   JsonObject,
   Profile,
   RecordAuthAuditEventInput,
@@ -116,6 +117,10 @@ export abstract class IdentityStore {
   public abstract findRoleByCode(code: string): Promise<RoleDefinition | null>;
 
   public abstract listDevices(userId: string): Promise<Device[]>;
+
+  public abstract listGovernmentInvitationOptions(
+    authorityIds: readonly string[] | null,
+  ): Promise<GovernmentInvitationOptions>;
 
   public abstract persistGovernmentInvitation(
     input: PersistGovernmentInvitation,

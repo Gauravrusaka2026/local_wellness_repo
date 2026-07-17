@@ -3,7 +3,7 @@ import { describe, it, test } from 'node:test';
 import type {
   ComplaintDraft,
   ComplaintLocationCapture,
-  RoutingCategory,
+  RoutingCategoryCatalogItem,
 } from '@local-wellness/types';
 
 import {
@@ -71,7 +71,7 @@ const location = (overrides: Partial<ComplaintLocationCapture> = {}): ComplaintL
 
 describe('complaint capture reducer and readiness', () => {
   it('keeps verified categories while clearing a completed draft', () => {
-    const categories: RoutingCategory[] = [
+    const categories: RoutingCategoryCatalogItem[] = [
       {
         code: 'POTHOLE',
         description: null,
@@ -85,6 +85,7 @@ describe('complaint capture reducer and readiness', () => {
         requiresLocation: true,
         requiredAttributes: [],
         recommendedMediaKinds: ['photo'],
+        submissionAvailability: 'available',
       },
     ];
     const loaded = complaintCaptureReducer(initialComplaintCaptureState, {
@@ -99,6 +100,34 @@ describe('complaint capture reducer and readiness', () => {
 
     assert.equal(cleared.draft, null);
     assert.deepEqual(cleared.categories, categories);
+  });
+
+  it('does not consider an unavailable catalog category submission-ready', () => {
+    const unavailableCategory: RoutingCategoryCatalogItem = {
+      code: 'awaiting_verified_route',
+      description: null,
+      id: '22222222-2222-4222-8222-222222222222',
+      isEmergency: false,
+      maximumMediaCount: 5,
+      minimumMediaCount: 1,
+      name: 'Awaiting verified route',
+      parentCategoryId: null,
+      requiresAsset: false,
+      requiresLocation: true,
+      requiredAttributes: [],
+      recommendedMediaKinds: ['photo'],
+      submissionAvailability: 'unavailable',
+    };
+
+    assert.equal(
+      getDraftReadiness(
+        draft({
+          categoryId: unavailableCategory.id,
+        }),
+        unavailableCategory,
+      ).missing.includes('category'),
+      true,
+    );
   });
 
   it('offers app settings only for permanent location-permission errors', () => {

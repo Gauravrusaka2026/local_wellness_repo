@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import React, { useState, type FormEvent } from 'react';
 
 import { getGovernmentEmailCallbackUrl } from '../../../lib/auth/callback';
 import { buildMfaPath } from '../../../lib/auth/mfa';
@@ -10,13 +10,15 @@ import {
   verifyGovernmentOtp,
 } from '../../../lib/auth/service';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
+import { GovernmentAuthorizationNote } from '../government-authorization-note';
 
 type Step = 'request' | 'verify';
 
 export const OtpSignInForm = ({
+  accountNotice,
   callbackError,
   nextPath,
-}: Readonly<{ callbackError: boolean; nextPath: string }>) => {
+}: Readonly<{ accountNotice: string | null; callbackError: boolean; nextPath: string }>) => {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(
     callbackError
@@ -65,11 +67,17 @@ export const OtpSignInForm = ({
   return (
     <section aria-labelledby="login-heading" className="auth-card">
       <p className="eyebrow">Restricted government access</p>
-      <h1 id="login-heading">Government dashboard</h1>
+      <h1 id="login-heading">Sign in to the Government Dashboard</h1>
       <p className="lede">
-        Only invited officers and municipal administrators can sign in. Access is limited to active
-        assigned scopes.
+        Use the exact email address that received your government invitation. This form signs in an
+        existing invited identity; it never creates a government account.
       </p>
+
+      {accountNotice === null ? null : (
+        <p aria-live="polite" className="success-notice" role="status">
+          {accountNotice}
+        </p>
+      )}
 
       {step === 'request' ? (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void requestCode(event)}>
@@ -90,8 +98,9 @@ export const OtpSignInForm = ({
             value={email}
           />
           <p className="field-hint">
-            If this address has active access, the email may contain a verification code, a secure
-            sign-in link, or both.
+            Not sure which account to use? Ask the administrator who invited you to confirm the
+            invitation email. The message may contain a verification code, a secure sign-in link, or
+            both.
           </p>
           <button className="primary-button" disabled={isPending} type="submit">
             {isPending ? 'Sending…' : 'Send verification email'}
@@ -100,9 +109,8 @@ export const OtpSignInForm = ({
       ) : (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
           <p aria-live="polite" className="success-notice">
-            If this address has active access, enter the code sent to{' '}
-            <strong>{normalizedEmail}</strong> or open the newest secure sign-in link in this
-            browser.
+            Continue as <strong>{normalizedEmail}</strong>. Enter the newest code sent to this
+            address, or open the newest secure sign-in link in this browser.
           </p>
           <label htmlFor="otp">Verification code</label>
           <input
@@ -143,10 +151,15 @@ export const OtpSignInForm = ({
           {error}
         </p>
       )}
-      <p className="security-note">
-        Do not share invitation links or verification codes. Access is authorized from current
-        server-side role and membership state.
-      </p>
+      <GovernmentAuthorizationNote />
+      <details className="auth-help">
+        <summary>Account or authenticator recovery</summary>
+        <p>
+          If you cannot access the invited email or your authenticator, contact the administrator
+          who onboarded you through a verified official channel. Privileged recovery requires an
+          identity check and cannot be bypassed from this sign-in page.
+        </p>
+      </details>
     </section>
   );
 };

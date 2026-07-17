@@ -117,7 +117,9 @@ export const getUserFacingApiError = (error: unknown): string => {
     return 'Your session has expired. Sign in again.';
   }
   if (error instanceof ApiError) {
-    return error.status === 403 ? 'Platform administrator access is required.' : error.message;
+    return error.status === 403
+      ? 'An active platform or municipal administrator role is required.'
+      : error.message;
   }
   return 'Something went wrong. Please try again.';
 };

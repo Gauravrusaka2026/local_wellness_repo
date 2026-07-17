@@ -1,5 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { CreateGovernmentInvitationInput, GovernmentInvitation } from '@local-wellness/types';
+import type {
+  CreateGovernmentInvitationInput,
+  GovernmentInvitation,
+  GovernmentInvitationOptions,
+} from '@local-wellness/types';
 import { governmentInvitationRoleScopes } from '@local-wellness/types';
 
 import {
@@ -30,6 +34,49 @@ export class GovernmentInvitationsService {
     private readonly clock: Clock,
     @Inject(API_CONFIGURATION) private readonly configuration: ApiConfiguration,
   ) {}
+
+  public async listInvitationOptions(actorUserId: string): Promise<GovernmentInvitationOptions> {
+    const at = this.clock.now().toISOString();
+    const [actorProfile, access] = await Promise.all([
+      this.identityStore.findProfile(actorUserId),
+      this.identityStore.findActiveAccess(actorUserId, at),
+    ]);
+
+    if (actorProfile?.status !== 'active') {
+      throw ApiException.accessDenied('An active administrator account is required.');
+    }
+
+    const actorIsPlatformAdmin = access.roles.some(
+      (role) => role.code === 'platform_admin' && role.scopeType === 'global',
+    );
+    if (actorIsPlatformAdmin) {
+      return this.identityStore.listGovernmentInvitationOptions(null);
+    }
+
+    const activeAuthorityIds = new Set(
+      access.authorities.map((membership) => membership.authorityId),
+    );
+    const manageableAuthorityIds = [
+      ...new Set(
+        access.roles.flatMap((role) =>
+          role.code === 'municipal_admin' &&
+          role.scopeType === 'authority' &&
+          role.scopeId !== null &&
+          activeAuthorityIds.has(role.scopeId)
+            ? [role.scopeId]
+            : [],
+        ),
+      ),
+    ];
+
+    if (manageableAuthorityIds.length === 0) {
+      throw ApiException.accessDenied(
+        'An active platform or municipal administrator role is required.',
+      );
+    }
+
+    return this.identityStore.listGovernmentInvitationOptions(manageableAuthorityIds);
+  }
 
   public async createInvitation(
     actorUserId: string,

@@ -10,6 +10,7 @@ import {
   type RoutingCandidate,
   type RoutingAssetOption,
   type RoutingCategory,
+  type RoutingCategoryCatalogItem,
   type RoutingDecision,
   type RoutingEntityEvidence,
   type RoutingPolicy,
@@ -46,10 +47,10 @@ const entityTypeSchema = z.enum(routingEntityTypes);
 const categoryRowSchema = z
   .object({
     category_id: uuidSchema,
-    domain_code: z.string().min(1),
-    category_code: z.string().min(1),
-    category_name: z.string().min(1),
-    description: z.string().nullable(),
+    domain_code: z.string().regex(/^[a-z][a-z0-9_]{1,79}$/u),
+    category_code: z.string().regex(/^[a-z][a-z0-9_]{1,79}$/u),
+    category_name: z.string().trim().min(1).max(160),
+    description: z.string().trim().min(1).max(1_000).nullable(),
     parent_category_id: nullableUuidSchema,
     classification_level: z.enum(['category', 'subcategory', 'issue']),
     default_severity: z.enum(['low', 'medium', 'high', 'critical']),
@@ -59,13 +60,15 @@ const categoryRowSchema = z
     is_emergency: z.boolean(),
     minimum_media_count: z.number().int().min(0).max(20),
     maximum_media_count: z.number().int().min(0).max(20),
-    required_attributes: z.array(z.string()),
+    required_attributes: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u)).max(20),
     media_requirements: z.record(z.string(), z.unknown()),
     verification_status: verificationStatusSchema,
     is_placeholder: z.boolean(),
     is_routing_eligible: z.boolean(),
   })
   .strict();
+
+const categoryRowsSchema = z.array(categoryRowSchema).max(500);
 
 const publishedMediaRequirementsSchema = z
   .object({ recommended: z.array(z.enum(complaintMediaKinds)).max(3).optional() })
@@ -347,23 +350,37 @@ const decode = <Output>(schema: z.ZodType<Output>, data: unknown, operation: str
 const hasDatabaseErrorMarker = (error: unknown, marker: string): boolean =>
   typeof error === 'object' && error !== null && 'message' in error && error.message === marker;
 
-const decodeCategory = (row: z.infer<typeof categoryRowSchema>): RoutingCategory => ({
-  id: row.category_id,
-  code: row.category_code,
-  name: row.category_name,
-  description: row.description,
-  parentCategoryId: row.parent_category_id,
-  requiresAsset: row.requires_asset,
-  requiresLocation: row.requires_location,
-  isEmergency: row.is_emergency,
-  minimumMediaCount: row.minimum_media_count,
-  maximumMediaCount: row.maximum_media_count,
-  requiredAttributes: row.required_attributes,
-  recommendedMediaKinds:
-    publishedMediaRequirementsSchema.parse(row.media_requirements).recommended ?? [],
+const decodeCategory = (row: z.infer<typeof categoryRowSchema>): RoutingCategory => {
+  const mediaRequirements = publishedMediaRequirementsSchema.safeParse(row.media_requirements);
+  if (!mediaRequirements.success) {
+    throw new RoutingDataAccessError('decode routing category');
+  }
+
+  return {
+    id: row.category_id,
+    code: row.category_code,
+    name: row.category_name,
+    description: row.description,
+    parentCategoryId: row.parent_category_id,
+    requiresAsset: row.requires_asset,
+    requiresLocation: row.requires_location,
+    isEmergency: row.is_emergency,
+    minimumMediaCount: row.minimum_media_count,
+    maximumMediaCount: row.maximum_media_count,
+    requiredAttributes: row.required_attributes,
+    recommendedMediaKinds: mediaRequirements.data.recommended ?? [],
+  };
+};
+
+const decodeCatalogCategory = (
+  row: z.infer<typeof categoryRowSchema>,
+  submissionAvailability: RoutingCategoryCatalogItem['submissionAvailability'],
+): RoutingCategoryCatalogItem => ({
+  ...decodeCategory(row),
+  submissionAvailability,
 });
 
-const assertPublishedCategoryRows = (
+const assertCategoryRowIntegrity = (
   rows: readonly z.infer<typeof categoryRowSchema>[],
   operation: string,
 ): void => {
@@ -372,9 +389,6 @@ const assertPublishedCategoryRows = (
   for (const row of rows) {
     if (
       categoryIds.has(row.category_id) ||
-      row.verification_status !== 'verified' ||
-      row.is_placeholder ||
-      !row.is_routing_eligible ||
       row.maximum_media_count < row.minimum_media_count ||
       new Set(row.required_attributes).size !== row.required_attributes.length
     ) {
@@ -382,6 +396,19 @@ const assertPublishedCategoryRows = (
     }
 
     categoryIds.add(row.category_id);
+  }
+};
+
+const assertPublishedCategoryRows = (
+  rows: readonly z.infer<typeof categoryRowSchema>[],
+  operation: string,
+): void => {
+  assertCategoryRowIntegrity(rows, operation);
+
+  for (const row of rows) {
+    if (row.verification_status !== 'verified' || row.is_placeholder || !row.is_routing_eligible) {
+      throw new RoutingDataAccessError(operation);
+    }
   }
 };
 
@@ -774,7 +801,7 @@ export class SupabaseRoutingStore extends RoutingStore {
     const data = await this.callRpc('find routing category', 'list_routing_categories', {
       p_include_non_routable: false,
     });
-    const rows = decode(z.array(categoryRowSchema), data, 'find routing category');
+    const rows = decode(categoryRowsSchema, data, 'find routing category');
     assertPublishedCategoryRows(rows, 'find routing category');
     const matches = rows.filter((row) => row.category_id === categoryId);
 
@@ -789,10 +816,37 @@ export class SupabaseRoutingStore extends RoutingStore {
     const data = await this.callRpc('list routing categories', 'list_routing_categories', {
       p_include_non_routable: false,
     });
-    const rows = decode(z.array(categoryRowSchema), data, 'list routing categories');
+    const rows = decode(categoryRowsSchema, data, 'list routing categories');
     assertPublishedCategoryRows(rows, 'list routing categories');
 
     return rows.map(decodeCategory);
+  }
+
+  public async listRoutingCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
+    const operation = 'list routing category catalog';
+    const [catalogData, publishedData] = await Promise.all([
+      this.callRpc(operation, 'list_routing_categories', { p_include_non_routable: true }),
+      this.callRpc(operation, 'list_routing_categories', { p_include_non_routable: false }),
+    ]);
+    const catalogRows = decode(categoryRowsSchema, catalogData, operation);
+    const publishedRows = decode(categoryRowsSchema, publishedData, operation);
+    assertCategoryRowIntegrity(catalogRows, operation);
+    assertPublishedCategoryRows(publishedRows, operation);
+
+    const nonPlaceholderRows = catalogRows.filter((row) => !row.is_placeholder);
+    const catalogRowsById = new Map(nonPlaceholderRows.map((row) => [row.category_id, row]));
+    const publishedRowsById = new Map(publishedRows.map((row) => [row.category_id, row]));
+
+    if (publishedRows.some((row) => !catalogRowsById.has(row.category_id))) {
+      throw new RoutingDataAccessError(operation);
+    }
+
+    return nonPlaceholderRows.map((row) => {
+      const publishedRow = publishedRowsById.get(row.category_id);
+      return publishedRow
+        ? decodeCatalogCategory(publishedRow, 'available')
+        : decodeCatalogCategory(row, 'unavailable');
+    });
   }
 
   public async discoverRoutingAssets(

@@ -241,7 +241,16 @@ After the local stack starts, read its values with `pnpm exec supabase status -o
 | `PUBLISHABLE_KEY` | `SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
 | `SECRET_KEY`      | `SUPABASE_SECRET_KEY` only                                                                                     |
 
-Source the root file before running workspace commands because the NestJS process does not load it implicitly. Current CLI stacks may also print legacy anon/service-role JWTs; the verified Phase 1 stack rejects the legacy service-role JWT, so prefer the current keys. Never copy `SECRET_KEY`, a hosted secret key, or a service-role key into any `EXPO_PUBLIC_*` or `NEXT_PUBLIC_*` variable.
+The API, mobile client, Citizen Web, Government Dashboard, and Admin Console scripts load this one
+repository-root file automatically. Values already exported by a deployment or the current shell
+take precedence. Source it explicitly before the full `pnpm dev` command because the remaining
+worker processes do not load it implicitly. Do not create app-local `.env.local` copies: a stale
+copy can authenticate a browser against one Supabase project while the API reads another. The app
+runner rejects supported app-local environment filenames, and Turbo includes the root file plus
+injected public client variables in build cache keys. Current CLI stacks may also print legacy
+anon/service-role JWTs; the verified Phase 1 stack rejects the
+legacy service-role JWT, so prefer the current keys. Never copy `SECRET_KEY`, a hosted secret key,
+or a service-role key into any `EXPO_PUBLIC_*` or `NEXT_PUBLIC_*` variable.
 
 ### Repository Validation
 
@@ -274,6 +283,32 @@ scrubs it immediately, and still requires the pre-existing database membership a
 exact application callback to the managed Auth redirect allow-list; use an installed mobile
 development/release build for `localwellness://auth/callback` rather than relying on Expo Go's
 temporary `exp://` URL.
+
+### Testing the three account experiences
+
+- Citizen Web uses email/password. Its login and account pages show the exact active account,
+  provide a sign-out/switch-account path, and distinguish optional Phone MFA rollout from a
+  verified phone factor.
+- Government Dashboard uses the invited official email. The UI shows that email and treats email
+  authentication, TOTP authenticator verification, and the database authority membership/scoped
+  role as three separate gates.
+- Admin Console is only for a platform or municipal administrator. It shows the active email,
+  labels first-time QR enrollment separately from later authenticator-code challenges, and creates
+  official invitations from named verified operational authority, ward, and department choices.
+
+Each official must use an individual account and enroll their own authenticator. Signing in or
+scanning a QR code never grants a government role. An authorized administrator must create the
+membership and scoped role through the Admin Console/API. Managed MFA recovery still requires the
+reviewed administrator process documented in `docs/authentication.md`. For now, invite a new
+official-controlled email; assigning government access to an email that already exists remains the
+audited lifecycle task tracked as `AUTH-001`.
+
+All three web portals and the API must use the same root `.env` and the same migrated Supabase
+project. Their local scripts now load that file automatically and preserve explicitly injected
+deployment values; builds are invalidated when that configuration changes. If a session was
+created before configuration was corrected, sign out, clear
+the old portal session, restart the affected portal, and sign in again with the email shown on its
+login screen.
 
 ---
 
@@ -367,16 +402,20 @@ pnpm database:types
 pnpm database:types:check
 ```
 
-For a clean database bootstrap that requires one SQL file, use `supabase/master.sql`. It is
-generated from the complete ordered migration history and deliberately excludes seed data.
+For a clean database bootstrap that requires one SQL file, use `supabase/master.sql`. For an
+existing database created from an earlier Local Wellness master, run `supabase/master.part-1.sql`
+and then `supabase/master.part-2.sql`. Together they contain all 42 migrations, detect and skip a
+coherent completed prefix, and apply only missing migrations in two transaction-atomic parts. They
+deliberately exclude seed data and fail on partial or non-contiguous schema fingerprints.
 
 ```bash
 pnpm database:master:generate
 pnpm database:master:check
 ```
 
-Do not add the master file to `supabase/migrations/` or apply it to a database that already ran the
-incremental migrations.
+Do not add any master artifact to `supabase/migrations/`, apply `master.sql` to an existing database,
+or bypass an adaptive-part preflight with blanket `IF NOT EXISTS`. Dashboard execution does not populate
+Supabase's migration-history ledger; reconcile that ledger before any later CLI migration workflow.
 
 No production schema change should be performed only through the Supabase dashboard.
 
@@ -388,10 +427,11 @@ Accepted means structurally importable, not automatically production-verified; p
 incomplete evidence remain explicitly non-routable.
 
 Phase 3 adds the private `routing` schema and a review-gated governance-synchronization
-foundation. A local reset seeds the 12 pilot taxonomy records as draft, unverified, and
-non-routable engineering data. This is intentional: the authenticated routing API returns no
-operational category or route until verified database evidence is reviewed and activated. See
-`docs/governance-synchronization.md` before adding or refreshing an official source.
+foundation. The canonical Phase 3 taxonomy seed creates the 12 pilot records as draft, unverified,
+and non-routable engineering data before any optional municipality pack is applied. This is
+intentional: the authenticated routing API returns no operational category or route until verified
+database evidence is reviewed and activated. See `docs/governance-synchronization.md` before adding
+or refreshing an official source.
 
 The permanent governance synchronization workstream now includes database-backed due-source
 claims/leases, a bounded `governance-sync-fetch` Edge Function, private content-addressed raw
@@ -404,8 +444,21 @@ not promoted as official identities. The reviewed pilot direction is BMC adminis
 `A`–`E` and Pune's current official numeric wards `1`–`5`; both require official evidence and new
 reviewed scope records before activation. Never infer an ordinal mapping from `BRIH-W01`–`BRIH-W05`
 to BMC's lettered wards.
+
+An optional, separately generated BMC staging/demo pack now creates source-backed BMC operational
+wards, offices, departments, roles, officers, assignments, contacts, legacy boundary crosswalks,
+pilot categories, and internal routing evidence. Generate/check it with
+`pnpm governance:bmc:generate` and `pnpm governance:bmc:check`, then apply
+seeds `50`, `51`, `52`, and `53` in filename order only to a reviewed non-production target. It
+never modifies the Maharashtra canonical inputs. The routing seed activates only `garbage_dump`,
+`missed_sweeping`, and `mosquito_breeding`: 66 database rules cover the 22 one-to-one operational
+wards. The other nine pilot categories require verified asset inventories/ownership and stay
+non-routable. Split wards `K/S`, `K/N`, `P/E`, and `P/W` and their legacy boundary anchors have no
+executable route. External/production complaint delivery remains false, so a Local Wellness queue
+record must not be represented as a complaint lodged in BMC's official system.
 Nothing is fetched on a schedule, published, made routable, approved for complaint delivery, or
-activated by that seed. Current source contracts are SHA-256 pinned and require an active global
+activated by the original synchronization-source/scope seed. Current source contracts are SHA-256
+pinned and require an active global
 platform-administrator's exact-hash approval. Each dispatch can claim one source and
 uses a heartbeat-protected lease around immutable private Storage. Failed or ambiguous snapshot
 finalization retains content-addressed bytes for grace-period reconciliation rather than risking an
@@ -424,7 +477,7 @@ source, route, ward, complaint, or production deployment/activation is implied.
 The owner has since selected a replacement staging project and reports loading a generated master
 SQL artifact. Because that target's database connection and migration ledger were not available for
 this session, do not infer which master revision, seeds, Auth identities, or role assignments it
-contains. Reconcile it against all 40 current migrations through `20260716117000` before enabling
+contains. Reconcile it against all 42 current migrations through `20260716119000` before enabling
 managed features.
 
 Phase 4 adds the local mobile complaint-capture flow and authenticated complaint API. For local
@@ -459,6 +512,19 @@ suggestions, and completes submission through an idempotent server-side operatio
 advances only with `verified` or `partially_verified` location evidence. Asset discovery and routing
 both exclude inactive, unverified, placeholder, non-routable, or out-of-jurisdiction records.
 
+The mobile profile can take a new avatar with Expo Camera or select one from the library; both paths
+reuse the private profile-image validation/upload and short-lived signed preview. Its current-area
+card requests a one-time high-accuracy foreground location and displays only the verified civic
+area labels and provenance returned by the governance resolver. Exact profile coordinates and a
+street address are not persisted by this slice.
+
+Citizen Web now exposes the complaint owner's paginated history plus detail/timeline pages. It
+renders current status, public government resolution/action evidence, and safe routing/location
+summaries. The owner can submit policy-valid feedback and request reopening from the web; a reopen
+that requires new location-bound media sends the user to the mobile capture path. These pages use
+the same server-owned workflow and never let browser input choose a resolution, routing target, or
+workflow identity.
+
 Phase 5 adds a server-rendered government queue and complaint workspace. Start it beside the API:
 
 ```bash
@@ -475,11 +541,15 @@ data-minimized notification outbox record in the same transaction; Phase 5 does 
 records. Exact coordinates are rendered as authorized text only because no external map provider or
 coordinate-sharing policy has been selected.
 
-The current bootstrap intentionally exposes zero verified routable categories, so a valid
-production-style submission and a real government queue remain blocked until reviewed pilot
-routing data is activated. Speech transcription, media moderation, physical-device verification,
+The authenticated report form now lists every non-placeholder category from the database catalog.
+Categories outside the active verified projection remain visibly disabled. The optional BMC
+non-production seed makes only three asset-independent categories selectable; the subsequent
+location-specific routing check resolves them only within its 22 one-to-one wards. Selection alone
+does not promise coverage at a coordinate. The nine asset-dependent categories and split K/P wards
+remain blocked. Speech transcription, media moderation, physical-device verification,
 hosted-environment verification, and provider-backed notification delivery remain pending. No
-hosted application deployment is part of the current repository state.
+hosted application deployment or external BMC complaint delivery is part of the current repository
+state.
 
 Phase 6 adds database-first private complaint conversations, durable in-app notification history,
 and authenticated single-instance Socket.IO delivery. For local engineering, start Supabase and
@@ -603,14 +673,22 @@ Current stage:
   inactive. Ten pilot ward scope targets (five per municipality) are also service-only, draft,
   unverified, placeholder-backed, and non-routable; no parser output, record, contact, route, or
   complaint-delivery target is automatically verified or published;
+- the optional BMC staging pack adds official-source internal queue data for 26 operational wards
+  and 20 departments with versioned role/assignment/contact/boundary evidence. Its separate routing
+  seed enables three asset-independent categories through 66 rules over the 22 one-to-one wards;
+  nine asset-dependent categories and the K/P split wards remain fail-closed. It is not applied to
+  managed staging automatically and external complaint delivery remains disabled;
 - Phase 4 mobile complaint capture, exact-location evidence, private signed media upload,
   duplicate suggestions, and idempotent server-orchestrated submission are implemented for local
-  engineering; the bootstrap contains zero verified routable categories, so the valid-submission
-  production exit remains data-gated;
+  engineering. The canonical Maharashtra/Phase 3 baseline alone contains zero verified routable
+  categories; the optional BMC local demo seed exposes only the three bounded internal-demo
+  categories above, so production activation remains separately data- and deployment-gated;
 - the Expo client now has email/password signup/sign-in/recovery, staged Phone MFA, private profile
   images, a modern five-destination shell for Home, Complaints, Report, Nearby, and More, a
   refreshable owned-complaint dashboard/history, locality Feed and aggregate Heatmap, grouped
-  account/help actions, and a data-driven category-aware report form;
+  account/help actions, and a data-driven category-aware report form. Profile images can be
+  captured with Expo Camera or selected from the library, and a one-time verified civic-area lookup
+  displays governance labels without persisting exact profile coordinates;
 - the authenticated Nearby directory captures foreground location through Expo Location and calls
   the NestJS API for an official-source, verified-only PostGIS governing-body projection. It shows
   explicit low-accuracy, unsupported, and ambiguous states and never substitutes placeholder names,
@@ -618,8 +696,10 @@ Current stage:
 - the mobile dependency set is aligned to Expo SDK 54.0.36, React Native 0.81.5, React 19.1, and
   TypeScript 5.9.3; the SDK compatibility check, strict type-check, and Android export pass locally;
 - citizen web account rendering now shows authenticated identity and explicit onboarding,
-  provisioning, profile-unavailable, API-error, and complete states; the web client and API must
-  still target the same fully migrated Supabase environment;
+  provisioning, profile-unavailable, API-error, and complete states. Protected complaint list,
+  detail/timeline, government-action, feedback, and policy-controlled reopen views use the same
+  owner-scoped API; the web client and API must still target the same fully migrated Supabase
+  environment;
 - an idempotent local migration repairs missing application profiles and global citizen roles for
   existing Supabase Auth users without overwriting profile data or reactivating a revoked citizen
   role; password recovery stays provider-owned and Phone MFA remains in observe mode until an SMS

@@ -1,0 +1,323 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "MUMBAI_BMC_DEMO_BOOTSTRAP_DATA_v1",
+  "generatedFromLastCheckedOn": "2026-07-16",
+  "workbook": {
+    "path": "resources/governance/MUMBAI_BMC_DEMO_BOOTSTRAP_DATA_v1.xlsx",
+    "sha256": "f86b70b239807316f26d9d0164958dcc49953240a519a5edff65b04a1b829b26",
+    "role": "human_reference"
+  },
+  "guide": {
+    "path": "resources/governance/MUMBAI_BMC_DEMO_BOOTSTRAP_GUIDE.md",
+    "sha256": "24e9e176c97115243106401998676e751812323f3dbe19128df18b27c2655cd8",
+    "role": "activation_policy"
+  },
+  "geometry": {
+    "path": "resources/governance/geometry/bmc-legacy-wards-2026.geojson",
+    "sha256": "ca6f81f168159aa90a897680a6bed176f3d421acdc8841beeabf5c1aa751e1f0",
+    "role": "legacy_ward_boundary_reference",
+    "sourceUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/238/query?where=1%3d1&outFields=GISMASTER.Wards.OBJECTID%2cGISMASTER.Wards.NAME%2cGISMASTER.Wards.FLAGID%2cGISMASTER.Wards.ZONE&returnGeometry=true&outSR=4326&orderByFields=GISMASTER.Wards.NAME&f=geojson",
+    "layerMetadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/238?f=pjson",
+    "nativeCrs": "EPSG:32643",
+    "storedCrs": "EPSG:4326",
+    "expectedFeatureCount": 24,
+    "wardCodes": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F/N",
+      "F/S",
+      "G/N",
+      "G/S",
+      "H/E",
+      "H/W",
+      "K/E",
+      "K/W",
+      "L",
+      "M/E",
+      "M/W",
+      "N",
+      "P/N",
+      "P/S",
+      "R/C",
+      "R/N",
+      "R/S",
+      "S",
+      "T"
+    ]
+  },
+  "expectedRawRecordCount": 114,
+  "datasets": [
+    {
+      "id": "authority",
+      "sheet": "Authority",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Authority.csv",
+      "sha256": "bd5b1f057006b47d9859179b4c0e1bc3a1b71ced2956b9449f6328fb4ade1016",
+      "headers": [
+        "authority_code",
+        "authority_name",
+        "authority_type",
+        "state",
+        "district_scope",
+        "head_office_address",
+        "central_helpline",
+        "whatsapp",
+        "complaint_portal",
+        "official_website",
+        "source_status",
+        "operational_approval_status",
+        "demo_routable",
+        "production_routable",
+        "source_as_of",
+        "last_checked",
+        "source_url",
+        "notes"
+      ],
+      "expectedRecordCount": 1,
+      "naturalKey": [
+        "authority_code"
+      ],
+      "disposition": "normalized"
+    },
+    {
+      "id": "public_channels",
+      "sheet": "Public Channels",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Public_Channels.csv",
+      "sha256": "e9aec3ad5560f328a3b2ea7ecae135f66cfe600e2bc650a12bad566e921146e6",
+      "headers": [
+        "channel_code",
+        "channel_name",
+        "channel_type",
+        "value",
+        "scope",
+        "purpose",
+        "availability",
+        "verification_status",
+        "demo_use",
+        "production_use",
+        "source_url",
+        "source_as_of"
+      ],
+      "expectedRecordCount": 5,
+      "naturalKey": [
+        "channel_code"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "id": "senior_leadership",
+      "sheet": "Senior Leadership",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Senior_Leadership.csv",
+      "sha256": "3dda2c46b4d7327d5eee1c53768cdd0ef49626f872421027e864c355e1efa387",
+      "headers": [
+        "assignment_code",
+        "authority_code",
+        "scope_code",
+        "role_title",
+        "person_name",
+        "office_phone",
+        "mobile",
+        "email",
+        "office_name",
+        "verification_status",
+        "approval_status",
+        "demo_routable",
+        "production_routable",
+        "source_as_of",
+        "last_checked",
+        "source_url",
+        "source_reference"
+      ],
+      "expectedRecordCount": 5,
+      "naturalKey": [
+        "assignment_code"
+      ],
+      "disposition": "normalized"
+    },
+    {
+      "id": "zones",
+      "sheet": "Zones",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Zones.csv",
+      "sha256": "a7e588371c40d958be0e6134e68a3435ef1439c10d2c386cd0788b5891e0b3ae",
+      "headers": [
+        "zone_code",
+        "zone_name",
+        "operational_ward_codes",
+        "person_name",
+        "role_title",
+        "office_phone",
+        "mobile",
+        "email",
+        "verification_status",
+        "approval_status",
+        "demo_routable",
+        "production_routable",
+        "source_as_of",
+        "last_checked",
+        "source_url",
+        "source_reference"
+      ],
+      "expectedRecordCount": 7,
+      "naturalKey": [
+        "zone_code"
+      ],
+      "disposition": "normalized"
+    },
+    {
+      "id": "ward_offices",
+      "sheet": "Ward Offices",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Ward_Offices.csv",
+      "sha256": "52a309e2bfb50b1f3f6e0778dd2990dd0b8dc4ef3727c38cee112b48a4580858",
+      "headers": [
+        "operational_ward_code",
+        "display_name",
+        "zone_code",
+        "legacy_parent_geometry_code",
+        "office_address",
+        "ward_office_phone",
+        "control_room_contact",
+        "assistant_commissioner_name",
+        "assistant_commissioner_role",
+        "assistant_commissioner_office_phone",
+        "assistant_commissioner_mobile",
+        "assistant_commissioner_email",
+        "complaint_officer_name",
+        "complaint_officer_role",
+        "complaint_officer_contact",
+        "verification_status",
+        "approval_status",
+        "demo_routable",
+        "production_routable",
+        "source_as_of",
+        "last_checked",
+        "source_url",
+        "source_reference"
+      ],
+      "expectedRecordCount": 26,
+      "naturalKey": [
+        "operational_ward_code"
+      ],
+      "disposition": "normalized"
+    },
+    {
+      "id": "ward_crosswalk",
+      "sheet": "Ward Crosswalk",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Ward_Crosswalk.csv",
+      "sha256": "81ac804dd037fc2b4efa4919f91cc9cb5dba1337ac29c05b660ce8c5b8b8d4ab",
+      "headers": [
+        "geometry_ward_code",
+        "operational_ward_code",
+        "relationship_type",
+        "routing_instruction",
+        "automatic_demo_route_allowed",
+        "notes"
+      ],
+      "expectedRecordCount": 26,
+      "naturalKey": [
+        "geometry_ward_code",
+        "operational_ward_code"
+      ],
+      "disposition": "normalized"
+    },
+    {
+      "id": "departments",
+      "sheet": "Departments",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Departments.csv",
+      "sha256": "a85587e146ee2c5a8b516b75e3241915b1e700e646cb618a1f3426940e8dac20",
+      "headers": [
+        "department_code",
+        "department_name",
+        "durable_role",
+        "person_name",
+        "office_phone",
+        "mobile",
+        "email",
+        "helpline",
+        "scope",
+        "verification_status",
+        "approval_status",
+        "demo_routable",
+        "production_routable",
+        "source_as_of",
+        "source_url",
+        "notes"
+      ],
+      "expectedRecordCount": 20,
+      "naturalKey": [
+        "department_code"
+      ],
+      "disposition": "normalized"
+    },
+    {
+      "id": "complaint_routing",
+      "sheet": "Complaint Routing",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Complaint_Routing.csv",
+      "sha256": "bad0931f1385210ae8f5d3d0d6a3fcbe493781a3fd1570f35e83aee77d2c235e",
+      "headers": [
+        "rule_code",
+        "category_code",
+        "category_description",
+        "asset_type",
+        "primary_department_code",
+        "first_scope",
+        "first_recipient_role",
+        "ward_fallback_role",
+        "department_escalation_code",
+        "final_fallback_channel",
+        "priority",
+        "asset_owner_required",
+        "verification_status",
+        "demo_active",
+        "production_active",
+        "notes"
+      ],
+      "expectedRecordCount": 14,
+      "naturalKey": [
+        "rule_code"
+      ],
+      "disposition": "normalized"
+    },
+    {
+      "id": "source_registry",
+      "sheet": "Source Registry",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Source_Registry.csv",
+      "sha256": "3e1b41500cc09bfb76724e55a29a0e3f32c48e37119287b056f974e5712e5712",
+      "headers": [
+        "source_code",
+        "source_name",
+        "source_type",
+        "source_url",
+        "publisher",
+        "data_scope",
+        "source_as_of",
+        "refresh_schedule",
+        "trust_level",
+        "notes"
+      ],
+      "expectedRecordCount": 4,
+      "naturalKey": [
+        "source_code"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "id": "activation_policy",
+      "sheet": "Activation Policy",
+      "path": "resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/Activation_Policy.csv",
+      "sha256": "9cac2723598b640ed7f570d0a8153b89a3f37f0f74708419053f5140de049bac",
+      "headers": [
+        "state_or_flag",
+        "meaning",
+        "allowed_in_demo",
+        "allowed_in_production"
+      ],
+      "expectedRecordCount": 6,
+      "naturalKey": [
+        "state_or_flag"
+      ],
+      "disposition": "reference_only"
+    }
+  ]
+}

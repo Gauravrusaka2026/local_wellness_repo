@@ -1120,3 +1120,366 @@ deliberately separate.
 Citizen entry now uses email/password rather than passwordless email as the primary flow. Phone
 verification remains additive and unenforced in observe mode. API profile and government-assignment
 responses gained additive avatar and delivery-readiness fields; no existing endpoint was removed.
+
+## 2026-07-17 — Dashboard-Sized Supabase Master Bootstrap
+
+### Summary
+
+Added two deterministic SQL Editor-sized parts for clean Supabase bootstraps while retaining the
+complete master file and immutable incremental migration history.
+
+### Feature
+
+- Extended the master generator to split all 40 ordered migrations at the reviewed end-of-Phase-5
+  boundary without dividing a source migration or separating Phase 5 schema from its RLS/RPC layer.
+- Added `supabase/master.part-1.sql` with 23 migrations and `supabase/master.part-2.sql` with the
+  remaining 17 migrations; Part 1 must complete before Part 2.
+- Extended `database:master:check` to compare the complete master and both split files byte-for-byte
+  against the migration sources and exact SHA-256 manifests.
+- Preserved the clean-empty-database-only boundary, separate seed files, and explicit warning that
+  Dashboard execution does not create the source migration ledger.
+
+### Files Modified
+
+- `scripts/generate-master-migration.mjs`
+- `supabase/master.sql`
+- `supabase/master.part-1.sql`
+- `supabase/master.part-2.sql`
+- `tests/master-migration.test.mjs`
+- Database workflow, Supabase setup, release runbook, decision, issue, task, progress, and changelog
+  documentation.
+
+### Migrations Created
+
+None. The split files are generated bootstrap artifacts outside `supabase/migrations/`.
+
+### Tests and Verification
+
+- `database:master:check` passed for the complete master and both split parts.
+- The independent master-artifact test passed, proving exact ordered 40-migration coverage, matching
+  begin/end markers and manifests, no split overlap, and the reviewed Phase 5 cutoff.
+- Focused ESLint, Prettier, and Git whitespace validation passed.
+
+### Breaking Changes
+
+None. Existing environments continue to use incremental migrations.
+
+## 2026-07-17 — Guarded Phase 10 Dashboard Upgrade
+
+### Summary
+
+Replaced the clean-bootstrap SQL Editor split with two small, fail-closed upgrade files for the
+existing Phase 9 Supabase project after its existing `public.profiles` table correctly rejected a
+full-history bootstrap.
+
+### Feature
+
+- Part 1 now contains only Phase 10 API hardening, privileged MFA, and citizen Phone MFA migrations.
+- Part 2 now contains only Phase 10 private profile images, 50 m complaint proximity enforcement,
+  and routing-delivery readiness migrations.
+- Each part uses one transaction, validates representative prerequisite and partial-state catalog
+  markers, verifies its target state before commit, and rejects unsafe re-execution.
+- Retained `supabase/master.sql` as the separate 40-migration clean-database bootstrap and preserved
+  exact source SHA-256 manifests. Seeds and migration-ledger repair remain outside the artifacts.
+
+### Files Modified
+
+- `scripts/generate-master-migration.mjs`
+- `supabase/master.sql`
+- `supabase/master.part-1.sql`
+- `supabase/master.part-2.sql`
+- `tests/master-migration.test.mjs`
+- Database workflow, Supabase setup, release runbook, decision, issue, task, progress, README, and
+  changelog documentation.
+
+### Migrations Created
+
+None. The two files package six existing immutable Phase 10 migrations outside
+`supabase/migrations/`.
+
+### Tests and Verification
+
+- The deterministic master drift check, independent artifact test, focused ESLint, formatting, and
+  whitespace checks passed.
+- A local Supabase reset to `20260716111000` applied Part 1 and Part 2 successfully; final readiness
+  and all representative Phase 10 markers were true.
+- A second Part 2 execution failed closed with
+  `LOCAL_WELLNESS_PHASE_10_PART_2_ALREADY_PRESENT`, and the raw-SQL rehearsal left the migration
+  ledger at the expected 34-row Phase 9 cutoff.
+- The local development database was restored successfully through all 40 migrations and reviewed
+  seed files; all 1,405 assertions across 39 pgTAP plans passed afterward.
+
+### Breaking Changes
+
+`master.part-1.sql` and `master.part-2.sql` are no longer clean-bootstrap slices. They now require
+the documented Phase 9 existing-database baseline. `master.sql` remains the clean bootstrap.
+
+## 2026-07-17 — Adaptive Full-History Dashboard Migrations
+
+### Summary
+
+Removed the unsuccessful fixed Phase 9 assumption and rebuilt both Dashboard files from all 40
+master migrations so an earlier coherent Local Wellness database can converge without replaying
+already-complete migrations.
+
+### Feature
+
+- Part 1 contains migrations 1–23; Part 2 contains migrations 24–40.
+- Added per-migration catalog fingerprints, coherent-prefix detection, whole-migration conditional
+  execution, postconditions, advisory transaction locking, and explicit partial-history failures.
+- Preserved exact immutable SQL and SHA-256 manifests. Native definition-safe `IF NOT EXISTS`
+  remains intact, while unsupported policies/triggers/functions/constraints are never blindly
+  suppressed.
+
+### Migrations Created
+
+None. Existing source migrations remain immutable; only generated Dashboard artifacts changed.
+
+### Tests and Verification
+
+- Both parts detected migration 40 and completed as no-op reruns on a current local database.
+- From the 3-migration Phase 1 cutoff—the `profiles` collision case—Part 1 skipped the existing
+  identity migrations and both parts converged successfully through migration 40.
+- From the 23-migration Phase 5 cutoff, Part 1 skipped migrations 1–23 and Part 2 applied migrations
+  24–40 successfully with final readiness.
+- Generator drift, artifact coverage, lint, formatting, full reset, and pgTAP verification are
+  recorded in the session verification results.
+
+### Breaking Changes
+
+The fixed Phase 9-only interpretation of `master.part-1.sql` and `master.part-2.sql` is superseded.
+The files now adapt across the full coherent migration history and still do not repair the official
+Supabase migration ledger.
+
+## 2026-07-17 — BMC Official-Source Internal Demo Bootstrap
+
+### Summary
+
+Added a deterministic, provenance-preserving BMC staging data pack and versioned ward relationships
+so Mumbai complaints can be exercised through an internal Local Wellness queue without claiming
+official external submission.
+
+### Feature
+
+- Generated ten machine-readable CSVs, a human-reference workbook, geometry, manifest, validation
+  output, and an idempotent SQL seed from official BMC sources without changing the canonical
+  Maharashtra CSV/workbook inputs.
+- Added source-backed BMC authority, seven zones, 26 operational wards, offices, departments,
+  durable roles, officers, assignments, contacts, legacy boundaries, pilot categories, and routing
+  evidence. Twenty-two one-to-one ward crosswalks are internally routable; split K/P units retain
+  review-safe parent handling.
+- Preserved six validation warnings and explicitly kept automatic/external production delivery
+  false. Internal queue verification does not mean a complaint was lodged in BMC's official system.
+
+### Files Modified
+
+- BMC generator, tests, workbook/CSV/geometry/manifests under `resources/governance/`.
+- Generated BMC seed/checksum, master artifacts, database types, and governance database tests.
+- Required architecture/database/setup/tracking documentation.
+
+### Migrations Created
+
+- `20260716118000_bmc_ward_relationship_versions.sql`.
+
+### Tests and Verification
+
+- BMC generation drift check validated 114 source records across ten tables with six preserved
+  warnings.
+- Clean local reset and the complete 42-plan database suite passed 1,493 assertions.
+
+### Breaking Changes
+
+None. The optional BMC seed is not applied automatically to an existing managed project, and
+external delivery remains disabled.
+
+## 2026-07-17 — Clear Portal Authentication and Official Onboarding
+
+### Summary
+
+Made the current account, privileged MFA state, and government authorization path explicit across
+Citizen Web, Government Dashboard, and Admin Console, and replaced raw scope entry with named,
+data-driven invitation choices.
+
+### Feature
+
+- Showed the exact signed-in email or citizen identity label with explicit sign-out/account-switch
+  actions across authenticated, MFA, authorized, denied, empty, and dependency-error states.
+- Separated first-time authenticator QR enrollment from returning six-digit challenges, documented
+  the Auth/TOTP/database-role gates, and added reviewed recovery guidance without a bypass.
+- Added `GET /api/v1/admin/government-invitations/options`, strict shared/store/API contracts, and a
+  service-role-only database projection of active, verified, non-placeholder, routing-eligible
+  authority, ward, and department choices. Municipal administrators remain authority-scoped.
+- Added administrator help/onboarding guidance and made clear that each official needs a unique
+  invited account and their own authenticator enrollment.
+
+### Files Modified
+
+- Authentication/account surfaces and tests in Citizen Web, Government Dashboard, and Admin
+  Console.
+- Government invitation controller/service/store/contracts and API tests.
+- Generated database types/master artifacts and required authentication, API, architecture,
+  database, deployment, setup, worklog, decision, issue, task, progress, and changelog documents.
+
+### Migrations Created
+
+- `20260716119000_government_invitation_scope_options.sql`.
+
+### Tests and Verification
+
+- API 207/207, Government Dashboard 51/51, Citizen Web 5 test files, and Admin Console 3 test files
+  passed; all four passed production builds, and all 16 workspaces passed lint and strict
+  type-check.
+- Invitation-options pgTAP plan passed 9/9 inside the 1,493-assertion database run. Generated
+  database/master artifacts and the tracked/local-history secret scan passed.
+- Interactive browser QA remains open because no in-app browser target was connected (`ENV-003`).
+
+### Breaking Changes
+
+None. The options endpoint is additive. Existing Auth emails still require the future audited
+government-access lifecycle under `AUTH-001`.
+
+## 2026-07-17 — Aligned Local Authentication Environment
+
+### Summary
+
+Removed a stale ignored Citizen Web Supabase override and made every authentication-facing local
+runtime load the repository-root `.env`, preventing Auth and API calls from silently targeting
+different projects.
+
+### Feature
+
+- Added a dependency-free root-environment command runner that preserves shell/deployment
+  precedence, rejects app-local overrides, uses portable Node entry points, and permits
+  CI/deployments without a local file.
+- Applied it to API, mobile, Citizen Web, Government Dashboard, and Admin Console build/runtime
+  commands; app-local `.env.local` files are no longer part of the supported workflow, and Turbo
+  invalidates builds when root/public client configuration changes.
+- Added regression coverage and updated setup, authentication, deployment, tracking, and worklog
+  documentation.
+
+### Files Modified
+
+- Authentication-facing application package scripts, `scripts/run-with-root-env.mjs`, its root
+  test, and relevant repository documentation.
+
+### Migrations Created
+
+None.
+
+### Breaking Changes
+
+Local app-specific environment overrides are intentionally unsupported. Use the root `.env` or
+explicitly injected shell/deployment variables.
+
+## 2026-07-17 — Mobile/Citizen Complaint Usability and BMC Internal Routing Activation
+
+### Summary
+
+Completed a safe citizen usability slice on mobile and Citizen Web, and added optional,
+data-driven BMC internal routing for the three pilot categories that do not require missing asset
+ownership inventories.
+
+### Feature
+
+- Added Expo profile-photo camera capture alongside gallery selection, using the existing private
+  profile-image validation/upload/signed-read boundary and explicit permission/settings recovery.
+- Added a one-time mobile profile civic-area lookup through fresh foreground location and the
+  verified governance projection. Only derived civic labels are retained in component memory;
+  exact coordinates and a street address are not persisted.
+- Corrected Phone MFA presentation so observe mode remains optional until Twilio/Supabase delivery,
+  recovery, abuse controls, and real-device behavior are verified.
+- Added protected Citizen Web complaint history, detail, and timeline pages with owner account
+  context, safe routing/location summaries, and government action/resolution information.
+- Added Citizen Web feedback/confirmation and policy-aware reopen actions that reload server-owned
+  workflow context and direct location-bound follow-up evidence to mobile capture.
+- Added generated BMC routing seeds `52`/`53`: one confidence policy, three duplicate policies, and
+  66 deterministic rules for `garbage_dump`, `missed_sweeping`, and `mosquito_breeding` across the
+  22 exact one-to-one wards. Nine asset-dependent categories and split K/P child wards remain fail
+  closed; external/official-system delivery remains false.
+
+### Files Modified
+
+- Mobile profile/Auth presentation, Expo configuration, focused profile/MFA helpers, and tests.
+- Citizen Web complaint routes, API/presentation/action helpers, navigation, styles, validation,
+  proxy protection, and tests.
+- BMC governance generator, generated routing/verification seeds, generator tests, and pgTAP routing
+  coverage.
+- `docs/TASKS.md`, `docs/PROGRESS.md`, `docs/CHANGELOG.md`, `docs/DECISIONS.md`, and
+  `docs/KNOWN_ISSUES.md`, plus the relevant architecture/API/database/setup/worklog documentation.
+
+### Migrations Created
+
+None. Seeds `52`/`53` are optional non-production data artifacts and do not change the 42-migration
+ledger.
+
+### Tests and Verification
+
+- A clean local reset applied all 42 migrations and reviewed seeds; 1,513 assertions passed across
+  43 pgTAP plans, including the new 20-assertion BMC activation plan.
+- Citizen Web passed 7 test files, mobile passed 16 test files, and shared validation passed 10 test
+  files. The new Citizen Web/mobile slices passed lint and strict type-check, and the Citizen Web
+  production build passed.
+- BMC generation drift/testing passed with exact three-category, 22-ward, 66-rule output. No hosted
+  seed application, physical-device validation, or official BMC external submission is claimed.
+
+### Documentation Updated
+
+Updated execution/progress tracking, implementation conventions, known data/privacy/product gaps,
+and operational guidance. No ADR was required because the work applies the existing routing,
+complaint, accountability, transparency, governance-directory, private-profile-image, and delivery
+separation decisions.
+
+### Breaking Changes
+
+None. Hosted staging remains unchanged until an operator applies migrations and BMC seeds `50`–`53`
+in the documented order.
+
+## 2026-07-17 — Data-Driven Complaint Category Catalog
+
+### Summary
+
+Made the complete non-placeholder complaint taxonomy visible in the authenticated mobile capture
+flow without weakening verified routing or submission controls.
+
+### Feature
+
+- Added a protected routing-category catalog projection that compares the bounded full database
+  taxonomy with the independently filtered verified operational projection.
+- Marked unavailable categories explicitly, omitted placeholders, rejected malformed or
+  inconsistent snapshots, and kept the existing verified-only category lookup authoritative.
+- Updated mobile capture to list every returned category while disabling unavailable entries and
+  preventing resumed or client-selected unavailable categories from loading assets or becoming
+  submission-ready.
+- Clarified that catalog availability is global presentation state; the later PostGIS routing check
+  still determines whether an available category is supported at a specific coordinate.
+
+### Files Modified
+
+- Routing types, API category/store modules, mobile complaint capture/decoding, and focused tests.
+- README, architecture, API, decision, issue, task, progress, and citizen-experience documentation.
+
+### Migrations Created
+
+None. The catalog reuses the existing service-only category projection and does not change the
+42-migration ledger.
+
+### Tests and Verification
+
+- API passed 210 tests; mobile passed 17 test files; Citizen Web passed 7 test files; Government
+  Dashboard passed 51 tests; Admin Console passed 3 test files; shared validation passed 10 test
+  files.
+- A clean local reset applied all 42 migrations and reviewed seeds; all 1,513 assertions across 43
+  pgTAP plans passed.
+- All 16 workspaces passed formatting, lint, strict type-check, and production builds. The Expo SDK
+  54 Android export bundled 1,278 modules. Generated database types, master artifacts, BMC artifacts,
+  secret scanning, and whitespace checks passed.
+
+### Documentation and Architecture
+
+No ADR was required. The additive presentation contract applies the existing database-evidence,
+private complaint, and fail-closed routing decisions without changing routing or privacy policy.
+
+### Breaking Changes
+
+None. Hosted staging remains unchanged until its migration ledger is reconciled and the optional BMC
+seeds are deliberately applied.

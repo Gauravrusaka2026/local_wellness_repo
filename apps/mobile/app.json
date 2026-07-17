@@ -11,7 +11,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Local Wellness to capture evidence for your complaint.",
+          "cameraPermission": "Allow Local Wellness to take a private profile photo or capture complaint evidence.",
           "microphonePermission": "Allow Local Wellness to record sound with complaint videos.",
           "recordAudioAndroid": true
         }
@@ -25,6 +25,7 @@
       [
         "expo-image-picker",
         {
+          "cameraPermission": "Allow Local Wellness to take a private profile photo or capture complaint evidence.",
           "photosPermission": "Allow Local Wellness to choose a private profile photo."
         }
       ],

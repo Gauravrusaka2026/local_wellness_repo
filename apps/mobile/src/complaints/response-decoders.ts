@@ -12,6 +12,7 @@ import {
   complaintTimelineEventTypes,
   complaintVisibilityValues,
   routingConfidenceBands,
+  routingCategorySubmissionAvailabilities,
   routingDecisionStatuses,
   type ComplaintDetail,
   type ComplaintDraft,
@@ -23,6 +24,7 @@ import {
   type ComplaintTimeline,
   type RoutingAssetDiscoveryResult,
   type RoutingCategory,
+  type RoutingCategoryCatalogItem,
 } from '@local-wellness/types';
 import { z } from 'zod';
 import { complaintCustomAttributesSchema } from '@local-wellness/validation';
@@ -180,13 +182,13 @@ const duplicateCheckSchema = z
 
 const categorySchema = z
   .object({
-    code: z.string().min(1),
-    description: z.string().nullable(),
+    code: z.string().regex(/^[a-z][a-z0-9_]{1,79}$/u),
+    description: z.string().trim().min(1).max(1_000).nullable(),
     id: z.uuid(),
     isEmergency: z.boolean(),
     maximumMediaCount: z.number().int().min(0).max(20),
     minimumMediaCount: z.number().int().min(0).max(20),
-    name: z.string().min(1),
+    name: z.string().trim().min(1).max(160),
     parentCategoryId: nullableUuid,
     requiresAsset: z.boolean(),
     requiresLocation: z.boolean(),
@@ -197,6 +199,10 @@ const categorySchema = z
   .refine((category) => category.maximumMediaCount >= category.minimumMediaCount, {
     message: 'Category media limits are inconsistent.',
   });
+
+const categoryCatalogItemSchema = categorySchema.extend({
+  submissionAvailability: z.enum(routingCategorySubmissionAvailabilities),
+});
 
 const routingAssetDiscoverySchema = z
   .object({
@@ -270,6 +276,8 @@ const timelineSchema = z
 
 export const decodeRoutingCategories = (value: unknown): RoutingCategory[] =>
   z.array(categorySchema).parse(value) as RoutingCategory[];
+export const decodeRoutingCategoryCatalog = (value: unknown): RoutingCategoryCatalogItem[] =>
+  z.array(categoryCatalogItemSchema).max(500).parse(value) as RoutingCategoryCatalogItem[];
 export const decodeRoutingAssetDiscovery = (value: unknown): RoutingAssetDiscoveryResult =>
   routingAssetDiscoverySchema.parse(value) as RoutingAssetDiscoveryResult;
 export const decodeComplaintDraft = (value: unknown): ComplaintDraft =>

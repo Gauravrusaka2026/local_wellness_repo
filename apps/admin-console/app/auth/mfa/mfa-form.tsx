@@ -11,7 +11,7 @@ import {
   verifyTotpFactor,
   type TotpEnrollment,
 } from '../../../lib/auth/mfa';
-import { signOutAdminSession } from '../../../lib/auth/service';
+import { getSignedInAdminEmail, signOutAdminSession } from '../../../lib/auth/service';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
 type MfaView =
@@ -24,6 +24,7 @@ type MfaView =
 export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [code, setCode] = useState('');
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [view, setView] = useState<MfaView>({ kind: 'loading' });
@@ -35,8 +36,13 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
     setView({ kind: 'loading' });
 
     try {
-      const state = await getMfaFlowState(supabase);
+      const [state, signedInEmail] = await Promise.all([
+        getMfaFlowState(supabase),
+        getSignedInAdminEmail(supabase),
+      ]);
       if (!isMounted.current) return;
+
+      setAccountEmail(signedInEmail);
 
       if (state.status === 'verified') {
         window.location.replace(nextPath);
@@ -162,14 +168,28 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
   };
 
   const factorIsReady = view.kind === 'challenge' || view.kind === 'enrollment';
+  const heading =
+    view.kind === 'challenge'
+      ? 'Enter your authenticator code'
+      : view.kind === 'enrollment' || view.kind === 'enrollment-required'
+        ? 'Set up your authenticator'
+        : 'Authenticator verification';
 
   return (
     <section aria-labelledby="mfa-heading" className="auth-card">
       <p className="eyebrow">Restricted platform access</p>
-      <h1 id="mfa-heading">Authenticator verification</h1>
+      <h1 id="mfa-heading">{heading}</h1>
       <p className="lede">
-        A second verification step protects platform administration and privileged operations.
+        This second verification step protects platform administration and privileged operations.
       </p>
+
+      {accountEmail === null ? null : (
+        <aside aria-label="Signed-in administrator account" className="account-context">
+          <span>Signed in as</span>
+          <strong>{accountEmail}</strong>
+          <small>Only continue if this is the administrator account you intended to use.</small>
+        </aside>
+      )}
 
       {view.kind === 'loading' ? (
         <p aria-live="polite" className="loading-indicator" role="status">
@@ -193,8 +213,12 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
       {view.kind === 'enrollment-required' ? (
         <div className="stack">
           <p>
-            Set up a time-based authenticator before continuing. You can use any standards-based
-            authenticator application.
+            This account does not have an authenticator yet. The account holder must set one up on
+            their own device before continuing.
+          </p>
+          <p className="field-hint">
+            The next step creates one QR code for {accountEmail ?? 'this signed-in account'}. You
+            can use any standards-based authenticator application.
           </p>
           <button
             className="primary-button"
@@ -209,7 +233,11 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
 
       {view.kind === 'enrollment' ? (
         <div className="mfa-setup stack">
-          <p>Scan this QR code in your authenticator application.</p>
+          <strong>New authenticator setup</strong>
+          <p>
+            Scan this QR code once for <strong>{accountEmail}</strong>. This is not a recurring
+            sign-in step; future sign-ins will ask only for the six-digit code already in your app.
+          </p>
           <Image
             alt="Scan this QR code with your authenticator application"
             className="mfa-qr"
@@ -218,7 +246,10 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
             unoptimized
             width={240}
           />
-          <p className="field-hint">If you cannot scan it, enter this setup key:</p>
+          <p className="field-hint">
+            Save the entry as “Local Wellness admin console”. If you cannot scan it, enter this
+            one-time setup key:
+          </p>
           <code aria-label="Authenticator setup key" className="mfa-secret">
             {view.enrollment.secret}
           </code>
@@ -227,6 +258,13 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
 
       {factorIsReady ? (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
+          {view.kind === 'challenge' ? (
+            <p className="auth-status-note">
+              An authenticator is already connected to <strong>{accountEmail}</strong>. Open its
+              existing Local Wellness entry and enter the current code. You do not need to scan a QR
+              code again.
+            </p>
+          ) : null}
           <label htmlFor="authenticator-code">Authenticator code</label>
           <input
             autoComplete="one-time-code"
@@ -244,7 +282,11 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
             value={code}
           />
           <button className="primary-button" disabled={isPending} type="submit">
-            {isPending ? 'Verifying…' : 'Verify and continue'}
+            {isPending
+              ? 'Verifying…'
+              : view.kind === 'enrollment'
+                ? 'Complete setup and continue'
+                : 'Verify existing authenticator'}
           </button>
           {view.kind === 'enrollment' ? (
             <button
@@ -267,16 +309,26 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
 
       <div className="mfa-footer">
         <p className="security-note">
-          Never share the QR code, setup key, or authenticator code. If you lost your authenticator,
-          contact another platform administrator for account recovery.
+          Never share the QR code, setup key, or authenticator code. Each official must enroll and
+          use their own authenticator.
         </p>
+        <div className="recovery-panel">
+          <strong>Cannot access the authenticator?</strong>
+          <p>
+            There is no MFA bypass. Use the reviewed recovery process, which requires a verified
+            official channel, administrator approval, session revocation, and an audit record.
+          </p>
+          <a className="help-link" href="/auth/help">
+            View recovery and account-switch steps
+          </a>
+        </div>
         <button
-          className="text-button"
+          className="secondary-button"
           disabled={isPending}
           onClick={() => void signOut()}
           type="button"
         >
-          Sign out
+          Sign out and use another email
         </button>
       </div>
     </section>

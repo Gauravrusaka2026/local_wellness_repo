@@ -2,6 +2,7 @@ import type {
   JurisdictionResolution,
   LocationEvidence,
   RoutingCategory,
+  RoutingCategoryCatalogItem,
   RoutingDecision,
   RoutingAssetOption,
   RoutingResolutionInput,
@@ -50,6 +51,8 @@ export abstract class RoutingStore implements JurisdictionResolver, RoutingDataP
   public abstract findRoutingCategory(categoryId: string): Promise<RoutingCategory | null>;
 
   public abstract listRoutingCategories(): Promise<RoutingCategory[]>;
+
+  public abstract listRoutingCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]>;
 
   public abstract discoverRoutingAssets(
     query: RoutingAssetDiscoveryQuery,

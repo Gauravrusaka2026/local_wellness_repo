@@ -11,6 +11,21 @@ type SignOutAuditRecorder = (
 
 type OtpAuditRecorder = (accessToken: string, eventType: 'otp_verified') => Promise<boolean>;
 
+export const getSignedInAdminEmail = async (supabase: SupabaseClient): Promise<string> => {
+  const result = await supabase.auth.getUser();
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  const email = result.data.user?.email;
+  if (!email) {
+    throw new Error('The signed-in administrator email is unavailable.');
+  }
+
+  return normalizeEmail(email);
+};
+
 export const requestAdminOtp = async (
   supabase: SupabaseClient,
   emailInput: string,

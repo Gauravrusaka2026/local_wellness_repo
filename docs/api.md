@@ -226,6 +226,7 @@ DELETE /api/v1/me/devices/:deviceId
 GET    /api/v1/me/access
 POST   /api/v1/auth/audit-events
 GET    /api/v1/government/access-scope
+GET    /api/v1/admin/government-invitations/options
 POST   /api/v1/admin/government-invitations
 ```
 
@@ -234,6 +235,7 @@ routing audit record but creates no complaint or official assignment:
 
 ```text
 GET  /api/v1/routing/categories
+GET  /api/v1/routing/categories/catalog
 GET  /api/v1/routing/categories/:categoryId
 POST /api/v1/routing/assets/nearby
 POST /api/v1/jurisdictions/resolve
@@ -356,6 +358,12 @@ device mutation and audit event atomically; direct authenticated table mutation 
 Repeating an owned revocation is idempotent and does not duplicate its audit event, while a revoked
 identifier cannot silently re-register. At most ten active device records may exist for one user.
 
+Mobile avatar capture and media-library selection are client adapters for this same profile
+contract; camera permission does not create a broader API or Storage grant. The mobile current-area
+card calls `POST /api/v1/governance/bodies/resolve` and keeps only the returned civic labels and
+provenance in component memory. `PATCH /me` does not accept exact coordinates or a street address,
+and this slice does not persist either value.
+
 The citizen-web account page validates the `/me` payload before rendering and shows explicit
 signed-in, onboarding, profile-unavailable, and API-unavailable states. Authentication alone does
 not make this endpoint available: the citizen web and API must point to the same Supabase
@@ -375,16 +383,33 @@ The endpoint attaches the authenticated actor and subject on the server. It acce
 
 ```text
 GET /api/v1/routing/categories
+GET /api/v1/routing/categories/catalog
 GET /api/v1/routing/categories/:categoryId
 ```
 
-Both routes require a valid bearer token and return only database categories whose domain and
-category are active, verified, non-placeholder, and routing-eligible. Each result includes its
+All three routes require a valid bearer token. The list and identifier routes return only database
+categories whose domain and category are active, verified, non-placeholder, and routing-eligible.
+Each result includes its
 database-defined minimum/maximum photo-or-video evidence count, required attribute keys, and
 recommended media kinds in addition to its identity and routing requirements. The mobile report
 form renders and enforces this metadata instead of hardcoding category behavior. The Phase 3 seed
 therefore returns an empty list, and identifier lookup returns `ROUTING_CATEGORY_NOT_FOUND`, for its
 12 taxonomy records: they are intentionally draft, unverified, and non-routable.
+
+The catalog route returns every non-placeholder database category with an explicit
+`submissionAvailability` of `available` or `unavailable`. The API derives that flag by comparing a
+bounded full catalog snapshot with the independently filtered operational snapshot; it does not
+promote a category based on client input. Placeholder, malformed, duplicate, oversized, or
+internally inconsistent results fail closed. Mobile uses this route to show the whole configured
+taxonomy while disabling unavailable choices. `available` permits category selection and a later
+location-specific routing check; it does not promise that every coordinate has a verified route.
+
+When the separately reviewed BMC non-production seeds `50`–`53` are applied, the operational list
+returns only `garbage_dump`, `missed_sweeping`, and `mosquito_breeding`, while the catalog still
+shows the other nine categories as unavailable. Their 66 direct rules cover 22 one-to-one BMC
+wards. The other nine pilot categories remain unselectable because their required asset
+inventory/ownership evidence is not present; split K/P wards also have no executable route. No
+managed environment or external BMC delivery is implied by those repository seed files.
 
 ### Nearby Routing Assets
 
@@ -749,6 +774,12 @@ not expose original submitted complaint media. An owner-authorized short-lived s
 and mobile viewer for those originals remain tracked under `COMPLAINT-005`; object paths and
 persistent/public URLs must stay private.
 
+Citizen Web consumes these same three endpoints for its protected complaint history and detail/
+timeline pages. It strictly validates owner-scoped responses and renders safe routing/location
+summaries without exposing exact coordinates or internal routing identifiers. Loading, empty,
+dependency-error, and not-found states remain explicit; the browser does not fall back to direct
+Supabase complaint-table reads.
+
 ### Private Complaint Communication
 
 ```text
@@ -823,6 +854,12 @@ signed URL. Original complaint media is `before` evidence, explicitly linked gov
 is `after` evidence, and citizen follow-up media is `reopen` evidence. Direct Storage access and
 public object URLs remain denied. If no unambiguous approved policy applies, the context returns an
 explicit unavailable state and all feedback/reopen mutations fail closed.
+
+Citizen Web uses the returned resolution context to construct feedback and reopen actions. Server
+actions ignore any browser-supplied workflow, resolution, policy, or actor identity and bind the
+mutation to the current server response plus a fresh idempotency key. When the current policy
+requires new location-bound evidence, web reopening stays unavailable and directs the owner to the
+mobile capture flow; it does not submit an evidence-free workaround.
 
 ### Other Planned Complaint Actions
 
@@ -1036,10 +1073,52 @@ transaction before asynchronous delivery.
 ## Admin Endpoints
 
 ```text
+GET    /api/v1/admin/government-invitations/options
 POST   /api/v1/admin/government-invitations
 ```
 
-Government invitation creation is available only to active platform administrators or municipal administrators for their own authority. The API selects the role definition, grantor, status and redirect URL; clients cannot choose privileged persistence fields. Authorization, provider and unreconciled persistence failures are recorded as best-effort server audit events, while successful membership, role and audit persistence is atomic in PostgreSQL.
+Both endpoints require a valid bearer session, an active application profile, AAL2 when privileged
+MFA enforcement is enabled, and a current platform-administrator or municipal-administrator role.
+Responses are `Cache-Control: private, no-store`.
+
+The options endpoint returns three named collections: authorities, wards, and departments. Its
+service-role-only database projection admits only active, verified, non-placeholder,
+routing-eligible records. A platform administrator receives all currently eligible choices; a
+municipal administrator receives only choices belonging to their own active authority. The API
+strictly decodes the projection and fails closed on malformed, duplicate, orphaned, or
+authority-broadening results. The catalog contains opaque IDs for subsequent API submission, but
+the Admin Console does not expose raw UUID entry fields.
+
+```json
+{
+  "data": {
+    "authorities": [
+      { "id": "uuid", "code": "BMC", "name": "…", "authorityType": "municipal_corporation" }
+    ],
+    "wards": [
+      { "id": "uuid", "authorityId": "uuid", "code": "A", "name": "A Ward", "type": "ward" }
+    ],
+    "departments": [
+      {
+        "id": "uuid",
+        "authorityId": "uuid",
+        "code": "HEALTH",
+        "name": "Public Health",
+        "type": "department"
+      }
+    ]
+  },
+  "meta": { "requestId": "uuid" }
+}
+```
+
+Government invitation creation is available only to active platform administrators or municipal
+administrators for their own authority. The API selects the role definition, grantor, status and
+redirect URL; clients cannot choose privileged persistence fields. Authorization, provider and
+unreconciled persistence failures are recorded as best-effort server audit events, while successful
+membership, role and audit persistence is atomic in PostgreSQL. Authentication alone never creates
+membership or a scoped role, and each official must accept the invitation and enroll/challenge
+their own authenticator factor.
 
 ### Planned: Governance Administration
 
@@ -1205,11 +1284,13 @@ The following list is the V1 security baseline across endpoint groups.
 - never accept client-provided official status authority;
 - keep the Supabase secret/service-role credential in the API runtime only and use it only for reauthorized trusted server operations.
 
-The local engineering path is verified with synthetic rollback-isolated positive data, but the
-normal bootstrap returns zero operational categories. A real complaint must remain unavailable
-until verified Pune category, jurisdiction, duplicate-policy, and routing evidence exists. Hosted
-RLS/Storage smoke, physical-device capture, and provider-backed transcription/moderation are
-separate activation requirements.
+The canonical Maharashtra/Phase 3 engineering baseline returns zero operational categories. A full
+local reset with the generated BMC non-production pack returns only the three asset-independent
+internal-demo categories across 22 unambiguous wards; nine asset-dependent categories and split K/P
+wards stay unavailable. This does not prove that the pack was applied to hosted Supabase or that an
+internal complaint was delivered to BMC. Hosted RLS/Storage/routing smoke, physical-device capture,
+external-delivery integration, and provider-backed transcription/moderation remain separate
+activation requirements.
 
 ---
 

@@ -12,10 +12,12 @@ import {
   type Device,
   type DevicePlatform,
   type DeviceRiskStatus,
+  type GovernmentInvitationOptions,
   type Profile,
   type ProfileStatus,
   type SupportedLanguage,
 } from '@local-wellness/types';
+import { z } from 'zod';
 
 import {
   DeviceBlockedError,
@@ -41,6 +43,50 @@ type MembershipRow = Tables<'authority_memberships'>;
 type RegisterDeviceArguments = Database['public']['Functions']['register_device']['Args'];
 type ProvisionGovernmentInvitationArguments =
   Database['public']['Functions']['provision_government_invitation']['Args'];
+
+interface RpcResult {
+  data: unknown;
+  error: unknown;
+}
+
+type ServiceRoleRpc = (
+  functionName: string,
+  arguments_: Record<string, unknown>,
+) => PromiseLike<RpcResult>;
+
+const invitationAuthorityOptionSchema = z
+  .object({
+    authorityType: z.string().trim().min(1).max(80),
+    code: z.string().trim().min(1).max(80),
+    id: z.uuid(),
+    name: z.string().trim().min(1).max(240),
+  })
+  .strict();
+const invitationScopeOptionFields = {
+  authorityId: z.uuid(),
+  code: z.string().trim().min(1).max(160),
+  id: z.uuid(),
+  name: z.string().trim().min(1).max(240),
+};
+const invitationDepartmentOptionSchema = z
+  .object({
+    ...invitationScopeOptionFields,
+    type: z.literal('department'),
+  })
+  .strict();
+const invitationWardOptionSchema = z
+  .object({
+    ...invitationScopeOptionFields,
+    type: z.literal('ward'),
+  })
+  .strict();
+const governmentInvitationOptionsSchema = z
+  .object({
+    authorities: z.array(invitationAuthorityOptionSchema),
+    departments: z.array(invitationDepartmentOptionSchema),
+    wards: z.array(invitationWardOptionSchema),
+  })
+  .strict();
 
 const profileColumns =
   'id,display_name,avatar_object_path,avatar_updated_at,phone,email,preferred_language,status,onboarding_completed_at,created_at,updated_at';
@@ -282,6 +328,53 @@ export class SupabaseIdentityStore extends IdentityStore {
     }
 
     return data.map(decodeDevice);
+  }
+
+  public async listGovernmentInvitationOptions(
+    authorityIds: readonly string[] | null,
+  ): Promise<GovernmentInvitationOptions> {
+    if (authorityIds !== null && authorityIds.length === 0) {
+      return { authorities: [], departments: [], wards: [] };
+    }
+
+    const rpc = this.clients.serviceRoleClient.rpc.bind(
+      this.clients.serviceRoleClient,
+    ) as unknown as ServiceRoleRpc;
+    const { data, error } = await rpc('list_government_invitation_options', {
+      ...(authorityIds === null ? {} : { p_authority_ids: [...authorityIds] }),
+    });
+    const parsed = governmentInvitationOptionsSchema.safeParse(data);
+
+    if (error || !parsed.success) {
+      throw new IdentityDataAccessError('list government invitation options');
+    }
+
+    const allOptions = [
+      ...parsed.data.authorities,
+      ...parsed.data.departments,
+      ...parsed.data.wards,
+    ];
+    if (new Set(allOptions.map((option) => option.id)).size !== allOptions.length) {
+      throw new IdentityDataAccessError('validate government invitation option identities');
+    }
+
+    const requestedAuthorityIds = authorityIds === null ? null : new Set(authorityIds);
+    if (
+      requestedAuthorityIds !== null &&
+      parsed.data.authorities.some((authority) => !requestedAuthorityIds.has(authority.id))
+    ) {
+      throw new IdentityDataAccessError('validate government invitation authority filter');
+    }
+
+    const returnedAuthorityIds = new Set(parsed.data.authorities.map((authority) => authority.id));
+    const scopeAuthorityIsPresent = [...parsed.data.departments, ...parsed.data.wards].every(
+      (scope) => returnedAuthorityIds.has(scope.authorityId),
+    );
+    if (!scopeAuthorityIsPresent) {
+      throw new IdentityDataAccessError('validate government invitation option authority');
+    }
+
+    return parsed.data;
   }
 
   public async upsertDevice(userId: string, input: DeviceRegistration): Promise<Device> {

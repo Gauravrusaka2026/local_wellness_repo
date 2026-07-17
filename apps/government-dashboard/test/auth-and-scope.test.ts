@@ -13,6 +13,11 @@ import {
   getSupportedEmailOtpType,
   resolveEmailAuthCallback,
 } from '../lib/auth/callback';
+import {
+  AuthenticationRequiredError,
+  getGovernmentAccountLabel,
+  getVerifiedGovernmentSession,
+} from '../lib/api/client';
 import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
 import {
@@ -247,6 +252,70 @@ test('shows dashboard access only when the API returns an active role', () => {
     true,
   );
   assert.equal(getScopeTypeLabel('ward'), 'Ward');
+});
+
+test('derives visible government account context from the verified session', async () => {
+  const supabase = {
+    auth: {
+      getClaims: async () => ({
+        data: {
+          claims: {
+            email: 'officer@municipality.gov.in',
+            sub: 'government-user-id',
+          },
+        },
+        error: null,
+      }),
+      getSession: async () => ({
+        data: {
+          session: {
+            access_token: 'verified-access-token',
+            user: {
+              email: 'officer@municipality.gov.in',
+              id: 'government-user-id',
+            },
+          },
+        },
+        error: null,
+      }),
+    },
+  } as unknown as SupabaseClient;
+
+  const session = await getVerifiedGovernmentSession(supabase);
+  assert.deepEqual(session, {
+    accessToken: 'verified-access-token',
+    identity: {
+      email: 'officer@municipality.gov.in',
+      userId: 'government-user-id',
+    },
+  });
+  assert.equal(getGovernmentAccountLabel(session.identity), 'officer@municipality.gov.in');
+  assert.equal(
+    getGovernmentAccountLabel({ email: null, userId: 'government-user-id' }),
+    'Verified government account',
+  );
+});
+
+test('rejects mismatched claims and session identities before showing account context', async () => {
+  const supabase = {
+    auth: {
+      getClaims: async () => ({
+        data: { claims: { email: 'officer@municipality.gov.in', sub: 'claims-user-id' } },
+        error: null,
+      }),
+      getSession: async () => ({
+        data: {
+          session: {
+            access_token: 'untrusted-access-token',
+            user: { id: 'different-session-user-id' },
+          },
+        },
+        error: null,
+      }),
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(getVerifiedGovernmentSession(supabase), AuthenticationRequiredError);
 });
 
 test('records government sign-out success only after Supabase signs out', async () => {

@@ -274,8 +274,8 @@ update phase4_validation_fixture
 set placeholder_draft_id = created.draft_id
 from public.create_complaint_draft(
   'c1000000-0000-4000-8000-000000000001', repeat('5',64), repeat('6',64),
-  '93000000-0000-4000-8000-000000000101', null,
-  'Bootstrap category must not submit.', 'en', '{}'::jsonb
+  '93000000-0000-4000-8000-000000000112', null,
+  'Pending category must not submit.', 'en', '{"obstruction_type":"road"}'::jsonb
 ) as created;
 update phase4_validation_fixture
 set placeholder_location_id = gen_random_uuid();
@@ -294,8 +294,8 @@ select lives_ok($$
   select * from public.update_complaint_draft(
     'c1000000-0000-4000-8000-000000000001',
     (select placeholder_draft_id from phase4_validation_fixture), 1,
-    '93000000-0000-4000-8000-000000000101', null,
-    'Bootstrap category must not submit.', 'en', '{}'::jsonb,
+    '93000000-0000-4000-8000-000000000112', null,
+    'Pending category must not submit.', 'en', '{"obstruction_type":"road"}'::jsonb,
     (select placeholder_location_id from phase4_validation_fixture)
   )
 $$);
@@ -318,9 +318,9 @@ select throws_ok(
     'c1200000-0000-4000-8000-000000000001', '{}'::uuid[], false
   )$$,
   '23514', 'COMPLAINT_CATEGORY_NOT_ROUTABLE',
-  'bootstrap unverified category can never create a complaint'
+  'a still-unverified pilot category can never create a complaint'
 );
-select is((select count(*)::integer from complaints.complaints), 0, 'rejected bootstrap submission leaves no complaint');
+select is((select count(*)::integer from complaints.complaints), 0, 'rejected pending-category submission leaves no complaint');
 
 update phase4_validation_fixture
 set emergency_draft_id = created.draft_id

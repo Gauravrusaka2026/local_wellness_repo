@@ -199,6 +199,16 @@ exactly one active global platform administrator plus one active Pune municipal 
 operator correction does not implement the broader existing-user access lifecycle tracked by
 `AUTH-001` and does not activate any governance or routing record.
 
+For the current Admin Console, apply
+`20260716119000_government_invitation_scope_options.sql` before onboarding officials. The API uses
+its service-role-only projection to populate named active, verified, non-placeholder, routable
+authority, ward, and department choices; raw UUID entry is not an operational fallback. A platform
+or municipal administrator signs in with their own exact email and TOTP, selects the reviewed scope,
+and invites one unique official-controlled email. The official accepts the newest invite, signs in
+with that same address, enrolls their own authenticator once, and is then reauthorized from current
+membership and role records on every request. Existing Auth emails still require the audited
+`AUTH-001` lifecycle; never grant access through Auth metadata or manual client state.
+
 Phase 3 deployments apply the routing schema, governance-synchronization foundation, security/RPC
 migration, and engineering-category seed after the Phase 2 artifacts. The 12 category rows must
 remain draft, unverified, and non-routable in every environment until a separately reviewed data
@@ -221,6 +231,19 @@ and their placeholder ward records as bootstrap history. The replacement pilot s
 official administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`, only after
 authoritative identity and geometry evidence is reviewed. Never treat `BRIH-W01`–`BRIH-W05` as an
 ordinal mapping to the BMC letters; create reviewed records and a new scope version.
+
+For a non-production BMC internal-routing demo, first reconcile/apply migrations through
+`20260716119000`, then execute `50_bmc_demo_governance.generated.sql` and
+`51_bmc_demo_governance_checksum.generated.sql`,
+`52_bmc_demo_routing.generated.sql`, and
+`53_bmc_demo_routing_verification.generated.sql` in that order. The optional pack creates separate
+official-source operational ward records and preserves the numeric placeholders as audit history.
+The routing seed activates only garbage dump, missed sweeping, and mosquito breeding through 66
+rules over 22 one-to-one wards. Confirm the other nine categories and split K/P wards remain
+non-routable, then verify the companion seed and `automaticOutboundDelivery = false` before starting
+applications. Bind invited test officials to durable roles through the trusted invitation/access
+workflow; never copy officer contacts into Auth metadata or claim that an internal queue item was
+registered with BMC.
 
 The generic HTTPS fetch/snapshot adapter ships as the `governance-sync-fetch` Supabase Edge
 Function. A managed deployment must deploy that function, set an environment-specific
@@ -279,6 +302,11 @@ Supabase environment and the correct reachable `NEXT_PUBLIC_API_URL`. Apply the 
 and profile-provisioning trigger before allowing email/password signup. A successful Auth session without a
 profile row is an environment/provisioning failure that the account UI reports explicitly; do not
 mask it with Auth metadata or an empty profile.
+
+Local API/mobile/portal scripts load the single repository-root `.env`, while environment variables
+injected by the deployment platform take precedence. Do not deploy or retain app-local environment
+files. Validate that the public Supabase URL/key used to build each web portal belongs to the same
+project as the server-only API URL/key, then restart/rebuild the clients after any project change.
 
 The identity forward fix repairs missing application profiles/global citizen roles for existing
 Auth users without overwriting existing state. Citizen recovery uses the managed recovery link;
@@ -652,7 +680,8 @@ Heatmap, and Nearby directory are locally implemented. Before a managed demo or 
 - source one reviewed root environment, confirm the public Supabase URL/key belong to the same
   staging project, and use a LAN-reachable API/realtime URL for Expo Go;
 - run a physical-device signed-out → email/password → optional phone MFA → dashboard → profile
-  image → Feed/Heatmap → Nearby → live photo/video/voice → draft
+  camera/library image → current civic-area lookup → Feed/Heatmap → Nearby → live
+  photo/video/voice → draft
   resume smoke, including denied permissions, weak GPS accuracy, network interruption, and logout;
 - review the known pilot UX limits: an individual finalized draft attachment cannot yet be removed,
   submitted original media has no owner signed-read view, and mobile notification history currently
@@ -664,8 +693,18 @@ Heatmap, and Nearby directory are locally implemented. Before a managed demo or 
   destination verification, privacy-safe templates, and retry/fallback policy are approved. Durable
   in-app history and optional Socket.IO refresh remain the implemented notification channels.
 
-The migration, managed API deployment, verified pilot geometry/data, and physical-device smoke are
-pending; local engineering results do not imply those environment steps passed.
+The profile current-area result is intentionally ephemeral and contains verified governance labels,
+not a stored coordinate or street address. A persistent address requires a separately reviewed
+private data model and retention/access policy.
+
+Citizen Web also requires an authenticated managed smoke of complaint list pagination, detail and
+timeline, government resolution/action rendering, policy-unavailable behavior, feedback exact
+replay, reopen exact replay, and the mobile handoff when new location-bound evidence is required.
+The browser must use the same root environment/project as the API and must never read the private
+complaint schema directly.
+
+The migration, managed API/client deployment, verified pilot geometry/data, and physical-device/
+browser smokes are pending; local engineering results do not imply those environment steps passed.
 
 ## Infrastructure as Code
 

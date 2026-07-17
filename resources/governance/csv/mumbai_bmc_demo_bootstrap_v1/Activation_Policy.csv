@@ -1,0 +1,7 @@
+"state_or_flag","meaning","allowed_in_demo","allowed_in_production"
+"source_verified","Record appears in an official BMC source","May be loaded into staging","No"
+"pending_local_review","Current assignment/contact has not been independently reconfirmed or approved for app routing","May be used for demo/internal assignment","No"
+"demo_routable=true","Internal demo may resolve the record to an app test account representing the durable role","Yes, internal only","No external contact automation"
+"demo_routable=conditional","Operational unit is a child of legacy geometry and requires child polygon/address crosswalk","Only after test dataset selects child unit","No"
+"production_routable=false","Record must not send a live complaint to BMC automatically","No","No"
+"emergency_only","Use official emergency contact/redirection rather than a routine workflow","Display and redirect","Not an app dispatch integration"

@@ -7057,6 +7057,190 @@ export type Database = {
           },
         ];
       };
+      ward_administrative_zone_membership_versions: {
+        Row: {
+          administrative_zone_id: string;
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          import_record_id: string | null;
+          is_placeholder: boolean;
+          is_routing_eligible: boolean;
+          last_verified_on: string | null;
+          operational_ward_id: string;
+          reference_source_id: string | null;
+          status: string;
+          updated_at: string;
+          verification_notes: string | null;
+          verification_status: string;
+          version: number;
+        };
+        Insert: {
+          administrative_zone_id: string;
+          created_at?: string;
+          effective_from: string;
+          effective_to?: string | null;
+          id?: string;
+          import_record_id?: string | null;
+          is_placeholder?: boolean;
+          is_routing_eligible?: boolean;
+          last_verified_on?: string | null;
+          operational_ward_id: string;
+          reference_source_id?: string | null;
+          status?: string;
+          updated_at?: string;
+          verification_notes?: string | null;
+          verification_status?: string;
+          version: number;
+        };
+        Update: {
+          administrative_zone_id?: string;
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          import_record_id?: string | null;
+          is_placeholder?: boolean;
+          is_routing_eligible?: boolean;
+          last_verified_on?: string | null;
+          operational_ward_id?: string;
+          reference_source_id?: string | null;
+          status?: string;
+          updated_at?: string;
+          verification_notes?: string | null;
+          verification_status?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ward_administrative_zone_membership_administrative_zone_id_fkey';
+            columns: ['administrative_zone_id'];
+            isOneToOne: false;
+            referencedRelation: 'administrative_units';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'ward_administrative_zone_membership_ve_operational_ward_id_fkey';
+            columns: ['operational_ward_id'];
+            isOneToOne: false;
+            referencedRelation: 'wards';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'ward_administrative_zone_membership_ve_reference_source_id_fkey';
+            columns: ['reference_source_id'];
+            isOneToOne: false;
+            referencedRelation: 'reference_sources';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'ward_administrative_zone_membership_versi_import_record_id_fkey';
+            columns: ['import_record_id'];
+            isOneToOne: false;
+            referencedRelation: 'import_records';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      ward_boundary_crosswalk_versions: {
+        Row: {
+          auto_route_allowed: boolean;
+          created_at: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          import_record_id: string | null;
+          is_placeholder: boolean;
+          is_routing_eligible: boolean;
+          last_verified_on: string | null;
+          notes: string | null;
+          official_boundary_version_id: string;
+          operational_ward_id: string;
+          reference_source_id: string | null;
+          relationship_type: string;
+          routing_instruction: string;
+          status: string;
+          updated_at: string;
+          verification_notes: string | null;
+          verification_status: string;
+          version: number;
+        };
+        Insert: {
+          auto_route_allowed?: boolean;
+          created_at?: string;
+          effective_from: string;
+          effective_to?: string | null;
+          id?: string;
+          import_record_id?: string | null;
+          is_placeholder?: boolean;
+          is_routing_eligible?: boolean;
+          last_verified_on?: string | null;
+          notes?: string | null;
+          official_boundary_version_id: string;
+          operational_ward_id: string;
+          reference_source_id?: string | null;
+          relationship_type: string;
+          routing_instruction: string;
+          status?: string;
+          updated_at?: string;
+          verification_notes?: string | null;
+          verification_status?: string;
+          version: number;
+        };
+        Update: {
+          auto_route_allowed?: boolean;
+          created_at?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          import_record_id?: string | null;
+          is_placeholder?: boolean;
+          is_routing_eligible?: boolean;
+          last_verified_on?: string | null;
+          notes?: string | null;
+          official_boundary_version_id?: string;
+          operational_ward_id?: string;
+          reference_source_id?: string | null;
+          relationship_type?: string;
+          routing_instruction?: string;
+          status?: string;
+          updated_at?: string;
+          verification_notes?: string | null;
+          verification_status?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ward_boundary_crosswalk_versi_official_boundary_version_id_fkey';
+            columns: ['official_boundary_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'jurisdiction_boundary_versions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'ward_boundary_crosswalk_versions_import_record_id_fkey';
+            columns: ['import_record_id'];
+            isOneToOne: false;
+            referencedRelation: 'import_records';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'ward_boundary_crosswalk_versions_operational_ward_id_fkey';
+            columns: ['operational_ward_id'];
+            isOneToOne: false;
+            referencedRelation: 'wards';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'ward_boundary_crosswalk_versions_reference_source_id_fkey';
+            columns: ['reference_source_id'];
+            isOneToOne: false;
+            referencedRelation: 'reference_sources';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       wards: {
         Row: {
           created_at: string;
@@ -8393,6 +8577,10 @@ export type Database = {
           updated_at: string;
           workflow_version: number;
         }[];
+      };
+      list_government_invitation_options: {
+        Args: { p_authority_ids?: string[] };
+        Returns: Json;
       };
       list_government_kpi_snapshots: {
         Args: {

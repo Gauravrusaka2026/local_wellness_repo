@@ -21,6 +21,18 @@ import { getUserFacingAuthError } from '../../src/auth/auth-service';
 import { getPublicPhoneMfaMode } from '../../src/config/environment';
 import { useDeviceRegistration } from '../../src/device/use-device-registration';
 import {
+  captureCurrentLocation,
+  requiresLocationPermissionSettings,
+} from '../../src/complaints/location-service';
+import {
+  getUserFacingGovernanceError,
+  resolveGoverningBodies,
+} from '../../src/governance/governance-service';
+import {
+  createProfileCivicArea,
+  type ProfileCivicArea,
+} from '../../src/profile/profile-civic-area';
+import {
   getProfile,
   preferredLanguages,
   updateProfile,
@@ -33,6 +45,11 @@ import {
   removePrivateProfileImage,
   uploadPrivateProfileImage,
 } from '../../src/profile/profile-image';
+import {
+  ProfilePhotoSelectionError,
+  selectProfilePhoto,
+  type ProfilePhotoSource,
+} from '../../src/profile/profile-photo-picker';
 import { getSupabaseClient } from '../../src/auth/supabase';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
 
@@ -165,7 +182,7 @@ const ProfileImageCard = ({
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [settingsRequired, setSettingsRequired] = useState(false);
+  const [settingsSource, setSettingsSource] = useState<ProfilePhotoSource | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -192,35 +209,22 @@ const ProfileImageCard = ({
     };
   }, [profile.avatarObjectPath, profile.avatarUpdatedAt, profile.id]);
 
-  const choose = async (): Promise<void> => {
+  const choose = async (source: ProfilePhotoSource): Promise<void> => {
     setError(null);
     setSuccess(null);
-    setSettingsRequired(false);
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setSettingsRequired(!permission.canAskAgain);
-      setError(
-        permission.canAskAgain
-          ? 'Photo library access is needed to choose a profile photo.'
-          : 'Enable photo access for Local Wellness in device settings.',
-      );
-      return;
-    }
+    setSettingsSource(null);
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      mediaTypes: ['images'],
-      quality: 0.85,
-      selectionLimit: 1,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    if (!asset) {
-      setError('The selected image is unavailable. Choose another photo.');
-      return;
+    try {
+      const asset = await selectProfilePhoto(ImagePicker, source);
+      if (asset) setSelectedAsset(asset);
+    } catch (selectionError) {
+      if (selectionError instanceof ProfilePhotoSelectionError) {
+        setSettingsSource(selectionError.requiresAppSettings ? selectionError.source : null);
+        setError(selectionError.message);
+      } else {
+        setError(getProfileImageError(selectionError));
+      }
     }
-    setSelectedAsset(asset);
   };
 
   const upload = async (): Promise<void> => {
@@ -313,12 +317,18 @@ const ProfileImageCard = ({
         <Pressable
           accessibilityRole="button"
           disabled={isPending}
-          onPress={() => void choose()}
+          onPress={() => void choose('camera')}
           style={styles.secondaryButton}
         >
-          <Text style={styles.secondaryButtonText}>
-            {selectedAsset ? 'Choose another' : 'Choose photo'}
-          </Text>
+          <Text style={styles.secondaryButtonText}>Take photo</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isPending}
+          onPress={() => void choose('library')}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>Choose from library</Text>
         </Pressable>
         {selectedAsset ? (
           <Pressable
@@ -347,13 +357,15 @@ const ProfileImageCard = ({
           <Text style={styles.removeAvatarText}>Remove photo</Text>
         </Pressable>
       ) : null}
-      {settingsRequired ? (
+      {settingsSource ? (
         <Pressable
           accessibilityRole="button"
           onPress={() => void Linking.openSettings()}
           style={styles.secondaryButton}
         >
-          <Text style={styles.secondaryButtonText}>Open photo settings</Text>
+          <Text style={styles.secondaryButtonText}>
+            Open {settingsSource === 'camera' ? 'camera' : 'photo'} settings
+          </Text>
         </Pressable>
       ) : null}
       {avatarLoadError ? <Text style={styles.mutedText}>{avatarLoadError}</Text> : null}
@@ -370,6 +382,124 @@ const ProfileImageCard = ({
         <Text accessibilityLiveRegion="polite" style={styles.successText}>
           {success}
         </Text>
+      ) : null}
+    </View>
+  );
+};
+
+type CivicAreaLookupState =
+  | Readonly<{ status: 'idle' }>
+  | Readonly<{ status: 'loading' }>
+  | Readonly<{ locationSettingsRequired: boolean; message: string; status: 'error' }>
+  | Readonly<{ area: ProfileCivicArea; status: 'ready' }>;
+
+const CurrentCivicAreaCard = ({ accessToken }: Readonly<{ accessToken: string }>) => {
+  const [state, setState] = useState<CivicAreaLookupState>({ status: 'idle' });
+  const resolvedArea =
+    state.status === 'ready' && state.area.status === 'resolved' ? state.area : null;
+  const unresolvedArea =
+    state.status === 'ready' && state.area.status !== 'resolved' ? state.area : null;
+
+  const locate = async (): Promise<void> => {
+    setState({ status: 'loading' });
+    try {
+      const location = await captureCurrentLocation();
+      const resolution = await resolveGoverningBodies(accessToken, location);
+      setState({ area: createProfileCivicArea(resolution), status: 'ready' });
+    } catch (lookupError) {
+      setState({
+        locationSettingsRequired: requiresLocationPermissionSettings(lookupError),
+        message: getUserFacingGovernanceError(lookupError),
+        status: 'error',
+      });
+    }
+  };
+
+  return (
+    <View style={styles.card}>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>
+        Current civic area
+      </Text>
+      <Text style={styles.mutedText}>
+        Use a one-time location lookup to see your verified ward and local body. Your exact
+        coordinates are not saved to your profile.
+      </Text>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: state.status === 'loading' }}
+        disabled={state.status === 'loading'}
+        onPress={() => void locate()}
+        style={styles.secondaryButton}
+      >
+        {state.status === 'loading' ? (
+          <ActivityIndicator accessibilityLabel="Finding current civic area" color="#166534" />
+        ) : (
+          <Text style={styles.secondaryButtonText}>
+            {state.status === 'ready' ? 'Refresh current area' : 'Use my current location'}
+          </Text>
+        )}
+      </Pressable>
+
+      {state.status === 'error' ? (
+        <View accessibilityLiveRegion="assertive" style={styles.inlineResult}>
+          <Text accessibilityRole="alert" style={styles.errorText}>
+            {state.message}
+          </Text>
+          {state.locationSettingsRequired ? (
+            <Pressable accessibilityRole="button" onPress={() => void Linking.openSettings()}>
+              <Text style={styles.secondaryButtonText}>Open location settings</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {resolvedArea ? (
+        <View accessibilityLiveRegion="polite" style={styles.civicAreaResult}>
+          <Text style={styles.verifiedText}>Official-source verified</Text>
+          <View style={styles.civicAreaRow}>
+            <Text style={styles.civicAreaLabel}>Ward</Text>
+            <Text style={styles.civicAreaValue}>{resolvedArea.wardName ?? 'No ward returned'}</Text>
+          </View>
+          <View style={styles.civicAreaRow}>
+            <Text style={styles.civicAreaLabel}>Local body</Text>
+            <Text style={styles.civicAreaValue}>{resolvedArea.localBodyName}</Text>
+          </View>
+          <View style={styles.civicAreaRow}>
+            <Text style={styles.civicAreaLabel}>Authority</Text>
+            <Text style={styles.civicAreaValue}>{resolvedArea.authorityName}</Text>
+          </View>
+          <Text style={styles.mutedText}>
+            Last verified {new Date(resolvedArea.lastVerifiedOn).toLocaleDateString()}
+          </Text>
+          <Pressable
+            accessibilityHint="Opens the official verification source"
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(resolvedArea.sourceUrl)}
+            style={styles.sourceLink}
+          >
+            <Text style={styles.secondaryButtonText}>View official source</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {unresolvedArea ? (
+        <View accessibilityLiveRegion="polite" style={styles.inlineResult}>
+          <Text style={styles.civicAreaValue}>
+            {unresolvedArea.status === 'ambiguous'
+              ? 'Boundary review is needed'
+              : unresolvedArea.status === 'low_accuracy'
+                ? 'A more precise location is needed'
+                : 'Verified coverage is not available here yet'}
+          </Text>
+          <Text style={styles.mutedText}>
+            {unresolvedArea.status === 'ambiguous'
+              ? 'More than one verified boundary matched. Local Wellness will not guess your civic area.'
+              : unresolvedArea.status === 'low_accuracy'
+                ? `Move into an open area and try again. Accuracy must be within ${unresolvedArea.maximumAccuracyMeters} metres.`
+                : 'No placeholder or unverified governing body has been added to your profile.'}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -431,6 +561,8 @@ const ProfileEditor = ({
         </Text>
 
         <ProfileImageCard onProfileUpdated={onProfileUpdated} profile={profile} />
+
+        <CurrentCivicAreaCard accessToken={accessToken} />
 
         <View style={styles.card}>
           <Text style={styles.label}>Name</Text>
@@ -629,6 +761,7 @@ const styles = StyleSheet.create({
   description: { color: '#475569', fontSize: 16, lineHeight: 24 },
   errorText: { color: '#991b1b', fontSize: 15, lineHeight: 22 },
   inlineStatus: { alignItems: 'center', flexDirection: 'row', gap: 10 },
+  inlineResult: { backgroundColor: '#f8fafc', borderRadius: 10, gap: 8, padding: 12 },
   input: {
     borderColor: '#94a3b8',
     borderRadius: 10,
@@ -653,6 +786,10 @@ const styles = StyleSheet.create({
   languageButtonTextSelected: { color: '#14532d' },
   languageGroup: { flexDirection: 'row', gap: 8 },
   mutedText: { color: '#64748b', flex: 1, lineHeight: 21 },
+  civicAreaLabel: { color: '#64748b', fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
+  civicAreaResult: { backgroundColor: '#f0fdf4', borderRadius: 12, gap: 10, padding: 14 },
+  civicAreaRow: { gap: 2 },
+  civicAreaValue: { color: '#1e293b', fontSize: 16, fontWeight: '700' },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: '#166534',
@@ -667,6 +804,7 @@ const styles = StyleSheet.create({
   secondaryButton: { alignItems: 'center', minHeight: 46, padding: 10 },
   secondaryButtonText: { color: '#166534', fontSize: 15, fontWeight: '700' },
   sectionTitle: { color: '#1e293b', fontSize: 20, fontWeight: '700' },
+  sourceLink: { alignSelf: 'flex-start', minHeight: 44, paddingVertical: 10 },
   signOutButton: {
     alignItems: 'center',
     borderColor: '#b91c1c',
@@ -679,4 +817,5 @@ const styles = StyleSheet.create({
   signOutButtonText: { color: '#991b1b', fontSize: 16, fontWeight: '700' },
   successText: { color: '#166534', fontSize: 15, lineHeight: 22 },
   title: { color: '#14281d', fontSize: 30, fontWeight: '800' },
+  verifiedText: { color: '#166534', fontSize: 13, fontWeight: '800' },
 });

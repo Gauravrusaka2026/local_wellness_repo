@@ -64,3 +64,12 @@ bootstrap outcome because all 12 engineering categories are draft, unverified, a
 No Phase 3 routing UI exists. Rendered viewport and screenshot inspection was not performed because
 the in-app browser had no connected target; this environment-only follow-up remains `ENV-003` and
 does not invalidate the successful HTTP/API smoke checks.
+
+## BMC Activation Addendum — 2026-07-17
+
+The current clean reset applied all 42 migrations and the four generated BMC seed artifacts. All
+1,513 assertions across 43 pgTAP plans passed. Plan 043 contributes 20 assertions covering exactly
+three operational categories, one confidence policy, three duplicate policies, 66 immutable rules,
+22 one-to-one wards, point-on-surface candidate resolution for every category/ward pair, split K/P
+exclusion, correct department/role/office targets, and the absence of complaint-delivery approval.
+Generator drift/unit checks also passed. These are local database results only.

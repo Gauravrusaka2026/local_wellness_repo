@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "MUMBAI_BMC_DEMO_BOOTSTRAP_DATA_v1",
+  "status": "passed_with_warnings",
+  "manifest": {
+    "path": "resources/governance/manifests/mumbai-bmc-demo-bootstrap.v1.json",
+    "sha256": "4d42de11ccd9699f861dd0097613067ab5ad98da88a14bfd1173eb3d62b87867"
+  },
+  "counts": {
+    "tables": 10,
+    "rawSourceRecords": 114,
+    "geometryFeatures": 24,
+    "errors": 0,
+    "warnings": 6
+  },
+  "geometry": {
+    "nativeCrs": "EPSG:32643",
+    "storedCrs": "EPSG:4326",
+    "bounds": {
+      "minLongitude": 72.77610547881443,
+      "minLatitude": 18.892731281374942,
+      "maxLongitude": 72.98097315599925,
+      "maxLatitude": 19.270219192059148
+    },
+    "operationalWardCount": 26,
+    "legacyGeometryWardCount": 24,
+    "unconditionalDemoWardCount": 22,
+    "conditionalDemoWardCount": 4
+  },
+  "generatedSeed": {
+    "path": "supabase/seed/50_bmc_demo_governance.generated.sql",
+    "sha256": "1a696300a017ad680ade3fed25a0333d3b09c6ead902cfb30ddd4b9b9074e65b",
+    "checksumCompanionPath": "supabase/seed/51_bmc_demo_governance_checksum.generated.sql",
+    "normalizationDisposition": "normalized_with_reference_only_records",
+    "externalDeliveryApproved": false
+  },
+  "generatedRoutingSeed": {
+    "path": "supabase/seed/52_bmc_demo_routing.generated.sql",
+    "sha256": "9792a4dea71ffda6d46722db0ff94e49a612bd3bd1b5e4494c45e46374cf7f4c",
+    "verificationPath": "supabase/seed/53_bmc_demo_routing_verification.generated.sql",
+    "verificationSha256": "23bbc629e97983ef05ad0a69cba2c2f434a67ee79aebca003e77a84c9c34ec72",
+    "operationalCategoryCount": 3,
+    "operationalWardCount": 22,
+    "routeRuleCount": 66,
+    "externalDeliveryApproved": false
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "PLACEHOLDER_VALUE_PRESERVED",
+      "message": "Ward Offices.complaint_officer_name preserves the source value Vacant.",
+      "sheet": "Ward Offices",
+      "sourceRow": 23,
+      "field": "complaint_officer_name"
+    },
+    {
+      "severity": "warning",
+      "code": "SOURCE_MALFORMED_VALUE_OMITTED",
+      "message": "Ward Offices explicitly records an omitted malformed source value.",
+      "sheet": "Ward Offices",
+      "sourceRow": 28,
+      "field": "verification_status"
+    },
+    {
+      "severity": "warning",
+      "code": "CONDITIONAL_WARD_ROUTING",
+      "message": "K/S requires a reviewed split-ward crosswalk before automatic routing.",
+      "sheet": "Ward Offices",
+      "sourceRow": 14,
+      "field": "demo_routable"
+    },
+    {
+      "severity": "warning",
+      "code": "CONDITIONAL_WARD_ROUTING",
+      "message": "K/N requires a reviewed split-ward crosswalk before automatic routing.",
+      "sheet": "Ward Offices",
+      "sourceRow": 15,
+      "field": "demo_routable"
+    },
+    {
+      "severity": "warning",
+      "code": "CONDITIONAL_WARD_ROUTING",
+      "message": "P/E requires a reviewed split-ward crosswalk before automatic routing.",
+      "sheet": "Ward Offices",
+      "sourceRow": 22,
+      "field": "demo_routable"
+    },
+    {
+      "severity": "warning",
+      "code": "CONDITIONAL_WARD_ROUTING",
+      "message": "P/W requires a reviewed split-ward crosswalk before automatic routing.",
+      "sheet": "Ward Offices",
+      "sourceRow": 23,
+      "field": "demo_routable"
+    }
+  ]
+}

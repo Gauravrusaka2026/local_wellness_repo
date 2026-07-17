@@ -60,7 +60,7 @@ export const createGovernmentInvitationAction = async (
   if (!UUID_PATTERN.test(scopeId)) {
     return {
       invitation: null,
-      message: `Enter a valid ${scopeType} scope ID.`,
+      message: `Choose a valid ${scopeType} scope.`,
       status: 'error',
     };
   }

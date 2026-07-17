@@ -35,6 +35,9 @@
 - The government dashboard requires a live browser completion location, optionally links an
   existing work reference, and renders access-scoped resolution, feedback, reopen, and escalation
   history while keeping completion notes government-only.
+- Citizen Web now renders owner complaint detail/timeline and the public resolution/action context,
+  accepts policy-valid feedback, and issues exact-replay reopen actions. It directs evidence-required
+  reopening to mobile rather than weakening the location/media evidence boundary.
 
 ## Compatibility and scope
 

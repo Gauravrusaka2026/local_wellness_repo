@@ -6,6 +6,7 @@ import {
   decodeComplaintMediaUploadIntent,
   decodeComplaintResolutionContext,
   decodeRoutingAssetDiscovery,
+  decodeRoutingCategoryCatalog,
   decodeRoutingCategories,
 } from '../src/complaints/response-decoders';
 
@@ -35,7 +36,7 @@ const media = {
 describe('complaint response decoders', () => {
   it('accepts only the public verified category response shape', () => {
     const category = {
-      code: 'POTHOLE',
+      code: 'pothole',
       description: null,
       id: '22222222-2222-4222-8222-222222222222',
       isEmergency: false,
@@ -51,6 +52,31 @@ describe('complaint response decoders', () => {
 
     assert.deepEqual(decodeRoutingCategories([category]), [category]);
     assert.throws(() => decodeRoutingCategories([{ ...category, officerPhone: 'private' }]));
+  });
+
+  it('decodes explicit catalog availability and rejects implicit or secret-bearing items', () => {
+    const item = {
+      code: 'awaiting_verified_route',
+      description: null,
+      id: '22222222-2222-4222-8222-222222222222',
+      isEmergency: false,
+      maximumMediaCount: 5,
+      minimumMediaCount: 1,
+      name: 'Awaiting verified route',
+      parentCategoryId: null,
+      requiresAsset: false,
+      requiresLocation: true,
+      requiredAttributes: [],
+      recommendedMediaKinds: ['photo'],
+      submissionAvailability: 'unavailable',
+    };
+
+    assert.deepEqual(decodeRoutingCategoryCatalog([item]), [item]);
+    const withoutAvailability: Record<string, unknown> = { ...item };
+    Reflect.deleteProperty(withoutAvailability, 'submissionAvailability');
+    assert.throws(() => decodeRoutingCategoryCatalog([withoutAvailability]));
+    assert.throws(() => decodeRoutingCategoryCatalog([{ ...item, officerPhone: 'private' }]));
+    assert.throws(() => decodeRoutingCategoryCatalog(Array.from({ length: 501 }, () => item)));
   });
 
   it('accepts only bounded, unique, public-safe nearby asset options', () => {

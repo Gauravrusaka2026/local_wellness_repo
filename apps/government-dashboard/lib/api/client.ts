@@ -17,7 +17,22 @@ export class AuthenticationRequiredError extends Error {
   }
 }
 
-export const getVerifiedAccessToken = async (supabase: SupabaseClient): Promise<string> => {
+export type VerifiedGovernmentIdentity = Readonly<{
+  email: string | null;
+  userId: string;
+}>;
+
+export type VerifiedGovernmentSession = Readonly<{
+  accessToken: string;
+  identity: VerifiedGovernmentIdentity;
+}>;
+
+export const getGovernmentAccountLabel = (identity: VerifiedGovernmentIdentity): string =>
+  identity.email ?? 'Verified government account';
+
+export const getVerifiedGovernmentSession = async (
+  supabase: SupabaseClient,
+): Promise<VerifiedGovernmentSession> => {
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
 
   if (claimsError || typeof claimsData?.claims?.sub !== 'string') {
@@ -29,8 +44,28 @@ export const getVerifiedAccessToken = async (supabase: SupabaseClient): Promise<
     throw new AuthenticationRequiredError();
   }
 
-  return sessionData.session.access_token;
+  const sessionUserId = sessionData.session.user?.id;
+  if (sessionUserId !== undefined && sessionUserId !== claimsData.claims.sub) {
+    throw new AuthenticationRequiredError();
+  }
+
+  const claimsEmail = claimsData.claims['email'];
+  const email =
+    typeof claimsEmail === 'string' && claimsEmail.length > 0
+      ? claimsEmail
+      : (sessionData.session.user?.email ?? null);
+
+  return {
+    accessToken: sessionData.session.access_token,
+    identity: {
+      email,
+      userId: claimsData.claims.sub,
+    },
+  };
 };
+
+export const getVerifiedAccessToken = async (supabase: SupabaseClient): Promise<string> =>
+  (await getVerifiedGovernmentSession(supabase)).accessToken;
 
 export const createGovernmentApiClient = (accessToken: string): LocalWellnessApiClient =>
   createApiClient({

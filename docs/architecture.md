@@ -85,11 +85,24 @@ Phase 4 implements resumable drafts, current-location evidence through Expo Loca
 photo/video/voice capture through Expo Camera and Audio, private upload, duplicate review,
 submission receipt, and owned complaint history. Category-required attributes and media counts are
 database-driven end to end; they are not duplicated as municipality/category constants in the
-client. Asset-dependent categories use an authenticated database-driven nearby-asset picker and
+client. A protected category-catalog projection exposes every non-placeholder category with an
+explicit selection-availability flag derived from the verified operational projection. Mobile
+renders unavailable categories as disabled and both client and server continue to reject their IDs;
+an available category still undergoes location-specific routing before submission. Asset-dependent
+categories use an authenticated database-driven nearby-asset picker and
 remain unavailable unless the category, jurisdiction, asset/version, ownership, and owner scope are
 current, verified, non-placeholder, and routable. The client advances only when server-derived
 location evidence is `verified` or `partially_verified`. V1 requires at most 50 metre accuracy and
 keeps captured media within 50 metres of the selected issue point in both client and PostgreSQL.
+
+The profile surface reuses the same Expo permission discipline for avatar capture. A citizen may
+take a photo with Expo Camera or select one from the media library; the resulting image still passes
+the existing private profile-image validation, owner-scoped Storage upload, and short-lived signed
+preview boundary. A separate current-area action requests one high-accuracy foreground location and
+calls the verified governance-body resolver. Only derived ward/local-body/authority labels,
+verification date, and official source URL are held in component memory. The slice persists neither
+the exact profile coordinate nor a street address, and ambiguous, inaccurate, or unsupported
+results fail closed.
 
 Phase 6 adds durable in-app notification history/read state and private complaint messages. Its
 optional Socket.IO connection refreshes REST-backed state and does not replace durable history.
@@ -121,6 +134,15 @@ provider-managed password recovery. Phone verification is staged through Supabas
 the same observe/enforce policy used by the API, so the web app does not create or store OTPs.
 Profile images use an owner-private Storage bucket, API-owned metadata, and short-lived signed
 display URLs; they never enter public transparency projections.
+
+Protected Citizen Web complaint pages use the existing owner-scoped list, detail, timeline, and
+resolution-accountability APIs. The list is paginated; detail shows current status, immutable
+timeline, safe routing/location summaries, and the public portion of government action/resolution
+evidence. Feedback and reopen actions bind the server-returned current resolution/workflow context
+rather than accepting those identities from browser input. When an approved reopen policy requires
+new location-bound media, the web surface directs the citizen to mobile instead of weakening the
+evidence rule. Exact coordinates, private object paths, internal routing IDs, and government-only
+notes remain outside rendered data.
 
 ### Government Dashboard
 
@@ -419,6 +441,22 @@ fragments; only the government invitation callback accepts a complete default fr
 in SecureStore. Privileged TOTP and citizen phone-factor policies are independently verified by the
 API and use observe/enforce rollout modes.
 
+The three web portals expose the verified account context instead of leaving identity implicit.
+Citizen Web shows the current citizen email or phone label and an explicit switch-account path.
+The Government Dashboard and Admin Console show the exact signed-in email on MFA, authorized,
+denied, and dependency-error states. Privileged screens describe Auth identity, per-user TOTP/AAL2,
+and current database membership/scoped role as separate gates. A QR code appears only while
+enrolling a new TOTP factor; returning users challenge the existing factor. Account recovery never
+bypasses current role or authority checks.
+
+Government onboarding remains a trusted API operation. The Admin Console loads a named selector
+catalog through `GET /api/v1/admin/government-invitations/options`; the API reauthorizes the caller
+and invokes a service-role-only database projection containing only active, verified,
+non-placeholder, routing-eligible authorities, wards, and authority departments. Municipal
+administrators are restricted to their own authority. Opaque IDs remain transport values rather
+than operator-entered fields, and clients still cannot choose grantor, status, or privileged role
+state.
+
 Device registration and soft revocation are atomic with their audit events. Sensitive device hashes and push tokens remain server-only. Client session events are explicitly marked as client-reported; provider logs and server-generated access events carry the authoritative security meaning.
 
 ### Governance Domain
@@ -471,6 +509,16 @@ scheduled or claimable. The Edge function stops after `snapshot_preserved`; sour
 HTML/PDF parsers, candidate orchestration, matching, publisher, review API/UI, and Storage-orphan
 reconciliation are pending.
 
+The optional BMC staging/demo pack is a separate reviewed bootstrap path, not automatic
+synchronization output. It creates official-source BMC operational wards, zones, offices,
+departments, durable roles, versioned incumbents/assignments/contacts, legacy boundary crosswalks,
+categories, and internal routing records. Its separate activation seed makes exactly three
+asset-independent categories operational—garbage dump, missed sweeping, and mosquito breeding—and
+creates 66 rules for their category/ward pairs across the 22 one-to-one ward relationships. The
+other nine pilot categories require asset inventory and ownership evidence. Split `K/S`, `K/N`,
+`P/E`, and `P/W` units and legacy K/P boundary anchors have no executable route. External production
+delivery stays false, and applying the seed does not claim integration with BMC's grievance system.
+
 As of 2026-07-14, the dedicated staging database contains all 23 migrations through
 `20260714124000` and all six reviewed non-production seeds. Its fail-closed state is 12 categories
 with zero operational and 11 synchronization endpoints with zero active. This validates only the
@@ -479,9 +527,11 @@ official ward records or geometry, routes, complaints, and production remain und
 inactive.
 
 That paragraph records a historical managed-environment observation, not the current repository
-cutoff. The incremental schema now contains 40 migrations through
-`20260716117000_phase_10_routing_delivery_readiness.sql`; each managed target must reconcile its own
-migration ledger before activation.
+cutoff. The incremental schema now contains 42 migrations through
+`20260716119000_government_invitation_scope_options.sql`; each managed target must reconcile its own
+migration ledger before activation. The preceding BMC relationship-version migration and generated
+demo seed provide source-backed internal queue data while keeping external complaint delivery
+explicitly disabled.
 
 The citizen-facing governance directory is a separate narrow projection over this private domain:
 
@@ -631,6 +681,13 @@ Phase 3 stores these records in a private, forced-RLS `routing` schema. The 12 p
 are engineering records only: draft, unverified, and non-routable. Pune Municipal Corporation is a
 reference municipality for architecture and tests, not an application branch or verified routing
 dataset.
+
+The generated BMC non-production activation is a deliberately narrower data layer over this generic
+engine, not municipality-specific code. It enables one confidence policy, three category-specific
+duplicate policies, and 66 direct, non-fallback rules for three asset-independent categories across
+22 unambiguous wards. Nine asset-dependent categories, split K/P wards, and external delivery remain
+fail-closed. The activation and verification seeds are separate from migrations and must not be
+assumed present in any managed environment.
 
 ### Communication Domain
 
@@ -838,11 +895,14 @@ exact coordinate. An interrupted upload's capture location is held separately in
 SecureStore. Offline resume is supported, but network operations run only while the app is active
 and connected.
 
-The local bootstrap exposes zero operational categories because verified Pune polygons, routes,
-duplicate policies, and related governance evidence are unavailable. Rollback-isolated synthetic
-tests prove the positive workflow without making placeholder data routable. Hosted activation,
-physical-device capture, provider-backed processing, and final operational policy validation remain
-pending.
+The canonical Maharashtra/Phase 3 baseline exposes zero operational categories because verified
+Pune polygons, routes, duplicate policies, and related governance evidence are unavailable. The
+catalog may display its non-placeholder taxonomy, but every entry remains disabled. A full local
+reset additionally applies the generated BMC non-production seeds and therefore makes only the
+three reviewed internal-demo categories selectable through their 66 rules. It does not enable the nine
+asset-dependent categories, split K/P wards, production routing, or external BMC delivery. Hosted
+activation, physical-device capture, provider-backed processing, and final operational policy
+validation remain pending.
 
 ---
 
@@ -1101,6 +1161,14 @@ Monitoring → V1 target: structured logs, health checks, uptime and platform me
 ```
 
 Redis, BullMQ and Sentry are explicitly deferred beyond V1 by ADR-0007.
+
+Local API, mobile, Citizen Web, Government Dashboard, and Admin Console entrypoints read one
+repository-root `.env` through the shared process runner; explicit shell/deployment variables take
+precedence. App-local environment files are rejected so an Auth session cannot silently target a
+different Supabase project from the API. Turbo build inputs include the root environment and the
+relevant public client variables, preventing a project switch from reusing an incompatible cached
+bundle. Managed deployments continue to inject their own variables rather than shipping the local
+file.
 
 ---
 

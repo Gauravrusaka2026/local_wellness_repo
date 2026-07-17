@@ -13,6 +13,15 @@ identifiers, category ownership, authority departments, durable officer roles, c
 assets/owners for asset-dependent categories, confidence policies, operational rule versions, and
 complete fallback paths. Do not activate any record based on a template or generic source page.
 
+## BMC Remaining Evidence
+
+The internal demo covers three asset-independent categories in 22 unambiguous wards. Obtain
+reviewed asset inventories and ownership for roads/potholes, drains, sewer/manholes, water assets,
+streetlights, buildings, public land/right-of-way, and trees/gardens before activating the other
+nine categories. Resolve official geometry/crosswalk evidence for split `K/S`, `K/N`, `P/E`, and
+`P/W` units before giving them routes. Applying local seeds to a managed target and external BMC
+complaint delivery remain separate operator/integration tasks.
+
 ## Canonical Source Gaps
 
 - `resources/governance/csv/seed_data_for_mh/` is absent; the pinned CSVs are directly under

@@ -63,3 +63,18 @@ The canonical repository bundle is represented as one manual `repository_bootstr
 the `bootstrap_bundle` dataset, linked to the existing Phase 2 import batch and path
 `resources/governance/csv/`. It is not represented as an invented external URL and cannot overwrite
 the repository files.
+
+## BMC Internal Demo Activation — 2026-07-17
+
+The BMC generator now emits separate governance/checksum seeds `50`/`51` and routing/verification
+seeds `52`/`53`. The routing seed activates only the three source-supported asset-independent
+categories: garbage dump, missed sweeping, and mosquito breeding. It creates one confidence policy,
+three duplicate policies, and 66 direct versioned rules over exactly 22 one-to-one operational
+wards. Every route targets the database-backed BMC authority, category department, durable Ward
+Assistant Commissioner role, and matching ward office.
+
+The remaining nine categories require verified asset inventories/ownership and remain
+draft/unverified/non-routable. `K/S`, `K/N`, `P/E`, and `P/W` plus legacy K/P boundary anchors have
+no executable route. No fallback chain, asset, or external complaint delivery is invented. These
+are generated non-production seeds over the generic routing engine, not BMC-specific application
+logic or evidence of a hosted deployment.

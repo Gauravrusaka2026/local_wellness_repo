@@ -12,6 +12,11 @@ import {
   isProfileSetupRequired,
 } from '../../lib/api/profile';
 import { signOutAction } from '../../lib/auth/actions';
+import {
+  getCitizenAccountLabel,
+  getCitizenPhoneVerificationStatus,
+} from '../../lib/auth/presentation';
+import { getCitizenPhoneMfaState, type CitizenPhoneMfaState } from '../../lib/auth/phone-mfa';
 import { getCitizenPhoneMfaMode } from '../../lib/environment';
 import { createServerSupabaseClient } from '../../lib/supabase/server';
 import { ProfileForm } from './profile-form';
@@ -30,17 +35,19 @@ type AccountLoadResult =
       status: 'success';
       identity: VerifiedCitizenSession['identity'];
       profile: Awaited<ReturnType<typeof getProfile>>;
+      phoneMfaState: CitizenPhoneMfaState | null;
     }>;
 
 const loadAccount = async (): Promise<AccountLoadResult> => {
   try {
     const supabase = await createServerSupabaseClient();
     const session = await getVerifiedCitizenSession(supabase);
+    const phoneMfaState = await getCitizenPhoneMfaState(supabase).catch(() => null);
 
     try {
       const profile = await getProfile(session.accessToken);
 
-      return { identity: session.identity, profile, status: 'success' };
+      return { identity: session.identity, phoneMfaState, profile, status: 'success' };
     } catch (error) {
       if (isProfileSetupRequired(error)) {
         return { identity: session.identity, status: 'profile-setup-required' };
@@ -61,7 +68,13 @@ const getSignedInContact = (
   identity: VerifiedCitizenSession['identity'],
   profile?: Awaited<ReturnType<typeof getProfile>>,
 ): string =>
-  identity.email ?? identity.phone ?? profile?.email ?? profile?.phone ?? 'Verified account';
+  getCitizenAccountLabel(
+    {
+      email: identity.email ?? profile?.email,
+      phone: identity.phone ?? profile?.phone,
+    },
+    'Verified account',
+  );
 
 const AccountActions = () => (
   <div className="button-row">
@@ -70,7 +83,7 @@ const AccountActions = () => (
     </a>
     <form action={signOutAction}>
       <button className="secondary-button" type="submit">
-        Sign out
+        Sign out / switch account
       </button>
     </form>
   </div>
@@ -118,6 +131,10 @@ export default async function AccountPage() {
   }
 
   const onboardingComplete = isProfileOnboardingComplete(result.profile);
+  const phoneVerification = getCitizenPhoneVerificationStatus(
+    result.phoneMfaState,
+    phoneMfaIsEnforced,
+  );
 
   return (
     <main className="account-shell">
@@ -129,11 +146,16 @@ export default async function AccountPage() {
             Complete your profile now so future complaint updates use your chosen language.
           </p>
         </div>
-        <form action={signOutAction}>
-          <button className="secondary-button" type="submit">
-            Sign out
-          </button>
-        </form>
+        <div className="account-header-actions">
+          <a className="primary-link" href="/complaints">
+            Track your complaints
+          </a>
+          <form action={signOutAction}>
+            <button className="secondary-button" type="submit">
+              Sign out / switch account
+            </button>
+          </form>
+        </div>
       </header>
       <section aria-label="Account status" className="account-summary">
         <div>
@@ -144,11 +166,19 @@ export default async function AccountPage() {
           <span>Profile status</span>
           <strong>{onboardingComplete ? 'Complete' : 'Setup needed'}</strong>
         </div>
+        <div>
+          <span>Phone verification</span>
+          <strong>{phoneVerification.label}</strong>
+          <small>{phoneVerification.detail}</small>
+          {phoneVerification.needsAction ? (
+            <a href="/auth/verify-phone?next=%2Faccount">Review phone verification</a>
+          ) : null}
+        </div>
       </section>
       {!phoneMfaIsEnforced ? (
         <p className="setup-notice" role="status">
-          Email-and-password access is active. Phone OTP verification is staged and will become
-          required after the project SMS provider is configured.
+          Email-and-password access is active. Phone verification is optional during the current
+          rollout and is never inferred from the phone number in your profile.
         </p>
       ) : null}
       <ProfileImageCard profile={result.profile} />

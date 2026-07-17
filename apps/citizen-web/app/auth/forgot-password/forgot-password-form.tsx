@@ -10,12 +10,16 @@ import {
 } from '../../../lib/auth/service';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
-export const ForgotPasswordForm = () => {
+const getLoginHref = (email: string): string =>
+  email === '' ? '/auth/login' : `/auth/login?email=${encodeURIComponent(email)}`;
+
+export const ForgotPasswordForm = ({ initialEmail }: Readonly<{ initialEmail: string }>) => {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [requestComplete, setRequestComplete] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -23,11 +27,12 @@ export const ForgotPasswordForm = () => {
     setIsPending(true);
 
     try {
-      await requestCitizenPasswordReset(
+      const normalizedEmail = await requestCitizenPasswordReset(
         supabase,
         email,
         getCitizenPasswordRecoveryUrl(window.location.origin),
       );
+      setSubmittedEmail(normalizedEmail);
       setRequestComplete(true);
     } catch (requestError) {
       setError(getUserFacingAuthError(requestError));
@@ -47,9 +52,20 @@ export const ForgotPasswordForm = () => {
       {requestComplete ? (
         <div className="stack">
           <p aria-live="polite" className="success-notice" role="status">
-            Check your email for a password-reset link. You can close this page safely.
+            If an account exists for <strong>{submittedEmail}</strong>, Supabase sent a secure
+            password-reset link. Check that inbox and its spam folder.
           </p>
-          <Link className="secondary-link" href="/auth/login">
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setRequestComplete(false);
+              setSubmittedEmail(null);
+            }}
+            type="button"
+          >
+            Use a different email
+          </button>
+          <Link className="secondary-link" href={getLoginHref(submittedEmail ?? '')}>
             Return to sign in
           </Link>
         </div>
@@ -74,7 +90,7 @@ export const ForgotPasswordForm = () => {
           <button className="primary-button" disabled={isPending} type="submit">
             {isPending ? 'Sending…' : 'Send password-reset link'}
           </button>
-          <Link className="secondary-link" href="/auth/login">
+          <Link className="secondary-link" href={getLoginHref(email)}>
             Return to sign in
           </Link>
         </form>

@@ -6,10 +6,10 @@ The root layout supplies the authenticated providers and safe-area boundary. A p
 navigation maps stable routes to Home, Complaints, central Report, Nearby, and More. More groups
 secondary functionality without moving existing complaint/deep-link routes.
 
-The passwordless auth screen selects sign-in, create-account, or recover-account before requesting
-an email/phone OTP. Only create-account permits Supabase user creation. Sign-in and recovery use
-`shouldCreateUser: false`, preserve generic request feedback, and never infer a privileged role.
-Sessions remain in Expo SecureStore.
+The auth screen selects email/password sign-in, create-account, or provider-managed password
+recovery. Supabase Phone MFA is a separate staged verification factor; observe mode explains that it
+is optional during SMS-provider rollout, while enforce mode requires the verified factor and AAL2.
+The application never stores or delivers an OTP itself. Sessions remain in Expo SecureStore.
 
 ## Complaint Experience
 
@@ -20,7 +20,10 @@ requiring a manual pull.
 
 The Report flow keeps the existing server draft/private upload/routing/submission boundary while
 rendering category-defined required attributes, minimum/maximum photo-or-video evidence, and media
-recommendations. Attributes are persisted in the draft rather than held only in UI state.
+recommendations. Its authenticated catalog lists every non-placeholder category with an explicit
+server-derived availability flag. Unavailable categories are visible but disabled; resumed drafts,
+asset discovery, readiness checks, and draft updates all continue to reject them. Attributes are
+persisted in the draft rather than held only in UI state.
 
 Expo Location, Camera, and Audio remain the device capability adapters. SQLite/SecureStore retain
 only the existing allow-listed resume evidence. Voice evidence does not satisfy a database
@@ -50,6 +53,18 @@ Strict shared schemas expose entity kind/name/type, verification date, and offic
 They exclude internal IDs, coordinates/geometry, officers, contact channels, office details, and
 routing evidence. Zero/multiple results remain unsupported/ambiguous. The mobile Nearby screen
 links the returned provenance and never hardcodes Pune, Mumbai, a ward, or a fallback authority.
+
+## Profile Camera and Current Civic Area
+
+The profile offers separate **Take photo** and **Choose from library** actions. Expo Camera and
+media-library permissions are requested only for the selected action, permanent denial offers an
+OS-settings recovery path, and both results reuse the existing private profile-image validation,
+owner upload, metadata update, and short-lived signed preview.
+
+The current-area card requests a one-time high-accuracy foreground location and calls the verified
+governance resolver. It holds only the derived ward/local-body/authority labels, verification date,
+and official source URL in component memory. It persists no exact profile coordinate or street
+address and keeps low-accuracy, ambiguous, and unsupported results explicit.
 
 ## Configuration and Notifications
 

@@ -13,6 +13,7 @@ import {
   type TotpEnrollment,
 } from '../../../lib/auth/mfa';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
+import { GovernmentAuthorizationNote } from '../government-authorization-note';
 
 type MfaView =
   | Readonly<{ kind: 'loading' }>
@@ -21,7 +22,18 @@ type MfaView =
   | Readonly<{ factorId: string; kind: 'challenge' }>
   | Readonly<{ enrollment: TotpEnrollment; kind: 'enrollment' }>;
 
-export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
+export const getMfaHeading = (view: MfaView['kind']): string => {
+  if (view === 'challenge') return 'Enter your authenticator code';
+  if (view === 'enrollment' || view === 'enrollment-required') {
+    return 'Set up your authenticator';
+  }
+  return 'Verify your government account';
+};
+
+export const MfaForm = ({
+  accountLabel,
+  nextPath,
+}: Readonly<{ accountLabel: string; nextPath: string }>) => {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -154,7 +166,7 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
       }
 
       await signOutGovernmentSession(supabase);
-      window.location.replace('/auth/login');
+      window.location.replace('/auth/login?status=switch-account');
     } catch (signOutError) {
       setError(getMfaError(signOutError));
       setIsPending(false);
@@ -166,10 +178,17 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
   return (
     <section aria-labelledby="mfa-heading" className="auth-card">
       <p className="eyebrow">Restricted government access</p>
-      <h1 id="mfa-heading">Authenticator verification</h1>
+      <h1 id="mfa-heading">{getMfaHeading(view.kind)}</h1>
       <p className="lede">
-        A second verification step protects government operations and citizen complaint data.
+        This is the second sign-in step. It protects government operations and citizen complaint
+        data.
       </p>
+
+      <div aria-label="Signed-in account" className="mfa-account-context">
+        <span>Authenticator account</span>
+        <strong>{accountLabel}</strong>
+        <p>The QR code or 6-digit code on this page belongs only to this signed-in account.</p>
+      </div>
 
       {view.kind === 'loading' ? (
         <p aria-live="polite" className="loading-indicator" role="status">
@@ -193,8 +212,8 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
       {view.kind === 'enrollment-required' ? (
         <div className="stack">
           <p>
-            Set up a time-based authenticator before continuing. You can use any standards-based
-            authenticator application.
+            No authenticator is registered for this account yet. Complete this one-time setup with
+            any standards-based authenticator application before continuing.
           </p>
           <button
             className="primary-button"
@@ -209,7 +228,13 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
 
       {view.kind === 'enrollment' ? (
         <div className="mfa-setup stack">
-          <p>Scan this QR code in your authenticator application.</p>
+          <div>
+            <strong>Step 1 of 2 — Add this account</strong>
+            <p>
+              Scan this QR code in your authenticator application. Save the entry for{' '}
+              <strong>{accountLabel}</strong>.
+            </p>
+          </div>
           <Image
             alt="Scan this QR code with your authenticator application"
             className="mfa-qr"
@@ -227,7 +252,15 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
 
       {factorIsReady ? (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
-          <label htmlFor="authenticator-code">Authenticator code</label>
+          {view.kind === 'challenge' ? (
+            <p>
+              This account already has an authenticator. Open the authenticator entry you set up
+              previously; you do not need to scan another QR code.
+            </p>
+          ) : (
+            <strong>Step 2 of 2 — Confirm setup</strong>
+          )}
+          <label htmlFor="authenticator-code">6-digit authenticator code</label>
           <input
             autoComplete="one-time-code"
             disabled={isPending}
@@ -266,17 +299,23 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
       )}
 
       <div className="mfa-footer">
-        <p className="security-note">
-          Never share the QR code, setup key, or authenticator code. If you lost your authenticator,
-          contact a platform administrator for account recovery.
-        </p>
+        <p className="security-note">Never share the QR code, setup key, or authenticator code.</p>
+        <GovernmentAuthorizationNote />
+        <details className="auth-help">
+          <summary>Lost your authenticator?</summary>
+          <p>
+            Contact the platform administrator who onboarded you through a verified official
+            channel. Recovery requires identity verification and administrator review; creating a
+            second account will not restore the memberships or roles tied to this identity.
+          </p>
+        </details>
         <button
           className="text-button"
           disabled={isPending}
           onClick={() => void signOut()}
           type="button"
         >
-          Sign out
+          Sign out and use another account
         </button>
       </div>
     </section>

@@ -62,6 +62,15 @@ export const resolveEmailAuthCallback = (callbackUrl: string): EmailAuthCallback
   throw invalidCallback();
 };
 
+export const getEmailAuthCallbackPurpose = (
+  callbackUrl: string,
+): 'email-confirmation' | 'sign-in' => {
+  const callback = resolveEmailAuthCallback(callbackUrl);
+  return callback.method === 'token_hash' && callback.type === 'signup'
+    ? 'email-confirmation'
+    : 'sign-in';
+};
+
 export const completeEmailAuthCallback = async (
   supabase: SupabaseClient,
   callbackUrl: string,

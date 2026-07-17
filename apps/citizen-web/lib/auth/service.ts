@@ -14,12 +14,9 @@ type SignInAuditRecorder = (
   eventType: 'sign_in_succeeded',
 ) => Promise<boolean>;
 
-export class EmailConfirmationRequiredError extends Error {
-  public constructor() {
-    super('Email confirmation is still required by the authentication provider.');
-    this.name = 'EmailConfirmationRequiredError';
-  }
-}
+export type CitizenPasswordAccountCreationResult =
+  | Readonly<{ status: 'authenticated' }>
+  | Readonly<{ email: string; status: 'email-confirmation-required' }>;
 
 const requireSessionAccessToken = (
   accessToken: string | null | undefined,
@@ -37,9 +34,10 @@ export const createCitizenPasswordAccount = async (
   emailInput: string,
   passwordInput: string,
   recordAuditEvent: SignInAuditRecorder = recordAuthAuditEventSafely,
-): Promise<void> => {
+): Promise<CitizenPasswordAccountCreationResult> => {
+  const email = normalizeEmail(emailInput);
   const result = await supabase.auth.signUp({
-    email: normalizeEmail(emailInput),
+    email,
     password: normalizePassword(passwordInput),
   });
 
@@ -47,11 +45,13 @@ export const createCitizenPasswordAccount = async (
     throw result.error;
   }
 
-  const accessToken = requireSessionAccessToken(
-    result.data.session?.access_token,
-    new EmailConfirmationRequiredError(),
-  );
+  const accessToken = result.data.session?.access_token;
+  if (!accessToken) {
+    return { email, status: 'email-confirmation-required' };
+  }
+
   await recordAuditEvent(accessToken, 'sign_in_succeeded');
+  return { status: 'authenticated' };
 };
 
 export const signInCitizenWithPassword = async (
@@ -77,14 +77,17 @@ export const requestCitizenPasswordReset = async (
   supabase: SupabaseClient,
   emailInput: string,
   redirectTo: string,
-): Promise<void> => {
-  const { error } = await supabase.auth.resetPasswordForEmail(normalizeEmail(emailInput), {
+): Promise<string> => {
+  const email = normalizeEmail(emailInput);
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
   });
 
   if (error) {
     throw error;
   }
+
+  return email;
 };
 
 export const updateCitizenPassword = async (
@@ -108,7 +111,7 @@ export const updateCitizenPassword = async (
 export const establishCitizenPasswordRecoverySession = async (
   supabase: SupabaseClient,
   callbackUrl: string,
-): Promise<void> => {
+): Promise<string | null> => {
   let url: URL;
   try {
     url = new URL(callbackUrl);
@@ -155,6 +158,8 @@ export const establishCitizenPasswordRecoverySession = async (
   if (result === null || result.error || !result.data.session?.access_token) {
     throw result?.error ?? new Error('The password reset request is invalid or expired.');
   }
+
+  return result.data.user?.email ?? result.data.session.user?.email ?? null;
 };
 
 export const getCitizenPasswordRecoveryUrl = (origin: string): string =>
@@ -182,10 +187,6 @@ export const getUserFacingAuthError = (error: unknown): string => {
     return error.message;
   }
 
-  if (error instanceof EmailConfirmationRequiredError) {
-    return 'Account creation needs a Supabase setting change before phone verification can start. Contact the administrator.';
-  }
-
   if (error instanceof Error) {
     const normalizedMessage = error.message.toLowerCase();
 
@@ -200,6 +201,17 @@ export const getUserFacingAuthError = (error: unknown): string => {
       return 'The email address or password is incorrect.';
     }
 
+    if (normalizedMessage.includes('email not confirmed')) {
+      return 'Confirm this email address before signing in. Check its inbox, including spam, for the confirmation message.';
+    }
+
+    if (
+      normalizedMessage.includes('already registered') ||
+      normalizedMessage.includes('already exists')
+    ) {
+      return 'An account may already use this email address. Sign in or reset its password.';
+    }
+
     if (normalizedMessage.includes('weak password')) {
       return 'Use a stronger password and try again.';
     }
@@ -210,6 +222,14 @@ export const getUserFacingAuthError = (error: unknown): string => {
       normalizedMessage.includes('sms')
     ) {
       return 'Phone verification is unavailable. Ask the administrator to check Supabase Phone MFA and the SMS provider.';
+    }
+
+    if (
+      normalizedMessage.includes('failed to fetch') ||
+      normalizedMessage.includes('network') ||
+      normalizedMessage.includes('fetch failed')
+    ) {
+      return 'The authentication service could not be reached. Check your connection and try again.';
     }
 
     if (normalizedMessage.includes('expired') || normalizedMessage.includes('invalid')) {

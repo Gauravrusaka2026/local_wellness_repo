@@ -29,9 +29,10 @@ type PhoneVerificationView =
     }>;
 
 export const PhoneVerificationForm = ({
+  accountContact,
   isRequired,
   nextPath,
-}: Readonly<{ isRequired: boolean; nextPath: string }>) => {
+}: Readonly<{ accountContact: string; isRequired: boolean; nextPath: string }>) => {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -176,16 +177,25 @@ export const PhoneVerificationForm = ({
   return (
     <section aria-labelledby="phone-verification-heading" className="auth-card">
       <p className="eyebrow">Secure citizen access</p>
-      <h1 id="phone-verification-heading">Verify your phone</h1>
+      <h1 id="phone-verification-heading">
+        {isRequired ? 'Phone verification required' : 'Verify your phone (optional)'}
+      </h1>
       <p className="lede">
-        Enter the one-time SMS code to finish sign-in. This phone factor belongs to the same
-        email-and-password account.
+        {isRequired
+          ? 'Enter the one-time SMS code to finish secure sign-in.'
+          : 'Add phone verification now for stronger citizen-account protection, or continue during the staged rollout.'}
       </p>
+
+      <div className="auth-context compact">
+        <span>Signed in as</span>
+        <strong>{accountContact}</strong>
+        <p>This phone factor belongs to this email-and-password account.</p>
+      </div>
 
       {!isRequired ? (
         <p className="setup-notice" role="status">
-          Phone MFA is currently in observe mode. Email-and-password access remains available while
-          the SMS provider is being configured.
+          Phone MFA is optional in observe mode. Continuing without it keeps email-and-password
+          access active; it does not mark this account as phone verified.
         </p>
       ) : null}
 
@@ -323,11 +333,11 @@ export const PhoneVerificationForm = ({
           onClick={() => void signOut()}
           type="button"
         >
-          Sign out
+          Sign out and use another account
         </button>
         {!isRequired ? (
           <a className="secondary-link" href={nextPath}>
-            Continue without phone verification
+            Continue without verifying a phone
           </a>
         ) : null}
       </div>

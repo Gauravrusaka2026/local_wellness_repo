@@ -1,0 +1,272 @@
+{
+ "currentVersion": 10.7,
+ "id": 238,
+ "name": "Wards",
+ "type": "Feature Layer",
+ "description": "",
+ "geometryType": "esriGeometryPolygon",
+ "sourceSpatialReference": {
+  "wkid": 32643,
+  "latestWkid": 32643
+ },
+ "copyrightText": "",
+ "parentLayer": null,
+ "subLayers": [],
+ "minScale": 0,
+ "maxScale": 0,
+ "drawingInfo": {
+  "renderer": {
+   "type": "simple",
+   "symbol": {
+    "type": "esriSFS",
+    "style": "esriSFSSolid",
+    "color": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "outline": {
+     "type": "esriSLS",
+     "style": "esriSLSDashDotDot",
+     "color": [
+      255,
+      0,
+      0,
+      255
+     ],
+     "width": 3
+    }
+   },
+   "label": "",
+   "description": ""
+  },
+  "transparency": 0,
+  "labelingInfo": [
+   {
+    "labelPlacement": "esriServerPolygonPlacementAlwaysHorizontal",
+    "where": null,
+    "labelExpression": "[GISMASTER.Wards.NAME]",
+    "useCodedValues": true,
+    "symbol": {
+     "type": "esriTS",
+     "color": [
+      0,
+      0,
+      0,
+      255
+     ],
+     "backgroundColor": null,
+     "borderLineColor": null,
+     "borderLineSize": null,
+     "verticalAlignment": "baseline",
+     "horizontalAlignment": "left",
+     "rightToLeft": false,
+     "angle": 0,
+     "xoffset": 0,
+     "yoffset": 0,
+     "kerning": true,
+     "haloColor": null,
+     "haloSize": null,
+     "font": {
+      "family": "Arial",
+      "size": 14,
+      "style": "normal",
+      "weight": "bold",
+      "decoration": "none"
+     }
+    },
+    "minScale": 0,
+    "maxScale": 0
+   }
+  ]
+ },
+ "defaultVisibility": false,
+ "extent": {
+  "xmin": 266203.2363,
+  "ymin": 2090388.2792,
+  "xmax": 287676.985,
+  "ymax": 2132126.9751,
+  "spatialReference": {
+   "wkid": 32643,
+   "latestWkid": 32643
+  }
+ },
+ "hasAttachments": false,
+ "htmlPopupType": "esriServerHTMLPopupTypeAsHTMLText",
+ "displayField": "GISMASTER.Wards.NAME",
+ "typeIdField": null,
+ "subtypeFieldName": null,
+ "subtypeField": null,
+ "defaultSubtypeCode": null,
+ "fields": [
+  {
+   "name": "GISMASTER.Wards.OBJECTID",
+   "type": "esriFieldTypeOID",
+   "alias": "OBJECTID",
+   "domain": null
+  },
+  {
+   "name": "GISMASTER.Wards.NAME",
+   "type": "esriFieldTypeString",
+   "alias": "NAME",
+   "length": 50,
+   "domain": null
+  },
+  {
+   "name": "GISMASTER.Wards.REMARKS",
+   "type": "esriFieldTypeString",
+   "alias": "REMARKS",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "GISMASTER.Wards.FLAGID",
+   "type": "esriFieldTypeString",
+   "alias": "FLAGID",
+   "length": 10,
+   "domain": null
+  },
+  {
+   "name": "GISMASTER.Wards.ZONE",
+   "type": "esriFieldTypeString",
+   "alias": "ZONE",
+   "length": 10,
+   "domain": null
+  },
+  {
+   "name": "GISMASTER.Wards.SHAPE",
+   "type": "esriFieldTypeGeometry",
+   "alias": "SHAPE",
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.OBJECTID",
+   "type": "esriFieldTypeInteger",
+   "alias": "OBJECTID",
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.ID",
+   "type": "esriFieldTypeDouble",
+   "alias": "ID",
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.WARD",
+   "type": "esriFieldTypeString",
+   "alias": "WARD",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.WOADD",
+   "type": "esriFieldTypeString",
+   "alias": "Ward Office Address",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.AC",
+   "type": "esriFieldTypeString",
+   "alias": "Assistant Municipal Commissioner\n",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.CONROOM",
+   "type": "esriFieldTypeString",
+   "alias": "Ward Control Room No.\nWard Control Room No.\nWard Control Room No.\nWard Control Room No.\n22624000\n23794000\n22014000\nWard Control Room No.\n22624000\n23794000\n22014000\nWard Control Room No",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.BOARDLINENO",
+   "type": "esriFieldTypeString",
+   "alias": "Boardline No\n",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.TWITTER",
+   "type": "esriFieldTypeString",
+   "alias": "Twitter Handle",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.WHATSAPP",
+   "type": "esriFieldTypeString",
+   "alias": "WhatsApp No. Pothole complaints",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.AREA_",
+   "type": "esriFieldTypeString",
+   "alias": "Areas in Ward",
+   "length": 255,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.SUBURB",
+   "type": "esriFieldTypeString",
+   "alias": "Suburb",
+   "length": 50,
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.GEOGRAPHICAL_AREA",
+   "type": "esriFieldTypeDouble",
+   "alias": "Area",
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.POPULATION",
+   "type": "esriFieldTypeDouble",
+   "alias": "Population",
+   "domain": null
+  },
+  {
+   "name": "POMASTER.KnowYourWard.WARD_BND",
+   "type": "esriFieldTypeString",
+   "alias": "WARD_BND",
+   "length": 250,
+   "domain": null
+  }
+ ],
+ "geometryField": {
+  "name": "GISMASTER.Wards.SHAPE",
+  "type": "esriFieldTypeGeometry",
+  "alias": "SHAPE"
+ },
+ "indexes": null,
+ "subtypes": [],
+ "relationships": [],
+ "canModifyLayer": true,
+ "canScaleSymbols": false,
+ "hasLabels": true,
+ "capabilities": "Map,Query,Data",
+ "maxRecordCount": 1000,
+ "supportsStatistics": true,
+ "supportsAdvancedQueries": true,
+ "supportedQueryFormats": "JSON, AMF, geoJSON",
+ "isDataVersioned": true,
+ "ownershipBasedAccessControlForFeatures": {"allowOthersToQuery": true},
+ "useStandardizedQueries": true,
+ "advancedQueryCapabilities": {
+  "useStandardizedQueries": true,
+  "supportsStatistics": true,
+  "supportsHavingClause": true,
+  "supportsCountDistinct": true,
+  "supportsOrderBy": true,
+  "supportsDistinct": true,
+  "supportsPagination": true,
+  "supportsTrueCurve": true,
+  "supportsReturningQueryExtent": true,
+  "supportsQueryWithDistance": true,
+  "supportsSqlExpression": true
+ },
+ "supportsDatumTransformation": true,
+ "supportsCoordinatesQuantization": true
+}

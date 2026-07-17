@@ -17,6 +17,9 @@ export default function Page() {
           <Link className="secondary-link" href="/account">
             Open your account
           </Link>
+          <Link className="secondary-link" href="/complaints">
+            Track your complaints
+          </Link>
           <Link className="secondary-link" href="/transparency">
             Explore reviewed public reports
           </Link>

@@ -82,6 +82,12 @@ Phase 10 adds `avatar_object_path` and the server-maintained `avatar_updated_at`
 in the private `profile-images-private` bucket; the path is application-profile metadata, not a
 public URL. A database trigger owns the version timestamp so clients cannot forge cache state.
 
+Camera capture and media-library selection in mobile both reuse this same owner-private path; they
+do not change the database or Storage authorization model. The current civic-area card is derived
+from the verified governance resolver and remains in client memory. No profile coordinate or street
+address column is introduced by that slice, avoiding storage of a new sensitive location field
+without a separately reviewed privacy and access model.
+
 Supabase Auth remains the credential and factor source of truth. The service-only
 `user_has_verified_phone_mfa` function reports only whether a citizen has a verified Phone MFA
 factor; it does not return a phone number, factor identifier, or OTP. Privileged direct-RLS checks
@@ -703,15 +709,24 @@ supabase db push
 
 ### Master bootstrap SQL
 
-`supabase/master.sql` is the deterministic, single-file bootstrap form of all 40 ordered SQL files
-in `supabase/migrations/`. Each source migration retains its own transaction boundary, and the
-header records the exact source filename and SHA-256 digest. Seed artifacts remain separate because
-they contain environment/bootstrap data rather than table definitions and security policy.
+`supabase/master.sql` is the deterministic, single-file clean-bootstrap form of all 42 ordered SQL
+files in `supabase/migrations/`. The two smaller files provide adaptive Dashboard reconciliation for
+an existing database created from an earlier Local Wellness master. Part 1 contains migrations
+1–23 through the complete Phase 5 schema/security boundary; Part 2 contains migrations 24–42.
+Catalog fingerprints detect a coherent completed prefix, whole completed migrations are skipped,
+and only exact missing immutable source migrations execute. Each part is one transaction protected
+by an advisory transaction lock. Partial or non-contiguous fingerprints fail before later SQL runs.
+Every artifact records exact source filenames and SHA-256 digests. Seeds remain separate.
 
 Run `pnpm database:master:generate` after adding or changing an unapplied migration and
-`pnpm database:master:check` in verification. The master artifact is only for an empty compatible
-Supabase database. Never put it in the migration directory, apply it after the incremental history,
-or use it to replace or mutate migration records in an existing environment.
+`pnpm database:master:check` in verification; the check covers the complete file and both guarded
+upgrade parts. Never put any generated artifact in the migration directory. Use `master.sql` only
+for an empty compatible database, and use the parts only when the database came from a coherent
+earlier Local Wellness migration prefix. Do not weaken a fingerprint failure with blanket
+`IF NOT EXISTS`: that can conceal missing constraints, functions, policies, triggers, or RLS.
+Executing SQL in the Dashboard does not register source versions in
+`supabase_migrations.schema_migrations`, so operators must reconcile the ledger before a later CLI
+push even after a successful Dashboard upgrade.
 
 ---
 
@@ -1006,9 +1021,11 @@ recording, and safe dependency failures.
 
 The final clean reset, application-schema lint, and generated-type drift check passed. All 450 pgTAP
 assertions passed across 11 plans, including 102 Phase 3 routing and synchronization assertions.
-The committed types cover `public`, `governance`, and `routing`. Synthetic verified fixtures remain
-inside rolled-back tests; the reset bootstrap retains zero operational categories and creates no
-production route from placeholder or unverified evidence. Repository-wide formatting, lint,
+The committed types cover `public`, `governance`, and `routing`. At that Phase 3 checkpoint,
+synthetic verified fixtures remained inside rolled-back tests and the reset bootstrap retained zero
+operational categories. The later generated BMC non-production seeds are documented at the current
+repository cutoff below; neither checkpoint creates a production route from placeholder or
+unverified evidence. Repository-wide formatting, lint,
 type-check, tests, builds, Compose validation, and production dependency audit also passed; see the
 Phase 3 testing worklog for the observed matrix.
 
@@ -1036,11 +1053,13 @@ installed PostGIS extension. The root migration-safety regression also passed.
 Its populated Phase 3 fixture confirmed that an existing endpoint receives a 64-character
 deterministic source-contract hash before `NOT NULL` enforcement.
 
-Synthetic verified Phase 4 fixtures are rolled back. The actual reset bootstrap still has zero
-operational categories and cannot create a production complaint from placeholder or unverified
-evidence. The previous staging target received the schema and non-production seeds; the replacement
-target is unreconciled. Hosted RLS/RPC/Storage workflow smokes, verified Pune data, and a physical-
-device media submission remain pending; see the Phase 4 testing worklog.
+Synthetic verified Phase 4 fixtures are rolled back. The canonical baseline at that checkpoint had
+zero operational categories and could not create a complaint from placeholder or unverified
+evidence. The later generated BMC pack is the only bounded local activation and is documented at
+the current cutoff below. The previous staging target received the earlier schema and
+non-production seeds; the replacement target is unreconciled. Hosted RLS/RPC/Storage workflow
+smokes, verified Pune data, and a physical-device media submission remain pending; see the Phase 4
+testing worklog.
 
 The identity/routing forward fixes add pgTAP plans 019–021 for legacy Auth profile repair,
 confidence-policy conflict reporting, and verified PostGIS asset discovery. The governance import
@@ -1084,10 +1103,11 @@ The verified governance-directory slice adds migration
 `20260716104000_verified_governing_body_projection.sql` and pgTAP plan
 `028_verified_governing_body_projection.test.sql`. Its 13 assertions cover function existence,
 direct-client denial, service-role execution, official provenance, placeholder/source exclusion,
-public-safe output, PostGIS resolution, and migration grants. The latest clean local database run
+public-safe output, PostGIS resolution, and migration grants. The verified-directory milestone run
 applied all 30 migrations and passed all 1,085 assertions across 28 plans; application-schema lint
 also passed. Synthetic directory entities and boundaries are transaction-rolled-back fixtures and
-do not create pilot coverage.
+do not create pilot coverage. The current repository-wide database result is recorded with the BMC
+activation section below.
 
 The previous managed staging deployment recorded on 2026-07-14 applied all 23 migrations through
 `20260714124000` and all six reviewed non-production seed files. The existing citizen Auth identity
@@ -1099,7 +1119,7 @@ production deployment was created by that database operation.
 The owner later switched the configured staging target and reports applying a generated master SQL
 file. The exact artifact revision and current target ledger were not independently verified, so the
 historical deployment above must not be treated as evidence for the replacement project. Reconcile
-that target against all 40 current migrations through `20260716117000` before activation.
+that target against all 42 current migrations through `20260716119000` before activation.
 
 ## Phase 8 Public Projection Model
 
@@ -1201,13 +1221,48 @@ Phase 10 adds six forward migrations:
 - `20260716116000_phase_10_complaint_location_proximity.sql`;
 - `20260716117000_phase_10_routing_delivery_readiness.sql`.
 
-The current repository cutoff is 40 ordered migrations through `20260716117000`. Plans 033–039
+Two additive post-Phase-10 migrations extend the current database:
+
+- `20260716118000_bmc_ward_relationship_versions.sql` adds effective-dated operational-ward to
+  administrative-zone membership and official-boundary crosswalk versions, with temporal,
+  provenance, hierarchy, routing-eligibility, forced-RLS, and service-role constraints;
+- `20260716119000_government_invitation_scope_options.sql` adds the service-role-only
+  `public.list_government_invitation_options(uuid[])` projection used by the Admin Console.
+
+The invitation projection returns only active, verified, non-placeholder, routing-eligible
+authorities, wards, and authority departments. `anon` and `authenticated` cannot execute it; the
+trusted API supplies the caller-authorized authority filter and strictly decodes the result.
+
+The current repository cutoff is 42 ordered migrations through `20260716119000`. Plans 033–039
 define 124 assertions for quota/readiness ACLs and behavior, privileged and citizen-factor MFA,
 private profile-image metadata/Storage policies, the 50-metre location/media invariant, and the
 queue-versus-contact readiness boundary. Existing routing and government-workflow plans also assert
 the exact authority, department, role, assignment, and placeholder fail-closed behavior. These
 tests use rollback-isolated fixtures and do not activate a real municipality, contact, routing
 rule, or outbound-delivery channel.
+
+The generated BMC staging pack imports 114 source records across ten source tables, preserves six
+documented warnings, and creates source-backed BMC authority/zone/operational-ward/office/
+department/role/officer/assignment/contact/boundary/category evidence. Its four generated files are
+applied in order: `50_bmc_demo_governance.generated.sql`,
+`51_bmc_demo_governance_checksum.generated.sql`, `52_bmc_demo_routing.generated.sql`, and
+`53_bmc_demo_routing_verification.generated.sql`.
+
+The routing activation makes only `garbage_dump`, `missed_sweeping`, and `mosquito_breeding`
+operational. One confidence-policy version, three category-specific duplicate-policy versions, and
+66 immutable direct route-rule versions cover exactly 22 one-to-one ward/category combinations.
+Rules target the source-backed BMC authority, appropriate department, durable Ward Assistant
+Commissioner role, and matching ward office without inventing assets or fallback chains. The other
+nine categories remain draft/unverified/non-routable until verified asset inventories and ownership
+exist. Split `K/S`, `K/N`, `P/E`, and `P/W` units and legacy K/P boundary anchors remain excluded.
+No complaint-intake contact is delivery-approved, so verified internal routing does not claim that
+Local Wellness lodged a complaint in BMC's official grievance system.
+
+A clean local reset applied all 42 migrations and reviewed seeds. All 1,513 assertions across 43
+pgTAP plans passed, including the 20-assertion BMC internal-routing activation plan and the
+nine-assertion invitation-options plan. Generated database types and the 42-migration master
+artifacts were regenerated and passed drift checks. These results are local; they do not show that
+any BMC seed or route exists in a managed Supabase project.
 
 Required:
 

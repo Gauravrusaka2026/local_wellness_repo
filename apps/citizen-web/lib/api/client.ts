@@ -5,6 +5,7 @@ import { getPublicApiUrl } from '../environment';
 type ApiRequestOptions = Readonly<{
   accessToken: string;
   body?: unknown;
+  idempotencyKey?: string;
   method?: 'GET' | 'PATCH' | 'POST';
 }>;
 
@@ -94,6 +95,9 @@ export const apiRequest = async <T>(path: `/${string}`, options: ApiRequestOptio
         Accept: 'application/json',
         Authorization: `Bearer ${options.accessToken}`,
         ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(options.idempotencyKey === undefined
+          ? {}
+          : { 'Idempotency-Key': options.idempotencyKey }),
       },
       method: options.method ?? 'GET',
     });

@@ -10,7 +10,9 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../../src/auth/auth-context';
+import { getPhoneMfaSignInCopy } from '../../src/auth/phone-mfa-copy';
 import { usePasswordAuth, type PasswordAuthMode } from '../../src/auth/use-password-auth';
+import { getPublicPhoneMfaMode } from '../../src/config/environment';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
 
 const accountModes = ['sign-in', 'create-account'] as const satisfies readonly PasswordAuthMode[];
@@ -19,6 +21,7 @@ export default function SignInScreen() {
   const auth = useAuth();
   const router = useRouter();
   const form = usePasswordAuth();
+  const phoneMfaCopy = getPhoneMfaSignInCopy(getPublicPhoneMfaMode());
 
   if (auth.state.status === 'loading') return <LoadingScreen label="Checking your session…" />;
   if (auth.state.status === 'configuration-error') {
@@ -59,7 +62,7 @@ export default function SignInScreen() {
         <Text style={styles.description}>
           {form.mode === 'forgot-password'
             ? 'We will email a secure recovery link without revealing whether an account exists.'
-            : 'Use your email and password, then verify your registered phone with a one-time code.'}
+            : phoneMfaCopy.description}
         </Text>
 
         {form.mode === 'forgot-password' ? (
@@ -199,10 +202,7 @@ export default function SignInScreen() {
 
         <View style={styles.trustCard}>
           <Text style={styles.trustTitle}>Two-step protection</Text>
-          <Text style={styles.trustText}>
-            Your password is managed by Supabase and never stored by Local Wellness. A phone OTP is
-            required before private complaints and profile data become available.
-          </Text>
+          <Text style={styles.trustText}>{phoneMfaCopy.trustText}</Text>
         </View>
       </ScrollView>
     </Screen>

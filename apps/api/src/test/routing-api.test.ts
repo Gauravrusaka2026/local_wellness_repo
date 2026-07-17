@@ -8,6 +8,7 @@ import type {
   RoutingCandidate,
   RoutingAssetOption,
   RoutingCategory,
+  RoutingCategoryCatalogItem,
   RoutingPolicy,
   RoutingResolutionInput,
 } from '@local-wellness/types';
@@ -174,6 +175,7 @@ const routingIdempotencyKey = 'routing-request-000000000001';
 class FakeRoutingStore extends RoutingStore {
   public assets: RoutingAssetOption[] = [];
   public category: RoutingCategory | null = category;
+  public categoryCatalog: RoutingCategoryCatalogItem[] | null = null;
   public context: RoutingContext = { policy, candidates: [candidate] };
   public decisionRecords: RecordRoutingDecisionInput[] = [];
   public jurisdictionResolution: JurisdictionResolution = jurisdiction;
@@ -191,6 +193,16 @@ class FakeRoutingStore extends RoutingStore {
       throw new RoutingDataAccessError('list routing categories');
     }
     return this.category ? [this.category] : [];
+  }
+
+  public async listRoutingCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
+    if (this.failListing) {
+      throw new RoutingDataAccessError('list routing category catalog');
+    }
+    return (
+      this.categoryCatalog ??
+      (this.category ? [{ ...this.category, submissionAvailability: 'available' }] : [])
+    );
   }
 
   public async discoverRoutingAssets(): Promise<RoutingAssetOption[]> {
@@ -285,6 +297,27 @@ describe('API routing contract', () => {
       .expect(200);
 
     assert.deepEqual(response.body.data, [category]);
+  });
+
+  it('lists the authenticated category catalog with explicit submission availability', async () => {
+    const unavailableCategory: RoutingCategoryCatalogItem = {
+      ...category,
+      id: '44444444-4444-4444-8444-444444444445',
+      code: 'awaiting_verified_route',
+      name: 'Awaiting verified route',
+      submissionAvailability: 'unavailable',
+    };
+    routingStore.categoryCatalog = [
+      { ...category, submissionAvailability: 'available' },
+      unavailableCategory,
+    ];
+
+    const response = await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/catalog')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(200);
+
+    assert.deepEqual(response.body.data, routingStore.categoryCatalog);
   });
 
   it('returns only the sanitized nearby-asset contract for an authenticated request', async () => {
@@ -654,6 +687,9 @@ describe('API routing contract', () => {
 
   it('does not expose routing endpoints without authentication', async () => {
     await request(application.getHttpServer()).get('/api/v1/routing/categories').expect(401);
+    await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/catalog')
+      .expect(401);
     await request(application.getHttpServer()).post('/api/v1/routing/resolve').send({}).expect(401);
   });
 });

@@ -148,6 +148,28 @@ government dashboard callback to the project's redirect allow-list and smoke-tes
 invitation, one-time verification, SSR cookie creation, and effective access scope before enabling
 government users.
 
+Apply `20260716119000_government_invitation_scope_options.sql` before using the current Admin
+Console. Verify that `public.list_government_invitation_options(uuid[])` is executable only by
+`service_role`, that `anon` and `authenticated` are denied, and that the API options endpoint returns
+only named active/verified/non-placeholder/routable choices within the caller's authority. The
+Admin Console must not be replaced with manually entered authority, ward, or department UUIDs.
+
+Onboard one official as follows:
+
+1. Sign in to the Admin Console with the administrator's exact email and complete that account's
+   TOTP challenge.
+2. Select the named authority, government role, and named ward or department scope, then invite a
+   unique official-controlled email.
+3. Have that official accept the newest invitation and sign in to the Government Dashboard with
+   the same email.
+4. On first access, the official enrolls their own authenticator from the QR code; later access uses
+   the existing six-digit authenticator entry and does not scan another QR.
+5. Confirm the dashboard shows the expected current email, authority membership, and scoped role.
+
+An email that already exists in Supabase Auth intentionally conflicts until the audited
+assign/revoke/renew lifecycle under `AUTH-001` is implemented. Do not work around that gap by
+editing Auth metadata or copying another user's authenticator factor.
+
 ---
 
 ## 6. Configure Citizen Phone MFA
@@ -388,17 +410,25 @@ pnpm database:types:check
 pnpm governance:data:check
 ```
 
-After the incremental migration is final, regenerate the optional single-file empty-database
-bootstrap and verify that it matches the ordered sources:
+After the incremental migration is final, regenerate the optional empty-database bootstrap
+artifacts and verify that they match the ordered sources:
 
 ```bash
 pnpm database:master:generate
 pnpm database:master:check
 ```
 
-`supabase/master.sql` excludes `supabase/seed/` and must not be applied to a database with existing
-Local Wellness migration history. Normal local, staging, and production upgrades continue to use
-the immutable files under `supabase/migrations/`.
+`supabase/master.sql` is the complete clean-database artifact. For an existing project created from
+an earlier Local Wellness master, run `supabase/master.part-1.sql` and then
+`supabase/master.part-2.sql`. Both files include the full ordered history in a 23/19 split. They
+fingerprint completed migrations, skip them as whole units, and execute only missing exact sources.
+Keep applications stopped between parts and run at low traffic. Stop on any `LOCAL_WELLNESS_*`
+error; it indicates partial or non-contiguous state that blanket `IF NOT EXISTS` would conceal.
+
+Each part is one advisory-locked transaction and validates its target before commit. The check
+command validates all generated files, and all exclude `supabase/seed/`. Dashboard execution does
+not populate the Supabase migration ledger. Normal managed deployments should use immutable files
+under `supabase/migrations/` once direct/CLI access and the ledger are reconciled.
 
 ---
 
@@ -618,10 +648,13 @@ Neither value belongs in an `EXPO_PUBLIC_` or `NEXT_PUBLIC_` variable. Public re
 transport locations, not credentials.
 
 Use an untracked repository-root `.env` as the single local source, export it into the process
-before starting workspaces, and do not create a second `apps/mobile/.env.local`. On a physical
-device, override the public API/realtime URLs with the laptop's current LAN address. The mobile
-runtime validates detectable Supabase URL/key project alignment and rejects loopback service URLs
-without echoing configured values.
+before starting Supabase CLI or the full workspace command, and do not create any app-local
+`.env.local`. The API, mobile, Citizen Web, Government Dashboard, and Admin Console package scripts
+also load the root file automatically; already-exported shell or deployment values win. On a
+physical device, override the public API/realtime URLs with the laptop's current LAN address. The
+mobile runtime validates detectable Supabase URL/key project alignment and rejects loopback service
+URLs without echoing configured values. Restart affected clients and establish a new session after
+changing Supabase projects because old cookies/tokens belong to the prior project.
 
 ---
 
@@ -655,10 +688,12 @@ passed across 11 pgTAP plans, including 102 Phase 3 assertions, and the generate
 `public`, `governance`, and `routing`. Exact observed results are recorded in
 `docs/worklogs/phase-3-routing/testing.md`.
 
-The expected post-reset bootstrap state remains deliberately non-operational: 12 draft/unverified
-categories, zero operational categories, no verified Pune rule set, and no route sourced from a
-placeholder. Synthetic verified fixtures used by database tests must run inside rolled-back test
-transactions and must not survive as seed data.
+The canonical Maharashtra/Phase 3 baseline remains deliberately non-operational: 12
+draft/unverified categories, zero operational categories, no verified Pune rule set, and no route
+sourced from a placeholder. The current full local seed glob additionally applies the reviewed BMC
+non-production pack described below; it activates only three asset-independent categories and must
+not be mistaken for Pune or production coverage. Synthetic test fixtures still run only inside
+rolled-back transactions.
 
 Phase 4 adds two complaint migrations, four private Storage buckets, generated complaint-schema
 types, authenticated complaint API tests, and four pgTAP plans. The clean local reset and schema
@@ -681,9 +716,11 @@ Database lint reported only PostGIS extension-owned diagnostics. Repeat the clea
 lint, all pgTAP plans, generated-type drift check, and Edge/package tests after any migration,
 contract, or function change.
 
-The positive complaint fixtures are synthetic and transactionally rolled back. With the real seed,
-the authenticated operational-category query is still empty, so no user can submit a placeholder
-complaint. This is the required fail-closed bootstrap outcome, not verified Pune coverage.
+The positive Pune complaint fixtures are synthetic and transactionally rolled back. The generated
+BMC pack is the only non-synthetic local activation: it exposes three asset-independent categories
+over 22 one-to-one wards. Nine asset-dependent categories and split K/P wards remain unavailable,
+and no placeholder becomes routable. This is limited internal-demo coverage, not verified Pune,
+managed-environment, or external BMC delivery coverage.
 
 The known-issue forward fixes add safe legacy Auth profile/citizen-role backfill, a service-only
 routing confidence-policy conflict report, a verified PostGIS nearby-asset picker, and per-file
@@ -751,8 +788,18 @@ Phase 10 adds six migrations through
 `20260716117000_phase_10_routing_delivery_readiness.sql`. They add PostgreSQL-backed API quotas and
 readiness probes, privileged and citizen MFA verification helpers, the owner-private profile-image
 bucket/metadata, 50 m complaint/media proximity constraints, and routing delivery-readiness
-metadata. The current clean-bootstrap artifact contains 40 ordered migrations. Apply these as
+metadata. Two later additive migrations add BMC ward relationship versions and the service-only
+government invitation selector projection through
+`20260716119000_government_invitation_scope_options.sql`. The current clean-bootstrap artifact
+contains 42 ordered migrations. Apply these as
 incremental migrations to an existing project; never apply `supabase/master.sql` as an upgrade.
+
+The BMC generator now emits governance/checksum seeds `50`/`51` and routing/verification seeds
+`52`/`53`. A clean local reset applies all four in order. The routing pair activates only garbage
+dump, missed sweeping, and mosquito breeding, with 66 direct rules over 22 one-to-one wards; nine
+asset-dependent categories and the split K/P wards remain fail-closed. The full local database run
+passed 1,513 assertions across 43 pgTAP plans. No managed project is changed by generation, reset,
+or those local test results.
 
 Before managed Phase 10 activation:
 
@@ -791,7 +838,7 @@ explicitly applied to staging.
 The owner subsequently replaced the configured staging project and reports applying a generated
 master SQL file to it. That report does not identify the artifact revision and the database ledger
 was not reachable for independent verification in this session. Treat the current target as
-unreconciled: compare `supabase_migrations.schema_migrations` with all 40 current migration files,
+unreconciled: compare `supabase_migrations.schema_migrations` with all 42 current migration files,
 verify schema objects and RLS, and establish the seed/Auth/profile/role state before enabling any
 application, worker, Edge Function, schedule, routing, transparency, SLA, or KPI capability.
 
@@ -839,6 +886,13 @@ Before managed routing or governance synchronization activation, operators must 
   the V1 numeric bootstrap targets as audit history, then create a new reviewed scope for BMC
   administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`; never ordinal-map
   `BRIH-W01`–`BRIH-W05` to the BMC letters;
+- for an explicitly reviewed non-production BMC demo, apply migrations through `20260716119000`
+  before `50_bmc_demo_governance.generated.sql` and
+  `51_bmc_demo_governance_checksum.generated.sql`, then apply
+  `52_bmc_demo_routing.generated.sql` and
+  `53_bmc_demo_routing_verification.generated.sql`; verify three operational asset-independent
+  categories, 66 rules, 22 one-to-one ward crosswalks, nine fail-closed asset-dependent categories,
+  split K/P exclusions, and disabled external delivery;
 - verify that a source-authenticated value remains staged, public visibility requires attributed
   manual verification, and complaint delivery requires its separate explicit approval;
 - verify contact publication binds the target owner UUID, value, source URL, evidence-value hash,
@@ -910,7 +964,7 @@ Before managed Phase 7 activation, operators must also:
 Before enabling the mobile verified-governance directory, operators must also:
 
 - apply `20260716104000_verified_governing_body_projection.sql` through the incremental migration
-  workflow and regenerate/check the committed database types; the 40-migration master SQL is only
+  workflow and regenerate/check the committed database types; the 42-migration master SQL is only
   for a clean database and must not be applied over staging history;
 - repeat plan `028_verified_governing_body_projection.test.sql` and application-schema database
   lint in managed development, then verify `anon`/`authenticated` cannot execute the RPC while the

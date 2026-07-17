@@ -5,9 +5,9 @@ import { getGovernmentKpiSnapshots, getUserFacingKpiError } from '../../lib/api/
 import {
   ApiError,
   AuthenticationRequiredError,
-  getVerifiedAccessToken,
+  getVerifiedGovernmentSession,
+  type VerifiedGovernmentIdentity,
 } from '../../lib/api/client';
-import { signOutAction } from '../../lib/auth/actions';
 import {
   filterKpiSnapshots,
   parseKpiSearch,
@@ -15,6 +15,7 @@ import {
   type ParsedKpiSearch,
 } from '../../lib/accountability/query';
 import { createServerSupabaseClient } from '../../lib/supabase/server';
+import { GovernmentAccountContext } from '../government-account-context';
 import { AccountabilityUnavailableMessage, KpiAuthorityRequired, KpiDashboard } from './kpi-view';
 
 export const dynamic = 'force-dynamic';
@@ -26,37 +27,49 @@ type PageProperties = Readonly<{
 type LoadResult =
   | Readonly<{
       status: 'authority-required';
+      identity: VerifiedGovernmentIdentity;
       parsed: ParsedKpiSearch;
       scope: GovernmentAccessScope;
     }>
-  | Readonly<{ status: 'error'; message: string }>
-  | Readonly<{ status: 'no-scope' }>
+  | Readonly<{ status: 'error'; identity: VerifiedGovernmentIdentity; message: string }>
+  | Readonly<{ status: 'no-scope'; identity: VerifiedGovernmentIdentity }>
   | Readonly<{ status: 'signed-out' }>
   | Readonly<{
       status: 'success';
+      identity: VerifiedGovernmentIdentity;
       parsed: ParsedKpiSearch;
       result: Awaited<ReturnType<typeof getGovernmentKpiSnapshots>>;
       scope: GovernmentAccessScope;
     }>;
 
 const loadKpis = async (search: AccountabilitySearchParameters): Promise<LoadResult> => {
+  let session: Awaited<ReturnType<typeof getVerifiedGovernmentSession>>;
+
   try {
     const supabase = await createServerSupabaseClient();
-    const accessToken = await getVerifiedAccessToken(supabase);
+    session = await getVerifiedGovernmentSession(supabase);
+  } catch (error) {
+    if (error instanceof AuthenticationRequiredError) return { status: 'signed-out' };
+    throw error;
+  }
+
+  try {
     let scope: GovernmentAccessScope;
     try {
-      scope = await getGovernmentAccessScope(accessToken);
+      scope = await getGovernmentAccessScope(session.accessToken);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) return { status: 'no-scope' };
+      if (error instanceof ApiError && error.status === 403) {
+        return { identity: session.identity, status: 'no-scope' };
+      }
       throw error;
     }
-    if (scope.roles.length === 0) return { status: 'no-scope' };
+    if (scope.roles.length === 0) return { identity: session.identity, status: 'no-scope' };
     const parsed = parseKpiSearch(search, scope);
     if (parsed.query.authorityId === undefined) {
-      return { parsed, scope, status: 'authority-required' };
+      return { identity: session.identity, parsed, scope, status: 'authority-required' };
     }
-    const result = await getGovernmentKpiSnapshots(accessToken, parsed.query);
-    return { parsed, result, scope, status: 'success' };
+    const result = await getGovernmentKpiSnapshots(session.accessToken, parsed.query);
+    return { identity: session.identity, parsed, result, scope, status: 'success' };
   } catch (error) {
     if (
       error instanceof AuthenticationRequiredError ||
@@ -64,17 +77,13 @@ const loadKpis = async (search: AccountabilitySearchParameters): Promise<LoadRes
     ) {
       return { status: 'signed-out' };
     }
-    return { message: getUserFacingKpiError(error), status: 'error' };
+    return {
+      identity: session.identity,
+      message: getUserFacingKpiError(error),
+      status: 'error',
+    };
   }
 };
-
-const SignOutButton = () => (
-  <form action={signOutAction}>
-    <button className="secondary-button" type="submit">
-      Sign out
-    </button>
-  </form>
-);
 
 export default async function AccountabilityPage({ searchParams }: PageProperties) {
   const loaded = await loadKpis(await searchParams);
@@ -83,6 +92,10 @@ export default async function AccountabilityPage({ searchParams }: PagePropertie
   if (loaded.status === 'authority-required') {
     return (
       <main className="dashboard-shell" id="main-content">
+        <GovernmentAccountContext
+          authorizationLabel={`${loaded.scope.roles.length} active scoped role${loaded.scope.roles.length === 1 ? '' : 's'}`}
+          identity={loaded.identity}
+        />
         {loaded.parsed.error === null ? null : (
           <p aria-live="assertive" className="error-notice" role="alert">
             {loaded.parsed.error}
@@ -96,7 +109,6 @@ export default async function AccountabilityPage({ searchParams }: PagePropertie
           <a className="secondary-link" href="/">
             Return to complaint queue
           </a>
-          <SignOutButton />
         </div>
       </main>
     );
@@ -115,11 +127,18 @@ export default async function AccountabilityPage({ searchParams }: PagePropertie
           ) : (
             <AccountabilityUnavailableMessage status="no-scope" />
           )}
+          <GovernmentAccountContext
+            authorizationLabel={
+              loaded.status === 'no-scope'
+                ? 'Government authorization needs review'
+                : 'Signed-in session verified; KPI check failed'
+            }
+            identity={loaded.identity}
+          />
           <div className="button-row">
             <a className="primary-link" href="/">
               Return to complaint queue
             </a>
-            <SignOutButton />
           </div>
         </section>
       </main>
@@ -142,11 +161,14 @@ export default async function AccountabilityPage({ searchParams }: PagePropertie
               departments. Results remain organizational and never identify individual staff.
             </p>
           </div>
-          <div className="header-actions">
+          <div className="header-account-stack">
             <a className="secondary-link" href="/">
               Complaint queue
             </a>
-            <SignOutButton />
+            <GovernmentAccountContext
+              authorizationLabel={`${loaded.scope.roles.length} active scoped role${loaded.scope.roles.length === 1 ? '' : 's'}`}
+              identity={loaded.identity}
+            />
           </div>
         </header>
         {loaded.parsed.error === null ? null : (

@@ -36,7 +36,7 @@ import {
   getComplaintDraft,
   getComplaintMediaStatus,
   getUserFacingComplaintError,
-  listRoutingCategories,
+  listRoutingCategoryCatalog,
   setComplaintLocation,
   shouldRotateSubmitIdempotencyKeyAfterError,
   submitComplaintDraft,
@@ -108,7 +108,12 @@ const loadAssetOptions = async (
   draft: NonNullable<ComplaintCaptureState['draft']>,
 ) => {
   const category = categories.find((candidate) => candidate.id === draft.categoryId);
-  if (category?.requiresAsset !== true || !isLocationEvidenceEligible(draft.location)) return [];
+  if (
+    category?.submissionAvailability !== 'available' ||
+    !category.requiresAsset ||
+    !isLocationEvidenceEligible(draft.location)
+  )
+    return [];
 
   const result = await discoverRoutingAssets(accessToken, category.id, draft.location);
   if (result.categoryId !== category.id) {
@@ -171,7 +176,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         if (!isCurrent) return;
         loadedResume = resume;
         resumeRef.current = resume;
-        const categories = await listRoutingCategories(session.accessToken);
+        const categories = await listRoutingCategoryCatalog(session.accessToken);
         if (!isCurrent) return;
         dispatch({ categories, type: 'categories_loaded' });
 
@@ -246,7 +251,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     dispatch({ message: null, type: 'error' });
     dispatch({ type: 'busy', value: true });
     try {
-      const categories = await listRoutingCategories(activeSession.accessToken);
+      const categories = await listRoutingCategoryCatalog(activeSession.accessToken);
       dispatch({ categories, type: 'categories_loaded' });
     } catch (error) {
       dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
@@ -371,6 +376,14 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       const draft = requireDraft();
       dispatch({ type: 'busy', value: true });
       try {
+        if (input.categoryId !== undefined) {
+          const category = state.categories.find((candidate) => candidate.id === input.categoryId);
+          if (category?.submissionAvailability !== 'available') {
+            throw new Error(
+              'This category is not currently available for verified complaint submission.',
+            );
+          }
+        }
         const categoryChanged =
           input.categoryId !== undefined && input.categoryId !== draft.categoryId;
         const updated = await updateComplaintDraft(

@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { recordAuthAuditEventSafely } from '../../../lib/api/auth-audit';
-import { completeEmailAuthCallback } from '../../../lib/auth/callback';
+import { completeEmailAuthCallback, getEmailAuthCallbackPurpose } from '../../../lib/auth/callback';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
 export const AuthCallbackClient = ({ nextPath }: Readonly<{ nextPath: string }>) => {
   const started = useRef(false);
+  const [purpose, setPurpose] = useState<'email-confirmation' | 'sign-in'>('sign-in');
 
   useEffect(() => {
     if (started.current) return;
@@ -18,6 +19,7 @@ export const AuthCallbackClient = ({ nextPath }: Readonly<{ nextPath: string }>)
 
     const complete = async (): Promise<void> => {
       try {
+        setPurpose(getEmailAuthCallbackPurpose(callbackUrl));
         const accessToken = await completeEmailAuthCallback(
           createBrowserSupabaseClient(),
           callbackUrl,
@@ -39,8 +41,14 @@ export const AuthCallbackClient = ({ nextPath }: Readonly<{ nextPath: string }>)
     <main className="centered-page">
       <section aria-live="polite" className="auth-card" role="status">
         <p className="eyebrow">Citizen account</p>
-        <h1>Completing secure sign-in</h1>
-        <p className="lede">Verifying the one-time email link and preparing your account.</p>
+        <h1>
+          {purpose === 'email-confirmation' ? 'Confirming your email' : 'Completing secure sign-in'}
+        </h1>
+        <p className="lede">
+          {purpose === 'email-confirmation'
+            ? 'Verifying this one-time confirmation link and preparing your citizen account.'
+            : 'Verifying this one-time sign-in link and preparing your citizen account.'}
+        </p>
       </section>
     </main>
   );

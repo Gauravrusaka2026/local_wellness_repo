@@ -95,6 +95,15 @@ export interface RoutingCategory {
   recommendedMediaKinds: ComplaintMediaKind[];
 }
 
+export const routingCategorySubmissionAvailabilities = ['available', 'unavailable'] as const;
+
+export type RoutingCategorySubmissionAvailability =
+  (typeof routingCategorySubmissionAvailabilities)[number];
+
+export interface RoutingCategoryCatalogItem extends RoutingCategory {
+  submissionAvailability: RoutingCategorySubmissionAvailability;
+}
+
 export interface RoutingResolutionInput {
   categoryId: string;
   location: GeoPoint;

@@ -16,3 +16,7 @@
 - Paginate notification history beyond the current newest 100 records using the existing API cursor
   without weakening durable read state or realtime reconciliation.
 - Configure OS push only after closing the owner/provider/policy inputs in `NOTIFY-001`.
+- A persistent street address is not part of the current civic-area card. Before adding one, define
+  a private profile-address table/API, consent, provenance/reverse-geocoding source, retention,
+  correction/deletion, and scoped-access policy; do not add exact home location to the broadly
+  readable profile row.

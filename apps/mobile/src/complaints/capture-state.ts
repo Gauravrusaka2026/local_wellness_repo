@@ -5,7 +5,7 @@ import type {
   ComplaintLocationVerificationStatus,
   ComplaintReceipt,
   RoutingAssetOption,
-  RoutingCategory,
+  RoutingCategoryCatalogItem,
 } from '@local-wellness/types';
 
 export const complaintCaptureSteps = [
@@ -27,7 +27,7 @@ export type UploadState = Readonly<{
 
 export type ComplaintCaptureState = Readonly<{
   assetOptions: readonly RoutingAssetOption[];
-  categories: readonly RoutingCategory[];
+  categories: readonly RoutingCategoryCatalogItem[];
   draft: ComplaintDraft | null;
   duplicateCheck: ComplaintDuplicateCheckResult | null;
   duplicatesAcknowledged: boolean;
@@ -61,7 +61,7 @@ export type ComplaintCaptureAction =
   | Readonly<{ type: 'assets_cleared' }>
   | Readonly<{ type: 'assets_loaded'; assets: readonly RoutingAssetOption[] }>
   | Readonly<{ type: 'busy'; value: boolean }>
-  | Readonly<{ type: 'categories_loaded'; categories: readonly RoutingCategory[] }>
+  | Readonly<{ type: 'categories_loaded'; categories: readonly RoutingCategoryCatalogItem[] }>
   | Readonly<{ type: 'draft_loaded'; draft: ComplaintDraft; step?: ComplaintCaptureStep }>
   | Readonly<{ type: 'draft_cleared' }>
   | Readonly<{ type: 'duplicates_loaded'; duplicateCheck: ComplaintDuplicateCheckResult }>
@@ -195,14 +195,16 @@ export type DraftReadiness = Readonly<{
 
 export const getDraftReadiness = (
   draft: ComplaintDraft | null,
-  category?: RoutingCategory | null,
+  category?: RoutingCategoryCatalogItem | null,
 ): DraftReadiness => {
   if (draft === null) {
     return { isReady: false, missing: ['category', 'description', 'location', 'media'] };
   }
 
   const missing: DraftReadiness['missing'][number][] = [];
-  if (draft.categoryId === null) missing.push('category');
+  if (draft.categoryId === null || category?.submissionAvailability !== 'available') {
+    missing.push('category');
+  }
   if (draft.description === null || draft.description.trim().length === 0)
     missing.push('description');
   if (!isLocationEvidenceEligible(draft.location)) {
@@ -230,5 +232,5 @@ export const getDraftReadiness = (
 
 export const getSelectedCategory = (
   state: Pick<ComplaintCaptureState, 'categories' | 'draft'>,
-): RoutingCategory | null =>
+): RoutingCategoryCatalogItem | null =>
   state.categories.find((category) => category.id === state.draft?.categoryId) ?? null;

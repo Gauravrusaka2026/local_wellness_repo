@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { RoutingCategory } from '@local-wellness/types';
+import type { RoutingCategory, RoutingCategoryCatalogItem } from '@local-wellness/types';
 
 import { ApiException } from '../common/api-exception.js';
 import { RoutingStore } from '../data/routing.store.js';
@@ -13,6 +13,10 @@ export class CategoriesService {
 
   public listCategories(): Promise<RoutingCategory[]> {
     return this.routingStore.listRoutingCategories();
+  }
+
+  public listCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
+    return this.routingStore.listRoutingCategoryCatalog();
   }
 
   public async getCategory(categoryId: string): Promise<RoutingCategory> {

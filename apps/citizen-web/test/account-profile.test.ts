@@ -12,6 +12,10 @@ import {
   isProfileOnboardingComplete,
   isProfileSetupRequired,
 } from '../lib/api/profile';
+import {
+  getCitizenAccountLabel,
+  getCitizenPhoneVerificationStatus,
+} from '../lib/auth/presentation';
 
 const incompleteProfile = {
   avatarObjectPath: null,
@@ -123,4 +127,21 @@ test('classifies missing or unavailable profiles as account-provisioning states'
     ),
     false,
   );
+});
+
+test('presents the active account and Phone MFA state without trusting profile phone data', () => {
+  assert.equal(
+    getCitizenAccountLabel({ email: 'citizen@example.org', phone: '+919876543210' }),
+    'citizen@example.org',
+  );
+  assert.deepEqual(getCitizenPhoneVerificationStatus({ status: 'verified' }, true), {
+    detail: 'This session has a verified Supabase Phone MFA factor.',
+    label: 'Verified for this session',
+    needsAction: false,
+  });
+  assert.deepEqual(getCitizenPhoneVerificationStatus({ status: 'enrollment-required' }, false), {
+    detail: 'Phone verification is optional during the current rollout.',
+    label: 'Not verified',
+    needsAction: true,
+  });
 });

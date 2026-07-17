@@ -8,6 +8,7 @@ import type {
   DuplicateDetectionResult,
   JurisdictionResolution,
   RoutingCategory,
+  RoutingCategoryCatalogItem,
   RoutingDecision,
   RoutingResolutionInput,
 } from '@local-wellness/types';
@@ -272,6 +273,10 @@ class FakeRoutingStore extends RoutingStore {
 
   public async listRoutingCategories(): Promise<RoutingCategory[]> {
     throw new Error('Unexpected routing category list.');
+  }
+
+  public async listRoutingCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
+    throw new Error('Unexpected routing category catalog read.');
   }
 
   public async loadRoutingContext(

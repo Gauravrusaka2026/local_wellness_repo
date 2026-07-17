@@ -1,9 +1,20 @@
-import type { CreateGovernmentInvitationInput, GovernmentInvitation } from '@local-wellness/types';
+import type {
+  CreateGovernmentInvitationInput,
+  GovernmentInvitation,
+  GovernmentInvitationOptions,
+} from '@local-wellness/types';
 
 import { apiRequest } from './client';
 
 export type GovernmentInvitationInput = CreateGovernmentInvitationInput;
 export type { GovernmentInvitation };
+
+export const getGovernmentInvitationOptions = (
+  accessToken: string,
+): Promise<GovernmentInvitationOptions> =>
+  apiRequest<GovernmentInvitationOptions>('/api/v1/admin/government-invitations/options', {
+    accessToken,
+  });
 
 export const createGovernmentInvitation = (
   accessToken: string,

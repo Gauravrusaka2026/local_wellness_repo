@@ -1,12 +1,24 @@
 import {
+  complaintLocationVerificationStatuses,
   complaintIdempotencyKeyPattern,
   complaintLocationProviders,
   complaintMediaCaptureSources,
   complaintMediaKinds,
   complaintMediaMimeTypes,
+  complaintMediaModerationStatuses,
+  complaintMediaProcessingStatuses,
+  complaintMediaUploadStatuses,
+  complaintStatuses,
+  complaintTimelineEventTypes,
+  complaintVisibilityValues,
+  routingConfidenceBands,
+  routingDecisionStatuses,
+  type ComplaintDetail,
+  type ComplaintListResult,
   type ComplaintListQuery,
   type ComplaintCustomAttributes,
   type ComplaintLocationCapture,
+  type ComplaintTimeline,
   type CreateComplaintDraftInput,
   type CreateComplaintMediaUploadIntentInput,
   type FinalizeComplaintMediaInput,
@@ -212,6 +224,163 @@ export const complaintListQuerySchema: z.ZodType<ComplaintListQuery> = z
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
   .strict();
+
+const complaintResponseTimestampSchema = z.iso.datetime({ offset: true });
+const nullableUuidSchema = z.uuid().nullable();
+
+const complaintLocationEvidenceResponseSchema = z
+  .object({
+    accuracyMeters: z.number().finite().nonnegative().max(5_000),
+    capturedAt: complaintResponseTimestampSchema,
+    deviceRecordedAt: complaintResponseTimestampSchema,
+    id: z.uuid(),
+    isMockLocation: z.boolean().nullable(),
+    latitude: z.number().finite().min(-90).max(90),
+    longitude: z.number().finite().min(-180).max(180),
+    provider: z.enum(complaintLocationProviders),
+    verificationScore: z.number().finite().min(0).max(1).nullable(),
+    verificationStatus: z.enum(complaintLocationVerificationStatuses),
+  })
+  .strict();
+
+const complaintMediaMetadataResponseSchema = z
+  .object({
+    byteSize: z.number().int().positive().max(maximumMediaBytes),
+    captureLocation: complaintLocationEvidenceResponseSchema.nullable(),
+    captureSource: z.enum(complaintMediaCaptureSources),
+    capturedAt: complaintResponseTimestampSchema.nullable(),
+    durationMilliseconds: z.number().int().positive().max(86_400_000).nullable(),
+    heightPixels: z.number().int().positive().max(32_768).nullable(),
+    kind: z.enum(complaintMediaKinds),
+    mimeType: z.enum(complaintMediaMimeTypes),
+    sha256: sha256Schema,
+    widthPixels: z.number().int().positive().max(32_768).nullable(),
+  })
+  .strict();
+
+const complaintMediaResponseSchema = z
+  .object({
+    complaintId: nullableUuidSchema,
+    createdAt: complaintResponseTimestampSchema,
+    draftId: nullableUuidSchema,
+    id: z.uuid(),
+    metadata: complaintMediaMetadataResponseSchema,
+    moderationStatus: z.enum(complaintMediaModerationStatuses),
+    processingStatus: z.enum(complaintMediaProcessingStatuses),
+    updatedAt: complaintResponseTimestampSchema,
+    uploadStatus: z.enum(complaintMediaUploadStatuses),
+  })
+  .strict();
+
+const complaintRoutingTargetResponseSchema = z
+  .object({
+    assetId: nullableUuidSchema,
+    assetMatchDistanceMeters: z.number().finite().nonnegative().nullable(),
+    assetOwnershipVersionId: nullableUuidSchema,
+    assetTypeId: nullableUuidSchema,
+    assetVersionId: nullableUuidSchema,
+    authorityDepartmentId: z.uuid(),
+    authorityId: z.uuid(),
+    departmentId: z.uuid(),
+    localBodyId: z.uuid(),
+    officerAssignmentId: nullableUuidSchema,
+    officerRoleId: z.uuid(),
+    wardId: nullableUuidSchema,
+  })
+  .strict();
+
+const complaintRoutingResponseSchema = z
+  .object({
+    confidence: z
+      .object({
+        band: z.enum(routingConfidenceBands),
+        score: z.number().finite().min(0).max(1),
+      })
+      .strict(),
+    explanation: z
+      .object({
+        fallbackDepth: z.number().int().nonnegative(),
+        fallbackUsed: z.boolean(),
+        jurisdictionStatus: z.enum(['resolved', 'ambiguous', 'unsupported']),
+        localBodyBoundaryVersionId: nullableUuidSchema,
+        policyId: nullableUuidSchema,
+        policyVersion: z.number().int().positive().nullable(),
+        policyVersionId: nullableUuidSchema,
+        reason: z.string().trim().min(1).max(500),
+        selectedRoutingRuleId: nullableUuidSchema,
+        selectedRoutingRuleVersionId: nullableUuidSchema,
+        wardBoundaryVersionId: nullableUuidSchema,
+      })
+      .strict(),
+    status: z.enum(routingDecisionStatuses),
+    target: complaintRoutingTargetResponseSchema.nullable(),
+  })
+  .strict();
+
+export const complaintListResultSchema: z.ZodType<ComplaintListResult> = z
+  .object({
+    hasMore: z.boolean(),
+    items: z.array(
+      z
+        .object({
+          categoryId: z.uuid(),
+          categoryName: z.string().trim().min(1).max(240),
+          complaintNumber: z.string().trim().min(1).max(80),
+          id: z.uuid(),
+          status: z.enum(complaintStatuses),
+          submittedAt: complaintResponseTimestampSchema,
+          updatedAt: complaintResponseTimestampSchema,
+          visibility: z.enum(complaintVisibilityValues),
+        })
+        .strict(),
+    ),
+    nextCursor: z.string().min(1).max(512).nullable(),
+  })
+  .strict();
+
+export const complaintDetailSchema: z.ZodType<ComplaintDetail> = z
+  .object({
+    categoryId: z.uuid(),
+    complaintNumber: z.string().trim().min(1).max(80),
+    description: z.string().trim().min(1).max(4_000).nullable(),
+    id: z.uuid(),
+    location: complaintLocationEvidenceResponseSchema,
+    media: z.array(complaintMediaResponseSchema).max(20),
+    routing: complaintRoutingResponseSchema,
+    status: z.enum(complaintStatuses),
+    submittedAt: complaintResponseTimestampSchema,
+    updatedAt: complaintResponseTimestampSchema,
+    visibility: z.literal('private'),
+  })
+  .strict();
+
+export const complaintTimelineSchema: z.ZodType<ComplaintTimeline> = z
+  .object({
+    complaintId: z.uuid(),
+    entries: z.array(
+      z
+        .object({
+          complaintId: z.uuid(),
+          description: z.string().trim().min(1).max(4_000).nullable(),
+          eventType: z.enum(complaintTimelineEventTypes),
+          id: z.uuid(),
+          occurredAt: complaintResponseTimestampSchema,
+          status: z.enum(complaintStatuses),
+          title: z.string().trim().min(1).max(1_000),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export const decodeComplaintListResult = (value: unknown): ComplaintListResult =>
+  complaintListResultSchema.parse(value);
+
+export const decodeComplaintDetail = (value: unknown): ComplaintDetail =>
+  complaintDetailSchema.parse(value);
+
+export const decodeComplaintTimeline = (value: unknown): ComplaintTimeline =>
+  complaintTimelineSchema.parse(value);
 
 export const idempotencyKeySchema = z
   .string()

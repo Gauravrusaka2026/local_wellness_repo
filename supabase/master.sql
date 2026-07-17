@@ -4,10 +4,12 @@
 --   pnpm database:master:generate
 --
 -- This artifact is for bootstrapping an empty Supabase/PostgreSQL database.
--- Do not place it in supabase/migrations or apply it after the incremental
--- migrations. Seed data remains intentionally separate under supabase/seed.
+-- Existing databases must use master.part-1.sql and master.part-2.sql, whose
+-- adaptive migration-level guards validate and skip an already-complete prefix.
+-- Do not place any generated artifact in supabase/migrations. Seed data remains
+-- intentionally separate under supabase/seed.
 -- Source migration cutoff: 20260716
--- Source migration count: 40
+-- Source migration count: 42
 --
 -- Source manifest (SHA-256 of the exact source file bytes):
 -- 863ce6c718de64ae702385e979c44b011fd979c271ba5f400fe2db658f90d513  20260713100000_phase_1_identity_and_access.sql
@@ -50,6 +52,8 @@
 -- 51f4a44339e26e79ab051d9c00b43d6416512595de932750f88231a1dd57f914  20260716115000_phase_10_profile_images.sql
 -- 522b3c83ae3817cfc438912c7bde7b2d9e2948ef2646b51ff73dafbfce04e9b0  20260716116000_phase_10_complaint_location_proximity.sql
 -- 3270d23cc41dbfccb53552dc8698642fc311095da50b89085e4cb8904ca44715  20260716117000_phase_10_routing_delivery_readiness.sql
+-- 3c97e81d922b67a90c2bb7b48f387bc8a530af93154c55a617bb8dc6340f8c76  20260716118000_bmc_ward_relationship_versions.sql
+-- 58d2317126be57edf611b1cde1287ca63480cfbaf202906b3be93a4c2d1cddeb  20260716119000_government_invitation_scope_options.sql
 
 -- ============================================================================
 -- BEGIN SOURCE MIGRATION: 20260713100000_phase_1_identity_and_access.sql
@@ -1117,7 +1121,6 @@ comment on column public.user_roles.authority_id is
   'Phase 1 authority UUID. A governance foreign key is added in Phase 2.';
 comment on column public.authority_memberships.authority_id is
   'Phase 1 authority UUID. A governance foreign key is added in Phase 2.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713100000_phase_1_identity_and_access.sql
@@ -1147,7 +1150,6 @@ comment on column public.devices.device_identifier_hash is
   'Sensitive server-only device fingerprint. Never expose through authenticated SQL queries.';
 comment on column public.devices.push_token is
   'Sensitive server-only notification address. Never expose through authenticated SQL queries.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713130000_restrict_device_sensitive_column_access.sql
@@ -1541,7 +1543,6 @@ comment on function public.revoke_device(
   text
 ) is
   'Service-only atomic soft revocation with a device_revoked audit event.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713150000_atomic_device_lifecycle_and_access_provenance.sql
@@ -2711,7 +2712,6 @@ comment on table governance.jurisdiction_boundary_versions is
   'Versioned PostGIS MultiPolygon boundaries for exactly one governance jurisdiction.';
 comment on table governance.complaint_routing_references is
   'Versioned source references imported in Phase 2; these are not executable Phase 3 routing rules.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713160000_phase_2_governance_schema.sql
@@ -3729,7 +3729,6 @@ comment on function governance.reject_historical_delete() is
   'Rejects hard deletion of import ledgers and versioned governance history.';
 comment on function governance.guard_version_update() is
   'Allows a version row to be closed or superseded without permitting in-place history rewrites.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713161000_phase_2_governance_security.sql
@@ -3956,7 +3955,6 @@ comment on column public.auth_audit_events.authority_id is
   'Canonical retained authority reference for an immutable authentication audit event.';
 comment on function private.validate_governance_role_scope() is
   'Validates authority, ward, and authority-department ownership for scoped role assignments.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713162000_phase_2_identity_authority_forward_fix.sql
@@ -4076,7 +4074,6 @@ comment on function governance.resolve_jurisdiction(
   timestamptz
 ) is
   'Resolves all active, verified, routing-eligible local-body and ward boundaries covering a WGS84 coordinate; it does not execute Phase 3 complaint routing.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713163000_phase_2_jurisdiction_resolution.sql
@@ -4822,7 +4819,6 @@ comment on function public.get_active_authority_memberships(uuid, timestamptz) i
   'Service-only effective membership read constrained by canonical governance authority lifecycle.';
 comment on function public.get_active_user_roles(uuid, timestamptz) is
   'Service-only effective role read constrained by membership and canonical authority, ward, or department ownership.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713164000_phase_2_governance_integrity_forward_fix.sql
@@ -4882,7 +4878,6 @@ from public, anon, authenticated;
 
 comment on function governance.reject_invalid_authority_parent_types() is
   'Rejects parentless or type-incompatible structured authority hierarchies after each statement.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713165000_enforce_authority_parent_types.sql
@@ -4958,7 +4953,6 @@ on governance.jurisdiction_boundary_versions is
 
 comment on function private.is_active_governance_authority(uuid) is
   'Returns true only for an active, non-placeholder canonical authority with an active non-placeholder typed record where applicable.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713166000_harden_governance_access_and_geometry.sql
@@ -7122,7 +7116,6 @@ comment on table routing.route_rule_versions is
   'Immutable operational route-rule versions; source routing references remain separate in governance.';
 comment on table routing.routing_decisions is
   'Append-only, service-only routing audit. It stores exact coordinates and entity identifiers, never officer contacts or complaint text.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713200000_phase_3_routing_schema.sql
@@ -8232,7 +8225,6 @@ comment on table governance.sync_review_items is
   'Human verification queue separating source retrieval and change detection from canonical promotion.';
 comment on table governance.sync_review_events is
   'Append-only review actions preserving actor attribution and every verification/routing decision.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713201000_governance_synchronization_foundation.sql
@@ -9949,7 +9941,6 @@ comment on function public.record_routing_decision(
   smallint
 ) is
   'Idempotently appends a privacy-restricted routing decision audit keyed by actor and request ID.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260713202000_phase_3_routing_security_and_rpc.sql
@@ -10546,7 +10537,6 @@ comment on table complaints.duplicate_check_runs is
   'Append-only advisory duplicate evaluation runs using a versioned routing policy.';
 comment on table complaints.duplicate_check_matches is
   'Privacy-restricted scored candidates retained for duplicate-evaluation audit.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714100000_phase_4_complaint_capture.sql
@@ -12905,7 +12895,6 @@ comment on function public.get_routing_decision_replay(uuid, text) is
   'Service-only lookup of previously stored routing evidence for configuration-stable HTTP retries.';
 comment on function public.submit_complaint(uuid, uuid, uuid, uuid[], boolean) is
   'Atomically validates capture/routing/duplicate evidence and creates one private complaint, assignment, history event, and replay receipt.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714101000_phase_4_complaint_security_and_rpc.sql
@@ -13994,7 +13983,6 @@ comment on table governance.contact_channel_versions is
   'Versioned official contact values. Source-verified values remain staged; publication requires attributed manual review.';
 comment on view governance.current_verified_contacts is
   'Service-only projection of effective, manually verified, non-placeholder published contact versions.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714110000_governance_sync_scheduling_and_contacts.sql
@@ -14596,7 +14584,6 @@ comment on function public.record_governance_sync_snapshot(
   'Records an immutable content-addressed raw snapshot or links a prior snapshot for HTTP 304.';
 comment on function public.fail_governance_sync_run(uuid, uuid, uuid, text, text) is
   'Fails a retrieval run, records a sanitized audit event, and applies bounded exponential retry backoff.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714111000_governance_sync_service_rpc.sql
@@ -14862,7 +14849,6 @@ comment on column governance.sync_scope_targets.scope_group_key is
 
 comment on column governance.sync_scope_targets.is_routing_eligible is
   'Independent safety gate that can be true only after platform review and only when the referenced canonical entity is itself verified and routing eligible.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714112000_governance_sync_scope.sql
@@ -14984,7 +14970,6 @@ from private.backfill_missing_auth_identities();
 
 comment on function private.backfill_missing_auth_identities() is
   'Idempotently repairs missing application profiles and non-privileged global citizen roles for existing Supabase Auth users without overwriting application identity data or reactivating revoked citizen access.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714120000_backfill_auth_profiles.sql
@@ -15232,7 +15217,6 @@ grant execute on function public.report_routing_confidence_policy_conflicts() to
 
 comment on function public.report_routing_confidence_policy_conflicts() is
   'Service-only activation report for overlapping operational route-rule versions that reference different confidence policy versions. Runtime routing continues to fail closed independently.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714121000_routing_configuration_validation.sql
@@ -15464,7 +15448,6 @@ comment on function public.discover_routing_assets(
   integer
 ) is
   'Service-only PostGIS asset picker. Returns sanitized nearby options only when category, jurisdiction, asset, version, and ownership evidence are current, verified, non-placeholder, and routing-eligible.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714122000_routing_asset_discovery.sql
@@ -16075,7 +16058,6 @@ comment on table complaints.government_action_audit_events is
   'Append-only, data-minimized audit trail for successful government actions.';
 comment on table complaints.notification_outbox is
   'Private data-minimized domain-event outbox; Phase 5 provides no delivery behavior.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714123000_phase_5_government_workflow_schema.sql
@@ -18832,7 +18814,6 @@ comment on function public.expire_government_resolution_evidence(integer)
   is 'Service-only bounded cleanup for immutable upload reservations whose upload window has elapsed.';
 comment on function public.fail_government_resolution_evidence(uuid, text)
   is 'Service-only guarded transition from a reserved evidence upload to a terminal technical failure.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714124000_phase_5_government_workflow_security_and_rpc.sql
@@ -19321,7 +19302,6 @@ comment on table complaints.notification_delivery_attempts is
   'Append-only notification-delivery claim and outcome evidence.';
 comment on table complaints.notification_outbox_jobs is
   'Mutable PostgreSQL lease/retry projection for the immutable notification outbox.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714130000_phase_6_communication_and_notification_schema.sql
@@ -21562,7 +21542,6 @@ comment on function public.materialize_notification_outbox(uuid, uuid) is
   'Service-only, claim-guarded, idempotent and data-minimized notification materialization.';
 comment on function public.claim_realtime_deliveries(text, integer, integer) is
   'Service-only bounded PostgreSQL lease claim with current recipient authorization.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260714131000_phase_6_communication_notification_security_and_rpc.sql
@@ -22154,7 +22133,6 @@ comment on table complaints.complaint_reopen_requests is
   'Accepted, policy-bound citizen reopen requests; denied attempts leave no partial record.';
 comment on table complaints.complaint_escalation_events is
   'Append-only repeated-reopen escalation evidence with policy and assignment snapshots.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716100000_phase_7_accountability_schema.sql
@@ -24850,7 +24828,6 @@ comment on function public.reopen_complaint(
   uuid, uuid, bigint, uuid, text, text, uuid[], text, text, text
 ) is
   'Records a policy-bound reopen request and atomically escalates repeated unresolved resolutions.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716101000_phase_7_accountability_security_and_rpc.sql
@@ -25246,7 +25223,6 @@ comment on table complaints.complaint_duplicate_group_members is
   'Immutable membership of one reviewed duplicate-group version.';
 comment on table complaints.public_media_derivatives is
   'Structural private derivative registry; publication is intentionally unavailable in Phase 8.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716102000_phase_8_transparency_schema.sql
@@ -25717,7 +25693,6 @@ for each row execute function complaints.validate_public_media_derivative_scope(
 create trigger public_media_derivatives_append_only
 before update or delete on complaints.public_media_derivatives
 for each row execute function complaints.reject_append_only_mutation();
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716103000_phase_8_transparency_security_and_rpc.sql
@@ -25955,7 +25930,6 @@ comment on function public.resolve_verified_governing_bodies(
   timestamptz
 ) is
   'Service-role-only, official-source, public-safe governing-body projection for a verified PostGIS jurisdiction match.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716104000_verified_governing_body_projection.sql
@@ -27170,7 +27144,6 @@ comment on function public.review_and_publish_complaint_projection(
 comment on function public.withdraw_public_complaint_projection(
   uuid, uuid, text, text
 ) is 'Appends an attributed withdrawal version without deleting publication history.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716105000_phase_8_transparency_rpc_and_acl_forward_fix.sql
@@ -27523,7 +27496,6 @@ comment on function public.review_public_duplicate_group(uuid, uuid[], uuid, tex
   'Creates one reviewed duplicate relationship using only currently published public complaint identifiers.';
 comment on function public.withdraw_public_duplicate_group(uuid, uuid, text) is
   'Appends a withdrawal version for the reviewed duplicate relationship identified by its canonical public complaint.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716106000_phase_8_duplicate_group_publication.sql
@@ -28435,7 +28407,6 @@ comment on table complaints.kpi_definition_versions is
   'Versioned code-owned KPI algorithm identities used to reproduce immutable snapshot calculations.';
 comment on table complaints.kpi_snapshots is
   'Immutable organizational KPI snapshots with scope, segment, numerator, denominator and source run provenance.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716110000_phase_9_sla_escalation_kpi_schema.sql
@@ -31152,7 +31123,6 @@ comment on function public.list_government_kpi_snapshots(
   uuid, uuid, uuid, text, uuid, text, text[]
 ) is
   'Returns only access-scoped immutable organizational KPI snapshots; no public or individual-officer output.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql
@@ -31489,7 +31459,6 @@ comment on function public.register_device(
   uuid, text, text, timestamptz, text, text, boolean, uuid, inet, text
 ) is
   'Atomically registers or refreshes an owned installation, appends audit evidence, rejects revoked/blocked identifiers, and caps active installations per account.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716112000_phase_10_api_hardening.sql
@@ -31600,7 +31569,6 @@ grant execute on function public.user_requires_privileged_mfa(uuid, timestamptz)
 
 comment on function public.user_requires_privileged_mfa(uuid, timestamptz) is
   'Service-only decision for whether current government or privileged access requires AAL2.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716113000_phase_10_privileged_mfa.sql
@@ -31634,7 +31602,6 @@ grant execute on function public.user_has_verified_phone_mfa(uuid)
 
 comment on function public.user_has_verified_phone_mfa(uuid) is
   'Service-only phone-factor check used to enforce citizen phone verification without exposing factor details.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716114000_phase_10_citizen_phone_mfa.sql
@@ -31797,7 +31764,6 @@ comment on function private.set_profile_avatar_version() is
   'Versions private profile-image metadata without trusting a client-supplied timestamp.';
 comment on function private.reject_profile_avatar_version_update() is
   'Rejects direct changes to the server-owned private profile-image version timestamp.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716115000_phase_10_profile_images.sql
@@ -31909,7 +31875,6 @@ revoke all on function complaints.enforce_v1_location_proximity() from public;
 
 comment on function complaints.enforce_v1_location_proximity() is
   'Fail-closed V1 guard requiring at most 50 metre device accuracy and at most 50 metre media-to-issue distance.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716116000_phase_10_complaint_location_proximity.sql
@@ -32147,8 +32112,601 @@ comment on function governance.resolve_complaint_contact_readiness(
   'Reports the most specific manually verified, complaint-delivery-approved contact scope without exposing contact values or performing outbound delivery.';
 comment on function complaints.assignment_delivery_readiness(uuid) is
   'Distinguishes verified government-queue routing from optional external official-contact readiness; no outbound delivery is implied.';
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716117000_phase_10_routing_delivery_readiness.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716118000_bmc_ward_relationship_versions.sql
+-- ============================================================================
+begin;
+
+create table governance.ward_administrative_zone_membership_versions (
+  id uuid primary key default gen_random_uuid(),
+  operational_ward_id uuid not null
+    references governance.wards (id) on delete restrict,
+  administrative_zone_id uuid not null
+    references governance.administrative_units (id) on delete restrict,
+  version integer not null,
+  status text not null default 'draft',
+  verification_status text not null default 'unverified',
+  verification_notes text,
+  is_placeholder boolean not null default false,
+  is_routing_eligible boolean not null default false,
+  effective_from timestamptz not null,
+  effective_to timestamptz,
+  last_verified_on date,
+  reference_source_id uuid
+    references governance.reference_sources (id) on delete restrict,
+  import_record_id uuid references governance.import_records (id) on delete restrict,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ward_zone_membership_version_check check (version >= 1),
+  constraint ward_zone_membership_status_check check (
+    status in ('draft', 'active', 'inactive', 'superseded')
+  ),
+  constraint ward_zone_membership_verification_check check (
+    verification_status in ('verified', 'partially_verified', 'unverified', 'placeholder')
+  ),
+  constraint ward_zone_membership_placeholder_check check (
+    not is_placeholder or verification_status <> 'verified'
+  ),
+  constraint ward_zone_membership_routing_check check (
+    not is_routing_eligible
+    or (status = 'active' and verification_status = 'verified' and not is_placeholder)
+  ),
+  constraint ward_zone_membership_period_check check (
+    effective_to is null or effective_to > effective_from
+  ),
+  constraint ward_zone_membership_closed_status_check check (
+    status not in ('inactive', 'superseded') or effective_to is not null
+  ),
+  constraint ward_zone_membership_verified_provenance_check check (
+    verification_status <> 'verified'
+    or (last_verified_on is not null and reference_source_id is not null)
+  ),
+  constraint ward_zone_membership_ward_version_unique unique (
+    operational_ward_id,
+    version
+  )
+);
+
+create table governance.ward_boundary_crosswalk_versions (
+  id uuid primary key default gen_random_uuid(),
+  operational_ward_id uuid not null
+    references governance.wards (id) on delete restrict,
+  official_boundary_version_id uuid not null
+    references governance.jurisdiction_boundary_versions (id) on delete restrict,
+  version integer not null,
+  relationship_type text not null,
+  routing_instruction text not null,
+  auto_route_allowed boolean not null default false,
+  notes text,
+  status text not null default 'draft',
+  verification_status text not null default 'unverified',
+  verification_notes text,
+  is_placeholder boolean not null default false,
+  is_routing_eligible boolean not null default false,
+  effective_from timestamptz not null,
+  effective_to timestamptz,
+  last_verified_on date,
+  reference_source_id uuid
+    references governance.reference_sources (id) on delete restrict,
+  import_record_id uuid references governance.import_records (id) on delete restrict,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ward_boundary_crosswalk_version_check check (version >= 1),
+  constraint ward_boundary_crosswalk_relationship_check check (
+    relationship_type in ('one_to_one', 'one_to_many_child')
+  ),
+  constraint ward_boundary_crosswalk_instruction_check check (
+    routing_instruction = btrim(routing_instruction)
+    and char_length(routing_instruction) between 1 and 1000
+  ),
+  constraint ward_boundary_crosswalk_notes_check check (
+    notes is null
+    or (notes = btrim(notes) and char_length(notes) between 1 and 2000)
+  ),
+  constraint ward_boundary_crosswalk_auto_route_check check (
+    not auto_route_allowed or relationship_type = 'one_to_one'
+  ),
+  constraint ward_boundary_crosswalk_status_check check (
+    status in ('draft', 'active', 'inactive', 'superseded')
+  ),
+  constraint ward_boundary_crosswalk_verification_check check (
+    verification_status in ('verified', 'partially_verified', 'unverified', 'placeholder')
+  ),
+  constraint ward_boundary_crosswalk_placeholder_check check (
+    not is_placeholder or verification_status <> 'verified'
+  ),
+  constraint ward_boundary_crosswalk_routing_check check (
+    not is_routing_eligible
+    or (
+      status = 'active'
+      and verification_status = 'verified'
+      and not is_placeholder
+      and auto_route_allowed
+    )
+  ),
+  constraint ward_boundary_crosswalk_period_check check (
+    effective_to is null or effective_to > effective_from
+  ),
+  constraint ward_boundary_crosswalk_closed_status_check check (
+    status not in ('inactive', 'superseded') or effective_to is not null
+  ),
+  constraint ward_boundary_crosswalk_verified_provenance_check check (
+    verification_status <> 'verified'
+    or (last_verified_on is not null and reference_source_id is not null)
+  ),
+  constraint ward_boundary_crosswalk_ward_version_unique unique (
+    operational_ward_id,
+    version
+  )
+);
+
+alter table governance.ward_administrative_zone_membership_versions
+  add constraint ward_zone_membership_no_effective_overlap
+  exclude using gist (
+    operational_ward_id with =,
+    tstzrange(effective_from, effective_to, '[)') with &&
+  ) where (status <> 'draft');
+
+alter table governance.ward_boundary_crosswalk_versions
+  add constraint ward_boundary_crosswalk_no_effective_overlap
+  exclude using gist (
+    operational_ward_id with =,
+    tstzrange(effective_from, effective_to, '[)') with &&
+  ) where (status <> 'draft');
+
+create unique index ward_zone_membership_one_current_idx
+  on governance.ward_administrative_zone_membership_versions (operational_ward_id)
+  where effective_to is null and status = 'active';
+create index ward_zone_membership_zone_effective_idx
+  on governance.ward_administrative_zone_membership_versions (
+    administrative_zone_id,
+    status,
+    effective_from,
+    effective_to
+  );
+create index ward_zone_membership_routing_idx
+  on governance.ward_administrative_zone_membership_versions (
+    operational_ward_id,
+    status,
+    is_routing_eligible,
+    effective_from,
+    effective_to
+  );
+
+create unique index ward_boundary_crosswalk_one_current_idx
+  on governance.ward_boundary_crosswalk_versions (operational_ward_id)
+  where effective_to is null and status = 'active';
+create index ward_boundary_crosswalk_boundary_effective_idx
+  on governance.ward_boundary_crosswalk_versions (
+    official_boundary_version_id,
+    status,
+    effective_from,
+    effective_to
+  );
+create index ward_boundary_crosswalk_routing_idx
+  on governance.ward_boundary_crosswalk_versions (
+    operational_ward_id,
+    status,
+    is_routing_eligible,
+    auto_route_allowed,
+    effective_from,
+    effective_to
+  );
+
+create function governance.validate_ward_zone_membership_version()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  operational_ward governance.wards%rowtype;
+  administrative_zone governance.administrative_units%rowtype;
+begin
+  select ward.* into operational_ward
+  from governance.wards as ward
+  where ward.id = new.operational_ward_id;
+
+  select administrative_unit.* into administrative_zone
+  from governance.administrative_units as administrative_unit
+  where administrative_unit.id = new.administrative_zone_id;
+
+  if operational_ward.id is null
+    or administrative_zone.id is null
+    or administrative_zone.unit_type <> 'zone'
+    or administrative_zone.local_body_id is null
+    or administrative_zone.local_body_id <> operational_ward.local_body_id then
+    raise exception using
+      errcode = '23514',
+      message = 'WARD_ZONE_MEMBERSHIP_SCOPE_INVALID';
+  end if;
+
+  if new.is_routing_eligible and (
+    operational_ward.status <> 'active'
+    or operational_ward.verification_status <> 'verified'
+    or operational_ward.is_placeholder
+    or not operational_ward.is_routing_eligible
+    or administrative_zone.status <> 'active'
+    or administrative_zone.verification_status <> 'verified'
+    or administrative_zone.is_placeholder
+    or not administrative_zone.is_routing_eligible
+    or not exists (
+      select 1
+      from governance.local_bodies as local_body
+      inner join governance.authorities as authority
+        on authority.id = local_body.authority_id
+      where local_body.id = operational_ward.local_body_id
+        and local_body.status = 'active'
+        and local_body.verification_status = 'verified'
+        and not local_body.is_placeholder
+        and local_body.is_routing_eligible
+        and authority.status = 'active'
+        and authority.verification_status = 'verified'
+        and not authority.is_placeholder
+        and authority.is_routing_eligible
+    )
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'WARD_ZONE_MEMBERSHIP_ROUTING_SCOPE_UNVERIFIED';
+  end if;
+
+  return new;
+end;
+$$;
+
+create function governance.validate_ward_boundary_crosswalk_version()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  operational_ward governance.wards%rowtype;
+  official_boundary governance.jurisdiction_boundary_versions%rowtype;
+  boundary_ward governance.wards%rowtype;
+begin
+  select ward.* into operational_ward
+  from governance.wards as ward
+  where ward.id = new.operational_ward_id;
+
+  select boundary_version.* into official_boundary
+  from governance.jurisdiction_boundary_versions as boundary_version
+  where boundary_version.id = new.official_boundary_version_id;
+
+  if official_boundary.ward_id is not null then
+    select ward.* into boundary_ward
+    from governance.wards as ward
+    where ward.id = official_boundary.ward_id;
+  end if;
+
+  if operational_ward.id is null
+    or official_boundary.id is null
+    or official_boundary.ward_id is null
+    or boundary_ward.id is null
+    or boundary_ward.local_body_id <> operational_ward.local_body_id then
+    raise exception using
+      errcode = '23514',
+      message = 'WARD_BOUNDARY_CROSSWALK_SCOPE_INVALID';
+  end if;
+
+  if new.is_routing_eligible and (
+    not new.auto_route_allowed
+    or new.relationship_type <> 'one_to_one'
+    or operational_ward.status <> 'active'
+    or operational_ward.verification_status <> 'verified'
+    or operational_ward.is_placeholder
+    or not operational_ward.is_routing_eligible
+    or boundary_ward.status <> 'active'
+    or boundary_ward.verification_status <> 'verified'
+    or boundary_ward.is_placeholder
+    or not boundary_ward.is_routing_eligible
+    or official_boundary.status <> 'active'
+    or official_boundary.verification_status <> 'verified'
+    or official_boundary.is_placeholder
+    or not official_boundary.is_routing_eligible
+    or official_boundary.effective_from > new.effective_from
+    or (
+      official_boundary.effective_to is not null
+      and official_boundary.effective_to <= new.effective_from
+    )
+    or not exists (
+      select 1
+      from governance.local_bodies as local_body
+      inner join governance.authorities as authority
+        on authority.id = local_body.authority_id
+      where local_body.id = operational_ward.local_body_id
+        and local_body.status = 'active'
+        and local_body.verification_status = 'verified'
+        and not local_body.is_placeholder
+        and local_body.is_routing_eligible
+        and authority.status = 'active'
+        and authority.verification_status = 'verified'
+        and not authority.is_placeholder
+        and authority.is_routing_eligible
+    )
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'WARD_BOUNDARY_CROSSWALK_ROUTING_SCOPE_UNVERIFIED';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger ward_zone_membership_versions_guard_update
+before update on governance.ward_administrative_zone_membership_versions
+for each row execute function governance.guard_version_update();
+create trigger ward_zone_membership_versions_reject_delete
+before delete on governance.ward_administrative_zone_membership_versions
+for each row execute function governance.reject_historical_delete();
+create trigger ward_zone_membership_versions_set_updated_at
+before update on governance.ward_administrative_zone_membership_versions
+for each row execute function private.set_updated_at();
+create trigger ward_zone_membership_versions_validate
+before insert or update on governance.ward_administrative_zone_membership_versions
+for each row execute function governance.validate_ward_zone_membership_version();
+
+create trigger ward_boundary_crosswalk_versions_guard_update
+before update on governance.ward_boundary_crosswalk_versions
+for each row execute function governance.guard_version_update();
+create trigger ward_boundary_crosswalk_versions_reject_delete
+before delete on governance.ward_boundary_crosswalk_versions
+for each row execute function governance.reject_historical_delete();
+create trigger ward_boundary_crosswalk_versions_set_updated_at
+before update on governance.ward_boundary_crosswalk_versions
+for each row execute function private.set_updated_at();
+create trigger ward_boundary_crosswalk_versions_validate
+before insert or update on governance.ward_boundary_crosswalk_versions
+for each row execute function governance.validate_ward_boundary_crosswalk_version();
+
+alter table governance.ward_administrative_zone_membership_versions
+  enable row level security;
+alter table governance.ward_administrative_zone_membership_versions
+  force row level security;
+alter table governance.ward_boundary_crosswalk_versions enable row level security;
+alter table governance.ward_boundary_crosswalk_versions force row level security;
+
+create policy ward_zone_membership_select_current_or_managed
+on governance.ward_administrative_zone_membership_versions
+for select to authenticated
+using (
+  (
+    status = 'active'
+    and verification_status = 'verified'
+    and not is_placeholder
+    and effective_from <= current_timestamp
+    and (effective_to is null or effective_to > current_timestamp)
+    and exists (
+      select 1
+      from governance.wards as ward
+      inner join governance.local_bodies as local_body
+        on local_body.id = ward.local_body_id
+      where ward.id = operational_ward_id
+        and private.is_verified_governance_authority(local_body.authority_id)
+    )
+  )
+  or (select private.has_active_role('platform_admin', 'global', null))
+  or exists (
+    select 1
+    from governance.wards as ward
+    inner join governance.local_bodies as local_body
+      on local_body.id = ward.local_body_id
+    where ward.id = operational_ward_id
+      and private.can_manage_authority(local_body.authority_id)
+  )
+);
+
+create policy ward_boundary_crosswalk_select_current_or_managed
+on governance.ward_boundary_crosswalk_versions
+for select to authenticated
+using (
+  (
+    status = 'active'
+    and verification_status = 'verified'
+    and not is_placeholder
+    and effective_from <= current_timestamp
+    and (effective_to is null or effective_to > current_timestamp)
+    and exists (
+      select 1
+      from governance.wards as ward
+      inner join governance.local_bodies as local_body
+        on local_body.id = ward.local_body_id
+      where ward.id = operational_ward_id
+        and private.is_verified_governance_authority(local_body.authority_id)
+    )
+  )
+  or (select private.has_active_role('platform_admin', 'global', null))
+  or exists (
+    select 1
+    from governance.wards as ward
+    inner join governance.local_bodies as local_body
+      on local_body.id = ward.local_body_id
+    where ward.id = operational_ward_id
+      and private.can_manage_authority(local_body.authority_id)
+  )
+);
+
+revoke all on governance.ward_administrative_zone_membership_versions
+from public, anon, authenticated, service_role;
+revoke all on governance.ward_boundary_crosswalk_versions
+from public, anon, authenticated, service_role;
+grant select on governance.ward_administrative_zone_membership_versions
+to authenticated;
+grant select on governance.ward_boundary_crosswalk_versions to authenticated;
+grant select, insert, update
+on governance.ward_administrative_zone_membership_versions to service_role;
+grant select, insert, update
+on governance.ward_boundary_crosswalk_versions to service_role;
+
+revoke all on function governance.validate_ward_zone_membership_version()
+from public, anon, authenticated, service_role;
+revoke all on function governance.validate_ward_boundary_crosswalk_version()
+from public, anon, authenticated, service_role;
+
+comment on table governance.ward_administrative_zone_membership_versions is
+  'Append-only effective-dated membership of an operational municipal ward in one normalized administrative zone.';
+comment on column governance.ward_administrative_zone_membership_versions.administrative_zone_id is
+  'References an administrative_units row whose unit_type is zone and whose local body matches the operational ward.';
+comment on table governance.ward_boundary_crosswalk_versions is
+  'Append-only effective-dated crosswalk from an operational ward to the exact official ward-boundary feature version used for location resolution.';
+comment on column governance.ward_boundary_crosswalk_versions.official_boundary_version_id is
+  'References the immutable jurisdiction_boundary_versions row containing the official source geometry feature.';
+comment on column governance.ward_boundary_crosswalk_versions.auto_route_allowed is
+  'Explicit source-reviewed gate for automatic routing. Split legacy polygons remain false until a distinct approved child boundary exists.';
+comment on function governance.validate_ward_zone_membership_version() is
+  'Requires ward and administrative-zone scopes to belong to the same local body and verifies routing dependencies before activation.';
+comment on function governance.validate_ward_boundary_crosswalk_version() is
+  'Requires a same-local-body ward boundary feature and blocks routing activation unless the mapping is verified one-to-one and explicitly approved.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716118000_bmc_ward_relationship_versions.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260716119000_government_invitation_scope_options.sql
+-- ============================================================================
+begin;
+
+create function public.list_government_invitation_options(
+  p_authority_ids uuid[] default null
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with eligible_authorities as materialized (
+    select
+      authority.id,
+      authority.code,
+      authority.name,
+      authority.authority_type,
+      authority.is_routing_eligible
+    from governance.authorities as authority
+    where authority.status = 'active'
+      and authority.verification_status = 'verified'
+      and not authority.is_placeholder
+      and authority.is_routing_eligible
+      and (
+        p_authority_ids is null
+        or authority.id = any(p_authority_ids)
+      )
+  ),
+  options as (
+    select
+      'authority'::text as option_type,
+      authority.id,
+      authority.id as authority_id,
+      authority.code,
+      authority.name,
+      authority.authority_type,
+      authority.is_routing_eligible
+    from eligible_authorities as authority
+
+    union all
+
+    select
+      'ward'::text as option_type,
+      ward.id,
+      authority.id as authority_id,
+      coalesce(ward.source_ward_code, ward.ward_number, ward.name) as code,
+      ward.name,
+      null::text as authority_type,
+      ward.is_routing_eligible
+    from eligible_authorities as authority
+    inner join governance.local_bodies as local_body
+      on local_body.authority_id = authority.id
+     and local_body.status = 'active'
+     and local_body.verification_status = 'verified'
+     and not local_body.is_placeholder
+     and local_body.is_routing_eligible
+    inner join governance.wards as ward
+      on ward.local_body_id = local_body.id
+     and ward.status = 'active'
+     and ward.verification_status = 'verified'
+     and not ward.is_placeholder
+     and ward.is_routing_eligible
+
+    union all
+
+    select
+      'department'::text as option_type,
+      authority_department.id,
+      authority.id as authority_id,
+      department.code,
+      coalesce(authority_department.local_name, department.name) as name,
+      null::text as authority_type,
+      authority_department.is_routing_eligible
+    from eligible_authorities as authority
+    inner join governance.authority_departments as authority_department
+      on authority_department.authority_id = authority.id
+     and authority_department.status = 'active'
+     and authority_department.verification_status = 'verified'
+     and not authority_department.is_placeholder
+     and authority_department.is_routing_eligible
+    inner join governance.departments as department
+      on department.id = authority_department.department_id
+     and department.status = 'active'
+     and department.verification_status = 'verified'
+     and not department.is_placeholder
+     and department.is_routing_eligible
+  )
+  select jsonb_build_object(
+    'authorities', coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'authorityType', option.authority_type,
+          'code', option.code,
+          'id', option.id,
+          'name', option.name
+        ) order by option.name, option.code, option.id
+      ) filter (where option.option_type = 'authority'),
+      '[]'::jsonb
+    ),
+    'departments', coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'authorityId', option.authority_id,
+          'code', option.code,
+          'id', option.id,
+          'name', option.name,
+          'type', option.option_type
+        ) order by option.name, option.code, option.id
+      ) filter (where option.option_type = 'department'),
+      '[]'::jsonb
+    ),
+    'wards', coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'authorityId', option.authority_id,
+          'code', option.code,
+          'id', option.id,
+          'name', option.name,
+          'type', option.option_type
+        ) order by option.name, option.code, option.id
+      ) filter (where option.option_type = 'ward'),
+      '[]'::jsonb
+    )
+  )
+  from options as option;
+$$;
+
+revoke all on function public.list_government_invitation_options(uuid[])
+  from public, anon, authenticated;
+grant execute on function public.list_government_invitation_options(uuid[])
+  to service_role;
+
+comment on function public.list_government_invitation_options(uuid[]) is
+  'Lists active verified non-placeholder routable authority, ward, and authority-department labels for server-authorized government invitations.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260716119000_government_invitation_scope_options.sql
 -- ============================================================================

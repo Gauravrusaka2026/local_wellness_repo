@@ -143,10 +143,17 @@ All 70 ward rows are synthetic five-ward placeholders for 14 corporations and ha
 The owner has selected BMC administrative wards A, B, C, D, and E plus Pune's officially current
 numeric ward model for the pilot. That decision does not verify the canonical bootstrap rows. The
 existing `BRIH-W01`–`BRIH-W05` and `PUNE-W01`–`PUNE-W05` targets remain draft, unverified,
-non-routable placeholders. BMC's rows must never be interpreted ordinally as A–E; reviewed official
-records and a new versioned synchronization scope are required. Pune rows may be promoted only if
-official evidence proves their exact current identity, otherwise new official rows must supersede
-them.
+non-routable placeholders. BMC's canonical rows must never be interpreted ordinally as A–E; the
+original draft synchronization scope still needs a versioned official replacement. Pune rows may
+be promoted only if official evidence proves their exact current identity, otherwise new official
+rows must supersede them.
+
+The optional BMC staging pack now creates separate source-backed operational ward, office, role,
+officer, assignment, and contact records without promoting the five numeric placeholder rows. It is
+eligible for the optional internal demo queue only when seeds `50`–`53` are applied in order. The
+routing seeds cover three asset-independent categories across 22 exact one-to-one wards; they are
+not applied to the replacement staging target and keep external production delivery false. Pune and
+the rest of the canonical placeholder corpus remain unresolved under this issue.
 
 Phase 2 must not create verified officers or assignments from those labels. Placeholder rows may be retained only with an explicit placeholder/unverified state and raw-source provenance. Production-facing officer names and contacts require record-specific official verification.
 
@@ -158,13 +165,23 @@ Phase 2 must not create verified officers or assignments from those labels. Plac
 
 The canonical CSV corpus contains no coordinates, WKT, GeoJSON, or boundary files. PostGIS storage, versioning, indexes, and synthetic spatial tests can be completed safely, but no real Maharashtra coordinate can resolve to a verified municipality and ward until official pilot polygons are supplied and reviewed.
 
+The optional BMC pack now includes official legacy administrative-ward GeoJSON and versioned
+crosswalks. Twenty-two operational wards have one-to-one internal demo routing for three
+asset-independent categories; split K and P units retain parent geometry and fail closed until child
+geometry or an approved address/PIN crosswalk exists. This does not provide Pune or statewide
+geometry and is not yet active in managed staging.
+
 ### DATA-005 — Cross-file names and routing labels are not normalized
 
 - Severity: High for operational routing
 - Status: Open data-mapping task
 - Discovered: 2026-07-13
 
-Five ward rows refer to `Vasai-Virar City Municipal Corporation`, while the corporation table uses `Vasai-Virar Municipal Corporation`. Brihanmumbai is represented by one slash-delimited two-district value and therefore requires a local-body-to-district join rather than one district foreign key. The selected BMC A–E administrative wards require new official-source-backed records; no ordinal crosswalk from the five numeric placeholders is permitted. Pune's selected numeric model likewise requires an official effective-dated identity review.
+Five ward rows refer to `Vasai-Virar City Municipal Corporation`, while the corporation table uses `Vasai-Virar Municipal Corporation`. Brihanmumbai is represented by one slash-delimited two-district value and therefore requires a local-body-to-district join rather than one district foreign key. The canonical BMC A–E placeholder scope requires a versioned replacement using the separate official-source-backed operational records; no ordinal crosswalk from the five numeric placeholders is permitted. Pune's selected numeric model likewise requires an official effective-dated identity review.
+
+The optional BMC pack now supplies those separate official lettered operational records and
+versioned zone/boundary relationships; it never ordinal-maps `BRIH-W01`–`BRIH-W05`. The original
+Maharashtra cross-file mismatches and Pune identity review remain open.
 
 Only 6 of 18 routing primary department/agency labels exactly match a department row. Officer destinations are mostly composite free-text labels: only 1 of 18 first-recipient, 2 of 18 first-escalation, and 0 of 18 second-escalation values exactly match a durable officer role. All 18 routing notes state that official department/local-body mapping is required despite a source status of `Active`.
 
@@ -303,6 +320,14 @@ complete fallback paths. The 12 seeded categories are draft, unverified, and non
 Phase 2 placeholder records remain excluded. Until those inputs pass record-specific official-source
 review, a real Pune coordinate must not produce a production route.
 
+The optional BMC routing seeds locally activate exactly three asset-independent categories—garbage
+dump, missed sweeping, and mosquito breeding—across 22 exact one-to-one wards using 66 deterministic
+rules. They do not cover split K/P child wards, are not applied to managed staging, and do not enable
+external delivery. Activating the remaining nine pilot categories requires reviewed ownership
+inventories for roads, drains, sewer/manholes, water, streetlights, buildings, public land/right-of-
+way, and trees/gardens. This limited non-production BMC capability does not close the Pune or
+statewide routing gap.
+
 ### GOVDIR-001 — Verified governance directory is engineered but not verified active in staging
 
 - Severity: High for real Nearby governing-body results
@@ -319,7 +344,7 @@ The current managed migration ledger has not been reconciled with
 geometry is documented as active. Reconcile/apply the additive migration through the incremental
 workflow, then load and review current non-placeholder geometry and entity provenance before
 expecting Nearby to resolve. Until then, dependency/unsupported output is correct. Never use the
-40-migration master file as an upgrade, copy synthetic pgTAP fixtures into staging, or hardcode
+42-migration master file as an upgrade, copy synthetic pgTAP fixtures into staging, or hardcode
 Pune/BMC names to close this issue.
 
 ### COMPLAINT-001 — Transcription and media moderation providers are not configured
@@ -346,12 +371,15 @@ coverage before claiming automatic transcription or moderation.
 - Discovered: 2026-07-14
 
 The mobile unit suites and Android Expo export pass, and database/API integration covers the secure
-submission path with rollback-isolated verified fixtures. This environment had no connected physical
+submission path with rollback-isolated verified fixtures. Profile camera/gallery selection and the
+verified civic-area lookup have focused tests, but this environment had no connected physical
 device or in-app browser target. Camera, video, microphone, foreground GPS, mock-location behavior,
 OS protected storage, interrupted upload recovery, deep links, delivered email callbacks, and
 network transitions therefore still require representative Android/iOS and managed-environment
-testing. The canonical bootstrap also exposes zero operational categories, so production-like
-submission must wait for reviewed Pune routing evidence rather than activating placeholders.
+testing. The client can display all non-placeholder catalog categories, but the canonical bootstrap
+still exposes zero operational choices. Optional BMC seeds make only three categories selectable
+after deliberate non-production application and do not justify activating placeholders or claiming
+external submission.
 
 ### COMPLAINT-003 — Expired private upload reservations need scheduled cleanup
 
@@ -417,6 +445,11 @@ not be completed.
 Repeat the visual smoke test when the in-app browser is connected. This is not evidence of an
 application runtime failure, and Phase 3 intentionally adds no routing UI.
 
+The 2026-07-17 authentication refresh was verified with component/contract tests, production
+builds, and HTTP route checks, but the in-app browser still exposed no controllable tab. Interactive
+verification of account switching, first-time QR enrollment, returning TOTP challenge, named
+official selection, and post-invitation redirects therefore remains open.
+
 ### ENV-004 — Citizen account data requires one aligned migrated environment
 
 - Severity: Medium for local and hosted account testing
@@ -433,10 +466,16 @@ The route now validates the API response and visibly distinguishes signed-in ide
 profile provisioning/unavailability, and API failure, with retry and sign-out actions. Operators
 must still configure the citizen web and API against the same fully migrated local or hosted
 Supabase environment and complete delivered-link/SSR-cookie testing under `AUTH-005`/`ENV-002`.
+A stale ignored `apps/citizen-web/.env.local` was found pointing Citizen Auth at a different project
+than the root API environment. It was removed, and authentication-facing package scripts now load
+the one root `.env` while preserving deployment-injected values. Regression tests cover file
+loading, precedence, app-local-file rejection, and a missing local file; Turbo build inputs prevent
+reuse of a bundle built for a different project.
 The previous staging target contained the identity trigger/backfill migration, and a read-only
 check confirmed its citizen Auth identity had an active profile and citizen role. That does not
 prove the replacement target's state. Reconcile its migrations and verify the current citizen
-profile/role before a real browser session against its reachable API can close this issue.
+profile/role, then establish a fresh browser session against its reachable API, before closing this
+issue.
 
 ### GOVDASH-001 — Interactive complaint map needs a provider and coordinate-sharing policy
 
@@ -513,10 +552,18 @@ Auth identities, profiles, and privileged assignments were not independently ver
 working database connection was unavailable. The successful 2026-07-14 deployment of 23 migrations
 and six seeds applies to the previous staging target and is historical evidence only.
 
+The first clean-bootstrap split failed on `public.profiles`, confirming that the current project
+contains an earlier Local Wellness schema but not its cutoff. A later fixed Phase 9 assumption also
+failed and was removed. The two SQL Editor parts now contain the full 42-migration history split
+23/19, fingerprint a coherent prefix, skip complete migrations as units, and reject partial or
+non-contiguous state. This avoids duplicate-object replay without concealing security drift, but it
+still does not populate or repair the Supabase migration ledger. Full post-run schema/ledger, seed,
+Auth, and role reconciliation remains required.
+
 On 2026-07-16 the current API liveness endpoint succeeded, but its readiness endpoint returned 503.
 A direct, credential-safe RPC probe returned PostgREST `PGRST202`: the managed project does not have
 `public.api_readiness_check()`, which is introduced by
-`20260716112000_phase_10_api_hardening.sql`. This proves the target is not at the current 40-
+`20260716112000_phase_10_api_hardening.sql`. This proves the target is not at the current 42-
 migration cutoff and API-backed profile/complaint/routing demos must not be represented as ready.
 
 The current target still needs fully reviewed SMS/email provider settings, exact redirects,
@@ -528,7 +575,7 @@ as well as delivered codes.
 Before completing hosted identity activation:
 
 - finish the historical security audit under `SEC-001` without reusing prior values;
-- reconcile the current target against all 40 migrations and verify its seed/Auth/profile/role
+- reconcile the current target against all 42 migrations and verify its seed/Auth/profile/role
   state before starting managed workers or treating privileged access as active;
 - configure exact citizen, government, administrator, and installed-mobile callback allow-list
   entries; custom token/code templates are optional;
@@ -565,9 +612,11 @@ provide the missing application/API lifecycle and does not close this issue.
 - Status: Engineering implemented; managed activation and recovery validation pending
 - Discovered: 2026-07-13
 
-The government dashboard and admin console now provide TOTP enrollment/challenge UX, and the API
-can enforce `aal2` for privileged operations. Matching `observe` and `enforce` modes keep the local
-and staging rollout from locking operators out before enrollment and recovery are proven.
+The government dashboard and admin console now show the exact current email, explain Auth/TOTP/
+database authorization as separate gates, distinguish first-time QR enrollment from a returning
+challenge, and provide sign-out/account-switch and reviewed recovery guidance. The API can enforce
+`aal2` for privileged operations. Matching `observe` and `enforce` modes keep the local and staging
+rollout from locking operators out before enrollment and recovery are proven.
 
 Keep privileged enforcement in observe mode until current administrators and government users can
 enroll, a documented recovery procedure is rehearsed, exact hosted callbacks work, and both AAL1
@@ -603,14 +652,32 @@ alert-threshold validation; no Redis counter was introduced.
 
 Citizen web/mobile now support email/password signup and sign-in, password recovery, and Supabase
 Phone MFA enrollment/challenge/verification. The API can require both a verified phone factor and
-`aal2`, but all boundaries default to observe mode because the managed project has no approved SMS
-provider and the recovery path has not been exercised.
+`aal2`, but all boundaries default to observe mode. Twilio provider setup is underway but has not
+been verified through managed enrollment, delivery, expiry, retry, or recovery, so mandatory
+enforcement remains unsafe.
 
 Enable Supabase Advanced Phone MFA, configure a supported SMS provider or reviewed Send SMS Hook,
 complete India TRAI/DLT requirements where applicable, set provider/project rate limits and CAPTCHA,
 allow-list exact mobile/web redirects, and test enroll/retry/expiry/recovery/sign-out on real devices.
 Only then switch API, citizen web, and mobile to enforce together. Supabase Storage and an Edge
 Function are not an SMS carrier and must not be used as a homemade OTP credential store.
+
+### AUTH-011 — Platform-wide invitation choices need bounded search and pagination
+
+- Severity: Medium before statewide administrator rollout
+- Status: Open scalability task; current pilot catalog is bounded and functional
+- Discovered: 2026-07-17
+
+The government invitation options endpoint is private/no-store, reauthorizes the administrator,
+strictly decodes its service-only result, and exposes only active, verified, non-placeholder,
+routing-eligible names. Municipal administrators receive one authority's choices. A platform
+administrator currently receives every eligible authority, ward, and department in one payload,
+which is acceptable for the current PMC/BMC pilot but will not remain bounded statewide.
+
+Before Maharashtra-wide onboarding, add authority-first server search, keyset pagination, explicit
+result limits, deterministic ordering, and UI loading/empty/error coverage without weakening the
+same eligibility or caller-authority filters. Do not cache the private catalog or reintroduce raw
+UUID entry as a workaround.
 
 ### PROFILE-001 — Profile images need production media scanning and orphan reconciliation
 
@@ -626,6 +693,24 @@ Before sustained public operation, add provider-backed full image decoding and m
 moderation policy, scheduled reconciliation for abandoned/replaced objects, and approved retention
 and deletion auditing. Never make the source bucket public or include avatar paths in transparency
 responses.
+
+### PROFILE-002 — Persisted citizen addresses need a private-data and provider design
+
+- Severity: Medium before saved-address support
+- Status: Ephemeral verified civic-area lookup implemented; persistence deliberately open
+- Discovered: 2026-07-17
+
+The mobile profile can request foreground location and resolve a verified authority/local-body/ward
+through the existing governance projection. It retains only derived civic labels in component
+memory, does not persist exact coordinates, and does not represent those labels as a postal address.
+Profile photos can now be captured through Expo Camera or selected from the gallery without changing
+the owner-private Storage boundary.
+
+Persisting a street address requires a dedicated owner-private schema/API rather than adding precise
+location data to broadly projected profile rows. Define consent, purpose, retention/deletion,
+encryption/access expectations, RLS and service authorization, correction, reverse-geocoder/provider
+terms, provenance/freshness, and a no-public/no-routing-leak guarantee before implementation. Never
+derive or store an address silently from complaint evidence.
 
 ### AUTH-005 — Real-device and hosted callback smoke tests remain
 
@@ -687,6 +772,24 @@ complaints and original media private. Enabling comments first requires a review
 complaint policy, moderation lifecycle, reporting and abuse controls, retention/deletion rules,
 safe public media derivatives, and an explicit architectural/privacy decision. The structural
 table must not be mistaken for an operational public feature.
+
+### COMMUNITY-001 — Locality support and trending need reviewed policy and moderation
+
+- Severity: High before community interaction is enabled
+- Status: Open product, privacy, moderation, ranking, and abuse-control decision
+- Discovered: 2026-07-17
+
+The reviewed locality feed and aggregate heatmap are read-only. Citizen Web/mobile do not currently
+offer public upvotes, follows, trending ranking, or open comments. Existing private complaint-
+supporter structure and the non-operational comments table must not be exposed as a shortcut because
+publication, identity visibility, duplicate grouping, abuse handling, and retention semantics are
+not approved.
+
+Before implementing a Reddit-like community layer, define who can support/follow, one-person/one-
+issue semantics, locality eligibility, privacy-preserving counts, ranking/time decay, coordinated-
+abuse controls, reporting/moderation/appeal, deletion/retention, notification preferences, and public
+projection rules. Community engagement may inform a separately reviewed public signal but must not
+silently change official category routing, assignment, status, escalation, or SLA priority.
 
 ### NOTIFY-004 — Mobile notification history currently shows only the newest 100 records
 

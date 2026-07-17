@@ -1,0 +1,10 @@
+HTTP/1.1 200
+Server:
+Cache-Control: max-age=0,must-revalidate
+ETag: 13289567
+X-Content-Type-Options: nosniff
+Vary: Origin
+X-XSS-Protection: 1; mode=block
+Date: Fri, 17 Jul 2026 06:50:55 GMT
+Content-Type: application/geo+json;charset=UTF-8
+Content-Length: 835217

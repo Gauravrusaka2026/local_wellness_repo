@@ -37,8 +37,10 @@ load-test a mutating route or production without explicit operational approval.
 
 Before promotion, record the commit and image digests, migration range, generated master checksum,
 backup identifier, environment, approver, planned health checks, and prior deployable version.
-Apply additive migrations incrementally. `supabase/master.sql` is only for a clean empty database,
-not an upgrade script.
+Apply additive migrations incrementally. `supabase/master.sql` is only for a clean empty database.
+The two ordered SQL Editor parts adapt to a coherent earlier Local Wellness migration prefix, skip
+completed migrations as units, and apply the missing suffix. Run Part 1 then Part 2 with applications
+stopped; stop on any partial/non-contiguous fingerprint error.
 
 Confirm that client applications contain only public keys, server credentials exist only in
 trusted runtimes, exact CORS/Auth redirects match the environment, and placeholder/unverified data

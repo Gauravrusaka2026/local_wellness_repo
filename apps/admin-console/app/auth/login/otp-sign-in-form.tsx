@@ -63,9 +63,18 @@ export const OtpSignInForm = ({
       <p className="eyebrow">Restricted platform access</p>
       <h1 id="login-heading">Local Wellness administration</h1>
       <p className="lede">
-        Sign in with an invited platform administrator account. Authorization is verified again for
-        every privileged request.
+        Sign in with the exact email address of an existing platform or municipal administrator.
+        This form does not create an account or grant a government role.
       </p>
+
+      <aside className="auth-guidance" aria-label="Choose the correct account">
+        <strong>Which account belongs here?</strong>
+        <p>
+          Use the official email that was invited and authorized for administration. Ordinary
+          government operators and ward or department officers should use the Government Dashboard,
+          not this Admin Console.
+        </p>
+      </aside>
 
       {step === 'request' ? (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void requestCode(event)}>
@@ -95,8 +104,11 @@ export const OtpSignInForm = ({
       ) : (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
           <p aria-live="polite" className="success-notice">
-            If this address is authorized, enter the code sent to <strong>{normalizedEmail}</strong>{' '}
-            or open the newest secure sign-in link in this browser.
+            Continue as <strong>{normalizedEmail}</strong>. Enter the code sent to this address or
+            open its newest secure sign-in link in this browser.
+          </p>
+          <p className="field-hint">
+            This is the account that will be checked for administrator roles after authentication.
           </p>
           <label htmlFor="otp">Verification code</label>
           <input
@@ -118,7 +130,7 @@ export const OtpSignInForm = ({
             {isPending ? 'Verifying…' : 'Verify and continue'}
           </button>
           <button
-            className="text-button"
+            className="secondary-button"
             disabled={isPending}
             onClick={() => {
               setError(null);
@@ -127,7 +139,7 @@ export const OtpSignInForm = ({
             }}
             type="button"
           >
-            Use a different email address
+            That is not my account — use a different email
           </button>
         </form>
       )}
@@ -138,8 +150,12 @@ export const OtpSignInForm = ({
         </p>
       )}
       <p className="security-note">
-        Never share verification codes. Invitation and role changes create immutable audit records.
+        Never share verification codes or sign in for another official. Invitation and role changes
+        create immutable audit records.
       </p>
+      <a className="help-link" href="/auth/help">
+        Account, invitation, and authenticator help
+      </a>
     </section>
   );
 };

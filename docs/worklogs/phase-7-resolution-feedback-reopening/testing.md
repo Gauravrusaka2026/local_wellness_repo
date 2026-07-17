@@ -34,3 +34,7 @@ that roll back.
 
 No test may activate a placeholder governance/routing record or persist a synthetic policy outside
 its rollback transaction.
+
+The later Citizen Web slice adds strict complaint/action coverage within the seven passing Citizen
+Web test files; shared validation passes ten files. Lint, strict TypeScript, and its production build
+also pass. No managed policy or hosted browser flow was exercised.

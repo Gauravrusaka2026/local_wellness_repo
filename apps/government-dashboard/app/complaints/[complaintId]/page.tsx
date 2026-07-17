@@ -13,15 +13,16 @@ import {
   ApiError,
   AuthenticationRequiredError,
   getUserFacingApiError,
-  getVerifiedAccessToken,
+  getVerifiedGovernmentSession,
+  type VerifiedGovernmentIdentity,
 } from '../../../lib/api/client';
-import { signOutAction } from '../../../lib/auth/actions';
 import {
   buildQueueHref,
   parseComplaintScope,
   type DashboardSearchParameters,
 } from '../../../lib/complaints/query';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
+import { GovernmentAccountContext } from '../../government-account-context';
 import { ComplaintDetailView } from './detail-view';
 
 export const dynamic = 'force-dynamic';
@@ -32,12 +33,13 @@ type DetailPageProperties = Readonly<{
 }>;
 
 type DetailLoadResult =
-  | Readonly<{ status: 'denied' }>
-  | Readonly<{ status: 'error'; message: string }>
+  | Readonly<{ status: 'denied'; identity: VerifiedGovernmentIdentity }>
+  | Readonly<{ status: 'error'; identity: VerifiedGovernmentIdentity; message: string }>
   | Readonly<{ status: 'not-found' }>
   | Readonly<{ status: 'signed-out' }>
   | Readonly<{
       status: 'success';
+      identity: VerifiedGovernmentIdentity;
       assignmentOptions: Awaited<
         ReturnType<typeof getGovernmentComplaintAssignmentOptions>
       >['options'];
@@ -55,15 +57,23 @@ const loadComplaint = async (
   complaintId: string,
   searchParameters: DashboardSearchParameters,
 ): Promise<DetailLoadResult> => {
+  let session: Awaited<ReturnType<typeof getVerifiedGovernmentSession>>;
+
   try {
     const supabase = await createServerSupabaseClient();
-    const accessToken = await getVerifiedAccessToken(supabase);
-    const accessScope = await getGovernmentAccessScope(accessToken);
+    session = await getVerifiedGovernmentSession(supabase);
+  } catch (error) {
+    if (error instanceof AuthenticationRequiredError) return { status: 'signed-out' };
+    throw error;
+  }
+
+  try {
+    const accessScope = await getGovernmentAccessScope(session.accessToken);
     const selectedScope = parseComplaintScope(searchParameters, accessScope);
-    if (!selectedScope.isValid) return { status: 'denied' };
+    if (!selectedScope.isValid) return { identity: session.identity, status: 'denied' };
 
     const complaint = await getGovernmentComplaint(
-      accessToken,
+      session.accessToken,
       complaintId,
       selectedScope.scopeRoleAssignmentId,
     );
@@ -71,7 +81,7 @@ const loadComplaint = async (
     let slaError: string | null = null;
     try {
       sla = await getGovernmentComplaintSla(
-        accessToken,
+        session.accessToken,
         complaintId,
         selectedScope.scopeRoleAssignmentId,
       );
@@ -89,7 +99,7 @@ const loadComplaint = async (
     let accountabilityError: string | null = null;
     try {
       accountability = await getGovernmentComplaintAccountability(
-        accessToken,
+        session.accessToken,
         complaintId,
         selectedScope.scopeRoleAssignmentId,
       );
@@ -105,7 +115,7 @@ const loadComplaint = async (
     let communicationError: string | null = null;
     let messages: Awaited<ReturnType<typeof getComplaintMessages>>['items'] = [];
     try {
-      messages = (await getComplaintMessages(accessToken, complaintId)).items;
+      messages = (await getComplaintMessages(session.accessToken, complaintId)).items;
     } catch (error) {
       if (
         error instanceof AuthenticationRequiredError ||
@@ -121,7 +131,7 @@ const loadComplaint = async (
     const assignmentOptions = needsOptions
       ? (
           await getGovernmentComplaintAssignmentOptions(
-            accessToken,
+            session.accessToken,
             complaintId,
             selectedScope.scopeRoleAssignmentId,
           )
@@ -142,6 +152,7 @@ const loadComplaint = async (
       assignmentOptions,
       communicationError,
       complaint,
+      identity: session.identity,
       messages,
       queueHref,
       sla,
@@ -154,9 +165,15 @@ const loadComplaint = async (
       (error instanceof ApiError && error.status === 401)
     )
       return { status: 'signed-out' };
-    if (error instanceof ApiError && error.status === 403) return { status: 'denied' };
+    if (error instanceof ApiError && error.status === 403) {
+      return { identity: session.identity, status: 'denied' };
+    }
     if (error instanceof ApiError && error.status === 404) return { status: 'not-found' };
-    return { message: getUserFacingApiError(error), status: 'error' };
+    return {
+      identity: session.identity,
+      message: getUserFacingApiError(error),
+      status: 'error',
+    };
   }
 };
 
@@ -183,15 +200,18 @@ export default async function ComplaintPage({ params, searchParams }: DetailPage
               ? 'This complaint is outside your current authority, ward, or department scope.'
               : result.message}
           </p>
+          <GovernmentAccountContext
+            authorizationLabel={
+              result.status === 'denied'
+                ? 'Signed in; this complaint is outside the active scope'
+                : 'Signed-in session verified; complaint check failed'
+            }
+            identity={result.identity}
+          />
           <div className="button-row">
             <a className="primary-link" href="/">
               Return to queue
             </a>
-            <form action={signOutAction}>
-              <button className="secondary-button" type="submit">
-                Sign out
-              </button>
-            </form>
           </div>
         </section>
       </main>
@@ -204,6 +224,12 @@ export default async function ComplaintPage({ params, searchParams }: DetailPage
         Skip to complaint details
       </a>
       <main className="complaint-shell" id="main-content">
+        <div className="complaint-account-bar">
+          <GovernmentAccountContext
+            authorizationLabel="Complaint access verified for the active scope"
+            identity={result.identity}
+          />
+        </div>
         <ComplaintDetailView
           accountability={result.accountability}
           accountabilityError={result.accountabilityError}
