@@ -66,40 +66,33 @@ export default function MenuScreen() {
           <MenuDivider />
           <MenuLink
             description="Read government messages and status alerts"
-            glyph="●"
+            glyph="🔔"
             label="Notifications"
             onPress={() => router.push('/notifications')}
           />
         </MenuSection>
 
-        <MenuSection title="Nearby and public information">
+        <MenuSection title="Explore">
           <MenuLink
             description="Find verified municipality, ward and office coverage"
             glyph="◎"
-            label="Governing bodies near you"
+            label="Governing bodies"
             onPress={() => router.push('/governance' as Href)}
           />
           <MenuDivider />
           <MenuLink
             description="Explore reviewed, privacy-protected public reports"
             glyph="⌖"
-            label="Public reports nearby"
+            label="Nearby reports"
             onPress={() => router.push('/transparency')}
           />
         </MenuSection>
 
-        <MenuSection title="Account and security">
+        <MenuSection title="Account">
           <MenuLink
             description="Update your name and preferred language"
             glyph="○"
-            label="Profile and preferences"
-            onPress={() => router.push('/profile')}
-          />
-          <MenuDivider />
-          <MenuLink
-            description="Review this installation's secure registration"
-            glyph="◇"
-            label="Device security"
+            label="Profile"
             onPress={() => router.push('/profile')}
           />
         </MenuSection>
@@ -107,9 +100,7 @@ export default function MenuScreen() {
         <View style={styles.emergencyCard}>
           <View style={styles.emergencyCopy}>
             <Text style={styles.emergencyTitle}>Emergency help</Text>
-            <Text style={styles.emergencyText}>
-              Complaints are not emergency dispatch. Call 112 if anyone is in immediate danger.
-            </Text>
+            <Text style={styles.emergencyText}>For immediate danger, call 112.</Text>
           </View>
           <Pressable
             accessibilityHint="Opens your phone app with emergency number 112"
@@ -123,10 +114,7 @@ export default function MenuScreen() {
 
         <View style={styles.trustCard}>
           <Text style={styles.trustTitle}>Private by default</Text>
-          <Text style={styles.trustText}>
-            Your exact complaint location, original evidence and conversations are not made public.
-            Only separately reviewed summaries can appear in public reports.
-          </Text>
+          <Text style={styles.trustText}>Exact locations and original evidence stay private.</Text>
         </View>
 
         <Pressable
@@ -188,7 +176,6 @@ const MenuLink = ({
     </View>
     <View style={styles.menuCopy}>
       <Text style={styles.menuLabel}>{label}</Text>
-      <Text style={styles.menuDescription}>{description}</Text>
     </View>
     <Text accessibilityElementsHidden style={styles.chevron}>
       ›
@@ -209,8 +196,8 @@ const styles = StyleSheet.create({
   },
   callButtonText: { color: '#ffffff', fontWeight: '900' },
   chevron: { color: '#4b755d', fontSize: 27 },
-  content: { gap: 20, padding: 20, paddingBottom: 36 },
-  divider: { backgroundColor: '#e4ebe6', height: 1, marginLeft: 67 },
+  content: { gap: 16, padding: 18, paddingBottom: 32 },
+  divider: { backgroundColor: '#e4ebe6', height: 1, marginLeft: 64 },
   emergencyCard: {
     alignItems: 'center',
     backgroundColor: '#fff2eb',
@@ -227,19 +214,18 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#2b774c', fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
   header: { gap: 5, marginTop: 8 },
   identifier: { color: '#65766b', fontSize: 14 },
-  menuCopy: { flex: 1, gap: 3 },
-  menuDescription: { color: '#697a6f', fontSize: 12, lineHeight: 17 },
+  menuCopy: { flex: 1 },
   menuIcon: {
     alignItems: 'center',
     backgroundColor: '#eaf4ed',
     borderRadius: 13,
-    height: 44,
+    height: 40,
     justifyContent: 'center',
-    width: 44,
+    width: 40,
   },
   menuIconText: { color: '#1e6a3f', fontSize: 22, fontWeight: '700' },
   menuLabel: { color: '#183b28', fontSize: 16, fontWeight: '800' },
-  menuLink: { alignItems: 'center', flexDirection: 'row', gap: 13, minHeight: 72, padding: 12 },
+  menuLink: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 60, padding: 10 },
   pressed: { opacity: 0.68 },
   sectionBlock: { gap: 9 },
   sectionCard: {

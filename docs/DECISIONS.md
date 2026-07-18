@@ -480,8 +480,8 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
 ## 2026-07-16 — Mobile Citizen Experience Conventions
 
 - The authenticated mobile shell keeps five stable primary destinations: Home, Complaints, the
-  central Report action, Nearby, and More. Secondary profile, language, notification,
-  transparency, device-help, and sign-out actions live in grouped More sections so existing
+  central Report action, Community, and More. Secondary profile, language, notifications,
+  verified governance/Nearby, device-help, and sign-out actions live in grouped More sections so existing
   complaint/deep-link paths do not change.
 - Citizen authentication presents explicit email/password sign-in, account creation, and password
   recovery. Requests and error messages remain non-enumerating. Supabase Phone MFA is the phone-
@@ -546,7 +546,7 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
 - Complaint location accuracy and media-to-current-location distance are capped at 50 m by both
   application validation and PostgreSQL. The device's foreground capture point is the issue point;
   a client cannot submit an arbitrary remote location.
-- Locality Feed and Heatmap surfaces consume only reviewed public projections. The heatmap renders
+- Local, Trending, and Heat surfaces consume only reviewed public projections. The heat view renders
   provider-neutral aggregate circles and never receives exact complaint coordinates, identity, or
   private media.
 - V1 API abuse quotas are atomic PostgreSQL fixed-window counters with privacy-safe subject hashes,
@@ -588,7 +588,7 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
 
 - This supersedes the fixed Phase 9 baseline assumption, which was not supported by managed-schema
   evidence. The two parts cover all current migrations at the reviewed Phase 5 boundary; as of
-  2026-07-17, that is 42 migrations split 23/19.
+  2026-07-17, that is 43 migrations split 23/20.
 - Idempotence is migration-level: catalog fingerprints identify a coherent complete prefix, exact
   immutable source migrations after that prefix execute dynamically, and reruns skip complete
   migrations as units. Blanket statement-level `IF NOT EXISTS` is prohibited because it cannot
@@ -648,15 +648,15 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
 - Optional BMC internal routing is activated only by generated seeds `52`/`53` and only for
   `garbage_dump`, `missed_sweeping`, and `mosquito_breeding` across the 22 exact one-to-one ward
   crosswalks. The 66 rules are data records, not municipality/category branches in application
-  source. Nine asset-dependent categories and the K/P split child wards remain fail closed.
+  source. The other nine categories remain unavailable, six explicitly because asset ownership
+  evidence is absent, and the K/P split child wards remain fail closed.
 - Internal queue routing never claims BMC official-system submission or external email/SMS delivery.
   The optional seeds remain separate from incremental migrations and must be deliberately applied
   and smoke-tested in a reconciled non-production environment.
-- Community support, following, trending, ranking, and comments remain disabled until public
-  visibility, privacy, moderation, abuse, retention, and ranking semantics are approved. A future
-  community signal must not silently override official routing, status, escalation, or SLA priority.
-- No ADR was added for this slice because it applies ADR-0009, ADR-0011, ADR-0015, ADR-0016,
-  ADR-0017, ADR-0021, and ADR-0023 without changing their accepted boundaries.
+- Reviewed-public support, private star/follow state, and live trending are implemented under
+  ADR-0024. Public comments, supporter identities, engagement notifications, and automatic
+  official-priority effects remain disabled. Community signals never override routing, status,
+  escalation, SLA, or KPI state.
 
 ## 2026-07-17 — Complaint Category Catalog Presentation
 
@@ -669,3 +669,121 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   subsequent location-specific routing check; it is not a promise of coverage at every coordinate.
 - The existing verified-only category lookup and complaint submission checks remain authoritative.
   This additive presentation convention does not change ADR-0009 or require a new ADR.
+
+## 2026-07-17 — Compact Mobile Community and BMC Deployment Conventions
+
+- Mobile screens use short visible labels, concise state summaries, and progressive disclosure.
+  Detailed operational guidance remains available in error/help states and accessibility labels
+  instead of appearing below every action.
+- Community is a primary destination with Local, Trending, and Heat views. Local and Trending use
+  only current reviewed public projections; Heat uses minimum-cohort aggregate hotspots. Support is
+  public only as an aggregate count, while the current account's star/follow state stays private.
+- ADR-0024 governs engagement storage, authorization, withdrawal, ranking, privacy, and separation
+  from official workflow. Comments and public participant identities remain disabled.
+- The existing-target BMC demo is deployed through four generated transaction-atomic SQL Editor
+  files in exact order: baseline categories/core, official boundaries, ward/governance crosswalk,
+  and routing activation/verification. A broad Phase 2 seed run must be followed by all four parts
+  because that bootstrap intentionally restores its older non-routable state.
+- When an existing target is complete through migration 38, use the focused 77,849-byte adaptive
+  migrations 39–43 artifact before the BMC files. A baseline, partial, or non-contiguous error is a
+  stop condition; reconcile drift or use adaptive master Part 1 then Part 2 as appropriate. SQL
+  Editor execution never repairs the official migration ledger.
+- The focused artifact must remain deterministic, embed exact immutable source bytes, run under one
+  advisory-locked transaction, verify migration 43/readiness, and be safe to rerun after success.
+- The BMC bundle enables only three categories over 22 one-to-one wards and leaves K/S, K/N, P/E,
+  P/W, the other nine categories, and automatic external delivery fail closed.
+- A target confirmed at the exact prior 42-migration cutoff may apply the small `20260717100000`
+  engagement migration directly. Its table/index creation is replay-safe, functions are replaced
+  deterministically, and a final catalog/security check rejects an incomplete result. A confirmed
+  migration-38 target uses the focused migrations 39–43 artifact; unknown, partial, or older
+  cutoffs require reconciliation or the adaptive master parts. The single delta is not a general
+  drift-repair tool.
+- API readiness and Storage bucket presence are infrastructure signals, not governance/routing data
+  signals. The later hosted audit was healthy on those dependencies but returned zero category
+  projections and no tested BMC jurisdiction rows, so pilot data activation remains a separate
+  operator task.
+
+## 2026-07-18 — One-Page Mobile Complaint Form Convention
+
+- Mobile complaint reporting presents category/details, current location and optional asset,
+  private evidence, similar-report review, and final confirmation on one scrollable page. These are
+  form sections, not separate navigation steps.
+- The existing persisted capture stage remains internal resume metadata. Server drafts, private
+  signed uploads, duplicate evidence, idempotency identities, route resolution, and atomic
+  submission retain their accepted boundaries.
+- A pure client helper projects every locally knowable submission blocker into a visible checklist.
+  The list includes unsaved details, required attributes/asset/media, upload state, duplicate review,
+  voice/emergency acknowledgement, and connectivity. It does not replace API or PostgreSQL
+  validation and cannot promote a disabled category.
+- A resolved ward and an operational category are independent facts. Category cards state routing
+  unavailability, and the form explains that final coordinate-specific routing is still verified at
+  submission.
+- Server-mutating controls are disabled while a complaint draft request is in flight. Native
+  capture controls still permit safely stopping an active recording, without enabling a second
+  draft mutation.
+- Notification entry points use a bell glyph. Visible mobile copy stays concise while fuller context
+  remains in accessibility hints and state-specific safety/error guidance.
+- No ADR is required because this changes presentation only and implements ADR-0009, ADR-0011, and
+  the existing compact-mobile convention without changing architecture, privacy, or trust policy.
+
+## 2026-07-18 — Complaint Submission Evidence and Mumbai Expansion Conventions
+
+- Jurisdiction boundary provenance is verified once through the dedicated PostGIS jurisdiction
+  result. Routing candidates must contain verified hierarchy evidence and the exact same
+  boundary-version vector, but their explanation payload does not need to duplicate local-body and
+  ward boundary evidence already established by that independent result. Entity eligibility,
+  geometry matching, version equality, and evaluator checks all remain mandatory.
+- A complaint submission compares actor, routing request, routed status, category, optional asset,
+  exact PostGIS point, accuracy, and capture time without tolerances. Additive database repairs may
+  return a granular allow-listed marker for the first differing field, but must preserve the
+  canonical prerequisite order and public conflict envelope. Raw provider messages, coordinates,
+  descriptions, tokens, contacts, and object paths remain excluded from logs and responses.
+- The mobile complaint draft has one exclusive mutation boundary. Category, details, location,
+  media, duplicate review, discard, and submission cannot overlap; repeated submission taps share
+  the same in-flight promise. This is a concurrency convention over the existing server
+  idempotency contract, not a replacement for it.
+- Official MCGM GIS layer metadata may be pinned as a network-free discovery contract before data
+  import. A manifest or informational feature count does not approve retrieval, identifier
+  stability, ownership, publication, routing, or external delivery. Every feature still passes the
+  review-gated synchronization and versioned asset-ownership workflow.
+- No ADR is required. These conventions implement ADR-0009, ADR-0010, ADR-0011, and ADR-0023 without
+  changing the accepted routing, synchronization, complaint, or delivery architecture.
+
+## 2026-07-18 — Synthetic Staging Privileged Account Convention
+
+- ADR-0025 permits password sign-in only for an already provisioned privileged identity. Password
+  and email code/link authentication converge on the same personal TOTP/AAL2 and current database
+  authorization path; neither portal creates an identity or grants access.
+- A trusted operator helper may create only the fixed non-production platform, municipal,
+  government-operator, ward, and department demo matrix. The exact hosted project reference,
+  reviewed authority name, verified invitation catalog, bounded expiry, and existing trusted
+  access functions are mandatory.
+- Synthetic roles and memberships are preassigned before portal use and expire after 1–90 days.
+  Passwords are non-deterministic and live only in Supabase Auth plus the gitignored local
+  `.local/staging-demo-accounts.<project-ref>.json` artifact, which is forced to mode `0600`.
+- Every exercised identity enrolls a separate TOTP factor. No password, synthetic marker, Auth
+  metadata value, or staging flag bypasses MFA or current membership/role/scope authorization.
+- Production onboarding remains invitation-first with unique official-controlled addresses.
+  Auth-user teardown is operator-managed, and the arbitrary existing-user assign/revoke/renew and
+  additional-scope lifecycle remains open under `AUTH-001`.
+
+## 2026-07-18 — Immutable Governance Source-Bundle Intake Convention
+
+- A reviewed research ZIP is a `source_bundle`, not a workbook. `governance.import_batches` pins the
+  exact bundle SHA-256 while retaining nullable workbook provenance for workbook-backed imports;
+  every batch must provide at least one exact source artifact.
+- Archive paths, expansion, member inventory, internal hashes, CSV headers, row counts, primary
+  keys, and duplicate rows are validated before any SQL is emitted. Canonical Phase 2 CSV/workbook
+  files remain unchanged.
+- Transient authentication/CSRF query values are removed from generated JSON, SQL, logs, and
+  reports. The immutable archive remains the evidence copy and the import ledger retains the hash
+  of each original pre-redaction row plus an explicit redaction diagnostic.
+- Batch-level `source_verified` means the official observation was reviewed; it does not become
+  core `verified`, routing eligibility, publication approval, or external-delivery authority.
+- Additive hierarchy enrichment may fill a null LGD code only for an exact existing canonical
+  identity. It preserves stronger verification, provenance, placeholder, and routing fields and
+  aborts on conflicts. Aliases such as `Mumbai` → `Mumbai City` require an attributed crosswalk.
+- Header-only operational files create no entities. A stale document is retained as file evidence,
+  never as a current officer/contact source. Missing rows never deactivate existing entities.
+- No ADR is required: this convention extends the immutable bootstrap and review-gated publication
+  boundaries already accepted in ADR-0008; it does not change their architecture.

@@ -1,0 +1,216 @@
+{
+  "schemaVersion": "1.0.0",
+  "datasetKey": "maharashtra_governance_batch0",
+  "datasetVersion": "MH-LW-BATCH0-2026-07-18",
+  "generatedAt": "2026-07-18T12:21:03+05:30",
+  "archive": {
+    "path": "resources/governance/local_wellness_maharashtra_batch0_2026-07-18.zip",
+    "sha256": "731c4aaad413b529ffdbd3638627d222bc4d3cf0714fe130ac54a75e06b1b7e4",
+    "byteSize": 1100841,
+    "maximumUncompressedBytes": 2000000,
+    "expectedMemberCount": 28
+  },
+  "internalManifest": {
+    "path": "MANIFEST.sha256",
+    "sha256": "169c56fed8ef0a30221e6217f2ea8d4192129b7aa1424048f7958700cd22971d"
+  },
+  "expectedMembers": [
+    "00_research_summary.md",
+    "01_source_registry.csv",
+    "02_source_discrepancies.csv",
+    "03_states.csv",
+    "04_districts.csv",
+    "05_talukas.csv",
+    "06_local_bodies.csv",
+    "07_wards.csv",
+    "08_ward_boundaries.geojson",
+    "09_departments.csv",
+    "10_offices.csv",
+    "11_officer_roles.csv",
+    "12_officers.csv",
+    "13_officer_assignments.csv",
+    "14_contact_versions.csv",
+    "15_utilities.csv",
+    "16_emergency_contacts.csv",
+    "17_routing_references.csv",
+    "18_assets.csv",
+    "19_asset_ownership_versions.csv",
+    "20_data_issues.csv",
+    "21_refresh_plan.csv",
+    "22_batch0_promotion_recommendation.md",
+    "23_batch1_extraction_plan.md",
+    "24_validation_report.csv",
+    "25_villages.csv",
+    "MANIFEST.sha256",
+    "source_files/PMC-CARE-Booklet.pdf"
+  ],
+  "tables": {
+    "01_source_registry.csv": {
+      "expectedRows": 38,
+      "primaryKey": "source_id",
+      "headerSha256": "50a25ca77ce26c850a5aa0d7fd1400548f41ee62c797e8d96fa500834b8a5ed6",
+      "disposition": "reference_only"
+    },
+    "02_source_discrepancies.csv": {
+      "expectedRows": 17,
+      "primaryKey": "discrepancy_id",
+      "headerSha256": "c9af578a47005e2901e22f31f7bb0070ac0281968cac3b5240696ebb05ecad3e",
+      "disposition": "reference_only"
+    },
+    "03_states.csv": {
+      "expectedRows": 1,
+      "primaryKey": "state_id",
+      "headerSha256": "53f4e0c6758017adf1d48c3a39dea240e7c12a280d711f1a73e12b789649227b",
+      "disposition": "normalized"
+    },
+    "04_districts.csv": {
+      "expectedRows": 36,
+      "primaryKey": "district_id",
+      "headerSha256": "7ee271e90a77cadf69ae36c4ab6c2214a9984bce3e24ef9bb656a6d71f975e1a",
+      "disposition": "normalized"
+    },
+    "05_talukas.csv": {
+      "expectedRows": 0,
+      "primaryKey": "taluka_id",
+      "headerSha256": "5b30ddfca415aeac1a83515af744082f26ef95166403d6fdd332d3249587c290",
+      "disposition": "reference_only"
+    },
+    "06_local_bodies.csv": {
+      "expectedRows": 0,
+      "primaryKey": "local_body_id",
+      "headerSha256": "d546239341ce6a9b85a5c02c81db2566a4970acce13cbf08b0876a39372eb076",
+      "disposition": "reference_only"
+    },
+    "07_wards.csv": {
+      "expectedRows": 0,
+      "primaryKey": "ward_id",
+      "headerSha256": "69ddc4e3a905f1eed6cc4a27e790d3579d46441e9d582e48e6fe04d6a039bac0",
+      "disposition": "reference_only"
+    },
+    "09_departments.csv": {
+      "expectedRows": 0,
+      "primaryKey": "department_id",
+      "headerSha256": "52f6b917f7b9255ac6080352012cfb014d5548207906c73202953ea7fec6bc6b",
+      "disposition": "reference_only"
+    },
+    "10_offices.csv": {
+      "expectedRows": 0,
+      "primaryKey": "office_id",
+      "headerSha256": "b484ead9818e74c49dad1d689f698dcc1f5d823695d740eed0dc60027dcea23a",
+      "disposition": "reference_only"
+    },
+    "11_officer_roles.csv": {
+      "expectedRows": 0,
+      "primaryKey": "role_id",
+      "headerSha256": "a38f3eeba9a2ca03914721090e3ab76efd3b0e8a0bb317fa534a44c920725a94",
+      "disposition": "reference_only"
+    },
+    "12_officers.csv": {
+      "expectedRows": 0,
+      "primaryKey": "officer_id",
+      "headerSha256": "03d3abcbf1d817abd8b23eef6f851f6ad55ee15b772a612bffbd2ba7da966193",
+      "disposition": "reference_only"
+    },
+    "13_officer_assignments.csv": {
+      "expectedRows": 0,
+      "primaryKey": "assignment_id",
+      "headerSha256": "9268a214d793590958a3fd4dcdf2b54a7f55ee3c78f94161d228a2b3881c562a",
+      "disposition": "reference_only"
+    },
+    "14_contact_versions.csv": {
+      "expectedRows": 0,
+      "primaryKey": "contact_version_id",
+      "headerSha256": "b79e245c4a9767a2c494a49333212e06adb200a0ea7476824d71ed85e349b77d",
+      "disposition": "reference_only"
+    },
+    "15_utilities.csv": {
+      "expectedRows": 0,
+      "primaryKey": "utility_id",
+      "headerSha256": "2f688491bb71b9a35131092b7e02334335df2203806194e4693613d8843b9a62",
+      "disposition": "reference_only"
+    },
+    "16_emergency_contacts.csv": {
+      "expectedRows": 0,
+      "primaryKey": "emergency_contact_id",
+      "headerSha256": "062611b670370d9e4e59eac43079ecf604df52ebb6724fa23548dd27628f10df",
+      "disposition": "reference_only"
+    },
+    "17_routing_references.csv": {
+      "expectedRows": 0,
+      "primaryKey": "routing_reference_id",
+      "headerSha256": "fd3ae6c1d905907210b6ca38c69e023022eac120f848d9376904eb153b33ea5b",
+      "disposition": "reference_only"
+    },
+    "18_assets.csv": {
+      "expectedRows": 0,
+      "primaryKey": "asset_id",
+      "headerSha256": "a526690f4e731276c81fc21d95f32b565fd52aa25ea9f46eb271b1c1db7fa5c4",
+      "disposition": "reference_only"
+    },
+    "19_asset_ownership_versions.csv": {
+      "expectedRows": 0,
+      "primaryKey": "ownership_version_id",
+      "headerSha256": "83c3a68438db0a9d5e639c743e01ffc0309b7e568077af5e8ee46145dce9c10f",
+      "disposition": "reference_only"
+    },
+    "20_data_issues.csv": {
+      "expectedRows": 21,
+      "primaryKey": "issue_id",
+      "headerSha256": "6a25341e60c228ae3e59509c3062d49546094d48b172f260facc0233899b802b",
+      "disposition": "reference_only"
+    },
+    "21_refresh_plan.csv": {
+      "expectedRows": 23,
+      "primaryKey": "refresh_plan_id",
+      "headerSha256": "d68566fe450f366140dd2920d6cd2b198e7fd5cb0710211a6d6ee2d8975bb1ef",
+      "disposition": "reference_only"
+    },
+    "24_validation_report.csv": {
+      "expectedRows": 24,
+      "primaryKey": "validation_id",
+      "headerSha256": "f47ea4c04edaf0a37809fdf18ab6a1d5a56f15bf2ab33583142ddf00cad908a7",
+      "disposition": "reference_only"
+    },
+    "25_villages.csv": {
+      "expectedRows": 0,
+      "primaryKey": "village_id",
+      "headerSha256": "99bd5c62b9e0949cdfa9d26abba22c674c5180ce700bec4536e1988317f946e8",
+      "disposition": "reference_only"
+    }
+  },
+  "promotion": {
+    "maximumVerificationStatus": "source_verified",
+    "routable": false,
+    "expectedExactDistrictMatches": 35,
+    "quarantinedDistrictSourceIds": ["district:lgd:482"],
+    "prohibitedEntityKinds": [
+      "taluka",
+      "local_body",
+      "ward",
+      "jurisdiction_boundary",
+      "department",
+      "office",
+      "officer_role",
+      "officer",
+      "officer_assignment",
+      "contact_version",
+      "utility",
+      "emergency_contact",
+      "routing_reference",
+      "asset",
+      "asset_ownership"
+    ]
+  },
+  "reconciliation": {
+    "canonicalDistrictsPath": "resources/governance/csv/Districts.csv",
+    "canonicalDistrictsSha256": "cd27c2e3675dbb72727cd540957cf42a6d37cf2e965284d376faabc13bcac998",
+    "expectedCanonicalDistrictCount": 36,
+    "matchingStrategy": "exact_normalized_name",
+    "aliasCrosswalksRequireReview": true
+  },
+  "security": {
+    "redactedQueryParameterNames": ["OWASP_CSRFTOKEN"],
+    "retainOriginalRecordHashAfterRedaction": true,
+    "forbidSensitiveQueryValuesInGeneratedArtifacts": true
+  }
+}

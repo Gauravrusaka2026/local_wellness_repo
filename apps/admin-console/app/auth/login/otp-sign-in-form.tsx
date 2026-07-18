@@ -4,9 +4,15 @@ import { useState, type FormEvent } from 'react';
 
 import { getAdminEmailCallbackUrl } from '../../../lib/auth/callback';
 import { buildMfaPath } from '../../../lib/auth/mfa';
-import { getAdminLoginError, requestAdminOtp, verifyAdminOtp } from '../../../lib/auth/service';
+import {
+  getAdminLoginError,
+  requestAdminOtp,
+  signInAdminWithPassword,
+  verifyAdminOtp,
+} from '../../../lib/auth/service';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
+type SignInMethod = 'password' | 'verification-email';
 type Step = 'request' | 'verify';
 
 export const OtpSignInForm = ({
@@ -20,9 +26,34 @@ export const OtpSignInForm = ({
       : null,
   );
   const [isPending, setIsPending] = useState(false);
+  const [method, setMethod] = useState<SignInMethod>('password');
   const [normalizedEmail, setNormalizedEmail] = useState('');
   const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [step, setStep] = useState<Step>('request');
+
+  const chooseMethod = (nextMethod: SignInMethod): void => {
+    setMethod(nextMethod);
+    setError(null);
+    setNormalizedEmail('');
+    setOtp('');
+    setPassword('');
+    setStep('request');
+  };
+
+  const signInWithPassword = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    setError(null);
+    setIsPending(true);
+
+    try {
+      await signInAdminWithPassword(createBrowserSupabaseClient(), email, password);
+      window.location.assign(buildMfaPath(nextPath));
+    } catch (signInError) {
+      setError(getAdminLoginError(signInError));
+      setIsPending(false);
+    }
+  };
 
   const requestCode = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -63,20 +94,86 @@ export const OtpSignInForm = ({
       <p className="eyebrow">Restricted platform access</p>
       <h1 id="login-heading">Local Wellness administration</h1>
       <p className="lede">
-        Sign in with the exact email address of an existing platform or municipal administrator.
-        This form does not create an account or grant a government role.
+        Sign in to an existing platform or municipal administrator identity. Neither sign-in method
+        creates an account or grants a government role.
       </p>
 
       <aside className="auth-guidance" aria-label="Choose the correct account">
         <strong>Which account belongs here?</strong>
         <p>
-          Use the official email that was invited and authorized for administration. Ordinary
-          government operators and ward or department officers should use the Government Dashboard,
-          not this Admin Console.
+          Use the exact email authorized for administration. Ordinary government operators and ward
+          or department officers should use the Government Dashboard, not this Admin Console.
         </p>
       </aside>
 
-      {step === 'request' ? (
+      <div aria-label="Administrator sign-in method" className="auth-method-picker" role="group">
+        <button
+          aria-pressed={method === 'password'}
+          className={method === 'password' ? 'auth-method-option selected' : 'auth-method-option'}
+          disabled={isPending}
+          onClick={() => chooseMethod('password')}
+          type="button"
+        >
+          Password
+        </button>
+        <button
+          aria-pressed={method === 'verification-email'}
+          className={
+            method === 'verification-email' ? 'auth-method-option selected' : 'auth-method-option'
+          }
+          disabled={isPending}
+          onClick={() => chooseMethod('verification-email')}
+          type="button"
+        >
+          Email code or link
+        </button>
+      </div>
+
+      {method === 'password' ? (
+        <form
+          aria-busy={isPending}
+          className="stack"
+          onSubmit={(event) => void signInWithPassword(event)}
+        >
+          <label htmlFor="email">Administrator email address</label>
+          <input
+            autoCapitalize="none"
+            autoComplete="email"
+            disabled={isPending}
+            id="email"
+            inputMode="email"
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+            required
+            type="email"
+            value={email}
+          />
+          <label htmlFor="password">Password</label>
+          <input
+            autoComplete="current-password"
+            disabled={isPending}
+            id="password"
+            maxLength={72}
+            minLength={8}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setError(null);
+            }}
+            required
+            type="password"
+            value={password}
+          />
+          <p className="field-hint">
+            Password sign-in is available only for an existing administrator identity. It does not
+            create an account or grant access.
+          </p>
+          <button className="primary-button" disabled={isPending} type="submit">
+            {isPending ? 'Signing in…' : 'Sign in and continue'}
+          </button>
+        </form>
+      ) : step === 'request' ? (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void requestCode(event)}>
           <label htmlFor="email">Administrator email address</label>
           <input
@@ -150,8 +247,8 @@ export const OtpSignInForm = ({
         </p>
       )}
       <p className="security-note">
-        Never share verification codes or sign in for another official. Invitation and role changes
-        create immutable audit records.
+        Never share a password, verification code, or authenticator. Authentication is followed by
+        personal TOTP verification and a current database authorization check.
       </p>
       <a className="help-link" href="/auth/help">
         Account, invitation, and authenticator help

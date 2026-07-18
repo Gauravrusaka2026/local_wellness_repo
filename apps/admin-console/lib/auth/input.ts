@@ -12,6 +12,13 @@ export class OtpInputError extends Error {
   }
 }
 
+export class PasswordInputError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = 'PasswordInputError';
+  }
+}
+
 export const normalizeEmail = (value: string): string => {
   const email = value.trim().toLowerCase();
 
@@ -30,4 +37,16 @@ export const normalizeOtp = (value: string): string => {
   }
 
   return otp;
+};
+
+export const normalizePassword = (value: string): string => {
+  if (value.length < 8) {
+    throw new PasswordInputError('Enter a password with at least 8 characters.');
+  }
+
+  if (value.length > 72) {
+    throw new PasswordInputError('Enter a password with no more than 72 characters.');
+  }
+
+  return value;
 };

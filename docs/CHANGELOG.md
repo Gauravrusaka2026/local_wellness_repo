@@ -1483,3 +1483,333 @@ private complaint, and fail-closed routing decisions without changing routing or
 
 None. Hosted staging remains unchanged until its migration ledger is reconciled and the optional BMC
 seeds are deliberately applied.
+
+## 2026-07-17 — Compact Mobile Community and BMC SQL Editor Deployment
+
+### Summary
+
+Refined the Expo mobile information hierarchy and added a privacy-preserving reviewed-public
+community slice with Local, Trending, and Heat views. Added a four-part SQL Editor deployment bundle
+for loading the bounded BMC mobile demo into an existing Supabase project.
+
+### Feature
+
+- Reduced repeated explanatory copy across mobile navigation, Home, complaints, report, profile,
+  governance, Auth, and menu surfaces while retaining state-specific help and accessible labels.
+- Made Community a primary mobile destination with Local, Trending, and minimum-cohort Heat views.
+- Guarded asynchronous Community loads so rapid tab changes cannot render stale ranking data, and
+  added visible Back/Sign in actions for anonymous visitors when the native header is hidden.
+- Added one support per active authenticated account, private star/follow state, aggregate-only
+  public support counts, current-projection withdrawal behavior, and live `recent|trending` order.
+- Added bounded authenticated lookup/mutation APIs and PostgreSQL-backed quotas. Engagement cannot
+  change official routing, assignment, status, escalation, SLA, or KPI records.
+- Added four transaction-atomic BMC SQL Editor parts for baseline categories/core, official
+  boundaries, ward/governance crosswalk, and three-category routing activation/verification. The
+  bundle leaves K/P split wards, the other nine categories, and external delivery fail closed.
+- Added a 77,849-byte adaptive current-session SQL Editor artifact that installs exact migrations
+  39–43 from a verified migration-38 baseline before the BMC bundle, with safe coherent-prefix
+  skipping and fail-closed baseline/partial/non-contiguous guards.
+
+### Files Modified
+
+- Mobile navigation and citizen screens, transparency query/service/client code, and focused tests.
+- Transparency API/service/store/rate-limit code, shared types/validation, and focused tests.
+- BMC deployment generator, generated `supabase/deploy/bmc-mobile-demo/` bundle, and static test.
+- Current-session upgrade generator, `supabase/deploy/current-session/` artifact/guide, package
+  generate/check commands, and deterministic/runtime tests.
+- Architecture, database, API, deployment, Supabase setup, project trackers, implementation
+  decisions, known issues, ADR-0024, and Phase 8/mobile worklogs.
+
+### Migrations Created
+
+- `20260717100000_public_complaint_engagements.sql` adds the private forced-RLS engagement model,
+  aggregate support projection, service-only engagement functions, and reviewed-public sorting.
+  It is also the small replay-safe SQL Editor delta for a target confirmed at the exact previous
+  migration cutoff and ends with explicit catalog, foreign-key, constraint, grant, and RLS
+  verification.
+
+The repository migration cutoff is now 43; the adaptive SQL Editor split is 23/20.
+
+### Tests Added
+
+- API engagement contract/store cases, shared validation cases, mobile query/service cases, pgTAP
+  plan `044_public_complaint_engagements.test.sql`, expanded Phase 8 integration coverage, and a BMC
+  deployment-bundle static test.
+- A clean local reset applied all 43 migrations and reviewed seeds; all 1,542 assertions across 44
+  pgTAP plans passed, application-schema lint reported no errors, and generated database types are
+  current.
+- The four BMC SQL Editor parts passed first-run and safe-rerun execution against a clean local
+  database, ending with 12 category records, three operational categories, and 22 routable wards.
+- The compact current-session artifact applied migrations 39–43 from a local migration-38 baseline
+  and safely skipped all five on immediate rerun. Focused pgTAP plans 038, 039, 040, 042, and 044
+  passed 90 assertions on that upgraded state.
+- All 16 workspaces passed lint and strict type-check. The full repository test/build pipeline,
+  Android Expo export, formatting, master/BMC artifact drift checks, and tracked/history secret scan
+  passed. Physical-device and managed-hosted smoke remain pending.
+
+### Hosted Data and Security
+
+- A credential-safe read audit found API readiness healthy and all five expected private Storage
+  buckets present, superseding the earlier readiness `503`/`PGRST202` symptom.
+- The owner subsequently reported successfully running the guarded migrations 39–43 SQL Editor
+  artifact on staging. Independent schema/ledger verification and the BMC data bundle remain
+  pending; no hosted data activation is claimed yet.
+- The same audit returned zero category projections and no tested BMC jurisdiction rows. No hosted
+  category, routing, public projection, or engagement data activation is claimed.
+- A read-only RPC cutoff probe found the Phase 10 MFA functions present but migrations 42 and 43
+  absent (`PGRST202`). Because migrations 38–41 cannot be fully catalog-verified through the exposed
+  API, the recommended first path is the compact adaptive migrations 39–43 bundle when its
+  migration-38 preflight passes. If it reports a baseline, partial, or non-contiguous error, stop
+  and reconcile or use adaptive master Part 1 then Part 2 as appropriate. Run BMC parts 01–04 only
+  after migration 43 is verified; SQL Editor execution still does not repair the official ledger.
+- Direct Data API access remains revoked; supporter identities, avatars, exact locations, private
+  media, and private complaint details are excluded. Comments remain disabled. Redis, BullMQ, Redis
+  adapters/caching, and Sentry were not introduced.
+
+### Breaking Changes
+
+None. The public complaint projection gains additive `supportCount` and `sort=recent|trending`
+behavior; existing `recent` ordering remains the default.
+
+## 2026-07-18 — One-Page Mobile Complaint Reporting
+
+### Summary
+
+Replaced the mobile complaint wizard presentation with one scrollable form, made every local
+submission blocker visible, changed notification affordances to a bell, and shortened remaining
+mobile option copy without weakening the verified routing or private evidence boundary.
+
+### Feature
+
+- Rendered category/details, location/asset, live evidence, duplicate review, and final confirmation
+  together on one page while retaining the existing resumable server lifecycle internally.
+- Added a pure submission-blocker projection for category, saved details, location, required asset,
+  media limits/upload, duplicate review, voice/emergency acknowledgement, and connectivity.
+- Explained that successful ward lookup is independent from category-specific verified routing;
+  unavailable catalog entries remain disabled and final routing still runs server-side.
+- Disabled draft-mutating controls during in-flight requests while preserving safe stop behavior
+  for an active native recording.
+- Replaced the notification dot on Home and More with a bell and reduced remaining visible helper
+  copy while preserving accessibility hints and safety guidance.
+
+### Files Modified
+
+- Mobile complaint form, capture-state helpers/tests, Home, complaints, notifications, profile, and
+  menu surfaces under `apps/mobile/`.
+- README, architecture guide, task/progress/decision/known-issue trackers, changelog, and mobile
+  citizen-experience worklog.
+
+### Migrations Created
+
+None. This is a client presentation/readiness change and does not alter database or API contracts.
+
+### Tests Added and Verification
+
+- Added focused pure-state cases for saved-detail normalization, complete blocker projection,
+  required assets, duplicate acknowledgement, voice confirmation, emergency acknowledgement,
+  pending uploads, offline state, and the ready path.
+- Mobile lint, strict TypeScript, all 17 mobile test files, and the Android Expo export pass. The
+  export bundled 1,278 modules into `apps/mobile/dist/app`.
+
+### Security and Operational Status
+
+- Server-owned recipient selection, private signed uploads, duplicate evidence, idempotency, 50 m
+  evidence checks, and database routing remain unchanged.
+- The change does not activate any category or managed seed. The optional BMC pack still enables
+  only garbage dump, missed sweeping, and mosquito breeding in its 22 supported wards; the other
+  nine categories and unsupported/split wards remain fail closed.
+- Redis, BullMQ, Sentry, OS push registration, and external complaint delivery were not introduced.
+
+### ADR
+
+No ADR was required because the accepted complaint, routing, notification, and privacy architecture
+did not change.
+
+### Breaking Changes
+
+None. Existing draft/resume records continue to load; their persisted step is now internal state
+rather than a requirement to navigate separate form screens.
+
+## 2026-07-18 — BMC Complaint Submission Repair and Routing-Asset Discovery
+
+### Summary
+
+Diagnosed the hosted K/W complaint failure through the complete capture/routing path, repaired the
+API's redundant boundary-evidence expectation, added an additive complaint-completion forward fix,
+and prepared official-source discovery contracts for the nine BMC categories that remain
+ownership-gated.
+
+### Feature
+
+- Kept PostGIS jurisdiction provenance authoritative and required routing candidates to match its
+  exact boundary-version vector without duplicating boundary entries in explanation metadata.
+- Added safe dependency-operation diagnostics and granular allow-listed routing-evidence conflicts
+  without logging coordinates, descriptions, media paths, contacts, tokens, or provider details.
+- Serialized mobile complaint mutations and made repeated submit taps share one in-flight request.
+- Pinned nine official MCGM ArcGIS layer contracts for potholes, drains, sewer/manholes, water,
+  streetlights, buildings/encroachment, and trees. No feature import, route activation, production
+  delivery, or verification promotion was performed.
+
+### Files Modified
+
+- API routing/complaint stores, safe error diagnostics, routing audit logging, and focused tests.
+- Mobile complaint state/service/mutation guard and focused tests.
+- BMC source manifest, validator, deployment diagnostics, master migration artifacts, generated
+  database types, and project/technical documentation.
+
+### Migration Created
+
+- `20260718100000_complaint_routing_evidence_diagnostics.sql` installs a protected exact mismatch
+  classifier, a canonical V2 atomic completion implementation, and a service-role-only public
+  wrapper. It is rerunnable for SQL Editor recovery and preserves prerequisite-validation order.
+
+### Tests Added and Verification
+
+- Added BMC complaint-submission pgTAP coverage, API failure-diagnostic/routing-store cases, mobile
+  race/single-flight cases, and static BMC asset-manifest/master-migration tests.
+- A clean reset applied all 44 migrations. All 1,577 assertions across 45 pgTAP plans, all 219 API
+  tests, and all 18 mobile test files passed; database lint, API/mobile lint and strict type-check,
+  generated-type drift, and master/manifest checks also passed.
+- Hosted staging was not modified. Its existing 12-category/three-operational-category K/W route
+  still requires this migration and a receipt-producing authenticated smoke before submission is
+  declared operational.
+
+### Security and Data Status
+
+- Only garbage dump, missed sweeping, and mosquito breeding remain operational through 66 internal
+  rules across 22 unambiguous BMC wards. The other nine categories, K/S, K/N, P/E, P/W, and external
+  BMC delivery remain fail closed pending reviewed ownership, geometry, role, and delivery evidence.
+- Redis, BullMQ, Redis adapters/caching, and Sentry were not introduced.
+
+### ADR
+
+No ADR was required. The repair implements the accepted jurisdiction, routing, complaint,
+governance-synchronization, and delivery-readiness decisions without changing their architecture.
+
+### Breaking Changes
+
+None.
+
+## 2026-07-18 — Email-Free Privileged Staging Access
+
+### Summary
+
+Added password entry for existing Government Dashboard and Admin Console identities and created a
+guarded, expiring synthetic BMC account matrix for staging demonstrations that cannot depend on
+email delivery.
+
+### Feature
+
+- Both privileged portals now accept an existing email/password pair as an alternative Auth entry
+  method and immediately continue through the existing personal TOTP/AAL2 and current database
+  membership/role/scope gates.
+- Added a trusted operator helper with exact project-host, reviewed-scope, expiry, partial-state,
+  platform-admin-conflict, and managed-password-rotation guards. It never exposes a provisioning
+  route to clients and never derives authorization from Auth metadata.
+- Provisioned seven distinct confirmed staging identities for global platform administration, BMC
+  municipal administration, BMC operations, A Ward, K/W Ward, Solid Waste Management, and Public
+  Health. Every generated password and active profile was verified; privileged assignments expire
+  at `2026-08-17T07:14:01.280Z`.
+- Stored generated credentials only in the gitignored local operator artifact forced to mode
+  `0600`. No password, service key, OTP, or authenticator secret was printed or committed.
+
+### Files Modified
+
+- Admin Console and Government Dashboard authentication forms, services, styles, and focused tests.
+- Root package command, staging provisioner, CLI/security tests, and local-artifact ignore rule.
+- Authentication, architecture, API, database, deployment, Supabase, decision, issue, task,
+  progress, and staging-access worklog documentation.
+
+### Migrations Created
+
+None. Existing Supabase Auth administration plus the accepted platform bootstrap and government
+access persistence functions are reused.
+
+### Tests Added and Verification
+
+- The staging helper's seven tests, ESLint, Prettier, secret scan, and diff checks pass.
+- All three Admin Console test files plus lint, strict type-check, and production build pass.
+- All 53 Government Dashboard tests plus lint, strict type-check, and production build pass.
+- The hosted staging helper completed and password-verified all seven identities. Interactive TOTP,
+  AAL1/AAL2, and cross-scope queue smoke remains operator work because authenticator enrollment is
+  intentionally personal.
+
+### Security and Operational Status
+
+- Password sign-in creates no account, role, membership, scope, or MFA exemption. Production
+  onboarding remains invitation-first with unique official-controlled identities.
+- Assignment expiry is automatic; synthetic Auth-user disable/removal and local credential-artifact
+  deletion remain explicit teardown under `AUTH-012`.
+- Redis, BullMQ, Redis adapters/caching, and Sentry were not introduced.
+
+### ADR
+
+- ADR-0025 accepts password sign-in for pre-provisioned privileged identities while preserving
+  personal TOTP/AAL2 and database-enforced authorization.
+
+### Breaking Changes
+
+None.
+
+## 2026-07-18 — Maharashtra Batch 0 Immutable Source-Bundle Intake
+
+### Summary
+
+Audited and integrated the supplied Maharashtra Batch 0 ZIP as review-gated source/hierarchy
+evidence. The implementation preserves every supplied record, enriches only unambiguous existing
+LGD identifiers, and activates no operational governance or routing data.
+
+### Feature
+
+- Added a deterministic safe-ZIP/CSV validator with archive/member/header/count/key/hash checks,
+  canonical district reconciliation, sensitive-query redaction, immutable original row hashes, and
+  generated validation/seed/checksum artifacts.
+- Recorded 29 import files, all 160 CSV rows, and 38 canonical official-source URLs. Applied LGD
+  `27` to Maharashtra and LGD codes to 35 exact existing district matches while preserving current
+  verification, provenance, placeholder, and routing state.
+- Kept `Mumbai`/LGD `482`, six discrepancy groups, 21 data issues, the stale PMC booklet, empty
+  GeoJSON, and all header-only operational datasets quarantined/non-operational.
+- Added a three-file, guarded SQL Editor deployment under
+  `supabase/deploy/maharashtra-batch0/`. Hosted Supabase was not modified.
+- Changed canonical Phase 2 seed conflict handling so a later non-null LGD enrichment is not erased
+  when the baseline seed is rerun.
+
+### Files Modified
+
+- Batch 0 archive manifest/validation report, generator, generated seeds, SQL Editor package, and
+  root governance commands.
+- Governance import SQL renderer, generated database types, and 45-migration master artifacts.
+- Governance database/architecture/import/synchronization/deployment/Supabase documentation,
+  tracking documents, and the dedicated Batch 0 worklog.
+
+### Migration Created
+
+- `20260718110000_governance_source_bundle_imports.sql` adds an optional exact
+  `source_bundle_sha256`, makes the workbook hash optional for bundle-only imports, and requires at
+  least one exact source artifact while retaining compatibility with existing workbook imports.
+
+### Tests Added and Verification
+
+- Added six Node generator/safety tests plus pgTAP plans 046 and 047 for source-bundle schema,
+  import ledger, LGD enrichment, quarantine, redaction, negative routing promotion, and RLS/ACL.
+- A clean local reset applied all 45 migrations and ordered seeds. All 47 pgTAP files/1,612
+  assertions passed; the 37 governance-import package tests, database lint, generated type/master
+  drift checks, and SQL Editor package rerun also passed.
+
+### Security and Data Status
+
+- Four transient CSRF query observations are absent from generated JSON/SQL; each original row hash
+  and explicit redaction diagnostic remains. No secret, contact, officer, route, schedule, public
+  projection, or delivery approval was introduced.
+- The batch is not statewide operational coverage. It contains zero populated municipality, ward,
+  boundary, officer, contact, asset, ownership, or routing rows.
+- Redis, BullMQ, Redis adapters/caching, and Sentry were not introduced.
+
+### ADR
+
+No ADR was required. The change extends ADR-0008's immutable bootstrap and review-gated publication
+boundary without changing the accepted architecture.
+
+### Breaking Changes
+
+None. Workbook-backed import batches remain valid.

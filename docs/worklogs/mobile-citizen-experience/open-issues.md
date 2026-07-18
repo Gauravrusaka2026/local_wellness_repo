@@ -9,6 +9,12 @@
   notifications, and logout.
 - Activate reviewed operational categories, geometry, ownership, routing policy/rules, roles, and
   assignments before claiming real complaint submission.
+- Run the four BMC SQL Editor deployment parts in order, reconcile all 43 migrations, and verify
+  category, ward, routing, private photo, and complaint submission behavior on staging without
+  enabling external delivery.
+- Apply the engagement migration plus approved reviewed-public policy/data, then verify Local,
+  Trending, Heat, one-support/account, private-star, withdrawal, quota, and device behavior. Staff
+  pilot moderation/abuse operations before public activation; comments remain disabled.
 - Add a citizen-facing way to remove an unwanted captured attachment from a draft before
   submission, with server/storage lifecycle and retry coverage.
 - Add an owner-authorized short-lived signed-read endpoint and mobile viewer for finalized original

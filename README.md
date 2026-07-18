@@ -19,6 +19,8 @@ The initial version focuses on selected Maharashtra municipal bodies and wards, 
 - Support officer assignment, transfer, escalation, and resolution evidence.
 - Allow citizens to confirm, reject, rate, or reopen resolutions.
 - Provide nearby complaint maps.
+- Provide reviewed Local and Trending community views with privacy-safe support counts and private
+  saved/starred state.
 - Provide ward, department, and municipality KPI dashboards.
 
 ---
@@ -289,12 +291,14 @@ temporary `exp://` URL.
 - Citizen Web uses email/password. Its login and account pages show the exact active account,
   provide a sign-out/switch-account path, and distinguish optional Phone MFA rollout from a
   verified phone factor.
-- Government Dashboard uses the invited official email. The UI shows that email and treats email
-  authentication, TOTP authenticator verification, and the database authority membership/scoped
-  role as three separate gates.
+- Government Dashboard uses an existing authorized identity. Production officials enter through
+  the invitation email flow; pre-provisioned staging identities may use their generated password.
+  The UI treats authentication, personal TOTP verification, and database authority membership/
+  scoped role as three separate gates.
 - Admin Console is only for a platform or municipal administrator. It shows the active email,
-  labels first-time QR enrollment separately from later authenticator-code challenges, and creates
-  official invitations from named verified operational authority, ward, and department choices.
+  supports password or email verification for an existing identity, labels first-time QR
+  enrollment separately from later authenticator-code challenges, and creates official invitations
+  from named verified operational authority, ward, and department choices.
 
 Each official must use an individual account and enroll their own authenticator. Signing in or
 scanning a QR code never grants a government role. An authorized administrator must create the
@@ -309,6 +313,37 @@ deployment values; builds are invalidated when that configuration changes. If a 
 created before configuration was corrected, sign out, clear
 the old portal session, restart the affected portal, and sign in again with the email shown on its
 login screen.
+
+### Synthetic staging privileged accounts
+
+For a bounded non-production demonstration, a trusted operator may provision separate synthetic,
+expiring identities after the staging schema and reviewed BMC authority/scopes are present:
+
+```bash
+pnpm access:provision-staging-demo -- \
+  --acknowledge-staging \
+  --project-ref <20-character-project-ref> \
+  --authority-name "Brihanmumbai Municipal Corporation" \
+  --expires-in-days 30
+```
+
+The command refuses a non-matching hosted project URL, ambiguous reviewed scope, partial access
+state, or unexpected active platform administrator. It creates distinct platform, municipal,
+government-operator, ward, and department identities, preassigns their roles through trusted
+database functions, and verifies their generated passwords. Privileged assignments expire in 1–90
+days; 30 days is the default.
+
+Credentials are written only to the gitignored local file
+`.local/staging-demo-accounts.<project-ref>.json`, which is forced to mode `0600`. The command does
+not print passwords, server keys, OTPs, or authenticator secrets. Treat this artifact as sensitive:
+share no account between testers, enroll a separate TOTP for each account used, and delete the local
+artifact and revoke/disable synthetic identities after the demonstration.
+
+Password sign-in does not create an account, assign a role, or bypass MFA. Both privileged portals
+continue through TOTP/AAL2 and current database authorization. Production onboarding remains
+invitation-first with unique official-controlled email addresses. The staging helper does not close
+the existing-user assign/revoke/renew gap tracked as `AUTH-001`; see ADR-0025 and
+`docs/authentication.md`.
 
 ---
 
@@ -404,13 +439,25 @@ pnpm database:types:check
 
 For a clean database bootstrap that requires one SQL file, use `supabase/master.sql`. For an
 existing database created from an earlier Local Wellness master, run `supabase/master.part-1.sql`
-and then `supabase/master.part-2.sql`. Together they contain all 42 migrations, detect and skip a
+and then `supabase/master.part-2.sql`. Together they contain all 45 migrations, detect and skip a
 coherent completed prefix, and apply only missing migrations in two transaction-atomic parts. They
 deliberately exclude seed data and fail on partial or non-contiguous schema fingerprints.
+
+If an existing non-production target is confirmed complete through
+`20260716115000_phase_10_profile_images.sql` (migration 38), run the compact 77,849-byte
+`supabase/deploy/current-session/01_migrations_39_through_43.sql` in **SQL Editor → New query**.
+It applies the exact missing migrations 39–43 atomically, skips a coherent completed prefix,
+verifies migration 43 plus readiness, and is safe to rerun after success. It neither updates the
+Supabase migration ledger nor loads seed data. On any baseline, partial, or non-contiguous-state
+error, stop: reconcile the target or use `master.part-1.sql` followed by `master.part-2.sql` when a
+coherent earlier Local Wellness prefix is present. Never edit the guards or add broad
+`IF NOT EXISTS` clauses.
 
 ```bash
 pnpm database:master:generate
 pnpm database:master:check
+pnpm database:current-session:generate
+pnpm database:current-session:check
 ```
 
 Do not add any master artifact to `supabase/migrations/`, apply `master.sql` to an existing database,
@@ -420,6 +467,14 @@ Supabase's migration-history ledger; reconcile that ledger before any later CLI 
 No production schema change should be performed only through the Supabase dashboard.
 
 Phase 2 governance data is generated from the hash-pinned canonical CSVs. Use `pnpm governance:data:validate` for a read-only audit, `pnpm governance:data:generate` after an intentionally reviewed source/manifest change, and `pnpm governance:data:check` in ordinary development and CI. Never hand-edit the canonical CSVs, the generated main seed, its checksum companion or the machine report; see `docs/governance-data.md`.
+
+The separate Maharashtra Batch 0 ZIP is an immutable source/hierarchy enrichment bundle. Validate
+or regenerate its review-gated report and seeds with
+`pnpm governance:mh:batch0:check` / `pnpm governance:mh:batch0:generate`. It records all source rows
+but applies only Maharashtra plus 35 exact district LGD enrichments; it does not activate wards,
+contacts, officers, geometry, routes, synchronization, or delivery. Existing Supabase targets use
+the three ordered files under `supabase/deploy/maharashtra-batch0/` after schema and canonical Phase
+2 data prerequisites are reconciled.
 
 The validation report now includes a per-file outcome matrix. The current 901-row canonical bundle
 classifies 41 rows as accepted, 691 as unverified, 169 as quarantined, and zero as rejected.
@@ -452,10 +507,21 @@ pilot categories, and internal routing evidence. Generate/check it with
 seeds `50`, `51`, `52`, and `53` in filename order only to a reviewed non-production target. It
 never modifies the Maharashtra canonical inputs. The routing seed activates only `garbage_dump`,
 `missed_sweeping`, and `mosquito_breeding`: 66 database rules cover the 22 one-to-one operational
-wards. The other nine pilot categories require verified asset inventories/ownership and stay
-non-routable. Split wards `K/S`, `K/N`, `P/E`, and `P/W` and their legacy boundary anchors have no
+wards. The other nine pilot categories remain visible but unavailable; all nine BMC-specific
+routing references require reviewed asset ownership, and none is promoted merely to complete a
+demo. Split wards
+`K/S`, `K/N`, `P/E`, and `P/W` and their legacy boundary anchors have no
 executable route. External/production complaint delivery remains false, so a Local Wellness queue
 record must not be represented as a complaint lodged in BMC's official system.
+
+For an existing Supabase project whose BMC data is absent, first bring its schema through migration 43. When migration 38 is confirmed complete, run the current-session upgrade above; otherwise stop
+and reconcile or use the adaptive master parts as appropriate. Then use the generated SQL Editor
+bundle under `supabase/deploy/bmc-mobile-demo/` and run
+`01_baseline_categories_and_core.sql`, `02_official_boundaries.sql`,
+`03_ward_crosswalk_and_governance_verify.sql`, and `04_routing_activation_and_verify.sql` in that
+exact order. Each part is transaction-atomic and generated from the reviewed seed inputs. The
+bundle exposes all 12 categories, enables only the three internal-demo categories above, covers the
+22 one-to-one wards, preserves the K/P split exclusions, and leaves external delivery disabled.
 Nothing is fetched on a schedule, published, made routable, approved for complaint delivery, or
 activated by the original synchronization-source/scope seed. Current source contracts are SHA-256
 pinned and require an active global
@@ -477,8 +543,18 @@ source, route, ward, complaint, or production deployment/activation is implied.
 The owner has since selected a replacement staging project and reports loading a generated master
 SQL artifact. Because that target's database connection and migration ledger were not available for
 this session, do not infer which master revision, seeds, Auth identities, or role assignments it
-contains. Reconcile it against all 42 current migrations through `20260716119000` before enabling
+contains. Reconcile it against all 45 current migrations through `20260718110000` before enabling
 managed features.
+
+A later clean hosted smoke superseded the earlier empty-data observation: staging now returns all 12
+catalog categories, three operational categories, finalized private media, K/W jurisdiction, and a
+deterministic internal route. Final complaint completion is still on the pre-repair hosted function.
+The current hosted execution order is therefore: confirm migration 38 → run the compact migrations
+39–43 bundle if needed → run BMC parts 01–04 if needed → run
+`supabase/migrations/20260718100000_complaint_routing_evidence_diagnostics.sql` → run the read-only
+submission audit → require an authenticated complaint receipt. The focused migration is 19 KB and
+rerunnable in **SQL Editor → New query**; it does not reload BMC data or update the CLI migration
+ledger.
 
 Phase 4 adds the local mobile complaint-capture flow and authenticated complaint API. For local
 engineering, run the API and mobile workspaces after starting and resetting Supabase:
@@ -506,11 +582,14 @@ Keep local client configuration in the root `.env`; do not create an app-local e
 that can silently point Expo at a different Supabase project. Only client-safe public values may
 use `EXPO_PUBLIC_*`.
 
-The flow captures exact location evidence, discovers database-driven nearby assets when a category
-requires one, uploads media through private signed Storage targets, shows advisory duplicate
-suggestions, and completes submission through an idempotent server-side operation. The mobile flow
-advances only with `verified` or `partially_verified` location evidence. Asset discovery and routing
-both exclude inactive, unverified, placeholder, non-routable, or out-of-jurisdiction records.
+The single scrollable complaint form captures exact location evidence, discovers database-driven
+nearby assets when a category requires one, uploads media through private signed Storage targets,
+shows advisory duplicate suggestions, and completes submission through an idempotent server-side
+operation. It keeps the resumable server lifecycle internally but no longer makes citizens navigate
+six separate screens. The final action lists every outstanding requirement instead of presenting an
+unexplained disabled button. Location-bound evidence still requires a `verified` or
+`partially_verified` result. Asset discovery and routing both exclude inactive, unverified,
+placeholder, non-routable, or out-of-jurisdiction records.
 
 The mobile profile can take a new avatar with Expo Camera or select one from the library; both paths
 reuse the private profile-image validation/upload and short-lived signed preview. Its current-area
@@ -545,8 +624,9 @@ The authenticated report form now lists every non-placeholder category from the 
 Categories outside the active verified projection remain visibly disabled. The optional BMC
 non-production seed makes only three asset-independent categories selectable; the subsequent
 location-specific routing check resolves them only within its 22 one-to-one wards. Selection alone
-does not promise coverage at a coordinate. The nine asset-dependent categories and split K/P wards
-remain blocked. Speech transcription, media moderation, physical-device verification,
+does not promise coverage at a coordinate. The other nine categories remain visible but disabled;
+six explicitly require verified asset ownership, and split K/P wards remain blocked. Speech
+transcription, media moderation, physical-device verification,
 hosted-environment verification, and provider-backed notification delivery remain pending. No
 hosted application deployment or external BMC complaint delivery is part of the current repository
 state.
@@ -591,7 +671,12 @@ rollback-isolated synthetic policies.
 Phase 8 public detail can show a separately reviewed duplicate group, but never publishes a private
 similarity result automatically. Every member must already have a current reviewed public
 projection; the response contains only public IDs and a total count. Review and withdrawal remain
-service-only, versioned operations, and no public projection or duplicate group is seeded.
+service-only, versioned operations, and no public projection or duplicate group is seeded. Current
+reviewed reports may also expose an aggregate support count. An active signed-in citizen can set one
+support and a private star/follow state through the authenticated API; supporter identity is never
+public, withdrawn projections disappear from engagement surfaces, and these signals never alter the
+official complaint workflow. Local, Trending, and aggregate Heat views remain provider-neutral;
+comments are still disabled.
 
 Phase 9 adds database-enforced business-calendar SLA clocks, auditable overdue escalation, and
 versioned municipality/ward/department KPI snapshots. The existing trusted worker process runs
@@ -676,17 +761,20 @@ Current stage:
 - the optional BMC staging pack adds official-source internal queue data for 26 operational wards
   and 20 departments with versioned role/assignment/contact/boundary evidence. Its separate routing
   seed enables three asset-independent categories through 66 rules over the 22 one-to-one wards;
-  nine asset-dependent categories and the K/P split wards remain fail-closed. It is not applied to
-  managed staging automatically and external complaint delivery remains disabled;
+  the other nine categories remain unavailable, six of them explicitly asset-dependent, and the
+  K/P split wards remain fail-closed. It is not applied to managed staging automatically and
+  external complaint delivery remains disabled;
 - Phase 4 mobile complaint capture, exact-location evidence, private signed media upload,
   duplicate suggestions, and idempotent server-orchestrated submission are implemented for local
   engineering. The canonical Maharashtra/Phase 3 baseline alone contains zero verified routable
   categories; the optional BMC local demo seed exposes only the three bounded internal-demo
   categories above, so production activation remains separately data- and deployment-gated;
 - the Expo client now has email/password signup/sign-in/recovery, staged Phone MFA, private profile
-  images, a modern five-destination shell for Home, Complaints, Report, Nearby, and More, a
-  refreshable owned-complaint dashboard/history, locality Feed and aggregate Heatmap, grouped
-  account/help actions, and a data-driven category-aware report form. Profile images can be
+  images, a compact five-destination shell for Home, Complaints, Report, Community, and More, a
+  refreshable owned-complaint dashboard/history, Local/Trending/Heat community views, grouped
+  account/help actions, and a data-driven category-aware report form. Reviewed public reports expose
+  aggregate support, one support per active account, and account-private starred state without
+  affecting official routing, status, escalation, or SLA. Profile images can be
   captured with Expo Camera or selected from the library, and a one-time verified civic-area lookup
   displays governance labels without persisting exact profile coordinates;
 - the authenticated Nearby directory captures foreground location through Expo Location and calls
@@ -731,8 +819,11 @@ Current stage:
   hotspot, and verified-boundary APIs, plus provider-neutral citizen web/mobile transparency
   surfaces. Exact locations, private complaints, identities, originals, internal notes, and
   placeholder data remain private. Public detail also supports explicitly reviewed, versioned
-  duplicate-group relationships made only from current public projections. No public policy,
-  complaint, or duplicate group is activated automatically;
+  duplicate-group relationships made only from current public projections. Account-bound support
+  and private star/follow state are stored behind forced RLS; only the aggregate support count is
+  public, and trending remains a bounded viewport order over current reviewed projections. No
+  public policy, complaint, or duplicate group is activated automatically, and comments remain
+  disabled;
 - Phase 9 engineering adds effective-dated SLA calendars/policies/rules, materialized complaint
   clocks and deadline history, PostgreSQL-leased escalation/KPI work, transactional escalation
   outbox evidence, immutable organizational KPI runs/snapshots, scoped accountability APIs, worker

@@ -19,11 +19,19 @@ import {
   getSupportedEmailOtpType,
   resolveEmailAuthCallback,
 } from '../lib/auth/callback';
-import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
+import {
+  EmailInputError,
+  normalizeEmail,
+  normalizeOtp,
+  normalizePassword,
+  OtpInputError,
+  PasswordInputError,
+} from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
 import {
   getSignedInAdminEmail,
   requestAdminOtp,
+  signInAdminWithPassword,
   signOutAdminSession,
   verifyAdminOtp,
 } from '../lib/auth/service';
@@ -32,11 +40,62 @@ import { isPublicAuthRoute } from '../proxy';
 test('normalizes administrator email and constrains callbacks', () => {
   assert.equal(normalizeEmail(' Admin@Example.ORG '), 'admin@example.org');
   assert.equal(normalizeOtp('123 456'), '123456');
+  assert.equal(normalizePassword('temporary-password'), 'temporary-password');
   assert.throws(() => normalizeEmail('invalid'), EmailInputError);
   assert.throws(() => normalizeOtp('12345'), OtpInputError);
+  assert.throws(() => normalizePassword('short'), PasswordInputError);
+  assert.throws(() => normalizePassword('x'.repeat(73)), PasswordInputError);
   assert.equal(getSupportedEmailOtpType('invite'), 'invite');
   assert.equal(getSupportedEmailOtpType('recovery'), null);
   assert.equal(getSafeReturnPath('//attacker.example', '/'), '/');
+});
+
+test('signs an existing administrator in with a password and records the session audit', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      signInWithPassword: async (request: unknown) => {
+        calls.push(request);
+        return {
+          data: { session: { access_token: 'admin-access-token' } },
+          error: null,
+        };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await signInAdminWithPassword(
+    supabase,
+    ' Admin@Example.ORG ',
+    'temporary-password',
+    async (...audit) => {
+      calls.push(audit);
+      return true;
+    },
+  );
+
+  assert.deepEqual(calls, [
+    { email: 'admin@example.org', password: 'temporary-password' },
+    ['admin-access-token', 'sign_in_succeeded'],
+  ]);
+});
+
+test('rejects administrator password authentication without a session', async () => {
+  let auditCalls = 0;
+  const supabase = {
+    auth: {
+      signInWithPassword: async () => ({ data: { session: null }, error: null }),
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(
+    signInAdminWithPassword(supabase, 'admin@example.org', 'temporary-password', async () => {
+      auditCalls += 1;
+      return true;
+    }),
+    /session was not established/u,
+  );
+  assert.equal(auditCalls, 0);
 });
 
 test('uses the exact queryless administrator callback URL', () => {

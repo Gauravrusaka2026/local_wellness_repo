@@ -66,7 +66,7 @@ export const ComplaintVoiceCapture = ({
   }, [microphoneSettingsRequired]);
 
   useEffect(() => {
-    if (finishedUri === null || processingUri.current === finishedUri) return;
+    if (disabled || finishedUri === null || processingUri.current === finishedUri) return;
     const currentUri = finishedUri;
     processingUri.current = currentUri;
 
@@ -100,7 +100,7 @@ export const ComplaintVoiceCapture = ({
     };
 
     void processRecording();
-  }, [finishedUri]);
+  }, [disabled, finishedUri]);
 
   const start = async (): Promise<void> => {
     try {
@@ -175,7 +175,7 @@ export const ComplaintVoiceCapture = ({
       ) : null}
       <Pressable
         accessibilityRole="button"
-        disabled={disabled || isProcessing}
+        disabled={(!recorderState.isRecording && disabled) || isProcessing}
         onPress={() => void (recorderState.isRecording ? stop() : start())}
         style={[styles.button, recorderState.isRecording && styles.stopButton]}
       >

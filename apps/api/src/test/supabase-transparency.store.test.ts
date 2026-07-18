@@ -50,6 +50,7 @@ const projection = {
   submittedAt: '2026-07-16T08:00:00.000Z',
   updatedAt: '2026-07-16T09:00:00.000Z',
   publishedAt: '2026-07-16T08:05:00.000Z',
+  supportCount: 7,
 } as const;
 
 const duplicateGroup = {
@@ -112,7 +113,7 @@ describe('SupabaseTransparencyStore', () => {
     });
     assert.deepEqual(calls, [
       {
-        functionName: 'list_public_complaint_projections',
+        functionName: 'list_public_complaint_feed',
         arguments_: {
           p_west: 73.7,
           p_south: 18.4,
@@ -125,6 +126,7 @@ describe('SupabaseTransparencyStore', () => {
           p_zoom: 13,
           p_limit: 2,
           p_cursor: null,
+          p_sort: 'recent',
         },
       },
     ]);
@@ -193,6 +195,53 @@ describe('SupabaseTransparencyStore', () => {
   it('returns null for an absent approved projection', async () => {
     const store = createStore(async () => ({ data: [], error: null }));
     assert.equal(await store.getComplaint(identifiers.publicComplaint), null);
+  });
+
+  it('reads and updates only allowlisted account engagement state', async () => {
+    const calls: RpcCall[] = [];
+    const engagement = {
+      publicId: identifiers.publicComplaint,
+      starred: true,
+      supportCount: 8,
+      supported: true,
+    } as const;
+    const store = createStore(async (functionName, arguments_) => {
+      calls.push({ arguments_, functionName });
+      return { data: [{ engagement }], error: null };
+    });
+
+    assert.deepEqual(
+      await store.listEngagements('10000000-0000-4000-8000-000000000001', [
+        identifiers.publicComplaint,
+      ]),
+      [engagement],
+    );
+    assert.deepEqual(
+      await store.setEngagement(
+        '10000000-0000-4000-8000-000000000001',
+        identifiers.publicComplaint,
+        { starred: true, supported: true },
+      ),
+      engagement,
+    );
+    assert.deepEqual(calls, [
+      {
+        arguments_: {
+          p_actor_user_id: '10000000-0000-4000-8000-000000000001',
+          p_public_ids: [identifiers.publicComplaint],
+        },
+        functionName: 'list_public_complaint_engagements',
+      },
+      {
+        arguments_: {
+          p_actor_user_id: '10000000-0000-4000-8000-000000000001',
+          p_public_id: identifiers.publicComplaint,
+          p_starred: true,
+          p_supported: true,
+        },
+        functionName: 'set_public_complaint_engagement',
+      },
+    ]);
   });
 
   it('fails closed for database errors and malformed or private projection fields', async () => {

@@ -34,7 +34,10 @@ export interface RoutingAssetDiscoveryQuery {
 }
 
 export class RoutingDataAccessError extends Error {
-  public constructor(operation: string) {
+  public constructor(
+    public readonly operation: string,
+    public readonly dependencyCode: string | null = null,
+  ) {
     super(`Routing persistence operation failed: ${operation}.`);
     this.name = 'RoutingDataAccessError';
   }

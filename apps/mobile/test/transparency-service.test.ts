@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { ApiError } from '../src/api/client';
 import {
   createNearbyViewport,
+  createRegionalTrendingViewport,
   NearbyLocationError,
   projectApproximatePoint,
   requiresNearbyLocationSettings,
@@ -11,9 +12,11 @@ import {
 import { buildHotspotVisuals } from '../src/transparency/hotspot-visualization';
 import {
   getPublicComplaint,
+  listPublicComplaintEngagements,
   listPublicComplaintHotspots,
   listPublicComplaints,
   mergePublicComplaintPages,
+  updatePublicComplaintEngagement,
 } from '../src/transparency/transparency-service';
 import {
   createMobileHotspotQuery,
@@ -34,6 +37,7 @@ const publicItem = {
   location: { latitude: 19.08, longitude: 72.88, precisionMeters: 750 },
   publicId: identifiers.publicComplaint,
   publishedAt: '2026-07-16T10:05:00.000Z',
+  supportCount: 2,
   status: 'in_progress',
   submittedAt: '2026-07-16T10:00:00.000Z',
   title: 'Drainage issue under review',
@@ -126,6 +130,60 @@ describe('mobile transparency service', () => {
     assert.match(requestedUrl, /statuses=reported/u);
     assert.match(requestedUrl, /statuses=in_progress/u);
     assert.doesNotMatch(requestedUrl, /Authorization/u);
+  });
+
+  it('loads and updates private support and star state with the bearer token', async () => {
+    const requests: Readonly<{
+      body: string | undefined;
+      method: string | undefined;
+      url: string;
+    }>[] = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({
+        body: typeof init?.body === 'string' ? init.body : undefined,
+        method: init?.method,
+        url: String(input),
+      });
+      return new Response(
+        JSON.stringify({
+          data:
+            init?.method === 'POST'
+              ? [
+                  {
+                    publicId: identifiers.publicComplaint,
+                    starred: false,
+                    supportCount: 2,
+                    supported: false,
+                  },
+                ]
+              : {
+                  publicId: identifiers.publicComplaint,
+                  starred: true,
+                  supportCount: 3,
+                  supported: true,
+                },
+        }),
+        { headers: { 'Content-Type': 'application/json' }, status: 200 },
+      );
+    }) as typeof fetch;
+
+    const states = await listPublicComplaintEngagements('access-token', {
+      publicIds: [identifiers.publicComplaint],
+    });
+    const updated = await updatePublicComplaintEngagement(
+      'access-token',
+      identifiers.publicComplaint,
+      { starred: true, supported: true },
+    );
+
+    assert.equal(states[0]?.supportCount, 2);
+    assert.equal(updated.starred, true);
+    assert.deepEqual(
+      requests.map(({ method }) => method),
+      ['POST', 'PUT'],
+    );
+    assert.match(requests[0]?.url ?? '', /\/transparency\/engagements\/lookup$/u);
+    assert.match(requests[1]?.body ?? '', /"supported":true/u);
   });
 
   it('fails closed when a public response contains an undeclared private field', async () => {
@@ -227,6 +285,7 @@ describe('mobile transparency service', () => {
       defaultMobileTransparencyFilters,
     );
     assert.deepEqual(ongoingQuery.statuses, ['reported', 'in_progress']);
+    assert.equal(ongoingQuery.sort, 'recent');
 
     const query = createMobileTransparencyQuery(
       { east: 73, north: 20, south: 19, west: 72 },
@@ -240,6 +299,14 @@ describe('mobile transparency service', () => {
     assert.deepEqual(query.categoryCodes, [identifiers.categoryCode]);
     assert.deepEqual(query.statuses, ['reported']);
     assert.equal(query.cursor, identifiers.publicComplaint);
+
+    const trendingQuery = createMobileTransparencyQuery(
+      { east: 73, north: 20, south: 19, west: 72 },
+      defaultMobileTransparencyFilters,
+      undefined,
+      'trending',
+    );
+    assert.equal(trendingQuery.sort, 'trending');
 
     const secondItem = { ...publicItem, publicId: '20000000-0000-4000-8000-000000000004' };
     const merged = mergePublicComplaintPages(
@@ -259,6 +326,19 @@ describe('mobile transparency service', () => {
       xPercent: 50,
       yPercent: 50,
     });
+  });
+
+  it('expands only the rounded nearby viewport into a bounded regional trending area', () => {
+    const nearby = createNearbyViewport(19.076, 72.878);
+    const regional = createRegionalTrendingViewport(nearby);
+
+    assert.deepEqual(regional, { east: 73.63, north: 19.83, south: 18.33, west: 72.13 });
+    assert.equal(regional.east - regional.west, 1.5);
+    assert.equal(regional.north - regional.south, 1.5);
+    assert.deepEqual(nearby, { east: 73.03, north: 19.23, south: 18.93, west: 72.73 });
+    assert.throws(() =>
+      createRegionalTrendingViewport({ east: 75, north: 20, south: 19, west: 72 }),
+    );
   });
 
   it('scales provider-neutral density visuals without exposing raw coordinate labels', () => {

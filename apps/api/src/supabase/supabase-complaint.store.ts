@@ -433,6 +433,15 @@ const databaseMarker = (error: unknown): string | null =>
     ? error.message
     : null;
 
+const databaseErrorCode = (error: unknown): string | null =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  typeof error.code === 'string' &&
+  /^[A-Z0-9_]{2,32}$/u.test(error.code)
+    ? error.code
+    : null;
+
 const conflictMarkers = new Set([
   'COMPLAINT_ASSET_REQUIRED',
   'COMPLAINT_CATEGORY_NOT_ROUTABLE',
@@ -459,7 +468,16 @@ const conflictMarkers = new Set([
   'COMPLAINT_MEDIA_NOT_READY',
   'COMPLAINT_MEDIA_OBJECT_MISMATCH',
   'COMPLAINT_REQUIRED_ATTRIBUTES_MISSING',
+  'COMPLAINT_ROUTING_ACCURACY_MISMATCH',
+  'COMPLAINT_ROUTING_ACTOR_MISMATCH',
+  'COMPLAINT_ROUTING_ASSET_MISMATCH',
+  'COMPLAINT_ROUTING_CAPTURE_TIME_MISMATCH',
+  'COMPLAINT_ROUTING_CATEGORY_MISMATCH',
+  'COMPLAINT_ROUTING_DECISION_NOT_FOUND',
   'COMPLAINT_ROUTING_EVIDENCE_MISMATCH',
+  'COMPLAINT_ROUTING_LOCATION_MISMATCH',
+  'COMPLAINT_ROUTING_REQUEST_MISMATCH',
+  'COMPLAINT_ROUTING_STATUS_MISMATCH',
   'COMPLAINT_SUBMISSION_IDEMPOTENCY_CONFLICT',
 ]);
 
@@ -1163,7 +1181,7 @@ export class SupabaseComplaintStore extends ComplaintStore {
         throw new ComplaintConflictError(marker);
       }
       if (error) {
-        throw new ComplaintDataAccessError(operation);
+        throw new ComplaintDataAccessError(operation, databaseErrorCode(error));
       }
       return data;
     } catch (error) {

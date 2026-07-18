@@ -2,7 +2,14 @@ import { ConfigurationError } from '@local-wellness/config';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
-import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from './input';
+import {
+  EmailInputError,
+  normalizeEmail,
+  normalizeOtp,
+  normalizePassword,
+  OtpInputError,
+  PasswordInputError,
+} from './input';
 
 type SignOutAuditRecorder = (
   accessToken: string,
@@ -10,6 +17,11 @@ type SignOutAuditRecorder = (
 ) => Promise<boolean>;
 
 type OtpAuditRecorder = (accessToken: string, eventType: 'otp_verified') => Promise<boolean>;
+
+type SignInAuditRecorder = (
+  accessToken: string,
+  eventType: 'sign_in_succeeded',
+) => Promise<boolean>;
 
 export const getSignedInAdminEmail = async (supabase: SupabaseClient): Promise<string> => {
   const result = await supabase.auth.getUser();
@@ -69,6 +81,29 @@ export const verifyAdminOtp = async (
   await recordAuditEvent(accessToken, 'otp_verified');
 };
 
+export const signInAdminWithPassword = async (
+  supabase: SupabaseClient,
+  emailInput: string,
+  passwordInput: string,
+  recordAuditEvent: SignInAuditRecorder = recordAuthAuditEventSafely,
+): Promise<void> => {
+  const result = await supabase.auth.signInWithPassword({
+    email: normalizeEmail(emailInput),
+    password: normalizePassword(passwordInput),
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  const accessToken = result.data.session?.access_token;
+  if (!accessToken) {
+    throw new Error('Authentication session was not established.');
+  }
+
+  await recordAuditEvent(accessToken, 'sign_in_succeeded');
+};
+
 export const signOutAdminSession = async (
   supabase: SupabaseClient,
   recordAuditEvent: SignOutAuditRecorder = recordAuthAuditEventSafely,
@@ -90,6 +125,7 @@ export const getAdminLoginError = (error: unknown): string => {
   if (
     error instanceof EmailInputError ||
     error instanceof OtpInputError ||
+    error instanceof PasswordInputError ||
     error instanceof ConfigurationError
   ) {
     return error.message;
@@ -100,6 +136,17 @@ export const getAdminLoginError = (error: unknown): string => {
 
     if (normalizedMessage.includes('rate') || normalizedMessage.includes('too many')) {
       return 'Too many attempts. Wait a moment before trying again.';
+    }
+
+    if (
+      normalizedMessage.includes('invalid login') ||
+      normalizedMessage.includes('invalid credentials')
+    ) {
+      return 'The email address or password is incorrect.';
+    }
+
+    if (normalizedMessage.includes('email not confirmed')) {
+      return 'This administrator account has not been confirmed.';
     }
 
     if (normalizedMessage.includes('expired') || normalizedMessage.includes('invalid')) {

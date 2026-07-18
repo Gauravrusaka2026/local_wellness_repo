@@ -1,6 +1,7 @@
 import type {
   PublicComplaintHotspotQuery,
   PublicComplaintMapQuery,
+  PublicComplaintSort,
   PublicComplaintStatus,
   PublicTransparencyViewport,
 } from '@local-wellness/types';
@@ -21,11 +22,13 @@ export const createMobileTransparencyQuery = (
   viewport: PublicTransparencyViewport,
   filters: MobileTransparencyFilters,
   cursor?: string,
+  sort: PublicComplaintSort = 'recent',
 ): PublicComplaintMapQuery => ({
   ...viewport,
   ...(filters.categoryCode === null ? {} : { categoryCodes: [filters.categoryCode] }),
   ...(cursor === undefined ? {} : { cursor }),
   limit: 100,
+  sort,
   statuses: filters.status === null ? [...ongoingPublicComplaintStatuses] : [filters.status],
   zoom: 12,
 });

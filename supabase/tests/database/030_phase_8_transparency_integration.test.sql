@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, complaints, routing, governance, extensions;
 
-select plan(46);
+select plan(58);
 
 insert into governance.reference_sources (id, title, url, source_type, last_checked_on)
 values (
@@ -646,6 +646,161 @@ select is((
   )
 ), 2, 'complaint pagination honors the requested database limit');
 
+select is((
+  select (projection ->> 'supportCount')::integer
+  from public.get_public_complaint_projection(
+    (
+      select (publication ->> 'publicId')::uuid
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    )
+  )
+), 0, 'a reviewed public projection starts with no aggregate support');
+
+select is((
+  select engagement
+  from public.list_public_complaint_engagements(
+    'e8b00000-0000-4000-8000-000000000001',
+    array[(
+      select (publication ->> 'publicId')::uuid
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    )]
+  )
+), jsonb_build_object(
+  'publicId', (
+    select publication ->> 'publicId'
+    from phase8_publications
+    where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+  ),
+  'supportCount', 0,
+  'supported', false,
+  'starred', false
+), 'an active account receives only its own private engagement state and public aggregate');
+
+select ok((
+  select
+    engagement ->> 'supported' = 'true'
+    and engagement ->> 'starred' = 'true'
+    and (engagement ->> 'supportCount')::integer = 1
+  from public.set_public_complaint_engagement(
+    'e8b00000-0000-4000-8000-000000000001',
+    (
+      select (publication ->> 'publicId')::uuid
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    ),
+    true,
+    true
+  )
+), 'one active account can support and privately star a current reviewed report');
+
+select is((
+  select (projection ->> 'supportCount')::integer
+  from public.get_public_complaint_projection(
+    (
+      select (publication ->> 'publicId')::uuid
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    )
+  )
+), 1, 'public output exposes only the aggregate support count');
+
+select is((
+  select count(*)::integer
+  from public.set_public_complaint_engagement(
+    'e8b00000-0000-4000-8000-000000000001',
+    (
+      select (publication ->> 'publicId')::uuid
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    ),
+    true,
+    true
+  )
+), 1, 'repeating the same engagement state is idempotent');
+
+select is((
+  select projection ->> 'publicId'
+  from public.list_public_complaint_feed(
+    73.7, 18.4, 74.0, 18.7, null, null, null, null, 12, 100, null, 'trending'
+  )
+  limit 1
+), (
+  select publication ->> 'publicId'
+  from phase8_publications
+  where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+), 'trending order ranks a supported reviewed report ahead of unsupported reports');
+
+select is((
+  select (engagement ->> 'supportCount')::integer
+  from public.set_public_complaint_engagement(
+    'e8b00000-0000-4000-8000-000000000001',
+    (
+      select (publication ->> 'publicId')::uuid
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    ),
+    false,
+    true
+  )
+), 0, 'support can be removed without removing the private star');
+
+select ok((
+  select
+    engagement ->> 'supported' = 'false'
+    and engagement ->> 'starred' = 'true'
+  from public.list_public_complaint_engagements(
+    'e8b00000-0000-4000-8000-000000000001',
+    array[(
+      select (publication ->> 'publicId')::uuid
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    )]
+  )
+), 'the viewer can recover private star state without exposing identity publicly');
+
+select is((
+  select count(*)::integer
+  from public.set_public_complaint_engagement(
+    'e8b00000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000099',
+    true,
+    true
+  )
+), 0, 'an unknown or unpublished public identifier cannot receive engagement');
+
+select throws_ok(
+  $$select * from public.list_public_complaint_engagements(
+    'e8b00000-0000-4000-8000-000000000001', null
+  )$$,
+  '42501',
+  'PUBLIC_ENGAGEMENT_FORBIDDEN',
+  'a null public-identifier collection fails closed'
+);
+
+update public.profiles
+set status = 'suspended', updated_at = clock_timestamp()
+where id = 'e8b00000-0000-4000-8000-000000000001';
+select throws_ok(
+  format(
+    $query$select * from public.list_public_complaint_engagements(
+      'e8b00000-0000-4000-8000-000000000001', array[%L::uuid]
+    )$query$,
+    (
+      select publication ->> 'publicId'
+      from phase8_publications
+      where complaint_id = 'e8f00000-0000-4000-8000-000000000001'
+    )
+  ),
+  '42501',
+  'PUBLIC_ENGAGEMENT_FORBIDDEN',
+  'a suspended account cannot read or mutate engagement state'
+);
+update public.profiles
+set status = 'active', updated_at = clock_timestamp()
+where id = 'e8b00000-0000-4000-8000-000000000001';
+
 select ok((
   select
     abs((projection -> 'location' ->> 'longitude')::double precision - 73.85) < 0.000001
@@ -979,6 +1134,13 @@ select is((
     (select (result ->> 'publicId')::uuid from phase8_withdrawal)
   )
 ), 0, 'withdrawal removes the complaint from current public detail');
+select is((
+  select count(*)::integer
+  from public.list_public_complaint_engagements(
+    'e8b00000-0000-4000-8000-000000000001',
+    array[(select (result ->> 'publicId')::uuid from phase8_withdrawal)]
+  )
+), 0, 'withdrawal immediately hides private viewer state for the public identifier');
 select is((
   select count(*)::integer
   from public.list_public_complaint_projections(

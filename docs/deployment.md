@@ -209,6 +209,38 @@ with that same address, enrolls their own authenticator once, and is then reauth
 membership and role records on every request. Existing Auth emails still require the audited
 `AUTH-001` lifecycle; never grant access through Auth metadata or manual client state.
 
+### Synthetic privileged accounts for staging demonstrations
+
+Production officials must continue to use individual official-controlled invitations. Only a
+trusted operator may create the fixed synthetic staging matrix, and only after the target is
+confirmed non-production, the current identity/governance migrations are reconciled, and the
+reviewed BMC authority, ward, and department choices appear in the invitation projection:
+
+```bash
+pnpm access:provision-staging-demo -- \
+  --acknowledge-staging \
+  --project-ref <20-character-project-ref> \
+  --authority-name "Brihanmumbai Municipal Corporation" \
+  --expires-in-days 30
+```
+
+The exact project reference must match the configured hosted Supabase URL. The root environment
+must contain a server-only secret/service-role key and a public key, and no unexpected active
+platform administrator or partially provisioned synthetic account may exist. The helper creates
+confirmed identities, uses the existing trusted role/membership functions, assigns an expiry from
+1 to 90 days, and verifies each generated password without printing it. It is not an API endpoint
+or a production deployment step.
+
+The credentials are written to the gitignored local file
+`.local/staging-demo-accounts.<project-ref>.json` with mode `0600`. Keep that artifact on the
+operator machine, never put it in CI output or a client environment, never share one identity
+between testers, and enroll a separate TOTP factor for every exercised account. Password sign-in
+does not bypass TOTP/AAL2 or current database authorization. After the demonstration, delete the
+artifact and revoke or disable the synthetic Auth identities through a trusted operator process;
+role and membership expiry is automatic, but Auth-user teardown is not. This helper does not
+provide arbitrary existing-user assignment, renewal, additional scope, or revocation under
+`AUTH-001`.
+
 Phase 3 deployments apply the routing schema, governance-synchronization foundation, security/RPC
 migration, and engineering-category seed after the Phase 2 artifacts. The 12 category rows must
 remain draft, unverified, and non-routable in every environment until a separately reviewed data
@@ -232,18 +264,72 @@ official administrative wards `A`–`E` and Pune's current official numeric ward
 authoritative identity and geometry evidence is reviewed. Never treat `BRIH-W01`–`BRIH-W05` as an
 ordinal mapping to the BMC letters; create reviewed records and a new scope version.
 
-For a non-production BMC internal-routing demo, first reconcile/apply migrations through
-`20260716119000`, then execute `50_bmc_demo_governance.generated.sql` and
-`51_bmc_demo_governance_checksum.generated.sql`,
-`52_bmc_demo_routing.generated.sql`, and
-`53_bmc_demo_routing_verification.generated.sql` in that order. The optional pack creates separate
-official-source operational ward records and preserves the numeric placeholders as audit history.
-The routing seed activates only garbage dump, missed sweeping, and mosquito breeding through 66
-rules over 22 one-to-one wards. Confirm the other nine categories and split K/P wards remain
-non-routable, then verify the companion seed and `automaticOutboundDelivery = false` before starting
-applications. Bind invited test officials to durable roles through the trusted invitation/access
-workflow; never copy officer contacts into Auth metadata or claim that an internal queue item was
-registered with BMC.
+For a non-production BMC internal-routing demo on the current existing Supabase project, use the
+generated SQL Editor bundle under `supabase/deploy/bmc-mobile-demo/`. In **SQL Editor → New query**,
+first confirm that `20260716115000_phase_10_profile_images.sql` (migration 38) is complete and run
+the complete 77,849-byte
+`supabase/deploy/current-session/01_migrations_39_through_43.sql`. It atomically applies only the
+missing exact migrations, verifies migration 43/readiness, and safely skips all five on a rerun.
+If it reports `LOCAL_WELLNESS_MIGRATION_38_BASELINE_REQUIRED`, a partial migration, or a
+non-contiguous history, stop and reconcile the target; use `master.part-1.sql` followed by
+`master.part-2.sql` only when their coherent-prefix contract applies. Then run each complete BMC
+file in this exact order:
+
+1. `01_baseline_categories_and_core.sql`
+2. `02_official_boundaries.sql`
+3. `03_ward_crosswalk_and_governance_verify.sql`
+4. `04_routing_activation_and_verify.sql`
+
+Each file is transaction-atomic and retry-safe after a complete successful run. If Part 1 reports
+`BMC_MOBILE_DEMO_SCHEMA_NOT_CURRENT`, reconcile the target through the current 43-migration cutoff
+first and retry the bundle. Do not run the broad Phase 2 seed afterward unless all four BMC parts
+are rerun immediately, because that older bootstrap intentionally restores non-routable category
+state. The bundle preserves numeric placeholders as audit history, exposes all 12 pilot categories,
+and activates only garbage dump, missed sweeping, and mosquito breeding through 66 internal rules
+over 22 one-to-one wards. The other nine categories remain unavailable; their canonical BMC
+references all require reviewed asset ownership. K/S, K/N, P/E, and P/W remain fail closed. Verify
+`automaticOutboundDelivery = false` before starting applications. Bind invited test officials to
+durable roles through the trusted invitation/access workflow; never copy officer contacts into Auth
+metadata or claim that an internal queue item was registered with BMC.
+
+After the schema and BMC data are present, apply the complete additive
+`supabase/migrations/20260718100000_complaint_routing_evidence_diagnostics.sql` in **SQL Editor →
+New query**. Then run `supabase/deploy/diagnostics/bmc_submission_runtime_audit.sql` and require an
+authenticated complaint receipt. This function repair is rerunnable, does not reload BMC data, and
+does not update the official migration ledger.
+
+A credential-safe hosted read audit on 2026-07-17 found API readiness healthy and all five expected
+private Storage buckets present but initially returned zero category projections and no tested BMC
+jurisdiction rows. That data observation is superseded: a later clean hosted smoke returned 12
+catalog categories, three operational categories, finalized private media, K/W jurisdiction, and a
+deterministic route. Final complaint completion remains blocked until migration `20260718100000` is
+applied; do not infer that repair from health, Storage, or routing success.
+
+The compact upgrade path was rehearsed locally from an exact migration-38 baseline: migrations
+39–43 applied successfully, the immediate rerun skipped all five safely, and focused plans 038,
+039, 040, 042, and 044 passed 90 assertions. This verifies the artifact's local upgrade behavior,
+not its execution on hosted staging.
+
+With migration 45, the clean local database passes all 47 pgTAP files/1,612 assertions,
+application-schema lint, generated-type drift, and 45-migration master-artifact checks. These local
+gates do not apply either migration or data to hosted staging.
+
+To stage the reviewed Maharashtra Batch 0 hierarchy/source bundle on a reconciled existing target,
+first require the canonical Phase 2 seed and schema through
+`20260718100000_complaint_routing_evidence_diagnostics.sql`. Then open a fresh SQL Editor query for
+each file under `supabase/deploy/maharashtra-batch0/` and run them in order:
+
+1. `01_source_bundle_import_support.sql`
+2. `02_batch0_reference_and_lgd_seed.sql`
+3. `03_batch0_seed_checksum.sql`
+
+Part 1 applies migration `20260718110000` only from a wholly absent state, skips only a complete
+prior application, and rejects partial schema. Part 2 preserves all 160 rows and enriches only
+Maharashtra plus 35 exact district LGD matches; it aborts on missing canonical rows or conflicting
+codes. It does not install municipal, ward, geometry, contact, officer, asset, routing, public, or
+delivery data. `Mumbai`/LGD `482` stays quarantined. Part 3 records the exact generated seed hash.
+Running this package does not update Supabase's migration ledger, resolve the Batch 0 data issues,
+or make statewide complaint routing available.
 
 The generic HTTPS fetch/snapshot adapter ships as the `governance-sync-fetch` Supabase Edge
 Function. A managed deployment must deploy that function, set an environment-specific
@@ -328,11 +414,10 @@ Production complaint activation additionally requires:
 - approved transcription and moderation/processing providers before claiming those states advance
   beyond `pending`, plus a durable expiry/retention cleanup design that does not use Redis/BullMQ.
 
-The Phase 4 migrations and ordinary non-production seeds are present in staging as part of the
-database record above. No media object, verified route, complaint, API/client deployment, or hosted
-workflow smoke was added. The staged bootstrap exposes zero operational categories and therefore
-proves a safe unavailable state, not a production Pune complaint flow. Rollback-isolated synthetic
-tests are not deployment data.
+The current hosted target now has bounded BMC private media and internal routing evidence, but no
+successful complaint receipt has been recorded after the migration-44 repair. This does not prove a
+production Pune flow or external BMC-system delivery. Rollback-isolated synthetic tests are not
+deployment data.
 
 Phase 5 deployments apply the government-workflow schema and security/RPC migrations after Phase 4,
 regenerate database types, deploy the API, and then deploy the government dashboard. The migrations
@@ -620,9 +705,11 @@ Never depend on destructive database rollback as the only recovery strategy.
 ## Phase 8 Transparency Activation
 
 Deploying the Phase 8 code does not activate a public dataset. Apply all Phase 8 transparency
-migrations in repository order, including the `20260716105000` RPC/ACL forward fix and
-`20260716106000` duplicate-group migration, regenerate types, and repeat forced-RLS/direct-ACL/
-spatial/privacy tests in managed development and staging. Before any
+migrations in repository order, including the `20260716105000` RPC/ACL forward fix,
+`20260716106000` duplicate-group migration, and additive
+`20260717100000_public_complaint_engagements.sql`; regenerate types and repeat forced-RLS,
+direct-ACL, spatial, privacy, aggregate-only, and official-workflow-separation tests in managed
+development and staging. Before any
 publication, approve an effective transparency policy, sensitive-category and field-redaction
 rules, minimum aggregation cohort, withdrawal/retention/abuse runbook, and reviewed pilot ward
 geometry. Exercise publish, anonymous read, withdrawal, cache behavior, and private-field non-
@@ -634,6 +721,13 @@ public-ID-only detail payload, and versioned withdrawal. Do not build an automat
 from private similarity results, and do not activate the service-only review RPC without an
 authorized moderation workflow and audit runbook.
 
+Support and star/follow state is available only for an active authenticated profile and a current
+reviewed public projection. Verify one support per account, aggregate-only public output, private
+account star state, lookup/mutation quotas, withdrawal behavior, and `recent|trending` ordering.
+These signals must not update official routing, assignment, status, escalation, SLA, or KPI state.
+Public comments, supporter identities, public avatars, engagement notifications, and any automatic
+government-priority effect remain disabled.
+
 The provider-neutral client makes no external map/tile request. Do not add a basemap key or permit
 coordinates to leave Local Wellness infrastructure until a provider, billing/key ownership,
 domain/application restrictions, data-transfer/privacy terms, accessibility, and retention decision
@@ -643,9 +737,9 @@ EXIF/face/plate/address redaction, moderation, deletion, and orphan cleanup are 
 ## Phase 9 SLA, Escalation, and KPI Activation
 
 Engineering support for private SLA clocks, escalation, and organizational KPI snapshots exists in
-the repository, subject to the root session's aggregate verification. Deployment alone must remain
-non-operational because no approved calendar, target, override, escalation rule, or production KPI
-schedule is seeded.
+the repository and passes the current clean local aggregate verification. Deployment alone must
+remain non-operational because no approved calendar, target, override, escalation rule, or
+production KPI schedule is seeded.
 
 Before enabling Phase 9 in managed development or staging:
 
@@ -671,8 +765,9 @@ blocked on approved operational policy/data and environment verification.
 ## Mobile Citizen Experience and Governance Directory Activation
 
 The current mobile shell, email/password/recovery modes, staged phone verification, complaint
-dashboard/history, private profile image, category-aware report form, reviewed locality Feed/
-Heatmap, and Nearby directory are locally implemented. Before a managed demo or release:
+dashboard/history, private profile image, category-aware report form, compact primary navigation,
+reviewed Local/Trending community views, privacy-safe aggregate Heat view, and Nearby directory are
+locally implemented. Before a managed demo or release:
 
 - deploy the matching API and apply the additive
   `20260716104000_verified_governing_body_projection.sql` migration through the ordinary
@@ -680,7 +775,8 @@ Heatmap, and Nearby directory are locally implemented. Before a managed demo or 
 - source one reviewed root environment, confirm the public Supabase URL/key belong to the same
   staging project, and use a LAN-reachable API/realtime URL for Expo Go;
 - run a physical-device signed-out → email/password → optional phone MFA → dashboard → profile
-  camera/library image → current civic-area lookup → Feed/Heatmap → Nearby → live
+  camera/library image → current civic-area lookup → Local/Trending/Heat → authenticated
+  support/star → Nearby → live
   photo/video/voice → draft
   resume smoke, including denied permissions, weak GPS accuracy, network interruption, and logout;
 - review the known pilot UX limits: an individual finalized draft attachment cannot yet be removed,

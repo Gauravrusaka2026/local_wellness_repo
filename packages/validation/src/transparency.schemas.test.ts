@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 
 import {
   publicComplaintDetailSchema,
+  publicComplaintEngagementLookupSchema,
   publicComplaintMapQuerySchema,
+  updatePublicComplaintEngagementSchema,
   publicWardBoundarySchema,
 } from './transparency.schemas.js';
 
@@ -34,6 +36,7 @@ describe('public transparency validation', () => {
         statuses: ['reported', 'in_progress'],
         zoom: 12,
         limit: 100,
+        sort: 'recent',
       },
     );
   });
@@ -57,6 +60,30 @@ describe('public transparency validation', () => {
         to: '2026-01-02T00:00:00.000Z',
       }),
     );
+    assert.throws(() => publicComplaintMapQuerySchema.parse({ ...base, sort: 'popular' }));
+  });
+
+  it('accepts bounded set-state engagement input without actor or ranking fields', () => {
+    assert.deepEqual(
+      publicComplaintEngagementLookupSchema.parse({ publicIds: [publicIds.canonical] }),
+      { publicIds: [publicIds.canonical] },
+    );
+    assert.deepEqual(
+      updatePublicComplaintEngagementSchema.parse({ starred: true, supported: false }),
+      { starred: true, supported: false },
+    );
+    assert.throws(() =>
+      publicComplaintEngagementLookupSchema.parse({
+        publicIds: [publicIds.canonical, publicIds.canonical],
+      }),
+    );
+    assert.throws(() =>
+      updatePublicComplaintEngagementSchema.parse({
+        actorUserId: publicIds.related,
+        starred: true,
+        supported: true,
+      }),
+    );
   });
 
   it('rejects private or exact fields in a public complaint projection', () => {
@@ -74,6 +101,7 @@ describe('public transparency validation', () => {
       submittedAt: '2026-07-16T08:00:00.000Z',
       updatedAt: '2026-07-16T08:01:00.000Z',
       publishedAt: '2026-07-16T08:02:00.000Z',
+      supportCount: 0,
       summary: 'A reviewed public summary.',
       duplicateGroup: null,
     };
@@ -111,6 +139,7 @@ describe('public transparency validation', () => {
       submittedAt: '2026-07-16T08:00:00.000Z',
       updatedAt: '2026-07-16T08:01:00.000Z',
       publishedAt: '2026-07-16T08:02:00.000Z',
+      supportCount: 3,
       summary: 'A reviewed public summary.',
       duplicateGroup: {
         canonicalPublicId: publicIds.canonical,

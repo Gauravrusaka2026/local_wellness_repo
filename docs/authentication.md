@@ -40,6 +40,11 @@ Requirements:
 - audit logging;
 - periodic access review.
 
+Production onboarding remains invitation-first. A bounded staging-only exception may pre-provision
+synthetic identities and expiring roles through the trusted operator script in ADR-0025. Those
+identities can use password sign-in because the reserved test addresses cannot receive email. The
+exception does not permit a browser to create an identity or grant itself access.
+
 ### Platform Administrator
 
 Before pilot launch, platform administrators must use:
@@ -63,7 +68,8 @@ after a session exists, including MFA, authorized, denied, and dependency-error 
 
 Privileged screens describe three independent gates:
 
-1. Supabase Auth verifies the invited email identity.
+1. Supabase Auth verifies the existing authorized identity through its invitation email or
+   pre-provisioned staging password.
 2. That same identity completes its own TOTP enrollment or returning challenge and reaches AAL2.
 3. The API/database verifies the current authority membership and scoped role.
 
@@ -231,6 +237,43 @@ exists in Supabase Auth. Until the audited assign/revoke/renew lifecycle under `
 implemented, use a new official-controlled email for onboarding. Do not grant access through Auth
 metadata, manual client state, or another user's authenticator factor.
 
+### Synthetic Staging Privileged Provisioning
+
+ADR-0025 permits one trusted non-production helper for repeatable staging demonstrations. The
+helper creates separate confirmed `@localwellness.test` identities for a platform administrator,
+BMC municipal administrator, government operator, A Ward officer, K West Ward officer, Solid Waste
+Management department officer, and Public Health department officer. It resolves every non-global
+scope from the verified, non-placeholder, routing-eligible invitation catalog and persists the
+existing membership/role records before a portal session is used.
+
+Provisioning requires all of the following:
+
+- an explicit `--acknowledge-staging` flag;
+- the exact 20-character project reference and matching HTTPS `<ref>.supabase.co` URL;
+- the exact reviewed authority name;
+- a server-only secret/service-role key and a public key loaded from the root environment;
+- an access lifetime from 1 to 90 days, defaulting to 30 days;
+- no unexpected active platform administrator, ambiguous scope, or partially provisioned account.
+
+Passwords are non-deterministic and verified through Supabase Auth after creation. Existing
+synthetic identities fail closed unless the operator explicitly requests password rotation.
+Credentials are written to the gitignored local artifact
+`.local/staging-demo-accounts.<project-ref>.json` with mode `0600`; passwords and server keys are not
+printed or logged. The file is operator material, not an application configuration file, and must
+never be committed, copied into a client environment, or shared as one common team credential.
+
+The portal password forms call `signInWithPassword` only for an existing identity and then route to
+the same MFA path used by email-code/link authentication. Every account exercised must enroll and
+use its own TOTP factor. Privileged API enforcement still requires AAL2 when enabled, and database
+authorization still requires a current role/membership/scope. Expired assignments deny access even
+if Supabase Auth can still establish an AAL1 session.
+
+After testing, delete the local credential artifact and use a trusted operator process to revoke or
+disable the synthetic identities. Automatic Auth-user teardown is not implemented. Production
+officials continue to use unique official-controlled invitations. This helper handles only its
+fixed synthetic staging matrix and does not implement arbitrary existing-user assignment,
+additional scopes, renewal, or revocation under `AUTH-001`.
+
 ---
 
 ## Session Handling
@@ -271,11 +314,12 @@ approved credential source.
 Use the official Supabase SSR PKCE integration and cookies shared by browser and server clients. Authenticated pages are dynamic and validate the current user or claims rather than trusting an unverified cookie payload.
 
 Citizen web account creation/sign-in uses Supabase email/password and password recovery uses the
-SSR PKCE callback. Government and administrator email entry may be completed by entering a
-six-digit code or opening a secure link. Their code entry uses Supabase `verifyOtp` with the `email`
-type; ordinary browser links use the SSR client's PKCE flow. Each browser callback accepts exactly
-one reviewed method and rejects incomplete, duplicate, ambiguous, unsupported, or provider-error
-callbacks. Citizen and administrator callbacks reject raw fragment sessions. The government
+SSR PKCE callback. Government and administrator entry may use a password already attached to a
+pre-provisioned identity, a six-digit email code, or a secure link. Password entry never calls a
+signup API. Email code entry uses Supabase `verifyOtp` with the `email` type; ordinary browser links
+use the SSR client's PKCE flow. Each browser callback accepts exactly one reviewed method and rejects
+incomplete, duplicate, ambiguous, unsupported, or provider-error callbacks. Citizen and
+administrator callbacks reject raw fragment sessions. The government
 callback additionally accepts a
 complete access/refresh fragment only for the default `invite` flow, removes it from browser history
 before establishing the session, and then reloads through the existing role/membership guard.

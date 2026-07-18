@@ -13,8 +13,8 @@
 -- Any partial/non-contiguous fingerprint or source failure rolls back the part.
 -- Dashboard execution does not repair supabase_migrations.schema_migrations.
 -- Seed data remains intentionally separate under supabase/seed.
--- Complete source cutoff: 20260716
--- Complete source count: 42
+-- Complete source cutoff: 20260718
+-- Complete source count: 45
 -- Migrations in this part: 23
 -- Part source range: 20260713100000_phase_1_identity_and_access.sql through 20260714124000_phase_5_government_workflow_security_and_rpc.sql
 --
@@ -88,6 +88,30 @@ as $helper$
     where namespace.nspname = p_schema_name
       and procedure.proname = p_function_name
   );
+$helper$;
+
+create or replace function pg_temp.local_wellness_procedure_exists(p_signature text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $helper$
+  select pg_catalog.to_regprocedure(p_signature) is not null;
+$helper$;
+
+create or replace function pg_temp.local_wellness_function_execute_privilege(
+  p_role_name text,
+  p_signature text
+)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $helper$
+  select case
+    when pg_catalog.to_regprocedure(p_signature) is null then false
+    else pg_catalog.has_function_privilege(p_role_name, p_signature, 'EXECUTE')
+  end;
 $helper$;
 
 create or replace function pg_temp.local_wellness_policy_exists(
@@ -465,6 +489,10 @@ values
     (pg_temp.local_wellness_function_exists('public', 'perform_government_complaint_action')
       and pg_temp.local_wellness_function_exists('public', 'reserve_government_resolution_evidence')
       and pg_temp.local_wellness_function_exists('public', 'fail_government_resolution_evidence')
+      and pg_temp.local_wellness_procedure_exists('public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)')
+      and pg_temp.local_wellness_procedure_exists('public.submit_complaint_phase4_impl(uuid,uuid,uuid,uuid[],boolean)')
+      and pg_temp.local_wellness_function_execute_privilege('service_role', 'public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_assignments', 'complaint_assignments_validate_version_mutation')
       and pg_temp.local_wellness_private_bucket_exists('resolution-evidence-private'))
   ),
   (
@@ -482,7 +510,11 @@ values
     (pg_temp.local_wellness_function_exists('complaints', 'actor_can_communicate')),
     (pg_temp.local_wellness_function_exists('public', 'authorize_realtime_room')
       and pg_temp.local_wellness_function_exists('public', 'list_notifications')
-      and pg_temp.local_wellness_function_exists('public', 'fail_notification_delivery'))
+      and pg_temp.local_wellness_function_exists('public', 'fail_notification_delivery')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaints', 'complaints_ensure_conversation')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_status_history', 'complaint_status_history_submission_outbox')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_assignments', 'complaint_assignments_assignment_outbox')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'notification_outbox', 'notification_outbox_create_job'))
   ),
   (
     26,
@@ -550,6 +582,8 @@ values
     (pg_temp.local_wellness_function_exists('complaints', 'actor_is_platform_admin')),
     (pg_temp.local_wellness_function_exists('public', 'get_government_complaint_sla')
       and pg_temp.local_wellness_function_exists('public', 'list_government_kpi_snapshots')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_assignments', 'complaint_assignments_initialize_sla')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_status_history', 'complaint_status_history_apply_sla')
       and pg_temp.local_wellness_forced_rls('complaints.kpi_snapshots'))
   ),
   (
@@ -623,6 +657,35 @@ values
     '20260716119000_government_invitation_scope_options.sql',
     (pg_temp.local_wellness_function_exists('public', 'list_government_invitation_options')),
     (pg_temp.local_wellness_function_exists('public', 'list_government_invitation_options'))
+  ),
+  (
+    43,
+    '20260717100000_public_complaint_engagements.sql',
+    (pg_temp.local_wellness_relation_exists('complaints.public_complaint_engagements')),
+    (pg_temp.local_wellness_relation_exists('complaints.public_complaint_engagements')
+      and pg_temp.local_wellness_forced_rls('complaints.public_complaint_engagements')
+      and pg_temp.local_wellness_function_exists('complaints', 'public_complaint_support_count')
+      and pg_temp.local_wellness_function_exists('public', 'list_public_complaint_feed')
+      and pg_temp.local_wellness_function_exists('public', 'list_public_complaint_engagements')
+      and pg_temp.local_wellness_function_exists('public', 'set_public_complaint_engagement'))
+  ),
+  (
+    44,
+    '20260718100000_complaint_routing_evidence_diagnostics.sql',
+    (pg_temp.local_wellness_function_exists('complaints', 'complete_complaint_submission_v2')),
+    (pg_temp.local_wellness_function_exists('complaints', 'complaint_routing_evidence_mismatches')
+      and pg_temp.local_wellness_function_exists('complaints', 'complete_complaint_submission_v2')
+      and pg_temp.local_wellness_procedure_exists('public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)')
+      and pg_catalog.position('complaints.complete_complaint_submission_v2(' in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)'))) > 0
+      and pg_temp.local_wellness_function_execute_privilege('service_role', 'public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)'))
+  ),
+  (
+    45,
+    '20260718110000_governance_source_bundle_imports.sql',
+    (pg_temp.local_wellness_column_exists('governance', 'import_batches', 'source_bundle_sha256')),
+    (pg_temp.local_wellness_column_exists('governance', 'import_batches', 'source_bundle_sha256')
+      and pg_temp.local_wellness_constraint_exists('governance', 'import_batches', 'import_batches_source_bundle_sha256_check')
+      and pg_temp.local_wellness_constraint_exists('governance', 'import_batches', 'import_batches_source_artifact_check'))
   );
 
 do $detect_state$
@@ -636,7 +699,7 @@ begin
   from local_wellness_bundle_fingerprints as fingerprint
   where not fingerprint.is_complete;
 
-  detected_cutoff := coalesce(first_missing - 1, 42);
+  detected_cutoff := coalesce(first_missing - 1, 45);
 
   if first_missing is not null then
     select fingerprint.migration_name
@@ -694,7 +757,7 @@ begin
       hint = 'Execute master.part-1.sql successfully before Part 2.';
   end if;
 
-  raise notice 'Local Wellness detected migration cutoff: % of 42', detected_cutoff;
+  raise notice 'Local Wellness detected migration cutoff: % of 45', detected_cutoff;
 end;
 $detect_state$;
 
@@ -20307,6 +20370,10 @@ $migration_20260714124000_phase_5_government_workflow_security_and_rpc$;
   if not (pg_temp.local_wellness_function_exists('public', 'perform_government_complaint_action')
       and pg_temp.local_wellness_function_exists('public', 'reserve_government_resolution_evidence')
       and pg_temp.local_wellness_function_exists('public', 'fail_government_resolution_evidence')
+      and pg_temp.local_wellness_procedure_exists('public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)')
+      and pg_temp.local_wellness_procedure_exists('public.submit_complaint_phase4_impl(uuid,uuid,uuid,uuid[],boolean)')
+      and pg_temp.local_wellness_function_execute_privilege('service_role', 'public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_assignments', 'complaint_assignments_validate_version_mutation')
       and pg_temp.local_wellness_private_bucket_exists('resolution-evidence-private')) then
     raise exception using
       errcode = 'P0001',

@@ -63,7 +63,10 @@ export interface CompleteComplaintSubmissionInput {
 }
 
 export class ComplaintDataAccessError extends Error {
-  public constructor(operation: string) {
+  public constructor(
+    public readonly operation: string,
+    public readonly dependencyCode: string | null = null,
+  ) {
     super(`Complaint persistence operation failed: ${operation}.`);
     this.name = 'ComplaintDataAccessError';
   }

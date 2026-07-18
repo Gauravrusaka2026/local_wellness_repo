@@ -62,6 +62,20 @@ test('adaptive parts are transaction-atomic and fail closed on partial history',
   assert.match(part2, /LOCAL_WELLNESS_FINAL_READINESS_FAILED/u);
 });
 
+test('adaptive fingerprints cover the complaint submission runtime dependencies', () => {
+  assert.match(part1, /local_wellness_procedure_exists/u);
+  assert.match(part1, /local_wellness_function_execute_privilege/u);
+  assert.match(part1, /public\.submit_complaint_phase4_impl\(uuid,uuid,uuid,uuid\[\],boolean\)/u);
+  assert.match(part1, /complaint_assignments_validate_version_mutation/u);
+  assert.match(part2, /complaints_ensure_conversation/u);
+  assert.match(part2, /complaint_status_history_submission_outbox/u);
+  assert.match(part2, /complaint_assignments_initialize_sla/u);
+  assert.match(part2, /complaint_status_history_apply_sla/u);
+  assert.match(part2, /complaint_routing_evidence_mismatches/u);
+  assert.match(part2, /complete_complaint_submission_v2/u);
+  assert.match(part2, /pg_catalog\.pg_get_functiondef/u);
+});
+
 test('each SQL Editor part is smaller than the complete master', () => {
   const completeBytes = Buffer.byteLength(completeMaster, 'utf8');
 

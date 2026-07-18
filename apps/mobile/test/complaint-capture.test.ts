@@ -8,8 +8,10 @@ import type {
 
 import {
   complaintCaptureReducer,
+  getComplaintSubmissionBlockers,
   getDraftReadiness,
   getLocationRecaptureGuidance,
+  hasUnsavedComplaintDetails,
   initialComplaintCaptureState,
   isLocationEvidenceEligible,
 } from '../src/complaints/capture-state';
@@ -69,6 +71,48 @@ const location = (overrides: Partial<ComplaintLocationCapture> = {}): ComplaintL
   ...overrides,
 });
 
+const category = (
+  overrides: Partial<RoutingCategoryCatalogItem> = {},
+): RoutingCategoryCatalogItem => ({
+  code: 'missed_sweeping',
+  description: null,
+  id: '22222222-2222-4222-8222-222222222222',
+  isEmergency: false,
+  maximumMediaCount: 5,
+  minimumMediaCount: 0,
+  name: 'Missed sweeping',
+  parentCategoryId: null,
+  requiresAsset: false,
+  requiresLocation: true,
+  requiredAttributes: [],
+  recommendedMediaKinds: ['photo'],
+  submissionAvailability: 'available',
+  ...overrides,
+});
+
+const eligibleDraft = (overrides: Partial<ComplaintDraft> = {}): ComplaintDraft =>
+  draft({
+    categoryId: category().id,
+    description: 'The street was not swept.',
+    location: {
+      ...location(),
+      id: '33333333-3333-4333-8333-333333333333',
+      verificationScore: 0.9,
+      verificationStatus: 'verified',
+    },
+    ...overrides,
+  });
+
+const duplicateCheck = {
+  checkedAt: '2026-07-14T10:01:00.000Z',
+  draftId: '11111111-1111-4111-8111-111111111111',
+  id: '44444444-4444-4444-8444-444444444444',
+  policyId: '55555555-5555-4555-8555-555555555555',
+  policyVersion: 1,
+  policyVersionId: '66666666-6666-4666-8666-666666666666',
+  suggestions: [],
+};
+
 describe('complaint capture reducer and readiness', () => {
   it('keeps verified categories while clearing a completed draft', () => {
     const categories: RoutingCategoryCatalogItem[] = [
@@ -127,6 +171,33 @@ describe('complaint capture reducer and readiness', () => {
         unavailableCategory,
       ).missing.includes('category'),
       true,
+    );
+  });
+
+  it('keeps the busy projection active until every overlapping operation settles', () => {
+    const firstStarted = complaintCaptureReducer(initialComplaintCaptureState, {
+      type: 'busy',
+      value: true,
+    });
+    const secondStarted = complaintCaptureReducer(firstStarted, { type: 'busy', value: true });
+    const failedWhileBusy = complaintCaptureReducer(secondStarted, {
+      message: 'One request failed.',
+      type: 'error',
+    });
+    const firstFinished = complaintCaptureReducer(failedWhileBusy, {
+      type: 'busy',
+      value: false,
+    });
+
+    assert.equal(firstFinished.pendingOperationCount, 1);
+    assert.equal(firstFinished.isBusy, true);
+
+    const allFinished = complaintCaptureReducer(firstFinished, { type: 'busy', value: false });
+    assert.equal(allFinished.pendingOperationCount, 0);
+    assert.equal(allFinished.isBusy, false);
+    assert.equal(
+      complaintCaptureReducer(allFinished, { type: 'busy', value: false }).pendingOperationCount,
+      0,
     );
   });
 
@@ -208,6 +279,122 @@ describe('complaint capture reducer and readiness', () => {
     assert.match(
       getLocationRecaptureGuidance({ ...evidence, verificationStatus: 'unsupported_area' }) ?? '',
       /not available/u,
+    );
+  });
+
+  it('recognizes saved details after server-side trimming and key ordering', () => {
+    const currentDraft = eligibleDraft({
+      customAttributes: { flooding_observed: true, hazard_level: 'high' },
+      description: 'Street drain is blocked.',
+    });
+
+    assert.equal(
+      hasUnsavedComplaintDetails(currentDraft, {
+        customAttributes: { hazard_level: ' high ', flooding_observed: true },
+        description: '  Street drain is blocked.  ',
+      }),
+      false,
+    );
+    assert.equal(
+      hasUnsavedComplaintDetails(currentDraft, {
+        customAttributes: { hazard_level: 'severe', flooding_observed: true },
+        description: 'Street drain is blocked.',
+      }),
+      true,
+    );
+  });
+
+  it('lists every visible single-form submission blocker instead of silently disabling submit', () => {
+    const selectedCategory = category({ minimumMediaCount: 1 });
+
+    assert.deepEqual(
+      getComplaintSubmissionBlockers({
+        assetOptions: [],
+        category: selectedCategory,
+        draft: draft(),
+        duplicateCheck: null,
+        duplicatesAcknowledged: false,
+        emergencyAcknowledged: false,
+        hasUnsavedDetails: true,
+        hasVoice: false,
+        isOnline: false,
+        upload: { localUri: 'private-file', progress: 0.5, status: 'uploading' },
+        voiceDescriptionConfirmed: false,
+      }),
+      [
+        'category',
+        'description',
+        'unsaved_details',
+        'location',
+        'media',
+        'upload',
+        'duplicate_check',
+        'offline',
+      ],
+    );
+  });
+
+  it('requires the asset and acknowledgements that the old step order enforced implicitly', () => {
+    const selectedCategory = category({ isEmergency: true, requiresAsset: true });
+    const currentDraft = eligibleDraft({ assetId: '77777777-7777-4777-8777-777777777777' });
+    const checkWithSuggestion = {
+      ...duplicateCheck,
+      suggestions: [
+        {
+          approximateDistanceMeters: 12,
+          categoryId: selectedCategory.id,
+          categoryName: selectedCategory.name,
+          complaintId: '88888888-8888-4888-8888-888888888888',
+          complaintNumber: 'LW-2026-0001',
+          score: 0.82,
+          status: 'submitted' as const,
+          submittedAt: '2026-07-14T09:00:00.000Z',
+        },
+      ],
+    };
+
+    const blocked = getComplaintSubmissionBlockers({
+      assetOptions: [],
+      category: selectedCategory,
+      draft: currentDraft,
+      duplicateCheck: checkWithSuggestion,
+      duplicatesAcknowledged: false,
+      emergencyAcknowledged: false,
+      hasUnsavedDetails: false,
+      hasVoice: true,
+      isOnline: true,
+      upload: null,
+      voiceDescriptionConfirmed: false,
+    });
+    assert.deepEqual(blocked, [
+      'asset',
+      'duplicate_acknowledgement',
+      'voice_confirmation',
+      'emergency_acknowledgement',
+    ]);
+
+    assert.deepEqual(
+      getComplaintSubmissionBlockers({
+        assetOptions: [
+          {
+            assetTypeName: 'Road segment',
+            displayName: 'Verified road asset',
+            distanceMeters: 8,
+            id: currentDraft.assetId ?? '',
+          },
+        ],
+        category: selectedCategory,
+        draft: currentDraft,
+        duplicateCheck: checkWithSuggestion,
+        duplicatesAcknowledged: true,
+        emergencyAcknowledged: true,
+        hasUnsavedDetails: false,
+        hasVoice: true,
+        isOnline: true,
+        upload: null,
+        voiceDescriptionConfirmed: true,
+      }),
+      [],
     );
   });
 });

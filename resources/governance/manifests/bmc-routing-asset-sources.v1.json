@@ -1,0 +1,630 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": "BMC_ROUTING_ASSET_SOURCES_V1",
+  "authority": {
+    "code": "BMC",
+    "name": "Brihanmumbai Municipal Corporation",
+    "publisher": "Municipal Corporation of Greater Mumbai"
+  },
+  "sourceRegistration": {
+    "proposedSourceKey": "bmc_mcgm_gis_routing_assets_v1",
+    "sourceKind": "official_api",
+    "datasetKind": "routing_asset_inventory",
+    "retrievalFormat": "esri_json",
+    "publicationStatus": "not_published",
+    "verificationStatus": "unverified",
+    "automaticFetchEnabled": false,
+    "refreshCadence": null,
+    "reviewNote": "This repository manifest records candidate official source metadata only. A review-approved governance source record, immutable snapshot, parser contract, and refresh cadence do not exist yet."
+  },
+  "service": {
+    "serviceType": "arcgis_map_server",
+    "baseUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer",
+    "publisherClassification": "official",
+    "metadataObservedOn": "2026-07-18",
+    "termsReviewStatus": "pending",
+    "bulkFeatureDownloadApproved": false
+  },
+  "scope": {
+    "pilotCategoryCodes": [
+      "garbage_dump",
+      "missed_sweeping",
+      "pothole",
+      "blocked_drain",
+      "sewage_overflow",
+      "water_leakage",
+      "broken_streetlight",
+      "open_manhole",
+      "mosquito_breeding",
+      "illegal_construction",
+      "encroachment",
+      "fallen_tree"
+    ],
+    "alreadyOperationalCategoryCodes": ["garbage_dump", "missed_sweeping", "mosquito_breeding"],
+    "candidateCategoryCount": 9,
+    "activationPolicy": "source_discovery_only",
+    "canonicalBootstrapFilesModified": false
+  },
+  "layers": [
+    {
+      "id": 3,
+      "name": "Manhole",
+      "geometryType": "esriGeometryPoint",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/3?f=pjson",
+      "observedFeatureCount": 82926,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "UID_PF",
+        "NODE_NO",
+        "NODE_NO_NEW",
+        "CODE",
+        "WARD_NO",
+        "LOCN",
+        "ROAD_TYPE",
+        "RD_ID",
+        "LOCALITY",
+        "SUBTYPE",
+        "TYPE",
+        "STATUS",
+        "FINAL_STATUS_PF",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    },
+    {
+      "id": 4,
+      "name": "Sewer Line",
+      "geometryType": "esriGeometryPolyline",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/4?f=pjson",
+      "observedFeatureCount": 83273,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "SW_LINE_ID",
+        "LINE_ID_NEW",
+        "LINE_ID_PF",
+        "CODE",
+        "WARD_NO",
+        "LOCN",
+        "RD_ID",
+        "LOCALITY",
+        "TYPE",
+        "SUBTYPE",
+        "NODE_NO",
+        "DN_NODE",
+        "NODE_NO_NEW",
+        "DN_NODE_NEW",
+        "ENABLED",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    },
+    {
+      "id": 6,
+      "name": "Storm Water Manholes",
+      "geometryType": "esriGeometryPoint",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/6?f=pjson",
+      "observedFeatureCount": 34431,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": ["OBJECTID", "NODE_ID", "GROUND_LEV", "SHAPE"],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    },
+    {
+      "id": 7,
+      "name": "Storm Water Drains",
+      "geometryType": "esriGeometryPolyline",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/7?f=pjson",
+      "observedFeatureCount": 34711,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "US_NODE_ID",
+        "DS_NODE_ID",
+        "CONDUIT_LE",
+        "CONDUIT_WI",
+        "CONDUIT_HE",
+        "US_INVERT",
+        "DS_INVERT",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    },
+    {
+      "id": 22,
+      "name": "Roadway",
+      "geometryType": "esriGeometryPolygon",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/22?f=pjson",
+      "observedFeatureCount": 15209,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "CODE",
+        "ROADNO",
+        "ROADNAME",
+        "ROADCLASS",
+        "ROAD_TYPE",
+        "SUB_TYPE",
+        "DIRECTION",
+        "WIDTH",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    },
+    {
+      "id": 66,
+      "name": "Trees",
+      "geometryType": "esriGeometryPoint",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/66?f=pjson",
+      "observedFeatureCount": 1959448,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "WARD_NAME",
+        "BOTANICAL_NAME",
+        "COMMON_NAME",
+        "FAMILY",
+        "GENUS",
+        "GIRTH_CM",
+        "HEIGHT_M",
+        "LATITUDE",
+        "LONGITUDE",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    },
+    {
+      "id": 219,
+      "name": "Pipeline",
+      "geometryType": "esriGeometryPolyline",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/219?f=pjson",
+      "observedFeatureCount": 23417,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "ID",
+        "WARD",
+        "LOCATION",
+        "ROADNAME",
+        "OWNERSHIP",
+        "MAINTAINED_BY",
+        "CONSTRUCTED_BY",
+        "TYPE_OF_MAIN",
+        "TYPE_OF_NETWORK",
+        "TYPE_OF_WATER",
+        "NAME_OF_PIPELINE",
+        "SECTION_NAME",
+        "CONDITION",
+        "OUT_OF_SERVICE_DATE",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": ["OWNERSHIP", "MAINTAINED_BY", "CONSTRUCTED_BY"]
+    },
+    {
+      "id": 283,
+      "name": "Building",
+      "geometryType": "esriGeometryPolygon",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/283?f=pjson",
+      "observedFeatureCount": 304939,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "ID",
+        "WARD_ID",
+        "NAME",
+        "ADDRESS",
+        "TYPE",
+        "CONSTRUCTI",
+        "PROPERTY_T",
+        "USAGE",
+        "INTEGRATIO",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    },
+    {
+      "id": 291,
+      "name": "Street Light",
+      "geometryType": "esriGeometryPoint",
+      "metadataUrl": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/291?f=pjson",
+      "observedFeatureCount": 100410,
+      "featureCountObservedOn": "2026-07-18",
+      "reviewedFields": [
+        "OBJECTID",
+        "ID",
+        "WARD_ID",
+        "SECTION_ID",
+        "TYPE",
+        "FLAG_STATU",
+        "STREET_ID",
+        "SHAPE"
+      ],
+      "stableIdentifierReviewStatus": "pending",
+      "ownershipFieldCandidates": []
+    }
+  ],
+  "categories": [
+    {
+      "categoryCode": "pothole",
+      "routingReferenceCode": "BMC_R003",
+      "assetType": "municipal_road",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 22,
+          "purpose": "Candidate road-segment match; the layer alone does not prove that BMC owns or maintains the road.",
+          "identifierFields": ["OBJECTID", "CODE", "ROADNO"],
+          "jurisdictionFields": [],
+          "ownershipFields": [],
+          "matchingFields": ["ROADNAME", "ROADCLASS", "ROAD_TYPE", "SUB_TYPE", "SHAPE"]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_spatial_crosswalk_review",
+        "cross_agency_road_ownership_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "blocked_drain",
+      "routingReferenceCode": "BMC_R004",
+      "assetType": "storm_water_drain",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 6,
+          "purpose": "Candidate storm-water access-node match.",
+          "identifierFields": ["OBJECTID", "NODE_ID"],
+          "jurisdictionFields": [],
+          "ownershipFields": [],
+          "matchingFields": ["GROUND_LEV", "SHAPE"]
+        },
+        {
+          "layerId": 7,
+          "purpose": "Candidate storm-water drain segment and network-node match.",
+          "identifierFields": ["OBJECTID", "US_NODE_ID", "DS_NODE_ID"],
+          "jurisdictionFields": [],
+          "ownershipFields": [],
+          "matchingFields": ["CONDUIT_LE", "CONDUIT_WI", "CONDUIT_HE", "SHAPE"]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_spatial_crosswalk_review",
+        "storm_water_asset_ownership_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "sewage_overflow",
+      "routingReferenceCode": "BMC_R005",
+      "assetType": "sanitary_sewer",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 3,
+          "purpose": "Candidate sanitary-sewer manhole match.",
+          "identifierFields": ["OBJECTID", "UID_PF", "NODE_NO", "NODE_NO_NEW", "CODE"],
+          "jurisdictionFields": ["WARD_NO"],
+          "ownershipFields": [],
+          "matchingFields": [
+            "LOCN",
+            "RD_ID",
+            "LOCALITY",
+            "SUBTYPE",
+            "TYPE",
+            "STATUS",
+            "FINAL_STATUS_PF",
+            "SHAPE"
+          ]
+        },
+        {
+          "layerId": 4,
+          "purpose": "Candidate sanitary-sewer line and network-node match.",
+          "identifierFields": ["OBJECTID", "SW_LINE_ID", "LINE_ID_NEW", "LINE_ID_PF", "CODE"],
+          "jurisdictionFields": ["WARD_NO"],
+          "ownershipFields": [],
+          "matchingFields": [
+            "LOCN",
+            "RD_ID",
+            "LOCALITY",
+            "TYPE",
+            "SUBTYPE",
+            "NODE_NO",
+            "DN_NODE",
+            "ENABLED",
+            "SHAPE"
+          ]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_identifier_crosswalk_review",
+        "sanitary_sewer_asset_ownership_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "water_leakage",
+      "routingReferenceCode": "BMC_R006",
+      "assetType": "water_distribution_asset",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 219,
+          "purpose": "Candidate water-pipeline match; ownership and maintenance values require completeness checks and normalized authority matching.",
+          "identifierFields": ["OBJECTID", "ID"],
+          "jurisdictionFields": ["WARD"],
+          "ownershipFields": ["OWNERSHIP", "MAINTAINED_BY", "CONSTRUCTED_BY"],
+          "matchingFields": [
+            "LOCATION",
+            "ROADNAME",
+            "TYPE_OF_MAIN",
+            "TYPE_OF_NETWORK",
+            "TYPE_OF_WATER",
+            "NAME_OF_PIPELINE",
+            "SECTION_NAME",
+            "CONDITION",
+            "SHAPE"
+          ]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_identifier_crosswalk_review",
+        "ownership_field_completeness_and_authority_matching_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "broken_streetlight",
+      "routingReferenceCode": "BMC_R007",
+      "assetType": "streetlight",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 291,
+          "purpose": "Candidate street-light match; the layer has no reviewed owner field and cannot distinguish every municipal or utility responsibility.",
+          "identifierFields": ["OBJECTID", "ID"],
+          "jurisdictionFields": ["WARD_ID"],
+          "ownershipFields": [],
+          "matchingFields": ["SECTION_ID", "TYPE", "FLAG_STATU", "STREET_ID", "SHAPE"]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_identifier_crosswalk_review",
+        "municipal_versus_utility_ownership_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "open_manhole",
+      "routingReferenceCode": "BMC_R008",
+      "assetType": "unknown_manhole",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 3,
+          "purpose": "Candidate sanitary-sewer manhole match; source selection is not yet proof of current ownership.",
+          "identifierFields": ["OBJECTID", "UID_PF", "NODE_NO", "NODE_NO_NEW", "CODE"],
+          "jurisdictionFields": ["WARD_NO"],
+          "ownershipFields": [],
+          "matchingFields": [
+            "LOCN",
+            "RD_ID",
+            "LOCALITY",
+            "SUBTYPE",
+            "TYPE",
+            "STATUS",
+            "FINAL_STATUS_PF",
+            "SHAPE"
+          ]
+        },
+        {
+          "layerId": 6,
+          "purpose": "Candidate storm-water manhole match; reports still require network and owner disambiguation.",
+          "identifierFields": ["OBJECTID", "NODE_ID"],
+          "jurisdictionFields": [],
+          "ownershipFields": [],
+          "matchingFields": ["GROUND_LEV", "SHAPE"]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_crosswalk_review",
+        "sanitary_versus_storm_water_network_disambiguation",
+        "asset_ownership_review",
+        "emergency_experience_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "illegal_construction",
+      "routingReferenceCode": "BMC_R010",
+      "assetType": "building",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 283,
+          "purpose": "Candidate building match only. Presence in this layer is not evidence that construction is unauthorized.",
+          "identifierFields": ["OBJECTID", "ID"],
+          "jurisdictionFields": ["WARD_ID"],
+          "ownershipFields": [],
+          "matchingFields": [
+            "NAME",
+            "ADDRESS",
+            "TYPE",
+            "CONSTRUCTI",
+            "PROPERTY_T",
+            "USAGE",
+            "INTEGRATIO",
+            "SHAPE"
+          ]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_identifier_crosswalk_review",
+        "building_ownership_review",
+        "official_authorization_or_enforcement_record_not_present",
+        "moderation_and_non_accusatory_language_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "encroachment",
+      "routingReferenceCode": "BMC_R011",
+      "assetType": "public_land_or_road",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 22,
+          "purpose": "Candidate road/right-of-way context only; public ownership and legal boundary evidence are absent.",
+          "identifierFields": ["OBJECTID", "CODE", "ROADNO"],
+          "jurisdictionFields": [],
+          "ownershipFields": [],
+          "matchingFields": ["ROADNAME", "ROADCLASS", "ROAD_TYPE", "SUB_TYPE", "SHAPE"]
+        },
+        {
+          "layerId": 283,
+          "purpose": "Candidate building context only; the layer does not establish encroachment or authorization status.",
+          "identifierFields": ["OBJECTID", "ID"],
+          "jurisdictionFields": ["WARD_ID"],
+          "ownershipFields": [],
+          "matchingFields": ["NAME", "ADDRESS", "TYPE", "PROPERTY_T", "USAGE", "SHAPE"]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_spatial_crosswalk_review",
+        "public_land_or_right_of_way_ownership_review",
+        "official_authorization_or_enforcement_record_not_present",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    },
+    {
+      "categoryCode": "fallen_tree",
+      "routingReferenceCode": "BMC_R012",
+      "assetType": "tree_or_garden_asset",
+      "requiresAssetOwnership": true,
+      "layerMappings": [
+        {
+          "layerId": 66,
+          "purpose": "Candidate tree match; the inventory does not establish current owner, maintenance responsibility, or hazard state.",
+          "identifierFields": ["OBJECTID"],
+          "jurisdictionFields": ["WARD_NAME"],
+          "ownershipFields": [],
+          "matchingFields": [
+            "BOTANICAL_NAME",
+            "COMMON_NAME",
+            "FAMILY",
+            "GENUS",
+            "GIRTH_CM",
+            "HEIGHT_M",
+            "SHAPE"
+          ]
+        }
+      ],
+      "blockingRequirements": [
+        "stable_asset_identifier_review",
+        "ward_identifier_crosswalk_review",
+        "tree_ownership_and_maintenance_review",
+        "hazard_and_emergency_handoff_review",
+        "department_role_assignment_review",
+        "snapshot_parser_and_entity_matching_review"
+      ],
+      "importStatus": "not_started",
+      "ownershipReviewStatus": "pending",
+      "entityMatchingStatus": "pending",
+      "routingActivationStatus": "blocked",
+      "productionRoutable": false,
+      "externalDeliveryApproved": false
+    }
+  ],
+  "globalBlockingRequirements": [
+    "official_source_terms_and_refresh_review",
+    "immutable_raw_snapshot_capture",
+    "bounded_parser_contract",
+    "source_field_completeness_profile",
+    "stable_identifier_and_duplicate_analysis",
+    "reviewed_ward_crosswalk",
+    "versioned_asset_and_ownership_import",
+    "reviewed_department_role_and_assignment_mapping",
+    "review_queue_approval",
+    "routing_and_rls_validation",
+    "approved_external_delivery_channel"
+  ],
+  "limitations": [
+    "Layer metadata and feature counts are observations, not imported routing evidence.",
+    "OBJECTID values are candidate source identifiers until stability across snapshots is demonstrated.",
+    "A matching geometry does not by itself prove ownership, maintenance responsibility, complaint eligibility, or recipient authority.",
+    "Building and road layers do not establish that a construction or occupation is unlawful.",
+    "No category in this manifest may become routable automatically."
+  ]
+}

@@ -5,6 +5,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type {
   PublicComplaintDetail,
+  PublicComplaintEngagementState,
   PublicComplaintHotspotQuery,
   PublicComplaintHotspotResult,
   PublicComplaintMapQuery,
@@ -42,6 +43,7 @@ const complaint: PublicComplaintDetail = {
   submittedAt: '2026-07-16T08:00:00.000Z',
   updatedAt: '2026-07-16T09:00:00.000Z',
   publishedAt: '2026-07-16T08:05:00.000Z',
+  supportCount: 7,
   summary: 'A reviewed, data-minimized public summary.',
   duplicateGroup: {
     canonicalPublicId: identifiers.publicComplaint,
@@ -78,6 +80,31 @@ class FakeTransparencyStore extends TransparencyStore {
 
   public async getComplaint(publicId: string): Promise<PublicComplaintDetail | null> {
     return this.complaint?.publicId === publicId ? this.complaint : null;
+  }
+
+  public async listEngagements(
+    _actorUserId: string,
+    publicIds: readonly string[],
+  ): Promise<PublicComplaintEngagementState[]> {
+    return publicIds.map((publicId) => ({
+      publicId,
+      starred: false,
+      supportCount: complaint.supportCount,
+      supported: false,
+    }));
+  }
+
+  public async setEngagement(
+    _actorUserId: string,
+    publicId: string,
+    input: Readonly<{ supported: boolean; starred: boolean }>,
+  ): Promise<PublicComplaintEngagementState | null> {
+    return {
+      publicId,
+      starred: input.starred,
+      supportCount: complaint.supportCount + (input.supported ? 1 : 0),
+      supported: input.supported,
+    };
   }
 }
 
@@ -133,6 +160,7 @@ describe('anonymous transparency API', () => {
       statuses: ['reported', 'in_progress'],
       zoom: 12,
       limit: 25,
+      sort: 'recent',
     });
   });
 

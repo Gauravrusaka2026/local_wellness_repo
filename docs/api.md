@@ -37,6 +37,12 @@ not an application OTP endpoint. `API_CITIZEN_PHONE_MFA_MODE=observe` logs missi
 to the documented safe rollout setting and must be coordinated with the client and Supabase Auth
 configuration.
 
+An already provisioned government or administrator identity may establish its bearer session by
+password or by the existing email code/link flow. Those methods differ only at the Supabase Auth
+entry point: each session follows the same TOTP/AAL2 policy and every privileged request is
+reauthorized against current database membership, role, and scope. Password entry never signs up a
+user, assigns access, or changes the `MFA_REQUIRED` contract.
+
 ### Request ID
 
 Clients may send:
@@ -139,9 +145,20 @@ Representative current and later-phase contract codes:
 - `COMPLAINT_INCOMPLETE`
 - `COMPLAINT_LOCATION_NOT_VERIFIED`
 - `COMPLAINT_UNSUPPORTED_AREA`
+- `COMPLAINT_ROUTE_UNAVAILABLE`
 - `COMPLAINT_DUPLICATE_POLICY_NOT_FOUND`
 - `COMPLAINT_DUPLICATE_ACKNOWLEDGEMENT_REQUIRED`
 - `COMPLAINT_SUBMISSION_IDEMPOTENCY_CONFLICT`
+- `COMPLAINT_ROUTING_DECISION_NOT_FOUND`
+- `COMPLAINT_ROUTING_ACTOR_MISMATCH`
+- `COMPLAINT_ROUTING_REQUEST_MISMATCH`
+- `COMPLAINT_ROUTING_STATUS_MISMATCH`
+- `COMPLAINT_ROUTING_CATEGORY_MISMATCH`
+- `COMPLAINT_ROUTING_ASSET_MISMATCH`
+- `COMPLAINT_ROUTING_LOCATION_MISMATCH`
+- `COMPLAINT_ROUTING_ACCURACY_MISMATCH`
+- `COMPLAINT_ROUTING_CAPTURE_TIME_MISMATCH`
+- `COMPLAINT_ROUTING_EVIDENCE_MISMATCH`
 - `COMPLAINT_DUPLICATE`
 - `INVALID_STATUS_TRANSITION`
 - `MEDIA_UPLOAD_FAILED`
@@ -270,7 +287,8 @@ GET    /api/v1/complaints/:complaintId/timeline
 Phase 5 adds the authenticated, scope-aware government queue, detail, assignment and workflow
 surface documented below. Phase 6 adds the private message and durable in-app notification routes.
 Phase 8 adds anonymous reviewed-transparency reads, and Phase 9 adds government-scoped SLA/KPI
-accountability reads. Public comments, governance administration, and human review/publication HTTP
+accountability reads. The later community slice adds authenticated support/star state over current
+reviewed projections. Public comments, governance administration, and human review/publication HTTP
 routes remain later-phase contracts.
 
 ```text
@@ -284,6 +302,8 @@ GET /api/v1/transparency/complaints
 GET /api/v1/transparency/wards
 GET /api/v1/transparency/hotspots
 GET /api/v1/transparency/complaints/:publicId
+POST /api/v1/transparency/engagements/lookup
+PUT  /api/v1/transparency/complaints/:publicId/engagement
 
 GET /api/v1/government/accountability/complaints/:complaintId/sla
 GET /api/v1/government/accountability/kpis
@@ -407,9 +427,10 @@ location-specific routing check; it does not promise that every coordinate has a
 When the separately reviewed BMC non-production seeds `50`–`53` are applied, the operational list
 returns only `garbage_dump`, `missed_sweeping`, and `mosquito_breeding`, while the catalog still
 shows the other nine categories as unavailable. Their 66 direct rules cover 22 one-to-one BMC
-wards. The other nine pilot categories remain unselectable because their required asset
-inventory/ownership evidence is not present; split K/P wards also have no executable route. No
-managed environment or external BMC delivery is implied by those repository seed files.
+wards. The other nine pilot categories remain unselectable; their canonical BMC routing references
+all require reviewed asset ownership that is not present, and split K/P wards also have no
+executable route. A current hosted smoke confirms the same 12/3 category projection and a K/W Ward
+route, but external BMC delivery is still disabled.
 
 ### Nearby Routing Assets
 
@@ -743,6 +764,16 @@ exact point, accuracy, and capture time can be committed. Unsupported locations 
 dependency failures retain `DEPENDENCY_UNAVAILABLE` so clients do not mislabel every service
 failure as a routing-data gap.
 
+The API validates candidate hierarchy evidence and requires its exact boundary-version vector to
+match the independently verified PostGIS jurisdiction. Candidate explanation metadata does not
+need to duplicate boundary evidence already established by that jurisdiction result. Submission
+then compares the stored routing decision to the claimed draft at the canonical database gate. An
+exact mismatch returns one allow-listed marker for actor, request, routed status, category, asset,
+point, accuracy, capture time, or missing decision; it does not relax equality or expose the
+differing value. These markers use the normal conflict envelope. Unavailable dependencies retain a
+safe operation name and request reference in structured server logs without including provider
+messages, coordinates, descriptions, tokens, object paths, or contacts.
+
 The database atomically creates the private complaint, server-derived initial assignment, first
 status-history event, terminal draft transition, and stored response. An exact actor/key/body retry
 returns the original receipt; conflicting reuse returns
@@ -754,6 +785,11 @@ The mobile client keeps the same submission key for an ambiguous network retry. 
 after a successful draft/category/location/asset/media/duplicate mutation, or after an explicit
 terminal route-unavailable/unsupported-area response, so a later reviewed routing-data activation
 cannot replay a stale no-route decision.
+
+The mobile client also serializes every complaint mutation. Category, details, location, asset,
+media, duplicate, discard, and submit operations cannot overlap, and repeated submit taps share one
+in-flight promise. PostgreSQL idempotency remains authoritative if a transport retry reaches the
+server more than once.
 
 ### Complaint Tracking
 
@@ -861,14 +897,35 @@ mutation to the current server response plus a fresh idempotency key. When the c
 requires new location-bound evidence, web reopening stays unavailable and directs the owner to the
 mobile capture flow; it does not submit an evidence-free workaround.
 
-### Other Planned Complaint Actions
+### Reviewed-Public Community Engagement
 
 ```text
-POST /api/v1/complaints/:complaintId/follow
-DELETE /api/v1/complaints/:complaintId/follow
-POST /api/v1/complaints/:complaintId/support
-POST /api/v1/complaints/:complaintId/comments
+POST /api/v1/transparency/engagements/lookup
+PUT  /api/v1/transparency/complaints/:publicId/engagement
 ```
+
+Both routes require a verified bearer session and active application profile. Lookup accepts 1–100
+unique current public IDs and returns the current account's private flags plus the public aggregate:
+
+```json
+{
+  "publicId": "uuid",
+  "supportCount": 12,
+  "supported": true,
+  "starred": false
+}
+```
+
+Mutation accepts exactly `{ "supported": boolean, "starred": boolean }` and idempotently sets the
+one row for that account and current reviewed public projection. The API derives the actor from the
+session; bodies cannot name a user or private complaint. A withdrawn/unpublished projection is not
+engageable. `supportCount` is public aggregate output, while `supported` and `starred` are private
+to the current account and use `Cache-Control: no-store`. Separate PostgreSQL-backed read/mutation
+quotas apply.
+
+Support and stars never update official routing, assignment, status, escalation, SLA, or KPI state.
+There is no comment endpoint, public supporter list, public avatar, engagement notification, or
+automatic government-priority effect in this slice.
 
 ### Public Nearby and Transparency
 
@@ -885,8 +942,14 @@ strict category, public-status, date, cursor, and result-limit filters where app
 honor the approved policy's minimum cohort, and boundaries include only current verified,
 non-placeholder, routing-eligible ward geometry associated with public output.
 
+The complaint list accepts `sort=recent|trending` and defaults to `recent`. Trending orders only
+current reviewed projections inside the requested viewport by aggregate support, then publication
+time and public ID. Because support counts are live, a later cursor page is not a frozen ranking
+snapshot and may shift as accounts change support.
+
 Responses contain only stable public identifiers, sanitized public text, category/status labels,
-already-approximate coordinates, public timestamps, safe aggregate counts, and explicitly published
+already-approximate coordinates, public timestamps, the aggregate `supportCount`, other safe
+aggregate counts, and explicitly published
 duplicate-group relationships. They contain no citizen identifiers, private complaint IDs/numbers,
 exact coordinates, descriptions, originals, object paths, hashes, internal notes, contacts,
 reviewer identities, or private routing/moderation evidence. The API returns empty lists or `404`
@@ -894,11 +957,12 @@ when no current reviewed projection exists; it never falls back to private sourc
 are non-cacheable initially so an audited withdrawal takes effect without an application-cache
 invalidation dependency.
 
-The mobile locality Feed consumes the reviewed complaint list, and its provider-neutral Heatmap
-consumes only the minimum-cohort hotspot aggregates. Neither mobile view queries the private
+The mobile Local and Trending views consume the reviewed complaint list, while the provider-neutral
+Heat view consumes only minimum-cohort hotspot aggregates. Neither surface queries private
 complaint tables, reconstructs exact locations, or requires a third-party map-tile provider. An
 empty or unavailable reviewed projection remains an explicit empty/unavailable state rather than a
-fallback to private reports.
+fallback to private reports. Authenticated support/star controls use the separate no-store routes
+above and do not make the anonymous list identity-bearing.
 
 When a current reviewed duplicate group exists, detail adds only:
 
@@ -1120,6 +1184,13 @@ membership, role and audit persistence is atomic in PostgreSQL. Authentication a
 membership or a scoped role, and each official must accept the invitation and enroll/challenge
 their own authenticator factor.
 
+The synthetic staging-account provisioner is a trusted operator script, not an HTTP endpoint. It
+creates only its fixed non-production account matrix and preassigns expiring roles through the
+existing platform-administrator bootstrap and government-invitation persistence functions. Portal
+password forms operate only on those or other already provisioned identities and cannot invoke the
+provisioner. Production onboarding remains invitation-first, and arbitrary existing-user
+assignment, renewal, additional scope, and revocation remain pending under `AUTH-001`.
+
 ### Planned: Governance Administration
 
 ```text
@@ -1286,11 +1357,14 @@ The following list is the V1 security baseline across endpoint groups.
 
 The canonical Maharashtra/Phase 3 engineering baseline returns zero operational categories. A full
 local reset with the generated BMC non-production pack returns only the three asset-independent
-internal-demo categories across 22 unambiguous wards; nine asset-dependent categories and split K/P
-wards stay unavailable. This does not prove that the pack was applied to hosted Supabase or that an
-internal complaint was delivered to BMC. Hosted RLS/Storage/routing smoke, physical-device capture,
-external-delivery integration, and provider-backed transcription/moderation remain separate
-activation requirements.
+internal-demo categories across 22 unambiguous wards. The other nine categories stay unavailable,
+because reviewed asset ownership evidence is absent; split K/P wards also stay unavailable. A
+current hosted smoke proves the 12-category catalog, three operational categories, finalized
+private media, K/W jurisdiction, and internal routing are present. Final hosted creation remains
+blocked until migration `20260718100000_complaint_routing_evidence_diagnostics.sql` is applied and
+an authenticated submission returns a receipt. It still does not prove delivery to BMC.
+Physical-device capture, external-delivery integration, and provider-backed transcription/
+moderation remain separate activation requirements.
 
 ---
 

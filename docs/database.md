@@ -95,6 +95,17 @@ require a JWT at `aal2`, while the API independently evaluates citizen Phone MFA
 in configurable observe/enforce rollout modes. No application OTP table or Storage-backed OTP
 mechanism exists.
 
+The staging privileged-account helper adds no table, policy, or migration. It creates confirmed
+synthetic identities in `auth.users`, relies on the existing profile trigger, and persists
+authorization through `bootstrap_platform_administrator` and
+`provision_government_invitation`. The resulting `user_roles` and `authority_memberships` records
+have a bounded `effective_until`; current authorization stops when they expire even though the Auth
+identity may still establish an AAL1 session. Generated passwords stay in Supabase Auth and the
+operator's gitignored local `0600` artifact, never in an application table. Synthetic markers and
+expiry hints in Auth user metadata are operational labels only and are never authorization input.
+Automatic Auth-user teardown is not implemented, and this fixed staging matrix does not close the
+existing-user lifecycle gap in `AUTH-001`.
+
 ### Governance
 
 - reference_sources;
@@ -123,6 +134,20 @@ mechanism exists.
 The Phase 2 tables live in an unexposed `governance` schema. `authorities` is the common identity used by access control; typed tables preserve the actual hierarchy. Nullable `lgd_code` fields are distinct from synthetic/source codes, retain leading zeroes as text, and use partial unique indexes only when a real code exists. A local body may cover more than one district through `local_body_districts`.
 
 Every normalized source-backed row points to an immutable import record and, where available, an official reference URL. Verification status, last-verified date, placeholder state, and routing eligibility are separate fields. Database checks make routing eligibility possible only for active, verified, non-placeholder rows. The baseline intentionally creates no named officer, officer assignment, or boundary version because the canonical files contain no safely verified incumbent or geometry.
+
+`governance.import_batches` supports either an exact workbook SHA-256, an exact immutable
+`source_bundle_sha256`, or both; at least one source artifact is mandatory. This avoids describing a
+ZIP research bundle as a workbook while keeping every earlier workbook-backed import valid. Import
+batch identity/source hashes and the file/record ledger remain immutable and platform-admin-only
+under forced RLS.
+
+The 2026-07-18 Maharashtra Batch 0 source bundle is recorded as one bundle plus all 28 members and
+160 CSV records. It registers 38 canonical official-source URLs, enriches the existing Maharashtra
+state with LGD `27`, and fills LGD codes on 35 exact existing district-name matches without changing
+their verification, provenance, placeholder, or routing fields. `Mumbai`/LGD `482` is retained as a
+reference-only import record because the canonical table uses `Mumbai City` and no reviewed alias
+crosswalk was supplied. The batch creates no new authority, district, local body, ward, geometry,
+contact, officer, assignment, asset, routing rule, synchronization endpoint, or public projection.
 
 The machine validation report includes a per-file outcome matrix instead of only aggregate issue
 counts. For the current 901 canonical rows, it records 41 accepted, 691 unverified, 169 quarantined,
@@ -263,6 +288,16 @@ completed response. An exact retry returns the existing complaint; conflicting a
 reuse fails closed. Complaint numbers are generated server-side in UTC as
 `LW-YYYYMMDD-<sequence>`.
 
+Migration `20260718100000_complaint_routing_evidence_diagnostics.sql` forward-fixes hosted
+submission-function drift without changing these tables. The internal
+`complaints.complaint_routing_evidence_mismatches` function compares the claimed actor/request and
+draft category/asset/location evidence with the stored routing decision. The protected
+`complaints.complete_complaint_submission_v2` implementation invokes that comparison at the
+canonical point after prerequisite draft, location, category, emergency, and duplicate validation,
+then preserves the original atomic complaint/assignment/history/replay transaction. Neither
+internal function is executable by `anon`, `authenticated`, or `service_role`; only the public
+submission wrapper retains service-role execute access.
+
 Media reservations bind an owner, draft, client media identifier, kind/source, private bucket,
 opaque object path, declared MIME type/size/checksum, optional capture-location evidence, and expiry.
 Finalization records observed MIME type/size and a server-verified SHA-256 only after the API has
@@ -280,8 +315,9 @@ boundary.
 Duplicate checks select exactly one current verified, non-placeholder, routing-eligible policy;
 use PostGIS distance, time, category, text similarity, media hashes, and asset evidence; cap the
 candidate set; and retain the scored advisory result. They never merge or automatically reject a
-complaint. Future supporters and public complaint visibility require later migrations; Phase 7
-adds private feedback and reopening through the server boundary described below.
+complaint. Phase 8 later adds separately reviewed public projections plus account-bound support and
+private star/follow state; neither reads nor mutates this private duplicate evidence. Phase 7 adds
+private feedback and reopening through the server boundary described below.
 
 Phase 5 extends the same private schema with:
 
@@ -669,9 +705,11 @@ select * from public.resolve_routing_candidates(
 The candidate function returns state/district/taluka/local-body/ward identifiers and exact boundary
 versions, asset/ownership versions and match distance, target identifiers, confidence weights,
 signals, priorities, and fallback evidence. It deterministically caps output at 100 rows. It never
-treats an unresolved Phase 2 routing reference as an operational rule. The API requires every row's
-hierarchy and five-entry boundary vector to equal the separately resolved jurisdiction and fails
-closed when applicable rows carry conflicting policy versions.
+treats an unresolved Phase 2 routing reference as an operational rule. The API requires verified
+hierarchy evidence and every row's five-entry boundary vector to equal the separately resolved
+jurisdiction. Boundary provenance is validated by that independent PostGIS result and exact version
+equality rather than requiring duplicate boundary entries in candidate explanation metadata.
+Applicable rows with conflicting policy versions still fail closed.
 
 Phase 4 adds service-role-only complaint wrappers for owner-scoped draft lifecycle, exact-location
 evidence, media reservation/finalization, duplicate candidate/result records, submission claim,
@@ -709,10 +747,10 @@ supabase db push
 
 ### Master bootstrap SQL
 
-`supabase/master.sql` is the deterministic, single-file clean-bootstrap form of all 42 ordered SQL
+`supabase/master.sql` is the deterministic, single-file clean-bootstrap form of all 45 ordered SQL
 files in `supabase/migrations/`. The two smaller files provide adaptive Dashboard reconciliation for
 an existing database created from an earlier Local Wellness master. Part 1 contains migrations
-1–23 through the complete Phase 5 schema/security boundary; Part 2 contains migrations 24–42.
+1–23 through the complete Phase 5 schema/security boundary; Part 2 contains migrations 24–45.
 Catalog fingerprints detect a coherent completed prefix, whole completed migrations are skipped,
 and only exact missing immutable source migrations execute. Each part is one transaction protected
 by an advisory transaction lock. Partial or non-contiguous fingerprints fail before later SQL runs.
@@ -727,6 +765,22 @@ earlier Local Wellness migration prefix. Do not weaken a fingerprint failure wit
 Executing SQL in the Dashboard does not register source versions in
 `supabase_migrations.schema_migrations`, so operators must reconcile the ledger before a later CLI
 push even after a successful Dashboard upgrade.
+
+For the current hosted target, a smaller deterministic artifact exists at
+`supabase/deploy/current-session/01_migrations_39_through_43.sql`. It is exactly 77,849 bytes and is
+valid only when migration 38 (`20260716115000_phase_10_profile_images.sql`) is complete. One
+advisory-locked transaction fingerprints migrations 39–43, skips a coherent completed prefix,
+executes exact missing source bytes in order, and verifies migration 43 plus
+`public.api_readiness_check()` before commit. It changes neither the official migration ledger nor
+seed data. A baseline, partial, or non-contiguous error is a stop condition; reconcile the target or
+use the two adaptive master parts when their coherent-prefix contract applies.
+
+That compact artifact intentionally ends at migration 43. A current target with the BMC routing
+data already present must run the complete additive
+`supabase/migrations/20260718100000_complaint_routing_evidence_diagnostics.sql` separately through
+the SQL Editor when direct database access is unavailable. The file uses deterministic function
+replacement and is safe to rerun after a complete successful execution. It does not load or modify
+BMC seed data and does not repair the official migration ledger.
 
 ---
 
@@ -887,7 +941,10 @@ Phase 8 enables and forces RLS on every transparency policy/review/projection/du
 table and revokes direct table access from all Data API roles, including `service_role`. Only
 reviewed service-role functions may publish, withdraw, review/withdraw duplicate groups, or return
 bounded public projections. Anonymous HTTP requests terminate at NestJS; `anon` receives no direct
-database execute surface.
+database execute surface. The later `public_complaint_engagements` table uses the same forced-RLS
+and direct-ACL denial. Only narrow service-role functions may list or set the authenticated actor's
+current state; public reads receive aggregate support counts and never supporter identities or
+another account's private star/follow flag.
 
 Phase 9 enables and forces RLS on all 19 SLA, escalation, and KPI tables and continues the schema-
 wide direct-table denial, including for `service_role`. Platform-admin publication and trusted
@@ -1118,8 +1175,18 @@ production deployment was created by that database operation.
 
 The owner later switched the configured staging target and reports applying a generated master SQL
 file. The exact artifact revision and current target ledger were not independently verified, so the
-historical deployment above must not be treated as evidence for the replacement project. Reconcile
-that target against all 42 current migrations through `20260716119000` before activation.
+historical deployment above must not be treated as ledger evidence for the replacement project.
+Reconcile that target against all 45 current migrations through `20260718110000` before a managed
+release.
+
+An earlier read-only hosted audit found `api_readiness_check()` healthy and all five required
+private Storage buckets present but returned zero category projections and no tested BMC governing
+body. That data observation is superseded: a later clean authenticated smoke returned 12 catalog
+categories, three operational categories, finalized private media, verified K/W jurisdiction, and
+one deterministic mosquito-breeding route. The final hosted submission still failed at the stored
+routing-evidence completion gate. The same complete flow returns `201` against local Supabase after
+migration `20260718100000`, so hosted staging needs that additive repair and a post-migration smoke;
+it does not need its BMC seeds reloaded merely to fix submission.
 
 ## Phase 8 Public Projection Model
 
@@ -1148,11 +1215,26 @@ review/withdrawal, and bounded public projection, hotspot, verified-boundary, an
 NestJS is the anonymous HTTP trust boundary; Supabase Data API roles receive no direct Phase 8
 execute surface. No transparency policy, publication, duplicate group, or derivative is seeded.
 
+Migration `20260717100000_public_complaint_engagements.sql` adds one private
+`public_complaint_engagements` row per complaint/account with independent support and follow/star
+flags. Its composite primary key limits one account to one support state for a complaint. Public
+projection payloads expose only `supportCount`; an authenticated active account may retrieve or set
+only its own `supported` and `starred` flags through bounded service-only functions. Both functions
+resolve current reviewed projections, so withdrawal removes the current engagement surface without
+deleting retained private history. The public feed can order the same bounded viewport by `recent`
+or live aggregate `trending`; mutable counts mean cursor pages are not a frozen ranking snapshot.
+No engagement field is referenced by routing, assignment, workflow status, escalation, SLA, or KPI
+tables.
+
 Phase 8 is delivered by additive migrations `20260716102000_phase_8_transparency_schema.sql`,
 `20260716103000_phase_8_transparency_security_and_rpc.sql`,
 `20260716105000_phase_8_transparency_rpc_and_acl_forward_fix.sql`, and
-`20260716106000_phase_8_duplicate_group_publication.sql`. The focused transparency pgTAP run passed
-91 assertions across plans 029–030; the root session owns the final aggregate repository result.
+`20260716106000_phase_8_duplicate_group_publication.sql`, with the later engagement migration
+`20260717100000_public_complaint_engagements.sql`. The focused transparency pgTAP run passed
+120 assertions across plans 029, 030, and 044, including rollback-isolated engagement behavior and
+schema/ACL coverage. The clean local 43-migration reset, generated-type check, schema lint, and all
+1,542 assertions across 44 pgTAP plans passed. No managed environment, visibility policy, or public
+projection was activated by this verification.
 
 ## Phase 9 SLA, Escalation, and KPI Model
 
@@ -1229,11 +1311,20 @@ Two additive post-Phase-10 migrations extend the current database:
 - `20260716119000_government_invitation_scope_options.sql` adds the service-role-only
   `public.list_government_invitation_options(uuid[])` projection used by the Admin Console.
 
+Three later product/hardening/import migrations complete the current cutoff:
+
+- `20260717100000_public_complaint_engagements.sql` adds account-bound reviewed-public support and
+  private star state;
+- `20260718100000_complaint_routing_evidence_diagnostics.sql` adds exact granular routing-evidence
+  diagnostics and a protected canonical V2 complaint completion implementation;
+- `20260718110000_governance_source_bundle_imports.sql` adds exact ZIP source-bundle provenance
+  without fabricating a workbook hash and requires at least one exact source artifact per import.
+
 The invitation projection returns only active, verified, non-placeholder, routing-eligible
 authorities, wards, and authority departments. `anon` and `authenticated` cannot execute it; the
 trusted API supplies the caller-authorized authority filter and strictly decodes the result.
 
-The current repository cutoff is 42 ordered migrations through `20260716119000`. Plans 033–039
+The current repository cutoff is 45 ordered migrations through `20260718110000`. Plans 033–039
 define 124 assertions for quota/readiness ACLs and behavior, privileged and citizen-factor MFA,
 private profile-image metadata/Storage policies, the 50-metre location/media invariant, and the
 queue-versus-contact readiness boundary. Existing routing and government-workflow plans also assert
@@ -1248,21 +1339,45 @@ applied in order: `50_bmc_demo_governance.generated.sql`,
 `51_bmc_demo_governance_checksum.generated.sql`, `52_bmc_demo_routing.generated.sql`, and
 `53_bmc_demo_routing_verification.generated.sql`.
 
+For an existing current Local Wellness schema whose seed rows are absent, the generated
+`supabase/deploy/bmc-mobile-demo/` directory repackages that data into four SQL Editor-sized,
+transaction-atomic parts: baseline categories/core, official boundaries, ward crosswalk/governance
+verification, and routing activation/verification. It does not alter the canonical Maharashtra
+inputs, hide a partial schema, populate the migration ledger, or approve external delivery.
+The schema must first be complete through migration 43: use the compact current-session bundle only
+from a verified migration-38 baseline, or stop/reconcile and use the adaptive master parts as
+appropriate before running BMC parts 01–04.
+
 The routing activation makes only `garbage_dump`, `missed_sweeping`, and `mosquito_breeding`
 operational. One confidence-policy version, three category-specific duplicate-policy versions, and
 66 immutable direct route-rule versions cover exactly 22 one-to-one ward/category combinations.
 Rules target the source-backed BMC authority, appropriate department, durable Ward Assistant
 Commissioner role, and matching ward office without inventing assets or fallback chains. The other
-nine categories remain draft/unverified/non-routable until verified asset inventories and ownership
-exist. Split `K/S`, `K/N`, `P/E`, and `P/W` units and legacy K/P boundary anchors remain excluded.
+nine categories remain draft/unverified/non-routable; their canonical BMC references all require
+verified asset inventories and ownership. Split `K/S`, `K/N`, `P/E`, and `P/W` units and legacy K/P
+boundary anchors remain excluded.
 No complaint-intake contact is delivery-approved, so verified internal routing does not claim that
 Local Wellness lodged a complaint in BMC's official grievance system.
 
-A clean local reset applied all 42 migrations and reviewed seeds. All 1,513 assertions across 43
+The prior clean local reset applied all 42 migrations and reviewed seeds. All 1,513 assertions across 43
 pgTAP plans passed, including the 20-assertion BMC internal-routing activation plan and the
-nine-assertion invitation-options plan. Generated database types and the 42-migration master
+nine-assertion invitation-options plan. At that historical cutoff, generated database types and the 42-migration master
 artifacts were regenerated and passed drift checks. These results are local; they do not show that
 any BMC seed or route exists in a managed Supabase project.
+
+The compact current-session artifact was separately exercised against a local database stopped at
+migration 38. It applied migrations 39–43 successfully in one transaction, and an immediate second
+execution safely detected and skipped all five completed migrations. Focused plans 038, 039, 040,
+042, and 044 then passed 90 pgTAP assertions covering the five upgraded migrations. This does
+not claim a hosted execution; the separate full 43-migration aggregate result is recorded above.
+
+The additive migration-44 verification adds rollback-isolated plan
+`045_bmc_complaint_submission_integration.test.sql`. Its focused run passes 35 assertions covering
+the BMC A-Ward draft/location/media/duplicate/routing/submission path, exact replay, protected V2
+ACL, granular mismatch classification, and internal-only delivery. A separate in-process NestJS
+smoke completes category lookup, draft creation, GPS evidence, duplicate review, routing, and
+submission with `201`. These are local results; hosted staging remains pending until the migration
+is applied and the read-only runtime audit plus authenticated receipt smoke pass.
 
 Required:
 

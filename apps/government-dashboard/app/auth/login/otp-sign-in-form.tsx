@@ -7,11 +7,13 @@ import { buildMfaPath } from '../../../lib/auth/mfa';
 import {
   getGovernmentLoginError,
   requestGovernmentOtp,
+  signInGovernmentWithPassword,
   verifyGovernmentOtp,
 } from '../../../lib/auth/service';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 import { GovernmentAuthorizationNote } from '../government-authorization-note';
 
+type SignInMethod = 'password' | 'verification-email';
 type Step = 'request' | 'verify';
 
 export const OtpSignInForm = ({
@@ -26,9 +28,34 @@ export const OtpSignInForm = ({
       : null,
   );
   const [isPending, setIsPending] = useState(false);
+  const [method, setMethod] = useState<SignInMethod>('password');
   const [normalizedEmail, setNormalizedEmail] = useState('');
   const [otp, setOtp] = useState('');
+  const [password, setPassword] = useState('');
   const [step, setStep] = useState<Step>('request');
+
+  const chooseMethod = (nextMethod: SignInMethod): void => {
+    setMethod(nextMethod);
+    setError(null);
+    setNormalizedEmail('');
+    setOtp('');
+    setPassword('');
+    setStep('request');
+  };
+
+  const signInWithPassword = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    setError(null);
+    setIsPending(true);
+
+    try {
+      await signInGovernmentWithPassword(createBrowserSupabaseClient(), email, password);
+      window.location.assign(buildMfaPath(nextPath));
+    } catch (signInError) {
+      setError(getGovernmentLoginError(signInError));
+      setIsPending(false);
+    }
+  };
 
   const requestCode = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -69,8 +96,8 @@ export const OtpSignInForm = ({
       <p className="eyebrow">Restricted government access</p>
       <h1 id="login-heading">Sign in to the Government Dashboard</h1>
       <p className="lede">
-        Use the exact email address that received your government invitation. This form signs in an
-        existing invited identity; it never creates a government account.
+        Use the exact email address of your existing authorized government identity. This form never
+        creates a government account or grants a role.
       </p>
 
       {accountNotice === null ? null : (
@@ -79,7 +106,75 @@ export const OtpSignInForm = ({
         </p>
       )}
 
-      {step === 'request' ? (
+      <div aria-label="Government sign-in method" className="auth-method-picker" role="group">
+        <button
+          aria-pressed={method === 'password'}
+          className={method === 'password' ? 'auth-method-option selected' : 'auth-method-option'}
+          disabled={isPending}
+          onClick={() => chooseMethod('password')}
+          type="button"
+        >
+          Password
+        </button>
+        <button
+          aria-pressed={method === 'verification-email'}
+          className={
+            method === 'verification-email' ? 'auth-method-option selected' : 'auth-method-option'
+          }
+          disabled={isPending}
+          onClick={() => chooseMethod('verification-email')}
+          type="button"
+        >
+          Email code or link
+        </button>
+      </div>
+
+      {method === 'password' ? (
+        <form
+          aria-busy={isPending}
+          className="stack"
+          onSubmit={(event) => void signInWithPassword(event)}
+        >
+          <label htmlFor="email">Official email address</label>
+          <input
+            autoCapitalize="none"
+            autoComplete="email"
+            disabled={isPending}
+            id="email"
+            inputMode="email"
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+            placeholder="officer@municipality.gov.in"
+            required
+            type="email"
+            value={email}
+          />
+          <label htmlFor="password">Password</label>
+          <input
+            autoComplete="current-password"
+            disabled={isPending}
+            id="password"
+            maxLength={72}
+            minLength={8}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setError(null);
+            }}
+            required
+            type="password"
+            value={password}
+          />
+          <p className="field-hint">
+            This signs in an existing, pre-authorized identity. It never creates a government
+            account or selects a role.
+          </p>
+          <button className="primary-button" disabled={isPending} type="submit">
+            {isPending ? 'Signing in…' : 'Sign in and continue'}
+          </button>
+        </form>
+      ) : step === 'request' ? (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void requestCode(event)}>
           <label htmlFor="email">Official email address</label>
           <input

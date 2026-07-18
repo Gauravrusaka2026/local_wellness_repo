@@ -841,6 +841,32 @@ describe('Supabase routing candidate context', () => {
     );
   });
 
+  it('accepts candidate evidence without duplicate boundary entries after jurisdiction verification', async () => {
+    const jurisdiction = {
+      status: 'resolved' as const,
+      reason: 'verified_jurisdiction_match',
+      matches: [jurisdictionMatch],
+    };
+    const candidateWithoutBoundaryEvidence = {
+      ...candidateRow,
+      explanation_metadata: {
+        ...candidateRow.explanation_metadata,
+        evidence: candidateEvidence.filter(
+          (evidence) => evidence.entityType !== 'jurisdiction_boundary',
+        ),
+      },
+    };
+    const store = createStore(async () => ({
+      data: [candidateWithoutBoundaryEvidence],
+      error: null,
+    }));
+
+    const context = await store.loadRoutingContext(routingInput, jurisdiction);
+
+    assert.equal(context.candidates.length, 1);
+    assert.equal(context.candidates[0]?.target.wardId, identifiers.ward);
+  });
+
   it('rejects candidate rows with incomplete or inconsistent jurisdiction evidence', async () => {
     const jurisdiction = {
       status: 'resolved' as const,
@@ -872,7 +898,7 @@ describe('Supabase routing candidate context', () => {
           explanation_metadata: {
             ...candidateRow.explanation_metadata,
             evidence: candidateEvidence.filter(
-              (evidence) => evidence.entityId !== identifiers.districtBoundary,
+              (evidence) => evidence.entityId !== identifiers.district,
             ),
           },
         },
@@ -1170,7 +1196,7 @@ describe('Supabase routing decision audit', () => {
     }));
     const unavailableStore = createStore(async () => ({
       data: null,
-      error: { message: 'internal database detail' },
+      error: { code: '57014', message: 'internal database detail' },
     }));
     const input = {
       actorUserId: identifiers.actor,
@@ -1188,6 +1214,10 @@ describe('Supabase routing decision audit', () => {
       conflictStore.recordRoutingDecision(input),
       RoutingDecisionIdempotencyConflictError,
     );
-    await assert.rejects(unavailableStore.recordRoutingDecision(input), RoutingDataAccessError);
+    await assert.rejects(
+      unavailableStore.recordRoutingDecision(input),
+      (error: unknown) =>
+        error instanceof RoutingDataAccessError && error.dependencyCode === '57014',
+    );
   });
 });

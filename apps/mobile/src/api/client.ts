@@ -21,7 +21,7 @@ type SuccessEnvelope<T> = Readonly<{
 type ApiRequestOptions = Readonly<{
   accessToken: string;
   body?: unknown;
-  method?: 'GET' | 'PATCH' | 'POST';
+  method?: 'GET' | 'PATCH' | 'POST' | 'PUT';
 }>;
 
 export class ApiError extends Error {

@@ -454,6 +454,13 @@ data-gated. Speech transcription and media-moderation providers, physical-device
 hosted-environment validation remain pending; no hosted application deployment has been performed.
 Redis, BullMQ, and Sentry remain outside the V1 topology.
 
+The reviewed public community layer is deliberately separate from complaint ownership and official
+workflow state. A current reviewed projection may receive one support per active account and an
+account-private star/follow state. Only the aggregate support count is public and may order the
+bounded Trending view; support and stars never change routing, assignment, status, escalation,
+SLA, or KPI evidence. Local and Trending lists plus the aggregate Heat view contain no citizen
+identity, exact location, original media, or unreviewed report. Public comments remain disabled.
+
 ### Routing
 
 - taxonomy;
@@ -470,7 +477,8 @@ engineering fixtures but cannot become an operational route.
 
 ### Communication
 
-- public comments;
+- reviewed-public support counts and private account stars/follows;
+- public comments (planned; disabled pending moderation and privacy policy);
 - complaint conversation rooms;
 - messages;
 - read receipts;

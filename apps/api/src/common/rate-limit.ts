@@ -41,6 +41,18 @@ export const rateLimitPolicies = {
     subject: 'authenticated_user',
     windowSeconds: 60,
   },
+  communityEngagementMutation: {
+    limit: 60,
+    scope: 'community_engagement_mutation',
+    subject: 'authenticated_user',
+    windowSeconds: 60,
+  },
+  communityEngagementRead: {
+    limit: 120,
+    scope: 'community_engagement_read',
+    subject: 'authenticated_user',
+    windowSeconds: 60,
+  },
   deviceMutation: {
     limit: 20,
     scope: 'device_mutation',

@@ -82,7 +82,10 @@ describe('Supabase operational stores', () => {
       })),
     );
     const failedStore = new SupabaseRateLimitStore(
-      clientsWithRpc(async () => ({ data: null, error: { message: 'sensitive detail' } })),
+      clientsWithRpc(async () => ({
+        data: null,
+        error: { code: 'PGRST202', message: 'sensitive detail' },
+      })),
     );
     const input = {
       limit: 10,
@@ -92,6 +95,10 @@ describe('Supabase operational stores', () => {
     };
 
     await assert.rejects(malformedStore.consume(input), RateLimitDataAccessError);
-    await assert.rejects(failedStore.consume(input), RateLimitDataAccessError);
+    await assert.rejects(
+      failedStore.consume(input),
+      (error: unknown) =>
+        error instanceof RateLimitDataAccessError && error.dependencyCode === 'PGRST202',
+    );
   });
 });

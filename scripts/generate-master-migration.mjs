@@ -18,6 +18,11 @@ const relation = (qualifiedName) =>
   `pg_temp.local_wellness_relation_exists(${sqlString(qualifiedName)})`;
 const functionNamed = (schema, name) =>
   `pg_temp.local_wellness_function_exists(${sqlString(schema)}, ${sqlString(name)})`;
+const procedure = (signature) => `pg_temp.local_wellness_procedure_exists(${sqlString(signature)})`;
+const functionDefinitionContains = (signature, fragment) =>
+  `pg_catalog.position(${sqlString(fragment)} in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure(${sqlString(signature)}))) > 0`;
+const functionExecutePrivilege = (role, signature) =>
+  `pg_temp.local_wellness_function_execute_privilege(${sqlString(role)}, ${sqlString(signature)})`;
 const policy = (schema, table, name) =>
   `pg_temp.local_wellness_policy_exists(${sqlString(schema)}, ${sqlString(table)}, ${sqlString(name)})`;
 const trigger = (schema, table, name) =>
@@ -308,6 +313,17 @@ const fingerprintDefinitions = new Map([
         functionNamed('public', 'perform_government_complaint_action'),
         functionNamed('public', 'reserve_government_resolution_evidence'),
         functionNamed('public', 'fail_government_resolution_evidence'),
+        procedure('public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)'),
+        procedure('public.submit_complaint_phase4_impl(uuid,uuid,uuid,uuid[],boolean)'),
+        functionExecutePrivilege(
+          'service_role',
+          'public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)',
+        ),
+        trigger(
+          'complaints',
+          'complaint_assignments',
+          'complaint_assignments_validate_version_mutation',
+        ),
         privateBucket('resolution-evidence-private'),
       ),
     },
@@ -332,6 +348,14 @@ const fingerprintDefinitions = new Map([
         functionNamed('public', 'authorize_realtime_room'),
         functionNamed('public', 'list_notifications'),
         functionNamed('public', 'fail_notification_delivery'),
+        trigger('complaints', 'complaints', 'complaints_ensure_conversation'),
+        trigger(
+          'complaints',
+          'complaint_status_history',
+          'complaint_status_history_submission_outbox',
+        ),
+        trigger('complaints', 'complaint_assignments', 'complaint_assignments_assignment_outbox'),
+        trigger('complaints', 'notification_outbox', 'notification_outbox_create_job'),
       ),
     },
   ],
@@ -424,6 +448,8 @@ const fingerprintDefinitions = new Map([
       complete: all(
         functionNamed('public', 'get_government_complaint_sla'),
         functionNamed('public', 'list_government_kpi_snapshots'),
+        trigger('complaints', 'complaint_assignments', 'complaint_assignments_initialize_sla'),
+        trigger('complaints', 'complaint_status_history', 'complaint_status_history_apply_sla'),
         forcedRls('complaints.kpi_snapshots'),
       ),
     },
@@ -532,6 +558,50 @@ const fingerprintDefinitions = new Map([
     {
       present: functionNamed('public', 'list_government_invitation_options'),
       complete: functionNamed('public', 'list_government_invitation_options'),
+    },
+  ],
+  [
+    '20260717100000_public_complaint_engagements.sql',
+    {
+      present: relation('complaints.public_complaint_engagements'),
+      complete: all(
+        relation('complaints.public_complaint_engagements'),
+        forcedRls('complaints.public_complaint_engagements'),
+        functionNamed('complaints', 'public_complaint_support_count'),
+        functionNamed('public', 'list_public_complaint_feed'),
+        functionNamed('public', 'list_public_complaint_engagements'),
+        functionNamed('public', 'set_public_complaint_engagement'),
+      ),
+    },
+  ],
+  [
+    '20260718100000_complaint_routing_evidence_diagnostics.sql',
+    {
+      present: functionNamed('complaints', 'complete_complaint_submission_v2'),
+      complete: all(
+        functionNamed('complaints', 'complaint_routing_evidence_mismatches'),
+        functionNamed('complaints', 'complete_complaint_submission_v2'),
+        procedure('public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)'),
+        functionDefinitionContains(
+          'public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)',
+          'complaints.complete_complaint_submission_v2(',
+        ),
+        functionExecutePrivilege(
+          'service_role',
+          'public.submit_complaint(uuid,uuid,uuid,uuid[],boolean)',
+        ),
+      ),
+    },
+  ],
+  [
+    '20260718110000_governance_source_bundle_imports.sql',
+    {
+      present: column('governance', 'import_batches', 'source_bundle_sha256'),
+      complete: all(
+        column('governance', 'import_batches', 'source_bundle_sha256'),
+        constraint('governance', 'import_batches', 'import_batches_source_bundle_sha256_check'),
+        constraint('governance', 'import_batches', 'import_batches_source_artifact_check'),
+      ),
     },
   ],
 ]);
@@ -664,6 +734,30 @@ as $helper$
     where namespace.nspname = p_schema_name
       and procedure.proname = p_function_name
   );
+$helper$;
+
+create or replace function pg_temp.local_wellness_procedure_exists(p_signature text)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $helper$
+  select pg_catalog.to_regprocedure(p_signature) is not null;
+$helper$;
+
+create or replace function pg_temp.local_wellness_function_execute_privilege(
+  p_role_name text,
+  p_signature text
+)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $helper$
+  select case
+    when pg_catalog.to_regprocedure(p_signature) is null then false
+    else pg_catalog.has_function_privilege(p_role_name, p_signature, 'EXECUTE')
+  end;
 $helper$;
 
 create or replace function pg_temp.local_wellness_policy_exists(

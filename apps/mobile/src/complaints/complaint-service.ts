@@ -337,6 +337,19 @@ const terminalSubmissionRoutingErrorCodes = new Set([
   'COMPLAINT_UNSUPPORTED_AREA',
 ]);
 
+const routingEvidenceMismatchCodes = new Set([
+  'COMPLAINT_ROUTING_ACCURACY_MISMATCH',
+  'COMPLAINT_ROUTING_ACTOR_MISMATCH',
+  'COMPLAINT_ROUTING_ASSET_MISMATCH',
+  'COMPLAINT_ROUTING_CAPTURE_TIME_MISMATCH',
+  'COMPLAINT_ROUTING_CATEGORY_MISMATCH',
+  'COMPLAINT_ROUTING_DECISION_NOT_FOUND',
+  'COMPLAINT_ROUTING_EVIDENCE_MISMATCH',
+  'COMPLAINT_ROUTING_LOCATION_MISMATCH',
+  'COMPLAINT_ROUTING_REQUEST_MISMATCH',
+  'COMPLAINT_ROUTING_STATUS_MISMATCH',
+]);
+
 export const shouldRotateSubmitIdempotencyKeyAfterError = (error: unknown): boolean =>
   error instanceof ApiClientError && terminalSubmissionRoutingErrorCodes.has(error.code);
 
@@ -354,7 +367,9 @@ export const getUserFacingComplaintError = (error: unknown): string => {
       return 'Verified routing is not available for this category and location yet.';
     }
     if (error.code === 'DEPENDENCY_UNAVAILABLE') {
-      return 'Local Wellness is temporarily unavailable. Please try again shortly.';
+      return `Local Wellness is temporarily unavailable. Please try again shortly.${
+        error.requestId === null ? '' : ` Reference: ${error.requestId}.`
+      }`;
     }
     if (
       error.code === 'LOCATION_LOW_ACCURACY' ||
@@ -375,6 +390,9 @@ export const getUserFacingComplaintError = (error: unknown): string => {
     }
     if (error.code === 'COMPLAINT_CATEGORY_NOT_ROUTABLE') {
       return 'This category is not currently verified for complaint routing.';
+    }
+    if (routingEvidenceMismatchCodes.has(error.code)) {
+      return 'Your saved report changed while routing was verified. Refresh the report and submit it again.';
     }
     if (
       error.code === 'COMPLAINT_DUPLICATE_POLICY_NOT_FOUND' ||

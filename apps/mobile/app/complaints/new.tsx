@@ -15,25 +15,17 @@ import {
 import { useAuth } from '../../src/auth/auth-context';
 import { ComplaintCameraCapture } from '../../src/complaints/camera-capture';
 import {
+  complaintSubmissionBlockerMessages,
+  getComplaintSubmissionBlockers,
   getDraftReadiness,
   getLocationRecaptureGuidance,
   getSelectedCategory,
+  hasUnsavedComplaintDetails,
   isLocationEvidenceEligible,
 } from '../../src/complaints/capture-state';
 import { useComplaintCapture } from '../../src/complaints/complaint-context';
 import { ComplaintVoiceCapture } from '../../src/complaints/voice-capture';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
-
-const stepLabels = {
-  details: 'Issue details',
-  duplicates: 'Similar reports',
-  location: 'Verify location',
-  media: 'Capture evidence',
-  review: 'Review and submit',
-  submitted: 'Receipt',
-} as const;
-
-const orderedSteps = ['details', 'location', 'media', 'duplicates', 'review', 'submitted'] as const;
 
 export default function NewComplaintScreen() {
   const auth = useAuth();
@@ -88,8 +80,6 @@ export default function NewComplaintScreen() {
   const locationEligible = isLocationEvidenceEligible(draft.location);
   const selectedAsset =
     capture.state.assetOptions.find((asset) => asset.id === draft.assetId) ?? null;
-  const stepNumber = orderedSteps.indexOf(capture.state.step) + 1;
-  const progressWidth = `${Math.round((stepNumber / orderedSteps.length) * 100)}%` as const;
   const finalizedEvidenceCount = draft.media.filter(
     (media) =>
       media.uploadStatus === 'finalized' &&
@@ -97,11 +87,35 @@ export default function NewComplaintScreen() {
   ).length;
   const minimumMediaCount = category?.minimumMediaCount ?? 1;
   const maximumMediaCount = category?.maximumMediaCount ?? 20;
+  const hasUnsavedDetails = hasUnsavedComplaintDetails(draft, {
+    customAttributes,
+    description,
+  });
+  const hasSelectedRequiredAsset = category?.requiresAsset !== true || selectedAsset !== null;
+  const canCheckDuplicates =
+    readiness.isReady &&
+    !hasUnsavedDetails &&
+    hasSelectedRequiredAsset &&
+    capture.state.upload === null &&
+    capture.state.isOnline &&
+    !capture.state.isBusy;
+  const submissionBlockers = getComplaintSubmissionBlockers({
+    assetOptions: capture.state.assetOptions,
+    category,
+    draft,
+    duplicateCheck: capture.state.duplicateCheck,
+    duplicatesAcknowledged: capture.state.duplicatesAcknowledged,
+    emergencyAcknowledged: capture.state.emergencyAcknowledged,
+    hasUnsavedDetails,
+    hasVoice,
+    isOnline: capture.state.isOnline,
+    upload: capture.state.upload,
+    voiceDescriptionConfirmed,
+  });
 
   const saveDetails = async (): Promise<void> => {
     try {
       await capture.updateDetails({ customAttributes, description });
-      await capture.goToStep('location');
     } catch {
       // Sanitized errors are rendered from provider state.
     }
@@ -138,30 +152,16 @@ export default function NewComplaintScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.progressHeader}>
-          <View style={styles.progressCopy}>
-            <Text style={styles.stepLabel}>{stepLabels[capture.state.step]}</Text>
-            <Text style={styles.stepCount}>
-              Step {stepNumber} of {orderedSteps.length}
-            </Text>
-          </View>
-          <View
-            accessibilityLabel="Complaint progress"
-            accessibilityRole="progressbar"
-            accessibilityValue={{
-              max: orderedSteps.length,
-              min: 1,
-              now: stepNumber,
-              text: `${stepLabels[capture.state.step]}, step ${stepNumber} of ${orderedSteps.length}`,
-            }}
-            style={styles.progressTrack}
-          >
-            <View style={[styles.progressFill, { width: progressWidth }]} />
-          </View>
+        <View style={styles.formHeader}>
+          <Text style={styles.eyebrow}>REPORT AN ISSUE</Text>
+          <Text accessibilityRole="header" style={styles.formTitle}>
+            Complete one complaint form
+          </Text>
+          <Text style={styles.help}>Add the issue, location and evidence below.</Text>
         </View>
         {!capture.state.isOnline ? (
           <Text accessibilityRole="alert" style={styles.warning}>
-            You are offline. Your server draft reference is saved, but this step needs a connection.
+            You are offline. Reconnect to save or submit.
           </Text>
         ) : null}
         {capture.state.error === null ? null : (
@@ -180,436 +180,15 @@ export default function NewComplaintScreen() {
             ) : null}
           </View>
         )}
-
-        {capture.state.step === 'details' ? (
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={styles.title}>
-              What needs attention?
-            </Text>
-            <Text style={styles.help}>
-              All configured issue categories are listed. Only categories with verified routing can
-              be selected and submitted.
-            </Text>
-            {capture.state.categories.length === 0 ? (
-              <View style={styles.options}>
-                <Text accessibilityRole="alert" style={styles.warning}>
-                  No non-placeholder category definitions are available. Placeholder categories are
-                  never shown or offered for submission.
-                </Text>
-                <SecondaryAction
-                  label="Check for available categories"
-                  onPress={() => void capture.reloadCategories().catch(() => undefined)}
-                />
-              </View>
-            ) : (
-              <View style={styles.options}>
-                {capture.state.categories.map((candidate) => {
-                  const isAvailable = candidate.submissionAvailability === 'available';
-                  return (
-                    <Pressable
-                      accessibilityHint={
-                        isAvailable
-                          ? 'Select this category for the complaint'
-                          : 'This category cannot be selected until verified routing is available'
-                      }
-                      accessibilityRole="radio"
-                      accessibilityState={{
-                        checked: draft.categoryId === candidate.id,
-                        disabled: !isAvailable || capture.state.isBusy,
-                      }}
-                      disabled={!isAvailable || capture.state.isBusy}
-                      key={candidate.id}
-                      onPress={() => {
-                        if (candidate.id === draft.categoryId) return;
-                        setAttributeEdit({ draftId: draft.id, values: {} });
-                        void capture
-                          .updateDetails({ categoryId: candidate.id, customAttributes: {} })
-                          .catch(() => undefined);
-                      }}
-                      style={[
-                        styles.option,
-                        !isAvailable && styles.optionUnavailable,
-                        draft.categoryId === candidate.id && styles.optionSelected,
-                      ]}
-                    >
-                      <Text style={[styles.optionTitle, !isAvailable && styles.unavailableText]}>
-                        {candidate.name}
-                      </Text>
-                      {candidate.description === null ? null : (
-                        <Text style={styles.optionDescription}>{candidate.description}</Text>
-                      )}
-                      {!isAvailable ? (
-                        <Text style={styles.unavailableTag}>
-                          Verified routing not available yet
-                        </Text>
-                      ) : null}
-                      {candidate.isEmergency ? (
-                        <Text style={styles.emergencyTag}>May involve immediate danger</Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-            {capture.state.categories.length > 0 && availableCategoryCount === 0 ? (
-              <Text accessibilityRole="alert" style={styles.warning}>
-                These categories are visible for coverage transparency, but none can be submitted in
-                this environment yet.
-              </Text>
-            ) : null}
-            {category?.requiredAttributes.map((attribute) => (
-              <View key={attribute} style={styles.fieldGroup}>
-                <Text style={styles.label}>{attribute.replaceAll('_', ' ')}</Text>
-                <TextInput
-                  accessibilityLabel={attribute.replaceAll('_', ' ')}
-                  editable={!capture.state.isBusy}
-                  maxLength={500}
-                  onChangeText={(value) =>
-                    setAttributeEdit({
-                      draftId: draft.id,
-                      values: { ...customAttributes, [attribute]: value },
-                    })
-                  }
-                  placeholder={`Enter ${attribute.replaceAll('_', ' ')}`}
-                  style={styles.input}
-                  value={String(customAttributes[attribute] ?? '')}
-                />
-              </View>
-            ))}
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              accessibilityLabel="Complaint description"
-              editable={!capture.state.isBusy}
-              maxLength={4_000}
-              multiline
-              onChangeText={(value) => setDescriptionEdit({ draftId: draft.id, value })}
-              placeholder="Describe what you can see and why it needs attention."
-              style={styles.descriptionInput}
-              textAlignVertical="top"
-              value={description}
-            />
-            <Text style={styles.counter}>{description.trim().length} / 4,000</Text>
-            <PrimaryAction
-              disabled={
-                capture.state.isBusy ||
-                category?.submissionAvailability !== 'available' ||
-                description.trim().length === 0
-              }
-              label="Save and verify location"
-              loading={capture.state.isBusy}
-              onPress={() => void saveDetails()}
-            />
-          </View>
-        ) : null}
-
-        {capture.state.step === 'location' ? (
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={styles.title}>
-              Verify the issue location
-            </Text>
-            <Text style={styles.help}>
-              Capture your current foreground location while you are physically at the issue.
-              Precise coordinates stay private.
-            </Text>
-            {draft.location === null ? (
-              <Text style={styles.muted}>No current location has been accepted.</Text>
-            ) : (
-              <View style={styles.successCard}>
-                <Text style={styles.successTitle}>
-                  {locationEligible ? 'Location evidence accepted' : 'Location needs recapture'}
-                </Text>
-                <Text style={styles.successText}>
-                  Accuracy: {Math.round(draft.location.accuracyMeters)} m · Server status:{' '}
-                  {draft.location.verificationStatus.replaceAll('_', ' ')}
-                </Text>
-              </View>
-            )}
-            {getLocationRecaptureGuidance(draft.location) === null ? null : (
-              <Text accessibilityRole="alert" style={styles.warning}>
-                {getLocationRecaptureGuidance(draft.location)}
-              </Text>
-            )}
-            <PrimaryAction
-              disabled={capture.state.isBusy || !capture.state.isOnline}
-              label={draft.location === null ? 'Capture current location' : 'Capture again'}
-              loading={capture.state.isBusy}
-              onPress={() => void capture.captureLocation().catch(() => undefined)}
-            />
-            {category?.requiresAsset === true && locationEligible ? (
-              <View style={styles.section}>
-                <Text style={styles.label}>Select the affected nearby asset</Text>
-                <Text style={styles.help}>
-                  Only current, verified, routable assets and ownership records are offered.
-                </Text>
-                {capture.state.assetOptions.length === 0 ? (
-                  <Text accessibilityRole="alert" style={styles.warning}>
-                    No verified nearby assets were found. Capture the location again or refresh the
-                    search. This report cannot advance without a verified asset.
-                  </Text>
-                ) : (
-                  <View style={styles.options}>
-                    {capture.state.assetOptions.map((asset) => (
-                      <Pressable
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: selectedAsset?.id === asset.id }}
-                        key={asset.id}
-                        onPress={() => void capture.selectAsset(asset.id).catch(() => undefined)}
-                        style={[
-                          styles.option,
-                          selectedAsset?.id === asset.id && styles.optionSelected,
-                        ]}
-                      >
-                        <Text style={styles.optionTitle}>{asset.displayName}</Text>
-                        <Text style={styles.optionDescription}>
-                          {asset.assetTypeName} · about {Math.round(asset.distanceMeters)} m away
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-                <SecondaryAction
-                  label="Refresh nearby assets"
-                  onPress={() => void capture.loadNearbyAssets().catch(() => undefined)}
-                />
-              </View>
-            ) : null}
-            <SecondaryAction label="Back" onPress={() => void capture.goToStep('details')} />
-            <PrimaryAction
-              disabled={
-                !locationEligible ||
-                (category?.requiresAsset === true && selectedAsset === null) ||
-                capture.state.isBusy
-              }
-              label="Continue to evidence"
-              onPress={() => void capture.goToStep('media')}
-            />
-          </View>
-        ) : null}
-
-        {capture.state.step === 'media' ? (
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={styles.title}>
-              Capture live evidence
-            </Text>
-            <Text style={styles.help}>
-              Originals upload privately. Gallery files are intentionally excluded because this
-              pilot requires live capture evidence.
-            </Text>
-            <View style={styles.requirementCard}>
-              <Text style={styles.requirementTitle}>Evidence requirement</Text>
-              <Text style={styles.requirementText}>
-                {minimumMediaCount === 0
-                  ? `Photo or video evidence is optional; up to ${maximumMediaCount} may be attached.`
-                  : `${minimumMediaCount}–${maximumMediaCount} finalized photo or video ${minimumMediaCount === 1 ? 'item is' : 'items are'} required.`}
-              </Text>
-              {category?.recommendedMediaKinds.length ? (
-                <Text style={styles.requirementText}>
-                  Recommended: {category.recommendedMediaKinds.join(', ')}
-                </Text>
-              ) : null}
-            </View>
-            {isCameraOpen ? (
-              <ComplaintCameraCapture
-                onCancel={() => setIsCameraOpen(false)}
-                onCaptured={capture.uploadMedia}
-              />
-            ) : (
-              <PrimaryAction
-                disabled={
-                  capture.state.upload !== null ||
-                  draft.location === null ||
-                  finalizedEvidenceCount >= maximumMediaCount
-                }
-                label="Open camera"
-                onPress={() => setIsCameraOpen(true)}
-              />
-            )}
-            <ComplaintVoiceCapture
-              disabled={capture.state.upload !== null || draft.location === null}
-              onCaptured={capture.uploadMedia}
-            />
-            {capture.state.upload === null ? null : (
-              <View style={styles.uploadCard}>
-                <Text style={styles.optionTitle}>
-                  Private upload: {capture.state.upload.status}
-                </Text>
-                <Text style={styles.help}>{Math.round(capture.state.upload.progress * 100)}%</Text>
-                {capture.state.upload.status === 'failed' ? (
-                  <SecondaryAction
-                    label="Retry upload"
-                    onPress={() => void capture.retryPendingUpload()}
-                  />
-                ) : null}
-              </View>
-            )}
-            {draft.media.map((media) => (
-              <View key={media.id} style={styles.mediaRow}>
-                <Text style={styles.optionTitle}>{media.metadata.kind}</Text>
-                <Text style={styles.muted}>
-                  {media.uploadStatus} · {media.processingStatus}
-                </Text>
-              </View>
-            ))}
-            <SecondaryAction label="Back" onPress={() => void capture.goToStep('location')} />
-            <PrimaryAction
-              disabled={
-                finalizedEvidenceCount < minimumMediaCount ||
-                finalizedEvidenceCount > maximumMediaCount ||
-                capture.state.upload !== null ||
-                capture.state.isBusy
-              }
-              label="Check for similar reports"
-              loading={capture.state.isBusy}
-              onPress={() => void capture.checkDuplicates().catch(() => undefined)}
-            />
-          </View>
-        ) : null}
-
-        {capture.state.step === 'duplicates' ? (
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={styles.title}>
-              Similar nearby reports
-            </Text>
-            {capture.state.duplicateCheck === null ? (
-              <Text accessibilityRole="alert" style={styles.warning}>
-                Similar-report checking has not completed. Return to evidence and try again.
-              </Text>
-            ) : capture.state.duplicateCheck.suggestions.length > 0 ? (
-              <>
-                <Text style={styles.help}>
-                  These are suggestions only. Local Wellness never merges reports automatically.
-                </Text>
-                {capture.state.duplicateCheck.suggestions.map((suggestion) => (
-                  <View key={suggestion.complaintId} style={styles.option}>
-                    <Text style={styles.optionTitle}>
-                      {suggestion.categoryName} · {suggestion.complaintNumber}
-                    </Text>
-                    <Text style={styles.optionDescription}>
-                      About {Math.round(suggestion.approximateDistanceMeters)} m away ·{' '}
-                      {Math.round(suggestion.score * 100)}% similarity
-                    </Text>
-                  </View>
-                ))}
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: capture.state.duplicatesAcknowledged }}
-                  onPress={() =>
-                    capture.acknowledgeDuplicates(!capture.state.duplicatesAcknowledged)
-                  }
-                  style={styles.checkboxRow}
-                >
-                  <Text style={styles.checkbox}>
-                    {capture.state.duplicatesAcknowledged ? '✓' : ''}
-                  </Text>
-                  <Text style={styles.checkboxText}>
-                    I reviewed these suggestions and still want to submit a separate report.
-                  </Text>
-                </Pressable>
-              </>
-            ) : (
-              <Text style={styles.successText}>No similar reports were suggested.</Text>
-            )}
-            <SecondaryAction label="Back" onPress={() => void capture.goToStep('media')} />
-            <PrimaryAction
-              disabled={
-                capture.state.duplicateCheck === null ||
-                (capture.state.duplicateCheck.suggestions.length > 0 &&
-                  !capture.state.duplicatesAcknowledged)
-              }
-              label="Continue to review"
-              onPress={() => void capture.goToStep('review')}
-            />
-          </View>
-        ) : null}
-
-        {capture.state.step === 'review' ? (
-          <View style={styles.section}>
-            <Text accessibilityRole="header" style={styles.title}>
-              Review your private report
-            </Text>
-            <ReviewRow label="Category" value={category?.name ?? 'Not selected'} />
-            <ReviewRow label="Description" value={draft.description ?? 'Not provided'} />
-            <ReviewRow
-              label="Location"
-              value={
-                draft.location === null
-                  ? 'Missing'
-                  : `${Math.round(draft.location.accuracyMeters)} m accuracy`
-              }
-            />
-            <ReviewRow
-              label="Evidence"
-              value={`${finalizedEvidenceCount} photo/video ready${draft.media.some((media) => media.metadata.kind === 'voice' && media.uploadStatus === 'finalized') ? ' · voice note attached' : ''}`}
-            />
-            {category?.requiresAsset === true ? (
-              <ReviewRow label="Asset" value={selectedAsset?.displayName ?? 'Not selected'} />
-            ) : null}
-            <ReviewRow label="Routing" value="Resolved securely by the server at submission" />
-
-            {hasVoice ? (
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: voiceDescriptionConfirmed }}
-                onPress={() =>
-                  setConfirmedVoiceRevision(voiceDescriptionConfirmed ? null : reviewRevision)
-                }
-                style={styles.checkboxRow}
-              >
-                <Text style={styles.checkbox}>{voiceDescriptionConfirmed ? '✓' : ''}</Text>
-                <Text style={styles.checkboxText}>
-                  I typed and reviewed the description. Automatic transcription was not performed.
-                </Text>
-              </Pressable>
-            ) : null}
-
-            {category?.isEmergency === true ? (
-              <View style={styles.emergencyCard}>
-                <Text style={styles.emergencyTitle}>This is not emergency dispatch</Text>
-                <Text style={styles.emergencyText}>
-                  Call 112 immediately if anyone is in danger. A normal complaint does not guarantee
-                  emergency response.
-                </Text>
-                <Pressable
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: capture.state.emergencyAcknowledged }}
-                  onPress={() => capture.acknowledgeEmergency(!capture.state.emergencyAcknowledged)}
-                  style={styles.checkboxRow}
-                >
-                  <Text style={styles.checkbox}>
-                    {capture.state.emergencyAcknowledged ? '✓' : ''}
-                  </Text>
-                  <Text style={styles.checkboxText}>
-                    I understand and still want to submit a civic complaint.
-                  </Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {!readiness.isReady ? (
-              <Text accessibilityRole="alert" style={styles.warning}>
-                Missing: {readiness.missing.join(', ')}
-              </Text>
-            ) : null}
-            <SecondaryAction label="Back" onPress={() => void capture.goToStep('duplicates')} />
-            <PrimaryAction
-              disabled={
-                !readiness.isReady ||
-                (hasVoice && !voiceDescriptionConfirmed) ||
-                ((capture.state.duplicateCheck?.suggestions.length ?? 0) > 0 &&
-                  !capture.state.duplicatesAcknowledged) ||
-                (category?.isEmergency === true && !capture.state.emergencyAcknowledged) ||
-                capture.state.isBusy ||
-                !capture.state.isOnline
-              }
-              label="Submit complaint"
-              loading={capture.state.isBusy}
-              onPress={() => void submit()}
-            />
+        {capture.state.isBusy && capture.state.upload === null ? (
+          <View accessibilityLiveRegion="polite" style={styles.busyCard}>
+            <ActivityIndicator accessibilityElementsHidden color="#17683b" size="small" />
+            <Text style={styles.busyText}>Updating report…</Text>
           </View>
         ) : null}
 
         {capture.state.step === 'submitted' && capture.state.receipt ? (
-          <View style={styles.section}>
+          <View style={styles.formSection}>
             <Text accessibilityRole="header" style={styles.title}>
               Complaint received
             </Text>
@@ -628,19 +207,453 @@ export default function NewComplaintScreen() {
             />
             <SecondaryAction label="Return home" onPress={() => router.replace('/home')} />
           </View>
-        ) : null}
+        ) : (
+          <>
+            <View style={styles.formSection}>
+              <Text style={styles.sectionLabel}>ISSUE</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                Category and details
+              </Text>
+              <Text style={styles.help}>Choose the closest category.</Text>
+              {capture.state.categories.length === 0 ? (
+                <View style={styles.options}>
+                  <Text accessibilityRole="alert" style={styles.warning}>
+                    Complaint categories are unavailable. Try again shortly.
+                  </Text>
+                  <SecondaryAction
+                    label="Check for available categories"
+                    onPress={() => void capture.reloadCategories().catch(() => undefined)}
+                  />
+                </View>
+              ) : (
+                <View style={styles.options}>
+                  {capture.state.categories.map((candidate) => {
+                    const isAvailable = candidate.submissionAvailability === 'available';
+                    return (
+                      <Pressable
+                        accessibilityHint={
+                          isAvailable
+                            ? `${candidate.description ?? candidate.name}. Select this category.`
+                            : `${candidate.description ?? candidate.name}. Verified routing is unavailable.`
+                        }
+                        accessibilityRole="radio"
+                        accessibilityState={{
+                          checked: draft.categoryId === candidate.id,
+                          disabled: !isAvailable || capture.state.isBusy,
+                        }}
+                        disabled={!isAvailable || capture.state.isBusy}
+                        key={candidate.id}
+                        onPress={() => {
+                          if (candidate.id === draft.categoryId) return;
+                          setAttributeEdit({ draftId: draft.id, values: {} });
+                          void capture
+                            .updateDetails({ categoryId: candidate.id, customAttributes: {} })
+                            .catch(() => undefined);
+                        }}
+                        style={[
+                          styles.option,
+                          !isAvailable && styles.optionUnavailable,
+                          draft.categoryId === candidate.id && styles.optionSelected,
+                        ]}
+                      >
+                        <View style={styles.optionHeading}>
+                          <Text
+                            style={[
+                              styles.optionTitle,
+                              styles.optionTitleFlexible,
+                              !isAvailable && styles.unavailableText,
+                            ]}
+                          >
+                            {candidate.name}
+                          </Text>
+                          <View style={styles.optionBadges}>
+                            {!isAvailable ? (
+                              <Text style={styles.unavailableTag}>Routing unavailable</Text>
+                            ) : null}
+                            {candidate.isEmergency ? (
+                              <Text style={styles.emergencyTag}>Urgent risk</Text>
+                            ) : null}
+                            {draft.categoryId === candidate.id ? (
+                              <Text accessibilityLabel="Selected" style={styles.selectedMark}>
+                                ✓
+                              </Text>
+                            ) : null}
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+              {capture.state.categories.length > 0 &&
+              availableCategoryCount < capture.state.categories.length ? (
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoTitle}>
+                    {availableCategoryCount} of {capture.state.categories.length} categories
+                    available
+                  </Text>
+                  <Text style={styles.infoText}>
+                    Ward lookup and category availability are separate. Disabled categories are not
+                    enabled for verified submission. The server checks the exact local route when
+                    you submit.
+                  </Text>
+                </View>
+              ) : null}
+              {category?.requiredAttributes.map((attribute) => (
+                <View key={attribute} style={styles.fieldGroup}>
+                  <Text style={styles.label}>{attribute.replaceAll('_', ' ')}</Text>
+                  <TextInput
+                    accessibilityLabel={attribute.replaceAll('_', ' ')}
+                    editable={!capture.state.isBusy}
+                    maxLength={500}
+                    onChangeText={(value) =>
+                      setAttributeEdit({
+                        draftId: draft.id,
+                        values: { ...customAttributes, [attribute]: value },
+                      })
+                    }
+                    placeholder={`Enter ${attribute.replaceAll('_', ' ')}`}
+                    style={styles.input}
+                    value={String(customAttributes[attribute] ?? '')}
+                  />
+                </View>
+              ))}
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                accessibilityLabel="Complaint description"
+                editable={!capture.state.isBusy}
+                maxLength={4_000}
+                multiline
+                onChangeText={(value) => setDescriptionEdit({ draftId: draft.id, value })}
+                placeholder="Describe what you can see and why it needs attention."
+                style={styles.descriptionInput}
+                textAlignVertical="top"
+                value={description}
+              />
+              <Text style={styles.counter}>{description.trim().length} / 4,000</Text>
+              <PrimaryAction
+                disabled={
+                  capture.state.isBusy ||
+                  category?.submissionAvailability !== 'available' ||
+                  description.trim().length === 0 ||
+                  !hasUnsavedDetails
+                }
+                label={hasUnsavedDetails ? 'Save issue details' : 'Details saved'}
+                onPress={() => void saveDetails()}
+              />
+            </View>
 
-        {capture.state.step !== 'submitted' ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: capture.state.isBusy }}
-            disabled={capture.state.isBusy}
-            onPress={confirmDiscardDraft}
-            style={styles.discardButton}
-          >
-            <Text style={styles.discardText}>Discard this draft</Text>
-          </Pressable>
-        ) : null}
+            <View style={styles.formSection}>
+              <Text style={styles.sectionLabel}>LOCATION</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                Issue location
+              </Text>
+              <Text style={styles.help}>Capture your location while standing near the issue.</Text>
+              {draft.location === null ? (
+                <Text style={styles.muted}>Location not captured</Text>
+              ) : (
+                <View style={styles.successCard}>
+                  <Text style={styles.successTitle}>
+                    {locationEligible ? 'Location evidence accepted' : 'Location needs recapture'}
+                  </Text>
+                  <Text style={styles.successText}>
+                    Accuracy: {Math.round(draft.location.accuracyMeters)} m · Server status:{' '}
+                    {draft.location.verificationStatus.replaceAll('_', ' ')}
+                  </Text>
+                </View>
+              )}
+              {getLocationRecaptureGuidance(draft.location) === null ? null : (
+                <Text accessibilityRole="alert" style={styles.warning}>
+                  {getLocationRecaptureGuidance(draft.location)}
+                </Text>
+              )}
+              <PrimaryAction
+                disabled={
+                  capture.state.isBusy ||
+                  !capture.state.isOnline ||
+                  category?.submissionAvailability !== 'available'
+                }
+                label={draft.location === null ? 'Capture current location' : 'Capture again'}
+                onPress={() => void capture.captureLocation().catch(() => undefined)}
+              />
+              {category?.requiresAsset === true && locationEligible ? (
+                <View style={styles.subsection}>
+                  <Text style={styles.label}>Select the affected nearby asset</Text>
+                  {capture.state.assetOptions.length === 0 ? (
+                    <Text accessibilityRole="alert" style={styles.warning}>
+                      No verified nearby assets found. Refresh or capture the location again.
+                    </Text>
+                  ) : (
+                    <View style={styles.options}>
+                      {capture.state.assetOptions.map((asset) => (
+                        <Pressable
+                          accessibilityRole="radio"
+                          accessibilityState={{
+                            checked: selectedAsset?.id === asset.id,
+                            disabled: capture.state.isBusy,
+                          }}
+                          disabled={capture.state.isBusy}
+                          key={asset.id}
+                          onPress={() => void capture.selectAsset(asset.id).catch(() => undefined)}
+                          style={[
+                            styles.option,
+                            capture.state.isBusy && styles.disabledButton,
+                            selectedAsset?.id === asset.id && styles.optionSelected,
+                          ]}
+                        >
+                          <Text style={styles.optionTitle}>{asset.displayName}</Text>
+                          <Text style={styles.optionDescription}>
+                            {asset.assetTypeName} · about {Math.round(asset.distanceMeters)} m away
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  <SecondaryAction
+                    disabled={capture.state.isBusy}
+                    label="Refresh nearby assets"
+                    onPress={() => void capture.loadNearbyAssets().catch(() => undefined)}
+                  />
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.sectionLabel}>EVIDENCE</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                Photo, video or voice
+              </Text>
+              <Text style={styles.help}>Capture evidence now. Originals stay private.</Text>
+              <View style={styles.requirementCard}>
+                <Text style={styles.requirementTitle}>Required evidence</Text>
+                <Text style={styles.requirementText}>
+                  {minimumMediaCount === 0
+                    ? `Photo or video optional · maximum ${maximumMediaCount}`
+                    : `${minimumMediaCount}–${maximumMediaCount} finalized photo/video ${minimumMediaCount === 1 ? 'item' : 'items'}`}
+                </Text>
+                {category?.recommendedMediaKinds.length ? (
+                  <Text style={styles.requirementText}>
+                    Recommended: {category.recommendedMediaKinds.join(', ')}
+                  </Text>
+                ) : null}
+              </View>
+              {isCameraOpen ? (
+                <ComplaintCameraCapture
+                  disabled={capture.state.isBusy}
+                  onCancel={() => setIsCameraOpen(false)}
+                  onCaptured={capture.uploadMedia}
+                />
+              ) : (
+                <PrimaryAction
+                  disabled={
+                    capture.state.isBusy ||
+                    capture.state.upload !== null ||
+                    !locationEligible ||
+                    finalizedEvidenceCount >= maximumMediaCount
+                  }
+                  label="Open camera"
+                  onPress={() => setIsCameraOpen(true)}
+                />
+              )}
+              <ComplaintVoiceCapture
+                disabled={
+                  capture.state.isBusy || capture.state.upload !== null || !locationEligible
+                }
+                onCaptured={capture.uploadMedia}
+              />
+              {capture.state.upload === null ? null : (
+                <View style={styles.uploadCard}>
+                  <Text style={styles.optionTitle}>
+                    Private upload: {capture.state.upload.status}
+                  </Text>
+                  <Text style={styles.help}>
+                    {Math.round(capture.state.upload.progress * 100)}%
+                  </Text>
+                  {capture.state.upload.status === 'failed' ? (
+                    <SecondaryAction
+                      disabled={capture.state.isBusy}
+                      label="Retry upload"
+                      onPress={() => void capture.retryPendingUpload()}
+                    />
+                  ) : null}
+                </View>
+              )}
+              {draft.media.map((media) => (
+                <View key={media.id} style={styles.mediaRow}>
+                  <Text style={styles.optionTitle}>{media.metadata.kind}</Text>
+                  <Text style={styles.muted}>
+                    {media.uploadStatus} · {media.processingStatus}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.sectionLabel}>SIMILAR REPORTS</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                Check before submitting
+              </Text>
+              {capture.state.duplicateCheck === null ? (
+                <Text style={styles.muted}>Required before submission.</Text>
+              ) : capture.state.duplicateCheck.suggestions.length > 0 ? (
+                <>
+                  <Text style={styles.help}>Review these before creating another report.</Text>
+                  {capture.state.duplicateCheck.suggestions.map((suggestion) => (
+                    <View key={suggestion.complaintId} style={styles.option}>
+                      <Text style={styles.optionTitle}>
+                        {suggestion.categoryName} · {suggestion.complaintNumber}
+                      </Text>
+                      <Text style={styles.optionDescription}>
+                        About {Math.round(suggestion.approximateDistanceMeters)} m away ·{' '}
+                        {Math.round(suggestion.score * 100)}% similarity
+                      </Text>
+                    </View>
+                  ))}
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{
+                      checked: capture.state.duplicatesAcknowledged,
+                      disabled: capture.state.isBusy,
+                    }}
+                    disabled={capture.state.isBusy}
+                    onPress={() =>
+                      capture.acknowledgeDuplicates(!capture.state.duplicatesAcknowledged)
+                    }
+                    style={[styles.checkboxRow, capture.state.isBusy && styles.disabledButton]}
+                  >
+                    <Text style={styles.checkbox}>
+                      {capture.state.duplicatesAcknowledged ? '✓' : ''}
+                    </Text>
+                    <Text style={styles.checkboxText}>
+                      I reviewed these suggestions and still want to submit a separate report.
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Text style={styles.successText}>No similar reports were suggested.</Text>
+              )}
+              <PrimaryAction
+                disabled={!canCheckDuplicates}
+                label={
+                  capture.state.duplicateCheck === null ? 'Check similar reports' : 'Check again'
+                }
+                onPress={() => void capture.checkDuplicates().catch(() => undefined)}
+              />
+              {!canCheckDuplicates && capture.state.duplicateCheck === null ? (
+                <Text style={styles.compactHint}>
+                  Save the details, location and required evidence first.
+                </Text>
+              ) : null}
+            </View>
+
+            <View style={styles.formSection}>
+              <Text style={styles.sectionLabel}>REVIEW</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                Review and submit
+              </Text>
+              <ReviewRow label="Category" value={category?.name ?? 'Not selected'} />
+              <ReviewRow label="Description" value={description.trim() || 'Not provided'} />
+              <ReviewRow
+                label="Location"
+                value={
+                  draft.location === null
+                    ? 'Missing'
+                    : `${Math.round(draft.location.accuracyMeters)} m accuracy`
+                }
+              />
+              <ReviewRow
+                label="Evidence"
+                value={`${finalizedEvidenceCount} photo/video ready${draft.media.some((media) => media.metadata.kind === 'voice' && media.uploadStatus === 'finalized') ? ' · voice note attached' : ''}`}
+              />
+              {category?.requiresAsset === true ? (
+                <ReviewRow label="Asset" value={selectedAsset?.displayName ?? 'Not selected'} />
+              ) : null}
+              <ReviewRow label="Routing" value="Verified by the server at submission" />
+
+              {hasVoice ? (
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{
+                    checked: voiceDescriptionConfirmed,
+                    disabled: capture.state.isBusy,
+                  }}
+                  disabled={capture.state.isBusy}
+                  onPress={() =>
+                    setConfirmedVoiceRevision(voiceDescriptionConfirmed ? null : reviewRevision)
+                  }
+                  style={[styles.checkboxRow, capture.state.isBusy && styles.disabledButton]}
+                >
+                  <Text style={styles.checkbox}>{voiceDescriptionConfirmed ? '✓' : ''}</Text>
+                  <Text style={styles.checkboxText}>
+                    I typed and reviewed the voice-note description.
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {category?.isEmergency === true ? (
+                <View style={styles.emergencyCard}>
+                  <Text style={styles.emergencyTitle}>This is not emergency dispatch</Text>
+                  <Text style={styles.emergencyText}>
+                    Call 112 immediately if anyone is in danger. A normal complaint does not
+                    guarantee emergency response.
+                  </Text>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{
+                      checked: capture.state.emergencyAcknowledged,
+                      disabled: capture.state.isBusy,
+                    }}
+                    disabled={capture.state.isBusy}
+                    onPress={() =>
+                      capture.acknowledgeEmergency(!capture.state.emergencyAcknowledged)
+                    }
+                    style={[styles.checkboxRow, capture.state.isBusy && styles.disabledButton]}
+                  >
+                    <Text style={styles.checkbox}>
+                      {capture.state.emergencyAcknowledged ? '✓' : ''}
+                    </Text>
+                    <Text style={styles.checkboxText}>
+                      I understand and still want to submit a civic complaint.
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {submissionBlockers.length > 0 ? (
+                <View accessibilityRole="alert" style={styles.blockerCard}>
+                  <Text style={styles.blockerTitle}>Before you submit</Text>
+                  {submissionBlockers.map((blocker) => (
+                    <Text key={blocker} style={styles.blockerText}>
+                      • {complaintSubmissionBlockerMessages[blocker]}
+                    </Text>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.successCard}>
+                  <Text style={styles.successTitle}>Ready to submit</Text>
+                  <Text style={styles.successText}>
+                    The server will verify routing one final time.
+                  </Text>
+                </View>
+              )}
+              <PrimaryAction
+                disabled={submissionBlockers.length > 0 || capture.state.isBusy}
+                label="Submit complaint"
+                onPress={() => void submit()}
+              />
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: capture.state.isBusy }}
+              disabled={capture.state.isBusy}
+              onPress={confirmDiscardDraft}
+              style={styles.discardButton}
+            >
+              <Text style={styles.discardText}>Discard this draft</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -672,8 +685,18 @@ const PrimaryAction = ({
   );
 };
 
-const SecondaryAction = ({ label, onPress }: Readonly<{ label: string; onPress: () => void }>) => (
-  <Pressable accessibilityRole="button" onPress={onPress} style={styles.secondaryButton}>
+const SecondaryAction = ({
+  disabled = false,
+  label,
+  onPress,
+}: Readonly<{ disabled?: boolean; label: string; onPress: () => void }>) => (
+  <Pressable
+    accessibilityRole="button"
+    accessibilityState={{ disabled }}
+    disabled={disabled}
+    onPress={onPress}
+    style={[styles.secondaryButton, disabled && styles.disabledButton]}
+  >
     <Text style={styles.secondaryButtonText}>{label}</Text>
   </Pressable>
 );
@@ -686,6 +709,25 @@ const ReviewRow = ({ label, value }: Readonly<{ label: string; value: string }>)
 );
 
 const styles = StyleSheet.create({
+  blockerCard: {
+    backgroundColor: '#fff8e8',
+    borderColor: '#f2d38a',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 5,
+    padding: 14,
+  },
+  blockerText: { color: '#75520c', lineHeight: 20 },
+  blockerTitle: { color: '#6f4c06', fontSize: 15, fontWeight: '900', marginBottom: 2 },
+  busyCard: {
+    alignItems: 'center',
+    backgroundColor: '#eef7f1',
+    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12,
+  },
+  busyText: { color: '#24583a', fontWeight: '700' },
   checkbox: {
     borderColor: '#166534',
     borderRadius: 4,
@@ -698,6 +740,7 @@ const styles = StyleSheet.create({
   },
   checkboxRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 10, paddingVertical: 8 },
   checkboxText: { color: '#334155', flex: 1, lineHeight: 21 },
+  compactHint: { color: '#64748b', fontSize: 13, lineHeight: 18, textAlign: 'center' },
   content: { gap: 18, padding: 20, paddingBottom: 48 },
   counter: { color: '#64748b', fontSize: 13, textAlign: 'right' },
   descriptionInput: {
@@ -721,7 +764,16 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 14,
   },
-  emergencyTag: { color: '#c2410c', fontSize: 13, fontWeight: '800' },
+  emergencyTag: {
+    backgroundColor: '#fff1e8',
+    borderRadius: 999,
+    color: '#b54716',
+    fontSize: 11,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
   emergencyText: { color: '#7c2d12', lineHeight: 21 },
   emergencyTitle: { color: '#9a3412', fontSize: 18, fontWeight: '800' },
   error: {
@@ -729,8 +781,22 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   errorPanel: { backgroundColor: '#fef2f2', borderRadius: 10, gap: 10, padding: 14 },
+  eyebrow: { color: '#247047', fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   fieldGroup: { gap: 7 },
+  formHeader: { gap: 6, marginBottom: 2 },
+  formSection: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e0e8e2',
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 14,
+    padding: 17,
+  },
+  formTitle: { color: '#14281d', fontSize: 29, fontWeight: '900' },
   help: { color: '#475569', lineHeight: 22 },
+  infoCard: { backgroundColor: '#eef5ff', borderRadius: 13, gap: 5, padding: 13 },
+  infoText: { color: '#405a73', fontSize: 13, lineHeight: 19 },
+  infoTitle: { color: '#244e72', fontSize: 14, fontWeight: '900' },
   input: {
     backgroundColor: '#ffffff',
     borderColor: '#94a3b8',
@@ -752,30 +818,29 @@ const styles = StyleSheet.create({
   muted: { color: '#64748b', lineHeight: 21 },
   option: {
     backgroundColor: '#ffffff',
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
+    borderColor: '#dce5df',
+    borderRadius: 15,
     borderWidth: 1,
-    gap: 5,
-    padding: 14,
+    gap: 4,
+    padding: 15,
   },
+  optionBadges: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   optionDescription: { color: '#64748b', lineHeight: 20 },
-  optionSelected: { backgroundColor: '#ecfdf5', borderColor: '#166534', borderWidth: 2 },
+  optionHeading: { alignItems: 'center', flexDirection: 'row', gap: 10 },
+  optionSelected: { backgroundColor: '#eef9f1', borderColor: '#237345', borderWidth: 2 },
   optionTitle: { color: '#1e293b', fontSize: 16, fontWeight: '800' },
+  optionTitleFlexible: { flex: 1 },
   optionUnavailable: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0', opacity: 0.8 },
-  options: { gap: 10 },
+  options: { gap: 9 },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: '#166534',
-    borderRadius: 10,
+    borderRadius: 14,
     justifyContent: 'center',
     minHeight: 52,
     padding: 13,
   },
   primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
-  progressCopy: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  progressFill: { backgroundColor: '#16a34a', borderRadius: 99, height: 6 },
-  progressHeader: { gap: 10 },
-  progressTrack: { backgroundColor: '#dcfce7', borderRadius: 99, height: 6, overflow: 'hidden' },
   receiptNumber: { color: '#14532d', fontSize: 25, fontWeight: '900' },
   reviewLabel: { color: '#64748b', fontSize: 13, fontWeight: '700' },
   reviewRow: { backgroundColor: '#f8fafc', borderRadius: 9, gap: 4, padding: 12 },
@@ -786,24 +851,17 @@ const styles = StyleSheet.create({
   secondaryButton: {
     alignItems: 'center',
     borderColor: '#166534',
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 48,
     padding: 12,
   },
   secondaryButtonText: { color: '#166534', fontWeight: '800' },
-  section: { gap: 14 },
+  sectionLabel: { color: '#247047', fontSize: 11, fontWeight: '900', letterSpacing: 0.9 },
   settingsButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   settingsButtonText: { color: '#166534', fontWeight: '800' },
-  stepLabel: {
-    color: '#166534',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  stepCount: { color: '#64748b', fontSize: 13, fontWeight: '700' },
+  subsection: { gap: 12, marginTop: 2 },
   successCard: {
     backgroundColor: '#ecfdf5',
     borderColor: '#86efac',
@@ -816,7 +874,17 @@ const styles = StyleSheet.create({
   successTitle: { color: '#14532d', fontSize: 17, fontWeight: '800' },
   title: { color: '#14281d', fontSize: 27, fontWeight: '900' },
   uploadCard: { backgroundColor: '#eff6ff', borderRadius: 10, gap: 6, padding: 13 },
-  unavailableTag: { color: '#92400e', fontSize: 13, fontWeight: '800' },
+  selectedMark: { color: '#17683b', fontSize: 18, fontWeight: '900' },
+  unavailableTag: {
+    backgroundColor: '#eef1ef',
+    borderRadius: 999,
+    color: '#6b766e',
+    fontSize: 11,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
   unavailableText: { color: '#64748b' },
   warning: {
     backgroundColor: '#fffbeb',

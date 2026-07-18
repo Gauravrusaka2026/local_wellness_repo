@@ -9,7 +9,7 @@ export type PrimaryNavigationItem = 'complaints' | 'home' | 'menu' | 'nearby';
 const navigationItems = [
   { glyph: '⌂', key: 'home', label: 'Home', route: '/home' },
   { glyph: '☷', key: 'complaints', label: 'Complaints', route: '/complaints' },
-  { glyph: '◎', key: 'nearby', label: 'Nearby', route: '/governance' },
+  { glyph: '◉', key: 'nearby', label: 'Community', route: '/transparency' },
   { glyph: '≡', key: 'menu', label: 'Menu', route: '/menu' },
 ] as const;
 
@@ -85,33 +85,38 @@ const NavigationButton = ({
     accessibilityRole="tab"
     accessibilityState={{ selected: current }}
     onPress={onPress}
-    style={({ pressed }) => [styles.item, pressed && styles.pressed]}
+    style={({ pressed }) => [styles.item, current && styles.currentItem, pressed && styles.pressed]}
   >
     <Text accessibilityElementsHidden style={[styles.glyph, current && styles.currentText]}>
       {glyph}
     </Text>
     <Text style={[styles.label, current && styles.currentText]}>{label}</Text>
-    <View style={[styles.indicator, current && styles.currentIndicator]} />
   </Pressable>
 );
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'flex-end',
-    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    backgroundColor: '#fbfdfb',
     borderTopColor: '#dce6df',
     borderTopWidth: 1,
     flexDirection: 'row',
-    minHeight: 74,
-    paddingHorizontal: 6,
-    paddingTop: 7,
+    minHeight: 70,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
   },
-  currentIndicator: { backgroundColor: '#237345' },
+  currentItem: { backgroundColor: '#eaf4ed' },
   currentText: { color: '#1d6840' },
   disabled: { opacity: 0.5 },
   glyph: { color: '#76867b', fontSize: 22, lineHeight: 24 },
-  indicator: { borderRadius: 999, height: 3, marginTop: 5, width: 18 },
-  item: { alignItems: 'center', flex: 1, justifyContent: 'flex-end', minHeight: 58, padding: 4 },
+  item: {
+    alignItems: 'center',
+    borderRadius: 16,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 52,
+    padding: 4,
+  },
   label: { color: '#697b6f', fontSize: 10, fontWeight: '700', marginTop: 2 },
   pressed: { opacity: 0.65 },
   reportButton: {
@@ -121,15 +126,15 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     borderWidth: 4,
     elevation: 5,
-    height: 62,
+    height: 58,
     justifyContent: 'center',
     marginHorizontal: 2,
-    marginTop: -20,
+    marginTop: -18,
     shadowColor: '#0c3920',
     shadowOffset: { height: 4, width: 0 },
     shadowOpacity: 0.22,
     shadowRadius: 7,
-    width: 62,
+    width: 58,
   },
   reportGlyph: { color: '#ffffff', fontSize: 28, fontWeight: '400', lineHeight: 28 },
   reportLabel: { color: '#ffffff', fontSize: 9, fontWeight: '800' },

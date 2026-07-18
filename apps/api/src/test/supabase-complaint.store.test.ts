@@ -15,7 +15,11 @@ import type {
 import type { JurisdictionResolutionQuery, RoutingContext } from '@local-wellness/routing-engine';
 
 import { createComplaintMutationIdentity } from '../common/idempotency.js';
-import { ComplaintDataAccessError, ComplaintNotFoundError } from '../data/complaint.store.js';
+import {
+  ComplaintConflictError,
+  ComplaintDataAccessError,
+  ComplaintNotFoundError,
+} from '../data/complaint.store.js';
 import {
   RoutingStore,
   type RecordRoutingDecisionInput,
@@ -557,6 +561,21 @@ describe('Supabase complaint store drafts and media', () => {
     });
   });
 
+  it('retains only the safe dependency code for internal diagnostics', async () => {
+    const { store } = createStore(async () => ({
+      data: null,
+      error: { code: 'PGRST202', message: 'private hosted detail' },
+    }));
+
+    await assert.rejects(store.getDraft(ids.actor, ids.draft), (error: unknown) => {
+      assert.ok(error instanceof ComplaintDataAccessError);
+      assert.equal(error.operation, 'get complaint draft');
+      assert.equal(error.dependencyCode, 'PGRST202');
+      assert.equal(error.message.includes('private hosted detail'), false);
+      return true;
+    });
+  });
+
   it('treats an empty actor-scoped result as not found without a broader lookup', async () => {
     const calls: RpcCall[] = [];
     const { store } = createStore(async (functionName, arguments_) => {
@@ -783,6 +802,48 @@ const complaintDetailRow = {
 } as const;
 
 describe('Supabase complaint store submission and history', () => {
+  it('preserves granular routing-evidence conflicts returned by complaint submission', async () => {
+    const { store } = createStore(async (functionName) => {
+      assert.equal(functionName, 'submit_complaint');
+      return {
+        data: null,
+        error: { code: '23514', message: 'COMPLAINT_ROUTING_LOCATION_MISMATCH' },
+      };
+    });
+
+    await assert.rejects(
+      store.completeSubmission({
+        acknowledgedDuplicateSuggestionIds: [],
+        actorUserId: ids.actor,
+        categoryId: ids.category,
+        emergencyDisclaimerAcknowledged: false,
+        routing: {
+          status: 'routed',
+          target: routingTarget,
+          confidence: { score: 0.95, band: 'high' },
+          explanation: {
+            reason: routingDecision.explanation.reason,
+            policyId: ids.policy,
+            policyVersionId: ids.policyVersion,
+            policyVersion: 1,
+            jurisdictionStatus: 'resolved',
+            localBodyBoundaryVersionId: ids.boundary,
+            wardBoundaryVersionId: null,
+            selectedRoutingRuleId: ids.rule,
+            selectedRoutingRuleVersionId: ids.ruleVersion,
+            fallbackUsed: false,
+            fallbackDepth: 0,
+          },
+        },
+        routingDecisionId: ids.decision,
+        submissionRequestId: ids.submission,
+      }),
+      (error: unknown) =>
+        error instanceof ComplaintConflictError &&
+        error.marker === 'COMPLAINT_ROUTING_LOCATION_MISMATCH',
+    );
+  });
+
   it('composes a completed submission replay from stored payload, draft, and routing audit', async () => {
     const identity = {
       idempotencyKeyHash: 'b'.repeat(64),

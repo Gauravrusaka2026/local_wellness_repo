@@ -7,13 +7,13 @@ declare
   affected_rows integer;
 begin
   update governance.import_batches
-  set generated_seed_sha256 = '60f19516ea7a0e7a81824e49a3e81bbef77ffd3f87abcd1d4eecc5a0e80dac23'
+  set generated_seed_sha256 = 'b946eaeea4a06d16d9a53e80b0ab2e1eb6d30254ca9be0ec1232f82746a3c085'
   where id = '1340c42e-d0f0-5864-b886-5634136276a9'
     and dataset_key = 'mh_governance'
     and dataset_version = 'MH_MASTER_GOVERNANCE_DATA_v1'
     and (
       generated_seed_sha256 is null
-      or generated_seed_sha256 = '60f19516ea7a0e7a81824e49a3e81bbef77ffd3f87abcd1d4eecc5a0e80dac23'
+      or generated_seed_sha256 = 'b946eaeea4a06d16d9a53e80b0ab2e1eb6d30254ca9be0ec1232f82746a3c085'
     );
 
   get diagnostics affected_rows = row_count;

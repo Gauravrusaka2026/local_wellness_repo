@@ -8,8 +8,8 @@
 -- adaptive migration-level guards validate and skip an already-complete prefix.
 -- Do not place any generated artifact in supabase/migrations. Seed data remains
 -- intentionally separate under supabase/seed.
--- Source migration cutoff: 20260716
--- Source migration count: 42
+-- Source migration cutoff: 20260718
+-- Source migration count: 45
 --
 -- Source manifest (SHA-256 of the exact source file bytes):
 -- 863ce6c718de64ae702385e979c44b011fd979c271ba5f400fe2db658f90d513  20260713100000_phase_1_identity_and_access.sql
@@ -54,6 +54,9 @@
 -- 3270d23cc41dbfccb53552dc8698642fc311095da50b89085e4cb8904ca44715  20260716117000_phase_10_routing_delivery_readiness.sql
 -- 3c97e81d922b67a90c2bb7b48f387bc8a530af93154c55a617bb8dc6340f8c76  20260716118000_bmc_ward_relationship_versions.sql
 -- 58d2317126be57edf611b1cde1287ca63480cfbaf202906b3be93a4c2d1cddeb  20260716119000_government_invitation_scope_options.sql
+-- a2d81b05dec142d8dceb75c6db4bcbeb5c6e60257c242bb9706c351e737d764c  20260717100000_public_complaint_engagements.sql
+-- 5c37f8f8175a5147d0ea6cfa3a95756f7fd510c2f31a467751d52ab522c78dc9  20260718100000_complaint_routing_evidence_diagnostics.sql
+-- fdad9b29c845ba1749eb08fdb2c9d0140d6a0c926fe95692ea23e0eb9d62f411  20260718110000_governance_source_bundle_imports.sql
 
 -- ============================================================================
 -- BEGIN SOURCE MIGRATION: 20260713100000_phase_1_identity_and_access.sql
@@ -32709,4 +32712,1096 @@ comment on function public.list_government_invitation_options(uuid[]) is
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260716119000_government_invitation_scope_options.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260717100000_public_complaint_engagements.sql
+-- ============================================================================
+begin;
+
+create table if not exists complaints.public_complaint_engagements (
+  complaint_id uuid not null
+    references complaints.complaints (id) on delete restrict,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  is_supporting boolean not null default false,
+  is_following boolean not null default false,
+  support_changed_at timestamptz not null default clock_timestamp(),
+  follow_changed_at timestamptz not null default clock_timestamp(),
+  created_at timestamptz not null default current_timestamp,
+  updated_at timestamptz not null default current_timestamp,
+  primary key (complaint_id, user_id),
+  constraint public_complaint_engagements_time_check check (
+    support_changed_at >= created_at
+    and follow_changed_at >= created_at
+    and updated_at >= created_at
+  )
+);
+
+create index if not exists public_complaint_engagements_user_following_idx
+  on complaints.public_complaint_engagements (user_id, updated_at desc, complaint_id)
+  where is_following;
+
+create index if not exists public_complaint_engagements_complaint_support_idx
+  on complaints.public_complaint_engagements (complaint_id, user_id)
+  where is_supporting;
+
+alter table complaints.public_complaint_engagements enable row level security;
+alter table complaints.public_complaint_engagements force row level security;
+
+revoke all on table complaints.public_complaint_engagements from public;
+revoke all on table complaints.public_complaint_engagements from anon;
+revoke all on table complaints.public_complaint_engagements from authenticated;
+revoke all on table complaints.public_complaint_engagements from service_role;
+
+create or replace function complaints.public_complaint_support_count(p_complaint_id uuid)
+returns integer
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select count(*)::integer
+  from complaints.public_complaint_engagements as engagement
+  where p_complaint_id is not null
+    and engagement.complaint_id = p_complaint_id
+    and engagement.is_supporting;
+$$;
+
+create or replace function complaints.public_complaint_projection_payload(
+  p_projection complaints.complaint_publication_projections,
+  p_include_summary boolean default false
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'publicId', p_projection.public_id,
+    'title', p_projection.public_title,
+    'category', jsonb_build_object(
+      'code', category.code,
+      'name', p_projection.category_name
+    ),
+    'status', p_projection.public_status,
+    'location', jsonb_build_object(
+      'latitude', extensions.st_y(p_projection.approximate_location),
+      'longitude', extensions.st_x(p_projection.approximate_location),
+      'precisionMeters', p_projection.location_precision_meters
+    ),
+    'localBody', jsonb_build_object(
+      'code', local_body.lgd_code,
+      'name', local_body.name
+    ),
+    'ward', jsonb_build_object(
+      'code', coalesce(ward.lgd_code, ward.source_ward_code),
+      'name', ward.name,
+      'wardNumber', ward.ward_number
+    ),
+    'submittedAt', p_projection.submitted_at,
+    'updatedAt', p_projection.source_updated_at,
+    'publishedAt', p_projection.published_at,
+    'supportCount', complaints.public_complaint_support_count(p_projection.complaint_id)
+  ) || case
+    when p_include_summary then jsonb_build_object('summary', p_projection.public_summary)
+    else '{}'::jsonb
+  end
+  from routing.issue_categories as category
+  cross join governance.local_bodies as local_body
+  inner join governance.wards as ward
+    on ward.id = p_projection.ward_id
+    and ward.local_body_id = local_body.id
+  where category.id = p_projection.category_id
+    and local_body.id = p_projection.local_body_id;
+$$;
+
+create or replace function public.list_public_complaint_feed(
+  p_west double precision,
+  p_south double precision,
+  p_east double precision,
+  p_north double precision,
+  p_category_codes text[],
+  p_statuses text[],
+  p_date_from timestamptz,
+  p_date_to timestamptz,
+  p_zoom integer,
+  p_limit integer,
+  p_cursor text,
+  p_sort text
+)
+returns table (projection jsonb)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  cursor_id uuid;
+begin
+  perform complaints.validate_public_transparency_query(
+    p_west, p_south, p_east, p_north, p_category_codes, p_statuses,
+    p_date_from, p_date_to, p_zoom, p_limit, 201
+  );
+
+  if p_sort is null or p_sort not in ('recent', 'trending') then
+    raise exception using
+      errcode = '22023',
+      message = 'PUBLIC_TRANSPARENCY_QUERY_INVALID';
+  end if;
+
+  if p_cursor is not null then
+    begin
+      cursor_id := p_cursor::uuid;
+    exception when invalid_text_representation then
+      raise exception using
+        errcode = '22023',
+        message = 'PUBLIC_TRANSPARENCY_QUERY_INVALID';
+    end;
+  end if;
+
+  return query
+  with eligible as (
+    select
+      candidate as source_projection,
+      complaints.public_complaint_support_count(candidate.complaint_id) as support_count
+    from complaints.current_public_complaint_projections(statement_timestamp()) as candidate
+    where (
+        p_category_codes is null
+        or exists (
+          select 1
+          from routing.issue_categories as category
+          where category.id = candidate.category_id
+            and category.code = any(p_category_codes)
+        )
+      )
+      and (p_statuses is null or candidate.public_status = any(p_statuses))
+      and (p_date_from is null or candidate.submitted_at >= p_date_from)
+      and (p_date_to is null or candidate.submitted_at <= p_date_to)
+      and extensions.st_intersects(
+        candidate.approximate_location,
+        extensions.st_makeenvelope(p_west, p_south, p_east, p_north, 4326)
+      )
+  ), cursor_value as (
+    select eligible.source_projection, eligible.support_count
+    from eligible
+    where cursor_id is not null
+      and (eligible.source_projection).public_id = cursor_id
+  )
+  select complaints.public_complaint_projection_payload(eligible.source_projection, false)
+  from eligible
+  where cursor_id is null
+    or exists (
+      select 1
+      from cursor_value
+      where (
+          p_sort = 'trending'
+          and (
+            eligible.support_count < cursor_value.support_count
+            or (
+              eligible.support_count = cursor_value.support_count
+              and (eligible.source_projection).published_at
+                < (cursor_value.source_projection).published_at
+            )
+            or (
+              eligible.support_count = cursor_value.support_count
+              and (eligible.source_projection).published_at
+                = (cursor_value.source_projection).published_at
+              and (eligible.source_projection).public_id
+                < (cursor_value.source_projection).public_id
+            )
+          )
+        )
+        or (
+          p_sort = 'recent'
+          and (
+            (eligible.source_projection).published_at
+              < (cursor_value.source_projection).published_at
+            or (
+              (eligible.source_projection).published_at
+                = (cursor_value.source_projection).published_at
+              and (eligible.source_projection).public_id
+                < (cursor_value.source_projection).public_id
+            )
+          )
+        )
+    )
+  order by
+    case when p_sort = 'trending' then eligible.support_count end desc,
+    (eligible.source_projection).published_at desc,
+    (eligible.source_projection).public_id desc
+  limit p_limit;
+end;
+$$;
+
+create or replace function public.list_public_complaint_engagements(
+  p_actor_user_id uuid,
+  p_public_ids uuid[]
+)
+returns table (engagement jsonb)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if p_actor_user_id is null
+    or p_public_ids is null
+    or cardinality(p_public_ids) not between 1 and 100
+    or array_position(p_public_ids, null) is not null
+    or cardinality(p_public_ids) <> (
+      select count(distinct requested.public_id)
+      from unnest(p_public_ids) as requested(public_id)
+    )
+    or not exists (
+      select 1
+      from public.profiles as profile
+      where profile.id = p_actor_user_id and profile.status = 'active'
+    ) then
+    raise exception using errcode = '42501', message = 'PUBLIC_ENGAGEMENT_FORBIDDEN';
+  end if;
+
+  return query
+  select jsonb_build_object(
+    'publicId', projection.public_id,
+    'supportCount', complaints.public_complaint_support_count(projection.complaint_id),
+    'supported', coalesce(current_engagement.is_supporting, false),
+    'starred', coalesce(current_engagement.is_following, false)
+  )
+  from unnest(p_public_ids) with ordinality as requested(public_id, item_order)
+  inner join complaints.current_public_complaint_projections(statement_timestamp()) as projection
+    on projection.public_id = requested.public_id
+  left join complaints.public_complaint_engagements as current_engagement
+    on current_engagement.complaint_id = projection.complaint_id
+    and current_engagement.user_id = p_actor_user_id
+  order by requested.item_order;
+end;
+$$;
+
+create or replace function public.set_public_complaint_engagement(
+  p_actor_user_id uuid,
+  p_public_id uuid,
+  p_supported boolean,
+  p_starred boolean
+)
+returns table (engagement jsonb)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  operation_at timestamptz := clock_timestamp();
+  source_complaint_id uuid;
+begin
+  if p_actor_user_id is null or p_public_id is null
+    or p_supported is null or p_starred is null
+    or not exists (
+      select 1
+      from public.profiles as profile
+      where profile.id = p_actor_user_id and profile.status = 'active'
+    ) then
+    raise exception using errcode = '42501', message = 'PUBLIC_ENGAGEMENT_FORBIDDEN';
+  end if;
+
+  select projection.complaint_id
+  into source_complaint_id
+  from complaints.current_public_complaint_projections(operation_at) as projection
+  where projection.public_id = p_public_id;
+
+  if source_complaint_id is null then
+    return;
+  end if;
+
+  perform 1
+  from complaints.public_complaint_engagements as current_engagement
+  where current_engagement.complaint_id = source_complaint_id
+    and current_engagement.user_id = p_actor_user_id
+  for update;
+
+  insert into complaints.public_complaint_engagements (
+    complaint_id,
+    user_id,
+    is_supporting,
+    is_following,
+    support_changed_at,
+    follow_changed_at,
+    created_at,
+    updated_at
+  ) values (
+    source_complaint_id,
+    p_actor_user_id,
+    p_supported,
+    p_starred,
+    operation_at,
+    operation_at,
+    operation_at,
+    operation_at
+  )
+  on conflict (complaint_id, user_id) do update
+  set
+    is_supporting = excluded.is_supporting,
+    is_following = excluded.is_following,
+    support_changed_at = case
+      when complaints.public_complaint_engagements.is_supporting
+        is distinct from excluded.is_supporting then operation_at
+      else complaints.public_complaint_engagements.support_changed_at
+    end,
+    follow_changed_at = case
+      when complaints.public_complaint_engagements.is_following
+        is distinct from excluded.is_following then operation_at
+      else complaints.public_complaint_engagements.follow_changed_at
+    end,
+    updated_at = operation_at;
+
+  return query
+  select jsonb_build_object(
+    'publicId', projection.public_id,
+    'supportCount', complaints.public_complaint_support_count(projection.complaint_id),
+    'supported', current_engagement.is_supporting,
+    'starred', current_engagement.is_following
+  )
+  from complaints.current_public_complaint_projections(operation_at) as projection
+  inner join complaints.public_complaint_engagements as current_engagement
+    on current_engagement.complaint_id = projection.complaint_id
+    and current_engagement.user_id = p_actor_user_id
+  where projection.public_id = p_public_id;
+end;
+$$;
+
+revoke all on function complaints.public_complaint_support_count(uuid)
+  from public, anon, authenticated, service_role;
+
+revoke all on function public.list_public_complaint_feed(
+  double precision, double precision, double precision, double precision,
+  text[], text[], timestamptz, timestamptz, integer, integer, text, text
+) from public, anon, authenticated, service_role;
+revoke all on function public.list_public_complaint_engagements(uuid, uuid[])
+  from public, anon, authenticated, service_role;
+revoke all on function public.set_public_complaint_engagement(
+  uuid, uuid, boolean, boolean
+) from public, anon, authenticated, service_role;
+
+grant execute on function public.list_public_complaint_feed(
+  double precision, double precision, double precision, double precision,
+  text[], text[], timestamptz, timestamptz, integer, integer, text, text
+) to service_role;
+grant execute on function public.list_public_complaint_engagements(uuid, uuid[])
+  to service_role;
+grant execute on function public.set_public_complaint_engagement(
+  uuid, uuid, boolean, boolean
+) to service_role;
+
+comment on table complaints.public_complaint_engagements is
+  'Private one-row-per-account support and follow state for a currently reviewed public complaint.';
+comment on function public.list_public_complaint_feed(
+  double precision, double precision, double precision, double precision,
+  text[], text[], timestamptz, timestamptz, integer, integer, text, text
+) is
+  'Returns reviewed public complaint projections ordered by recency or privacy-safe aggregate support.';
+comment on function public.set_public_complaint_engagement(uuid, uuid, boolean, boolean) is
+  'Idempotently sets one active account support and private follow state for a current public projection.';
+
+do $public_complaint_engagements_verify$
+begin
+  if not exists (
+    select 1
+    from pg_catalog.pg_class as relation
+    inner join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'complaints'
+      and relation.relname = 'public_complaint_engagements'
+      and relation.relkind = 'r'
+      and relation.relrowsecurity
+      and relation.relforcerowsecurity
+  ) or (
+    select count(*)
+    from information_schema.columns
+    where table_schema = 'complaints'
+      and table_name = 'public_complaint_engagements'
+      and column_name = any(array[
+        'complaint_id',
+        'user_id',
+        'is_supporting',
+        'is_following',
+        'support_changed_at',
+        'follow_changed_at',
+        'created_at',
+        'updated_at'
+      ]::text[])
+  ) <> 8 or not exists (
+    select 1
+    from pg_catalog.pg_constraint as constraint_record
+    where constraint_record.conrelid = 'complaints.public_complaint_engagements'::regclass
+      and constraint_record.contype = 'p'
+      and pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        = 'PRIMARY KEY (complaint_id, user_id)'
+  ) or not exists (
+    select 1
+    from pg_catalog.pg_constraint as constraint_record
+    where constraint_record.conrelid = 'complaints.public_complaint_engagements'::regclass
+      and constraint_record.conname = 'public_complaint_engagements_time_check'
+      and constraint_record.contype = 'c'
+      and constraint_record.convalidated
+      and pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        = 'CHECK (((support_changed_at >= created_at) AND (follow_changed_at >= created_at) AND (updated_at >= created_at)))'
+  ) or not exists (
+    select 1
+    from pg_catalog.pg_constraint as constraint_record
+    where constraint_record.conrelid = 'complaints.public_complaint_engagements'::regclass
+      and constraint_record.conname = 'public_complaint_engagements_complaint_id_fkey'
+      and constraint_record.contype = 'f'
+      and constraint_record.convalidated
+      and pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        = 'FOREIGN KEY (complaint_id) REFERENCES complaints.complaints(id) ON DELETE RESTRICT'
+  ) or not exists (
+    select 1
+    from pg_catalog.pg_constraint as constraint_record
+    where constraint_record.conrelid = 'complaints.public_complaint_engagements'::regclass
+      and constraint_record.conname = 'public_complaint_engagements_user_id_fkey'
+      and constraint_record.contype = 'f'
+      and constraint_record.convalidated
+      and pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        = 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE'
+  ) or to_regprocedure(
+    'public.list_public_complaint_feed(double precision,double precision,double precision,double precision,text[],text[],timestamp with time zone,timestamp with time zone,integer,integer,text,text)'
+  ) is null or to_regprocedure(
+    'public.list_public_complaint_engagements(uuid,uuid[])'
+  ) is null or to_regprocedure(
+    'public.set_public_complaint_engagement(uuid,uuid,boolean,boolean)'
+  ) is null or has_table_privilege(
+    'authenticated', 'complaints.public_complaint_engagements', 'select'
+  ) or has_function_privilege(
+    'authenticated',
+    'public.set_public_complaint_engagement(uuid,uuid,boolean,boolean)',
+    'execute'
+  ) or not has_function_privilege(
+    'service_role',
+    'public.list_public_complaint_feed(double precision,double precision,double precision,double precision,text[],text[],timestamp with time zone,timestamp with time zone,integer,integer,text,text)',
+    'execute'
+  ) or not has_function_privilege(
+    'service_role',
+    'public.list_public_complaint_engagements(uuid,uuid[])',
+    'execute'
+  ) or not has_function_privilege(
+    'service_role',
+    'public.set_public_complaint_engagement(uuid,uuid,boolean,boolean)',
+    'execute'
+  ) then
+    raise exception using
+      errcode = '55000',
+      message = 'PUBLIC_COMPLAINT_ENGAGEMENT_MIGRATION_INCOMPLETE',
+      hint = 'Reconcile the existing complaints.public_complaint_engagements relation instead of accepting partial schema drift.';
+  end if;
+end;
+$public_complaint_engagements_verify$;
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260717100000_public_complaint_engagements.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260718100000_complaint_routing_evidence_diagnostics.sql
+-- ============================================================================
+begin;
+
+create or replace function complaints.complaint_routing_evidence_mismatches(
+  p_actor_user_id uuid,
+  p_submission_request_id uuid,
+  p_routing_decision_id uuid
+)
+returns text[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  submission complaints.complaint_submission_requests%rowtype;
+  draft complaints.complaint_drafts%rowtype;
+  evidence complaints.complaint_location_evidence%rowtype;
+  decision routing.routing_decisions%rowtype;
+  mismatches text[] := '{}'::text[];
+begin
+  select request.* into submission
+  from complaints.complaint_submission_requests as request
+  where request.id = p_submission_request_id
+    and request.actor_user_id = p_actor_user_id;
+
+  if not found then
+    return mismatches;
+  end if;
+
+  select candidate.* into draft
+  from complaints.complaint_drafts as candidate
+  where candidate.id = submission.draft_id
+    and candidate.citizen_user_id = p_actor_user_id;
+
+  if not found or draft.selected_location_evidence_id is null then
+    return mismatches;
+  end if;
+
+  select location.* into evidence
+  from complaints.complaint_location_evidence as location
+  where location.id = draft.selected_location_evidence_id
+    and location.draft_id = draft.id
+    and location.actor_user_id = p_actor_user_id;
+
+  if not found then
+    return mismatches;
+  end if;
+
+  select route.* into decision
+  from routing.routing_decisions as route
+  where route.id = p_routing_decision_id;
+
+  if not found then
+    return array['COMPLAINT_ROUTING_DECISION_NOT_FOUND']::text[];
+  end if;
+
+  if decision.actor_user_id is distinct from p_actor_user_id then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_ACTOR_MISMATCH');
+  end if;
+  if decision.request_id is distinct from submission.routing_request_id then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_REQUEST_MISMATCH');
+  end if;
+  if decision.decision_status is distinct from 'routed' then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_STATUS_MISMATCH');
+  end if;
+  if decision.category_id is distinct from draft.category_id then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_CATEGORY_MISMATCH');
+  end if;
+  if decision.asset_id is distinct from draft.asset_id then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_ASSET_MISMATCH');
+  end if;
+  if not extensions.st_equals(decision.input_location, evidence.location) then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_LOCATION_MISMATCH');
+  end if;
+  if decision.accuracy_meters is distinct from evidence.accuracy_meters then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_ACCURACY_MISMATCH');
+  end if;
+  if decision.captured_at is distinct from evidence.captured_at then
+    mismatches := array_append(mismatches, 'COMPLAINT_ROUTING_CAPTURE_TIME_MISMATCH');
+  end if;
+
+  return mismatches;
+end;
+$$;
+
+revoke all on function complaints.complaint_routing_evidence_mismatches(uuid, uuid, uuid)
+  from public, anon, authenticated, service_role;
+
+comment on function complaints.complaint_routing_evidence_mismatches(uuid, uuid, uuid) is
+  'Internal exact comparison of a claimed complaint draft location and its recorded routing decision. Empty results defer prerequisite validation to the canonical completion implementation.';
+
+create or replace function complaints.complete_complaint_submission_v2(
+  p_actor_user_id uuid,
+  p_submission_request_id uuid,
+  p_routing_decision_id uuid,
+  p_acknowledged_duplicate_suggestion_ids uuid[] default '{}'::uuid[],
+  p_emergency_disclaimer_acknowledged boolean default false
+)
+returns table (
+  complaint_id uuid,
+  draft_id uuid,
+  complaint_number text,
+  status text,
+  submitted_at timestamptz,
+  routing_decision_id uuid,
+  assignment_id uuid,
+  authority_id uuid,
+  local_body_id uuid,
+  ward_id uuid,
+  department_id uuid,
+  officer_role_id uuid,
+  replayed boolean
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  request complaints.complaint_submission_requests%rowtype;
+  draft complaints.complaint_drafts%rowtype;
+  evidence complaints.complaint_location_evidence%rowtype;
+  decision routing.routing_decisions%rowtype;
+  category routing.issue_categories%rowtype;
+  created_complaint_id uuid := gen_random_uuid();
+  created_assignment_id uuid := gen_random_uuid();
+  created_number text;
+  operation_at timestamptz := current_timestamp;
+  finalized_media_count integer;
+  maximum_media_distance double precision;
+  media_record record;
+  media_distance double precision;
+  latest_duplicate_run_id uuid;
+  routing_evidence_mismatches text[];
+begin
+  select submission.* into request
+  from complaints.complaint_submission_requests as submission
+  where submission.id = p_submission_request_id
+    and submission.actor_user_id = p_actor_user_id
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'COMPLAINT_SUBMISSION_NOT_FOUND';
+  end if;
+
+  if request.state = 'completed' then
+    return query
+    select
+      complaint.id,
+      complaint.draft_id,
+      complaint.complaint_number,
+      complaint.current_status,
+      complaint.submitted_at,
+      complaint.routing_decision_id,
+      assignment.id,
+      assignment.authority_id,
+      assignment.local_body_id,
+      assignment.ward_id,
+      assignment.department_id,
+      assignment.officer_role_id,
+      true
+    from complaints.complaints as complaint
+    inner join complaints.complaint_assignments as assignment
+      on assignment.complaint_id = complaint.id
+    where complaint.id = request.complaint_id;
+    return;
+  end if;
+
+  select candidate.* into draft
+  from complaints.complaint_drafts as candidate
+  where candidate.id = request.draft_id
+    and candidate.citizen_user_id = p_actor_user_id
+  for update;
+
+  if not found
+    or draft.status <> 'active'
+    or draft.expires_at <= operation_at
+    or draft.category_id is null
+    or draft.description is null
+    or draft.selected_location_evidence_id is null then
+    raise exception using errcode = '23514', message = 'COMPLAINT_DRAFT_NOT_SUBMITTABLE';
+  end if;
+
+  select location.* into evidence
+  from complaints.complaint_location_evidence as location
+  where location.id = draft.selected_location_evidence_id
+    and location.draft_id = draft.id
+    and location.actor_user_id = p_actor_user_id;
+
+  if not found
+    or evidence.verification_status not in ('verified', 'partially_verified')
+    or evidence.spoof_risk_status in ('high', 'blocked')
+    or evidence.mock_location_detected is true then
+    raise exception using errcode = '23514', message = 'COMPLAINT_LOCATION_NOT_VERIFIED';
+  end if;
+
+  select issue.* into category
+  from routing.issue_categories as issue
+  inner join routing.issue_domains as domain on domain.id = issue.domain_id
+  where issue.id = draft.category_id
+    and issue.status = 'active'
+    and issue.verification_status = 'verified'
+    and not issue.is_placeholder
+    and issue.is_routing_eligible
+    and domain.status = 'active'
+    and domain.verification_status = 'verified'
+    and not domain.is_placeholder
+    and domain.is_routing_eligible;
+
+  if not found then
+    raise exception using errcode = '23514', message = 'COMPLAINT_CATEGORY_NOT_ROUTABLE';
+  end if;
+  if category.is_emergency and not p_emergency_disclaimer_acknowledged then
+    raise exception using errcode = '23514', message = 'COMPLAINT_EMERGENCY_DISCLAIMER_REQUIRED';
+  end if;
+  if category.requires_asset and draft.asset_id is null then
+    raise exception using errcode = '23514', message = 'COMPLAINT_ASSET_REQUIRED';
+  end if;
+  if cardinality(category.required_attributes) > 0
+    and not (draft.custom_attributes ?& category.required_attributes) then
+    raise exception using errcode = '23514', message = 'COMPLAINT_REQUIRED_ATTRIBUTES_MISSING';
+  end if;
+
+  if cardinality(p_acknowledged_duplicate_suggestion_ids) <> (
+    select count(distinct suggestion_id)
+    from unnest(p_acknowledged_duplicate_suggestion_ids) as suggestion_id
+  ) then
+    raise exception using errcode = '22023', message = 'COMPLAINT_DUPLICATE_ACKNOWLEDGEMENT_INVALID';
+  end if;
+
+  select run.id into latest_duplicate_run_id
+  from complaints.duplicate_check_runs as run
+  inner join routing.duplicate_detection_policy_versions as policy
+    on policy.id = run.duplicate_policy_version_id
+  inner join routing.duplicate_detection_policies as policy_identity
+    on policy_identity.id = policy.duplicate_detection_policy_id
+  where run.draft_id = draft.id
+    and run.actor_user_id = p_actor_user_id
+    and policy.status = 'active'
+    and policy.verification_status = 'verified'
+    and not policy.is_placeholder
+    and policy.is_routing_eligible
+    and policy.effective_from <= operation_at
+    and (policy.effective_to is null or policy.effective_to > operation_at)
+    and policy_identity.status = 'active'
+    and policy_identity.verification_status = 'verified'
+    and not policy_identity.is_placeholder
+    and policy_identity.is_routing_eligible
+  order by run.checked_at desc, run.id desc
+  limit 1;
+
+  if latest_duplicate_run_id is null then
+    if cardinality(p_acknowledged_duplicate_suggestion_ids) <> 0 then
+      raise exception using errcode = '23514', message = 'COMPLAINT_DUPLICATE_ACKNOWLEDGEMENT_INVALID';
+    end if;
+  elsif exists (
+    select 1
+    from complaints.duplicate_check_matches as match
+    where match.duplicate_check_run_id = latest_duplicate_run_id
+      and not (match.candidate_complaint_id = any(p_acknowledged_duplicate_suggestion_ids))
+  ) or exists (
+    select 1
+    from unnest(p_acknowledged_duplicate_suggestion_ids) as suggestion_id
+    where not exists (
+      select 1
+      from complaints.duplicate_check_matches as match
+      where match.duplicate_check_run_id = latest_duplicate_run_id
+        and match.candidate_complaint_id = suggestion_id
+    )
+  ) then
+    raise exception using errcode = '23514', message = 'COMPLAINT_DUPLICATE_ACKNOWLEDGEMENT_REQUIRED';
+  end if;
+
+  routing_evidence_mismatches := complaints.complaint_routing_evidence_mismatches(
+    p_actor_user_id,
+    p_submission_request_id,
+    p_routing_decision_id
+  );
+
+  if cardinality(routing_evidence_mismatches) > 0 then
+    raise exception using
+      errcode = '23514',
+      message = routing_evidence_mismatches[1],
+      detail = array_to_string(routing_evidence_mismatches, ',');
+  end if;
+
+  select route.* into decision
+  from routing.routing_decisions as route
+  where route.id = p_routing_decision_id
+    and route.actor_user_id = p_actor_user_id
+    and route.request_id = request.routing_request_id
+  for share;
+
+  select count(*)::integer into finalized_media_count
+  from complaints.complaint_media as media
+  where media.draft_id = draft.id
+    and media.media_kind in ('photo', 'video')
+    and media.upload_status = 'finalized';
+
+  if finalized_media_count < category.minimum_media_count
+    or finalized_media_count > category.maximum_media_count then
+    raise exception using errcode = '23514', message = 'COMPLAINT_MEDIA_COUNT_INVALID';
+  end if;
+  if exists (
+    select 1
+    from complaints.complaint_media as media
+    where media.draft_id = draft.id
+      and media.upload_status not in ('finalized', 'expired')
+  ) then
+    raise exception using errcode = '23514', message = 'COMPLAINT_MEDIA_NOT_READY';
+  end if;
+
+  if jsonb_typeof(category.media_requirements -> 'maximumCaptureDistanceMeters') = 'number' then
+    maximum_media_distance := (category.media_requirements ->> 'maximumCaptureDistanceMeters')::double precision;
+  end if;
+
+  for media_record in
+    select media.id, location.location
+    from complaints.complaint_media as media
+    left join complaints.complaint_location_evidence as location
+      on location.id = media.capture_location_evidence_id
+    where media.draft_id = draft.id and media.upload_status = 'finalized'
+  loop
+    if media_record.location is not null then
+      media_distance := extensions.st_distance(
+        media_record.location::extensions.geography,
+        evidence.location::extensions.geography
+      );
+      if maximum_media_distance is not null and media_distance > maximum_media_distance then
+        raise exception using errcode = '23514', message = 'COMPLAINT_MEDIA_LOCATION_MISMATCH';
+      end if;
+      update complaints.complaint_media as media
+      set distance_to_complaint_meters = media_distance
+      where media.id = media_record.id;
+    end if;
+  end loop;
+
+  created_number := format(
+    'LW-%s-%s',
+    to_char(operation_at at time zone 'UTC', 'YYYYMMDD'),
+    lpad(nextval('complaints.complaint_number_sequence'::regclass)::text, 8, '0')
+  );
+
+  insert into complaints.complaints (
+    id,
+    draft_id,
+    complaint_number,
+    citizen_user_id,
+    category_id,
+    asset_id,
+    description,
+    description_language,
+    custom_attributes,
+    location_evidence_id,
+    routing_decision_id,
+    current_status,
+    visibility,
+    submitted_at,
+    created_at,
+    updated_at
+  )
+  values (
+    created_complaint_id,
+    draft.id,
+    created_number,
+    p_actor_user_id,
+    draft.category_id,
+    draft.asset_id,
+    draft.description,
+    draft.description_language,
+    draft.custom_attributes,
+    evidence.id,
+    decision.id,
+    'submitted',
+    'private',
+    operation_at,
+    operation_at,
+    operation_at
+  );
+
+  insert into complaints.complaint_assignments (
+    id,
+    complaint_id,
+    routing_decision_id,
+    authority_id,
+    local_body_id,
+    ward_id,
+    department_id,
+    authority_department_id,
+    officer_role_id,
+    officer_assignment_id,
+    asset_type_id,
+    asset_id,
+    asset_version_id,
+    asset_ownership_version_id,
+    assigned_at
+  )
+  values (
+    created_assignment_id,
+    created_complaint_id,
+    decision.id,
+    decision.target_authority_id,
+    decision.local_body_id,
+    decision.ward_id,
+    decision.department_id,
+    decision.authority_department_id,
+    decision.officer_role_id,
+    decision.officer_assignment_id,
+    decision.asset_type_id,
+    decision.asset_id,
+    decision.asset_version_id,
+    decision.asset_ownership_version_id,
+    operation_at
+  );
+
+  insert into complaints.complaint_status_history (
+    complaint_id,
+    sequence,
+    from_status,
+    to_status,
+    actor_user_id,
+    event_source,
+    reason_code,
+    public_message,
+    request_id,
+    occurred_at
+  )
+  values (
+    created_complaint_id,
+    1,
+    'draft',
+    'submitted',
+    p_actor_user_id,
+    'citizen_submission',
+    'COMPLAINT_SUBMITTED',
+    'Complaint submitted successfully.',
+    request.routing_request_id,
+    operation_at
+  );
+
+  update complaints.complaint_drafts as source
+  set
+    status = 'submitted',
+    submitted_at = operation_at,
+    revision = source.revision + 1
+  where source.id = draft.id;
+
+  update complaints.complaint_submission_requests as submission
+  set
+    state = 'completed',
+    routing_decision_id = decision.id,
+    complaint_id = created_complaint_id,
+    acknowledged_duplicate_suggestion_ids = p_acknowledged_duplicate_suggestion_ids,
+    emergency_disclaimer_acknowledged = p_emergency_disclaimer_acknowledged,
+    response_payload = jsonb_build_object(
+      'complaintId', created_complaint_id,
+      'draftId', draft.id,
+      'complaintNumber', created_number,
+      'status', 'submitted',
+      'submittedAt', operation_at,
+      'routingDecisionId', decision.id,
+      'assignmentId', created_assignment_id,
+      'authorityId', decision.target_authority_id,
+      'localBodyId', decision.local_body_id,
+      'wardId', decision.ward_id,
+      'departmentId', decision.department_id,
+      'officerRoleId', decision.officer_role_id
+    ),
+    completed_at = operation_at
+  where submission.id = request.id;
+
+  return query select
+    created_complaint_id,
+    draft.id,
+    created_number,
+    'submitted'::text,
+    operation_at,
+    decision.id,
+    created_assignment_id,
+    decision.target_authority_id,
+    decision.local_body_id,
+    decision.ward_id,
+    decision.department_id,
+    decision.officer_role_id,
+    false;
+end;
+$$;
+
+revoke all on function complaints.complete_complaint_submission_v2(
+  uuid, uuid, uuid, uuid[], boolean
+) from public, anon, authenticated, service_role;
+
+comment on function complaints.complete_complaint_submission_v2(
+  uuid, uuid, uuid, uuid[], boolean
+) is
+  'Internal canonical Phase 4 complaint completion implementation with validation-ordered granular routing-evidence checks; direct execution is denied.';
+
+create or replace function public.submit_complaint(
+  p_actor_user_id uuid,
+  p_submission_request_id uuid,
+  p_routing_decision_id uuid,
+  p_acknowledged_duplicate_suggestion_ids uuid[] default '{}'::uuid[],
+  p_emergency_disclaimer_acknowledged boolean default false
+)
+returns table (
+  complaint_id uuid,
+  draft_id uuid,
+  complaint_number text,
+  status text,
+  submitted_at timestamptz,
+  routing_decision_id uuid,
+  assignment_id uuid,
+  authority_id uuid,
+  local_body_id uuid,
+  ward_id uuid,
+  department_id uuid,
+  officer_role_id uuid,
+  replayed boolean
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  completed_complaint_id uuid;
+begin
+  select request.complaint_id into completed_complaint_id
+  from complaints.complaint_submission_requests as request
+  where request.id = p_submission_request_id
+    and request.actor_user_id = p_actor_user_id
+    and request.state = 'completed';
+
+  if found then
+    return query
+    select
+      complaint.id, complaint.draft_id, complaint.complaint_number,
+      complaint.current_status, complaint.submitted_at, complaint.routing_decision_id,
+      assignment.id, assignment.authority_id, assignment.local_body_id,
+      assignment.ward_id, assignment.department_id, assignment.officer_role_id, true
+    from complaints.complaints as complaint
+    inner join complaints.complaint_assignments as assignment
+      on assignment.complaint_id = complaint.id
+     and assignment.status = 'active'
+     and assignment.effective_to is null
+    where complaint.id = completed_complaint_id;
+    return;
+  end if;
+
+  return query
+  select implementation.*
+  from complaints.complete_complaint_submission_v2(
+    p_actor_user_id,
+    p_submission_request_id,
+    p_routing_decision_id,
+    p_acknowledged_duplicate_suggestion_ids,
+    p_emergency_disclaimer_acknowledged
+  ) as implementation;
+end;
+$$;
+
+revoke all on function public.submit_complaint(uuid, uuid, uuid, uuid[], boolean)
+  from public, anon, authenticated;
+grant execute on function public.submit_complaint(uuid, uuid, uuid, uuid[], boolean)
+  to service_role;
+
+comment on function public.submit_complaint(uuid, uuid, uuid, uuid[], boolean) is
+  'Service-only atomic complaint submission wrapper with completed-request replay and canonical forward-repair delegation.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260718100000_complaint_routing_evidence_diagnostics.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260718110000_governance_source_bundle_imports.sql
+-- ============================================================================
+begin;
+
+alter table governance.import_batches
+  add column source_bundle_sha256 text;
+
+alter table governance.import_batches
+  alter column workbook_sha256 drop not null;
+
+alter table governance.import_batches
+  add constraint import_batches_source_bundle_sha256_check check (
+    source_bundle_sha256 is null
+    or source_bundle_sha256 ~ '^[0-9a-f]{64}$'
+  ),
+  add constraint import_batches_source_artifact_check check (
+    workbook_sha256 is not null or source_bundle_sha256 is not null
+  );
+
+comment on column governance.import_batches.workbook_sha256 is
+  'SHA-256 of the exact human-reference workbook bytes for workbook-backed imports; null for source-bundle-only imports.';
+
+comment on column governance.import_batches.source_bundle_sha256 is
+  'SHA-256 of the exact immutable source-bundle archive bytes, including ZIP research or bootstrap bundles; null for workbook-only imports.';
+
+comment on constraint import_batches_source_artifact_check
+  on governance.import_batches is
+  'Every import batch must pin at least one exact source artifact: a workbook, a source bundle, or both.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260718110000_governance_source_bundle_imports.sql
 -- ============================================================================

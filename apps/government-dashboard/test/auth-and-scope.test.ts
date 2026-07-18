@@ -18,10 +18,18 @@ import {
   getGovernmentAccountLabel,
   getVerifiedGovernmentSession,
 } from '../lib/api/client';
-import { EmailInputError, normalizeEmail, normalizeOtp, OtpInputError } from '../lib/auth/input';
+import {
+  EmailInputError,
+  normalizeEmail,
+  normalizeOtp,
+  normalizePassword,
+  OtpInputError,
+  PasswordInputError,
+} from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
 import {
   requestGovernmentOtp,
+  signInGovernmentWithPassword,
   signOutGovernmentSession,
   verifyGovernmentOtp,
 } from '../lib/auth/service';
@@ -30,8 +38,64 @@ import { isPublicAuthRoute } from '../proxy';
 test('normalizes official email addresses without revealing invitation state', () => {
   assert.equal(normalizeEmail(' Officer@Municipality.GOV.IN '), 'officer@municipality.gov.in');
   assert.equal(normalizeOtp('123 456'), '123456');
+  assert.equal(normalizePassword('temporary-password'), 'temporary-password');
   assert.throws(() => normalizeEmail('not-an-email'), EmailInputError);
   assert.throws(() => normalizeOtp('12345'), OtpInputError);
+  assert.throws(() => normalizePassword('short'), PasswordInputError);
+  assert.throws(() => normalizePassword('x'.repeat(73)), PasswordInputError);
+});
+
+test('signs an existing government identity in with a password and records the session audit', async () => {
+  const calls: unknown[] = [];
+  const supabase = {
+    auth: {
+      signInWithPassword: async (request: unknown) => {
+        calls.push(request);
+        return {
+          data: { session: { access_token: 'government-access-token' } },
+          error: null,
+        };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await signInGovernmentWithPassword(
+    supabase,
+    ' Officer@Municipality.GOV.IN ',
+    'temporary-password',
+    async (...audit) => {
+      calls.push(audit);
+      return true;
+    },
+  );
+
+  assert.deepEqual(calls, [
+    { email: 'officer@municipality.gov.in', password: 'temporary-password' },
+    ['government-access-token', 'sign_in_succeeded'],
+  ]);
+});
+
+test('rejects government password authentication without a session', async () => {
+  let auditCalls = 0;
+  const supabase = {
+    auth: {
+      signInWithPassword: async () => ({ data: { session: null }, error: null }),
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(
+    signInGovernmentWithPassword(
+      supabase,
+      'officer@municipality.gov.in',
+      'temporary-password',
+      async () => {
+        auditCalls += 1;
+        return true;
+      },
+    ),
+    /session was not established/u,
+  );
+  assert.equal(auditCalls, 0);
 });
 
 test('constrains callback types and return paths', () => {

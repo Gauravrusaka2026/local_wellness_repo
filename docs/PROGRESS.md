@@ -2,11 +2,15 @@
 
 ## Overall Completion
 
-90% implemented.
+91% implemented.
 
 Phase 0 and Phase 1 are complete. Phase 2's engineering baseline is complete and locally verified;
 its remaining exit work requires external, verified pilot identifiers, contacts and real boundary
-geometry. Phase 3's generic routing engine, database/API boundaries, duplicate framework and
+geometry. The reviewed Maharashtra Batch 0 ZIP is now hash-pinned and reproducibly staged: its 160
+CSV rows and 38 source observations retain immutable provenance, Maharashtra plus 35 exact district
+matches receive LGD enrichment, and the ambiguous Mumbai row plus all conflicts remain
+quarantined. The batch contains no operational municipality, ward, geometry, contact, officer,
+asset, or routing records and therefore changes no routing coverage. Phase 3's generic routing engine, database/API boundaries, duplicate framework and
 review-gated governance-synchronization foundation are implemented. A cross-cutting synchronization
 slice now adds PostgreSQL work leasing, bounded Edge retrieval, immutable snapshots, source audit,
 contact versioning, pure normalization, and generic synchronization scope selection. The original
@@ -14,20 +18,29 @@ ten synchronization endpoints remain draft/inactive, while optional official-sou
 provide locally verified internal demo routing for three asset-independent categories across 22
 exact one-to-one wards through 66 deterministic rules. The other nine pilot categories, split K/P
 child geometry, managed import, continuous source-specific parsing/matching/review/publication, and
-external complaint delivery remain open.
+external complaint delivery remain open; the canonical BMC routing references require reviewed
+asset ownership for all nine.
 Phase 4 provides the secure complaint persistence/API boundary and an Android-buildable citizen
 capture client. The mobile experience now adds email/password access and recovery, staged Supabase
 Phone MFA, private profile images with camera/gallery selection, an ephemeral verified civic-area
 lookup, a modern navigation shell, owned-complaint dashboard/history, reviewed locality Feed,
 privacy-safe aggregate Heatmap, foreground Nearby governance lookup, and database-driven
 attribute/media requirements. The report flow lists the complete non-placeholder category catalog
-but disables everything outside the independently verified operational projection. Citizen Web now
+but disables everything outside the independently verified operational projection. Complaint
+capture now renders all inputs and review controls in one scrollable form and explains every unmet
+submit requirement; its resumable server stages and fail-closed routing checks are unchanged.
+Citizen Web now
 also exposes protected owner complaint list/detail/
 timeline views and feedback/reopen actions. Current issue evidence and captured media are limited to
 the reviewed 50 m policy at client/API/database boundaries. A persisted street address remains a
-separate private-data decision. Production submission remains disabled unless the optional BMC
-internal seed is deliberately applied or complete reviewed routing data exists; transcription/
-moderation and physical-device validation remain open. Phase 5 now adds
+separate private-data decision. Hosted staging now exposes the bounded BMC catalog, finalized
+private media, K/W jurisdiction, and internal routing. A complete local full-stack submission
+returns `201`; hosted submission still requires additive migration `20260718100000` and a receipt
+smoke. Transcription/moderation and physical-device validation remain open. The mobile information hierarchy is now
+more compact, with Home, Complaints, Report, Community, and More as primary destinations. Community
+offers Local, Trending, and Heat views plus one support per authenticated account and private
+star/follow state over current reviewed projections only. Public output exposes only aggregate
+support counts, and community signals cannot change official workflow or SLA/KPI state. Phase 5 now adds
 database-enforced government workflow, an authenticated NestJS operations API, private verified
 resolution evidence, and an accessible access-scoped government dashboard. Its engineering is
 locally complete with synthetic verified fixtures; production-like use remains gated on verified
@@ -39,28 +52,37 @@ verification matrix are complete; managed activation, push/email providers, publ
 and physical-device/hosted validation remain open. The configured replacement Supabase project uses
 owner-confirmed staging credentials. Dashboard failures confirmed an earlier Local Wellness schema
 without identifying a reliable cutoff, so the fixed Phase 9 assumption was removed. Adaptive
-transaction-atomic SQL Editor parts now cover all 42 migrations, skip only a coherent completed
-prefix, and apply the missing suffix. Their managed execution, post-upgrade reconciliation,
-migration/seed ledger, Auth identities, profiles, and privileged assignments remain unverified; the
-successful 23-migration deployment and identity checks belong to the previous staging target.
-Authenticated current-target UI smoke testing remains pending.
+transaction-atomic SQL Editor parts now cover all 45 migrations, skip only a coherent completed
+prefix, and apply the missing suffix. The owner reports running the focused migrations 39–43
+artifact successfully on current staging; post-upgrade readiness/schema reconciliation,
+migration/seed ledger remains unreconciled. The current staging target now has seven distinct,
+confirmed synthetic privileged identities with active profiles and exact time-bounded BMC
+role/membership scopes; every generated password was verified without email delivery. Interactive
+TOTP enrollment, queue-isolation, and rendered portal smoke testing remain pending. The successful
+23-migration deployment and its earlier identities belong to the previous staging target.
+For the likely late-Phase-10 target, a separate 77,849-byte adaptive artifact now covers exact
+migrations 39–43 from a verified migration-38 baseline. Its local rehearsal applied all five and
+safely skipped them on rerun; the owner reports successful hosted SQL Editor execution, pending an
+independent schema/ledger check.
 Phase 7 now adds effective-dated resolution policy, captured completion evidence, immutable citizen
 feedback, policy-controlled reopening, repeated-reopen escalation, strict APIs, private evidence
 access, durable citizen receipts, government accountability history, and owner feedback/reopen
 actions on Citizen Web. Local engineering and verification are complete; no operational policy was
 seeded or activated, and the replacement-target Phase 7 migration state is unreconciled. Phase 8
-local engineering now provides a separately
-reviewed public projection, generalized PostGIS reads, reviewed duplicate groups, strict anonymous
-APIs, and provider-neutral citizen web/mobile transparency while publishing no fixture. Phase 9
+local engineering now provides a separately reviewed public projection, generalized PostGIS reads,
+reviewed duplicate groups, strict anonymous APIs, account-bound support/private stars, live
+`recent|trending` ordering, and provider-neutral citizen web/mobile transparency while publishing
+no fixture. Phase 9
 local engineering adds reviewed business calendars/SLA policies, materialized clocks and pauses,
 transactional escalation, PostgreSQL-leased workers, reproducible organizational KPI snapshots,
 strict APIs, and a scoped dashboard. No operational visibility/SLA policy or KPI schedule is seeded,
-and their versions have not been reconciled against the current staging ledger. Phase 10 is now 72%
+and their versions have not been reconciled against the current staging ledger. Phase 10 is now 79%
 implemented locally: PostgreSQL-backed quotas, security headers, health/readiness, graceful
 shutdown, secret scanning, bounded HTTP checks, operator runbooks, citizen email/password and
-staged Phone MFA, privileged TOTP modes, explicit account context/switching across all portals,
-named data-driven official invitation selectors, private avatars, 50 m evidence enforcement, and
-routing delivery-readiness metadata are present. Phone SMS/provider recovery, managed migration
+staged Phone MFA, privileged password entry plus TOTP modes, explicit account context/switching
+across all portals, named data-driven official invitation selectors, a guarded expiring staging
+account matrix, private avatars, 50 m evidence enforcement, and routing delivery-readiness metadata
+are present. Phone SMS/provider recovery, managed migration
 activation, official-account browser validation, cleanup jobs, accessibility/legal review, and
 hosted/device smoke remain open.
 
@@ -77,14 +99,14 @@ does not prove the hosted database state.
 | Phase 0 — Foundation                         | Complete    |       100% |
 | Phase 1 — Identity and access                | Complete    |       100% |
 | Phase 2 — Maharashtra governance model       | In progress |        90% |
-| Phase 3 — Taxonomy and routing               | In progress |        88% |
-| Phase 4 — Citizen complaint capture          | In progress |        98% |
+| Phase 3 — Taxonomy and routing               | In progress |        89% |
+| Phase 4 — Citizen complaint capture          | In progress |        99% |
 | Phase 5 — Government dashboard               | In progress |        95% |
 | Phase 6 — Realtime and notifications         | In progress |        85% |
 | Phase 7 — Resolution, feedback and reopening | In progress |        92% |
-| Phase 8 — Nearby map and transparency        | In progress |        85% |
+| Phase 8 — Nearby map and transparency        | In progress |        92% |
 | Phase 9 — SLA, escalation and KPI            | In progress |        85% |
-| Phase 10 — Hardening and launch              | In progress |        72% |
+| Phase 10 — Hardening and launch              | In progress |        79% |
 
 Phase 1 completion is measured against the `PLAN.md` exit criteria: citizen email/password clients
 and privileged delivered-invite sessions pass locally; current database scope gates government
@@ -151,10 +173,13 @@ options remain tracked under `RESOLUTION-002`.
 Phase 8 engineering completion covers effective-dated visibility policy, immutable reviewed
 publications, PostgreSQL-derived generalized coordinates, reviewed duplicate groups, bounded
 anonymous nearby/hotspot/ward/detail reads, strict APIs, and provider-neutral accessible citizen
-web/mobile surfaces. It is not marked 100% because policy approval, real reviewed publications,
-verified pilot geometry, processed-media operations, external-map/privacy decisions, managed
-activation, performance, and rendered/device testing remain incomplete. No public complaint is
-activated by engineering fixtures.
+web/mobile surfaces. The current community slice adds one private engagement row per account,
+aggregate-only public support counts, private star/follow state, bounded authenticated APIs,
+`recent|trending` ordering, and Local/Trending/Heat mobile views without an official-priority side
+effect. It is not marked 100% because policy approval, real reviewed publications, pilot moderation
+and abuse operations, verified geometry, processed-media operations, external-map/privacy
+decisions, managed activation, performance, and rendered/device testing remain incomplete. No
+public complaint is activated by engineering fixtures.
 
 Phase 9 engineering completion covers effective-dated business calendars, targets and category
 overrides, immutable complaint clocks/deadlines, external-dependency pauses, versioned escalation,
@@ -168,24 +193,34 @@ validation remains pending.
 
 - Sprint 1 — Project Foundation: 100% complete.
 - Sprint 2 — Identity and Access: 100% complete.
-- Sprint 3 — Governance data foundation and pilot-data closure: 90% complete.
-- Sprint 4 — Data-driven routing and governance synchronization foundation/retrieval: 88% complete.
-- Sprint 5 — Secure citizen complaint capture: 98% complete.
+- Sprint 3 — Governance data foundation and pilot-data closure: 91% complete.
+- Sprint 4 — Data-driven routing and governance synchronization foundation/retrieval: 89% complete.
+- Sprint 5 — Secure citizen complaint capture: 99% complete.
 - Sprint 6 — Access-scoped government complaint operations: 95% complete.
 - Sprint 7 — Persistent communication and durable notification delivery: 85% complete.
 - Sprint 8 — Citizen resolution review and accountable reopening: 92% complete.
 - Sprint 9 — Mobile citizen experience completion and privacy-safe projections: 92% complete.
 - Sprint 10 — Organizational accountability and managed activation readiness: 85% complete.
-- Sprint 11 — V1 citizen access, security, and launch readiness: 72% complete.
+- Sprint 11 — V1 citizen access, security, and launch readiness: 79% complete.
 
 ## Completed Milestones
 
+- Maharashtra Batch 0 immutable ZIP intake with a deterministic archive/header/hash validator,
+  29-file/160-record import ledger, 38 canonical source registrations, non-destructive Maharashtra
+  plus 35-district LGD enrichment, transient-token redaction, one quarantined Mumbai alias, a
+  three-part SQL Editor deployment, generated database types/master artifacts, and passing full
+  local migration/seed/RLS verification.
+
 - Deterministic `supabase/master.sql` clean-bootstrap artifact plus two reviewed-boundary, ordered SQL
-  Editor parts generated from all 42 migrations, with per-source transaction boundaries, SHA-256
+  Editor parts generated from all 43 migrations, with per-source transaction boundaries, SHA-256
   provenance, and one drift check covering all three files.
 - Exact signed-in account context, wrong-account switching, recovery guidance, and distinct
   enrollment/challenge messaging across Citizen Web, Government Dashboard, and Admin Console;
   privileged access still requires identity, personal TOTP/AAL2, and database scope independently.
+- Existing privileged identities can enter either portal with password without bypassing TOTP or
+  database authorization. Seven separate BMC staging identities now cover global administration,
+  municipality, operator, A/K-Ward, Solid Waste Management, and Public Health scopes with verified
+  passwords and assignments expiring on 2026-08-17.
 - Named official-onboarding choices backed by a service-role-only verified/routable governance
   projection, strict caller-authority filtering, and no operator-entered raw UUID fields.
 - Template-compatible passwordless callbacks across citizen web, government dashboard, admin
@@ -194,14 +229,27 @@ validation remains pending.
 - Review-gated Phase 8 transparency with immutable sanitized publications, generalized PostGIS
   projections, reviewed duplicate groups, four bounded anonymous read surfaces, strict APIs, and
   provider-neutral accessible web/mobile clients; no public data was activated.
+- Account-bound reviewed-public complaint engagement with one support per account, private
+  star/follow state, aggregate-only public counts, live `recent|trending` ordering, bounded quotas,
+  withdrawal handling, and no effect on routing, status, escalation, SLA, or KPI state.
+- Four transaction-atomic BMC SQL Editor deployment parts covering baseline categories/core,
+  official boundaries, reviewed ward/governance crosswalk, and three-category routing activation;
+  K/P split wards, unavailable categories, and automatic external delivery remain fail closed.
+- Compact current-session SQL Editor upgrade covering exact migrations 39–43 from a verified
+  migration-38 baseline, with deterministic generation/static checks, an advisory-locked adaptive
+  transaction, final readiness verification, successful local first-run/safe-rerun rehearsal, and
+  90 focused pgTAP assertions.
 - Database-enforced Phase 9 SLA/escalation/KPI architecture with 19 forced-RLS tables, atomic policy
   supersession, materialized clocks/pauses/deadlines, transactional escalation/outbox evidence,
   PostgreSQL-leased workers, reproducible organizational snapshots, strict APIs, and a scoped
   government accountability dashboard.
 - Modern Expo citizen shell with explicit sign-in/create/recovery modes; Home, Complaints, Report,
-  Nearby, and More navigation; refreshable owned-complaint summaries/history; grouped profile/help
+  Community, and More navigation; refreshable owned-complaint summaries/history; grouped profile/help
   actions; category-driven complaint attributes/media limits; focus refresh; permanent-permission
   recovery; and single-pass location/media preparation.
+- One-page mobile complaint reporting with compact category cards, accepted-location/media gates,
+  duplicate and emergency review, a complete submission-blocker checklist, and bell notification
+  affordances while retaining the existing private server workflow.
 - Authenticated verified-governance directory with a service-role-only official-source PostGIS
   projection, honest low-accuracy/unsupported/ambiguous states, public-safe mobile cards, strict
   contracts, ADR-0017, and migration/API/mobile/ACL coverage.
@@ -303,11 +351,11 @@ validation remains pending.
   privileged/citizen MFA helpers, owner-private profile images, 50 m complaint/media proximity,
   and government routing-delivery readiness.
 - Two additive migrations through `20260716119000` add BMC ward relationship versioning and the
-  government invitation selector projection; generated types and the 42-migration master artifacts
-  are current.
+  government invitation selector projection; the later engagement migration brings the current
+  migration source set and generated master artifacts to 43.
 - Citizen web/mobile email/password signup/sign-in and recovery, Supabase Phone MFA observe/enforce
   modes, private avatar management, mobile camera/gallery selection, a non-persistent verified
-  civic-area lookup, and modern mobile Feed/Heatmap experiences using only reviewed public
+  civic-area lookup, and compact mobile Local/Trending/Heat experiences using only reviewed public
   projections.
 - Protected Citizen Web complaint history/detail/timeline plus government action context,
   feedback/confirmation, and policy-aware reopening through owner-authorized server APIs.
@@ -324,32 +372,42 @@ validation remains pending.
 
 Phase 10 citizen-access and launch-hardening engineering is in progress. Email/password recovery,
 staged Phone MFA, privileged TOTP modes, private profile images, mobile profile camera and verified
-civic-area lookup, locality Feed/Heatmap, Citizen Web complaint accountability, 50 m
+civic-area lookup, compact Local/Trending/Heat community views, reviewed-public support/private
+stars, Citizen Web complaint accountability, 50 m
 evidence controls, PostgreSQL quotas, health/readiness, release tooling, and routing-delivery
 readiness are implemented locally. All web portals now identify the current account, distinguish
 TOTP enrollment from a returning challenge, and provide safe account-switch/recovery guidance. The
-Admin Console uses named verified/routable governance choices for new official invitations. The
+Admin Console uses named verified/routable governance choices for new official invitations. A
+guarded operator helper has also created the fixed synthetic BMC staging matrix for email-free demo
+access; its roles are already assigned and expire after 30 days. The
 API, mobile, and portal scripts now share the repository-root environment, closing the known local
-split-project configuration path. The current milestone is managed migration/data application plus
-one fresh-session end-to-end official onboarding smoke without enabling external complaint
-delivery.
+split-project configuration path. Hosted staging now resolves the bounded BMC K/W path but fails at
+the final completion function. The current milestone is applying migration `20260718100000`,
+obtaining one hosted complaint receipt, and completing personal TOTP plus cross-scope portal smoke
+with the staged identities without enabling external complaint delivery.
 
 ## Next Milestone
 
-Reconcile and apply all 42 incremental migrations through `20260716119000` to managed staging,
-then apply reviewed BMC seeds `50`–`53` in order. Invite one new unique official email through the Admin
-Console, verify that official's individual TOTP and scoped Government Dashboard access, and submit
-one internal BMC demo complaint. Configure exact Auth/recovery redirects and exercise citizen
-browser/device flows while Phone MFA remains in observe mode. External BMC delivery, OS push,
-Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/deferred.
+Run `supabase/migrations/20260718100000_complaint_routing_evidence_diagnostics.sql` in hosted SQL
+Editor, run the read-only BMC submission runtime audit, and repeat the saved-report submit until a
+receipt is returned. The catalog, three operational categories, 22 eligible BMC wards, finalized
+private media, and K/W route are already present and do not need to be reloaded for this repair.
+Reconcile the official schema/ledger separately, then use the staged identities to enroll separate
+TOTP factors and verify municipal, ward, and department scope isolation. Retain Admin Console
+invitations for real official-controlled email identities once delivery is available.
+External BMC delivery, OS push, Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/
+deferred.
 
 ## Current Blockers
 
 - The mobile code path is locally complete, but a physical phone still needs a LAN-reachable API/
   realtime URL and representative permission, capture, interruption, SecureStore/SQLite, callback,
   refresh, and logout testing (`COMPLAINT-002`, `AUTH-005`).
-- Staging does not yet contain the verified-governance projection migration or official reviewed
-  pilot geometry. Nearby therefore cannot return a real governing body there (`GOVDIR-001`).
+- The earlier hosted audit's zero-data result is superseded: staging now returns 12 catalog
+  categories, three operational categories, finalized private media, K/W jurisdiction, and a
+  deterministic route. Final submission remains blocked because migration `20260718100000` has not
+  been applied to hosted Supabase. The local corrected flow returns `201`; apply the forward repair,
+  run the runtime audit, and require a hosted receipt (`COMPLAINT-006`).
 - OS push notifications require an owned Expo/EAS project, FCM/APNs credentials, consent and
   preferences, verified destinations, and delivery policy. Durable in-app history and Socket.IO
   refresh remain available (`NOTIFY-001`).
@@ -359,9 +417,10 @@ Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/deferred.
   (`COMPLAINT-004`, `COMPLAINT-005`, `NOTIFY-004`).
 - No blocker remains for the Phase 2 schema, baseline import, security or local verification.
 - The dedicated staging project and newly generated credentials are confirmed, but its exact
-  ledger remains unreconciled. A 2026-07-16 API liveness check passed while readiness returned 503,
-  which is consistent with the Phase 10 readiness RPC/schema not yet being available or executable
-  there. Apply and verify all 42 incremental migrations; do not use the master SQL as an upgrade.
+  migration ledger remains unreconciled through the 43-migration cutoff. The earlier readiness
+  `503`/`PGRST202` symptom is resolved; do not use healthy readiness as evidence that category,
+  governance, routing, transparency, or engagement data has been loaded. Never use the master SQL
+  as an upgrade.
 - Citizen Phone MFA is implemented in observe mode. Mandatory verification requires Advanced Phone
   MFA, completion and verification of the Twilio provider setup, recovery, abuse controls, and
   real-device E2E (`AUTH-010`).
@@ -380,6 +439,10 @@ Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/deferred.
 - Governance synchronization retrieval is implemented and locally tested, but it is not deployed or
   active. Source-specific parsers, entity matching/change detection, review API/UI, transactional
   publishers, environment Cron/secrets, and production source validation remain (`GOVSYNC-001`).
+- Batch 0 improves official source discovery and top-level LGD identifiers only. Its six unresolved
+  discrepancy groups, 21 data issues, absent municipality/ward/contact/geometry/routing rows, stale
+  PMC booklet, and unreviewed `Mumbai` → `Mumbai City` alias remain open under `DATA-009`; no hosted
+  Supabase deployment was performed in this intake session.
 - Pilot synchronization scope is implemented generically. The original ten V1 scope rows remain
   placeholder audit history, while the optional BMC pack now supplies source-backed operational
   ward identities and legacy geometry for local internal routing. That pack is not applied to the
@@ -394,17 +457,18 @@ Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/deferred.
 - Conflicting confidence-policy versions across simultaneously applicable rules fail closed at
   runtime and the service-only activation report is available; production activation still needs
   reviewed conflict-free policy data (`ROUTING-003`).
-- The Maharashtra baseline still has no production route. Optional BMC seeds enable only three
-  asset-independent categories across 22 exact wards and explicitly leave official external
-  delivery false. Nine asset inventories, split K/P child geometry, managed import, and end-to-end
-  smoke remain pending (`ROUTING-001`, `DATA-004`).
+- The Maharashtra baseline still has no production route. Hosted BMC data enables only three
+  categories across 22 exact wards and explicitly leaves official external delivery false. Nine
+  reviewed asset-ownership imports and K/P child geometry remain pending (`ROUTING-001`,
+  `DATA-004`).
 - Speech-to-text/media-moderation processing, physical-device capture/resume, expired-upload
   cleanup, per-attachment draft removal, and original-evidence owner viewing remain
   (`COMPLAINT-001` through `COMPLAINT-005`).
 - The prior staging target had one verified platform administrator and one Pune-scoped municipal
-  administrator. The replacement target's Auth profiles, roles, and memberships must be verified or
-  recreated through trusted workflows before authenticated dashboard smoke testing; a production-
-  like queue additionally needs verified pilot roles, assignments, geometry, routes, and complaints.
+  administrator. The replacement target now has a verified seven-account synthetic BMC matrix, but
+  each account used still needs personal TOTP enrollment and rendered cross-scope denial testing.
+  Synthetic Auth identities do not auto-disable at role expiry and require explicit teardown under
+  `AUTH-012`; production officials still require unique official-controlled identities.
 - The interactive government complaint map needs an approved provider and exact-coordinate sharing
   policy (`GOVDASH-001`). Resolution evidence still needs scheduled private-object cleanup, full
   media decoding, malware scanning/moderation, and bounded operational concurrency (`GOVDASH-002`).
@@ -415,9 +479,10 @@ Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/deferred.
 - A persisted citizen street address needs a dedicated owner-private data model, consent/retention,
   RLS, and reviewed reverse-geocoding/provider policy. The current mobile civic-area labels are
   intentionally ephemeral and coordinate-free (`PROFILE-002`).
-- Community support, follow, trending, and commenting remain disabled pending reviewed public
-  visibility, privacy, moderation, anti-abuse, retention, and ranking semantics; they must not
-  silently alter official routing or SLA priority (`COMMUNITY-001`, `NOTIFY-003`).
+- Reviewed-public support, private star/follow state, and live trending are implemented with
+  account uniqueness, API quotas, aggregate-only public output, and no official routing/SLA effect.
+  Managed migration/data activation, pilot moderation/abuse operations, and rendered/device smoke
+  remain pending. Public comments stay disabled (`COMMUNITY-001`, `NOTIFY-003`).
 - The replacement target's Phase 6 migration state is unreconciled; its worker and realtime process
   are not active. Hosted reconnect/deduplication, token-expiry disconnect, revoked-scope denial,
   disconnected-recipient history, exact-origin checks, and backlog monitoring remain environment
@@ -535,30 +600,47 @@ Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/deferred.
 - Phase 8 focused database coverage passed 45/45 schema/ACL and 46/46 integration assertions. No
   operational policy, public projection, officer ranking, placeholder route, Redis, BullMQ, Redis
   adapter/cache, or Sentry integration was activated.
-- A clean local reset applied all 42 migrations through `20260716119000` and reviewed seeds,
+- The prior clean local reset applied all 42 migrations through `20260716119000` and reviewed seeds,
   including optional BMC routing seeds `52`/`53`. All 1,513 assertions across 43 pgTAP plans passed,
   including 20 assertions for exact 22-ward/three-category/66-rule activation, split-boundary
   exclusion, candidate resolution, and external-delivery denial. Application-owned schema lint
   reported no errors.
-- The current API passed 210 tests; Citizen Web passed 7 test files; Government Dashboard passed
+- Before the engagement slice, the API passed 210 tests; Citizen Web passed 7 test files; Government Dashboard passed
   51/51 tests; Admin Console passed 3 test files; mobile passed 17 test files; and shared validation
   passed 10 test files. The new Citizen Web and mobile slices passed lint and strict type-check, and
   the Citizen Web production build passed. No physical-device or hosted-browser result is claimed.
-- Generated database types, the deterministic 42-migration master SQL, its adaptive parts, and BMC
+- Before the engagement migration, generated database types, the deterministic 42-migration master SQL, its adaptive parts, and BMC
   governance/routing artifacts passed drift checks. The BMC generator/test verified the optional
   routing seeds without modifying canonical Maharashtra CSV/workbook inputs. Tracked files plus all
   locally available Git history passed secret scanning.
-- The master generator retains the 42-migration clean bootstrap and produces adaptive SQL Editor
-  parts containing migrations 1–23 and 24–42. Catalog fingerprints, an advisory lock, exact source
+- The current master generator target is the 43-migration clean bootstrap with adaptive SQL Editor
+  parts containing migrations 1–23 and 24–43. Catalog fingerprints, an advisory lock, exact source
   hashes, whole-migration skipping, and partial/non-contiguous rejection replace the unproven fixed
   Phase 9 baseline.
-- Local rehearsals and artifact tests confirm coherent-prefix skipping and complete 42-migration
-  coverage. Hosted execution is not yet claimed, and raw Dashboard SQL still leaves the official
-  ledger unreconciled.
-- A live managed-project check passed API liveness but failed readiness with 503/PGRST202 because
-  `public.api_readiness_check()` is absent there. Local engineering verification does not supersede
-  the managed ledger, official pilot data, provider, recovery, or installed-device gates.
+- The new engagement migration, pgTAP plan, API/store tests, shared-validation cases, and mobile
+  service/query tests pass. A clean local reset applied all 43 migrations and reviewed seeds; all
+  1,542 assertions across 44 pgTAP plans passed, schema lint reported no errors, and database-type
+  plus master-artifact drift checks passed. The BMC bundle passed its deterministic static test and
+  first-run/safe-rerun local execution at 12 visible categories, three operational categories, and
+  22 routable wards.
+- The compact current-session artifact passed deterministic static checks. Applied to a local
+  migration-38 baseline, it installed migrations 39–43 in one transaction; an immediate rerun
+  skipped all five safely. Focused plans 038, 039, 040, 042, and 044 passed 90 assertions on that
+  upgraded state.
+- The mobile complaint presentation now uses one scrollable form with an explicit blocker
+  checklist while retaining the server-owned draft and routing lifecycle. Focused blocker tests,
+  all 17 mobile test files, lint, strict type-check, and the 1,278-module Android Expo export pass.
+  Physical-device interaction and managed positive-route submission remain environment gates.
+- A later credential-safe managed audit found API readiness healthy and all five private Storage
+  buckets present, superseding the earlier `503`/`PGRST202` observation. It also found zero category
+  projections and no tested BMC jurisdiction data. A follow-up probe found migrations 42 and 43
+  absent through their public RPC signatures while the exact 38–41 cutoff remains unproven. Confirm
+  the owner-reported successful compact migrations 39–43 execution through a fresh readiness/schema
+  audit, then apply and verify the BMC bundle. SQL Editor execution does not update the official
+  ledger, so reconcile it separately. Local
+  engineering verification does not supersede the managed ledger, official pilot data, provider,
+  recovery, or installed-device gates.
 
 ## Last Updated
 
-2026-07-17
+2026-07-18

@@ -1,4 +1,4 @@
-import { publicComplaintStatuses } from '@local-wellness/types';
+import { publicComplaintSorts, publicComplaintStatuses } from '@local-wellness/types';
 import { z } from 'zod';
 
 const maximumViewportSpanDegrees = 2;
@@ -103,6 +103,7 @@ export const publicComplaintMapQuerySchema = addViewportAndDateBounds(
       ...filterShape,
       zoom: z.coerce.number().int().min(0).max(22).default(12),
       limit: z.coerce.number().int().min(1).max(200).default(100),
+      sort: z.enum(publicComplaintSorts).default('recent'),
       cursor: cursorSchema.optional(),
     })
     .strict(),
@@ -173,6 +174,7 @@ export const publicComplaintMapItemSchema = z
     submittedAt: publicDateTimeSchema,
     updatedAt: publicDateTimeSchema,
     publishedAt: publicDateTimeSchema,
+    supportCount: z.number().int().min(0).max(1_000_000_000),
   })
   .strict();
 
@@ -297,7 +299,43 @@ export const publicWardBoundaryResultSchema = z
   .object({ items: z.array(publicWardBoundarySchema).max(200) })
   .strict();
 
+export const publicComplaintEngagementLookupSchema = z
+  .object({
+    publicIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(100)
+      .refine(
+        (publicIds) => new Set(publicIds).size === publicIds.length,
+        'Public complaint identifiers must be unique.',
+      ),
+  })
+  .strict();
+
+export const updatePublicComplaintEngagementSchema = z
+  .object({ supported: z.boolean(), starred: z.boolean() })
+  .strict();
+
+export const publicComplaintEngagementStateSchema = z
+  .object({
+    publicId: z.uuid(),
+    supportCount: z.number().int().min(0).max(1_000_000_000),
+    supported: z.boolean(),
+    starred: z.boolean(),
+  })
+  .strict();
+
+export const publicComplaintEngagementListSchema = z
+  .array(publicComplaintEngagementStateSchema)
+  .max(100);
+
 export type PublicComplaintMapQueryInput = z.infer<typeof publicComplaintMapQuerySchema>;
 export type PublicComplaintHotspotQueryInput = z.infer<typeof publicComplaintHotspotQuerySchema>;
 export type PublicWardBoundaryQueryInput = z.infer<typeof publicWardBoundaryQuerySchema>;
 export type PublicComplaintIdParameters = z.infer<typeof publicComplaintIdParametersSchema>;
+export type PublicComplaintEngagementLookupInput = z.infer<
+  typeof publicComplaintEngagementLookupSchema
+>;
+export type UpdatePublicComplaintEngagementInput = z.infer<
+  typeof updatePublicComplaintEngagementSchema
+>;

@@ -9,18 +9,24 @@ existing server-owned workflow, select a map provider, or claim OS push delivery
 
 ## Implemented Outcome
 
-- Modern authenticated navigation for Home, Complaints, Report, Nearby, and More.
+- Compact authenticated navigation for Home, Complaints, Report, Community, and More, with verified
+  governance/Nearby available under More.
 - Explicit email/password sign-in, create-account, and provider-managed recovery modes, with staged
   Supabase Phone MFA.
 - Refreshable owned-complaint summaries, recent records, filters, pagination, and detail links.
 - Grouped profile, language, notifications, public reports, device guidance, and sign-out actions.
 - Database-driven complaint attributes and photo/video limits across API and mobile form state.
+- One scrollable complaint form with concise category cards and an explicit final checklist for
+  every locally knowable submission blocker.
 - Expo foreground location, camera, video, and voice capture with the existing private upload,
   draft resume, duplicate review, submission, messages, and accountability workflows.
 - Authenticated verified-only governance lookup with official provenance and honest unsupported,
   ambiguous, and low-accuracy states.
 - Owner-private profile photos from Expo Camera or the media library, plus an ephemeral verified
   current-civic-area card that does not persist exact coordinates.
+- Reviewed Local and Trending community lists, a minimum-cohort Heat view, one support per active
+  authenticated account, and private star/follow state without public identity disclosure or an
+  official-workflow effect.
 - Native configuration diagnostics for stale/mismatched Supabase projects and loopback services.
 
 ## Operational Boundary
@@ -30,4 +36,8 @@ official geometry; a physical-device LAN smoke has not run. The canonical baseli
 routable category. The optional BMC non-production pack activates only three asset-independent
 categories across 22 one-to-one wards; nine categories and split K/P wards remain fail-closed. OS
 push remains deferred under `NOTIFY-001`; durable in-app history and optional Socket.IO refresh are
-the implemented notification channels.
+the implemented notification channels. Their mobile entry points now use a recognizable bell glyph.
+
+The current hosted dependency audit is healthy, but it returned zero category projections and no
+tested BMC jurisdiction rows. The BMC SQL Editor bundle and engagement migration therefore remain
+operator activation steps; local UI capability does not imply usable hosted community data.

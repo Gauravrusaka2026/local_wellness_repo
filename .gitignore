@@ -28,6 +28,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local operator artifacts
+.local/
+
 # Editors and operating systems
 .DS_Store
 .idea/

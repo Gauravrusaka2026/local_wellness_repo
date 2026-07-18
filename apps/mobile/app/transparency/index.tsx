@@ -1,6 +1,7 @@
+import type { Href } from 'expo-router';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -11,24 +12,30 @@ import {
   View,
 } from 'react-native';
 import type {
+  PublicComplaintEngagementState,
   PublicComplaintHotspotResult,
   PublicComplaintMapItem,
   PublicComplaintMapResult,
+  PublicComplaintSort,
   PublicComplaintStatus,
   PublicTransparencyViewport,
 } from '@local-wellness/types';
 
+import { useAuth } from '../../src/auth/auth-context';
+import { buildHotspotVisuals } from '../../src/transparency/hotspot-visualization';
 import {
   createNearbyViewport,
+  createRegionalTrendingViewport,
   NearbyLocationError,
   requiresNearbyLocationSettings,
 } from '../../src/transparency/nearby-viewport';
-import { buildHotspotVisuals } from '../../src/transparency/hotspot-visualization';
 import {
   getUserFacingTransparencyError,
+  listPublicComplaintEngagements,
   listPublicComplaintHotspots,
   listPublicComplaints,
   mergePublicComplaintPages,
+  updatePublicComplaintEngagement,
 } from '../../src/transparency/transparency-service';
 import {
   createMobileHotspotQuery,
@@ -37,9 +44,10 @@ import {
   ongoingPublicComplaintStatuses,
   type MobileTransparencyFilters,
 } from '../../src/transparency/transparency-query';
+import { AppBottomNavigation } from '../../src/ui/app-bottom-navigation';
 import { Screen } from '../../src/ui/screen';
 
-type TransparencySegment = 'feed' | 'heatmap';
+type CommunitySegment = 'heatmap' | 'nearby' | 'trending';
 
 type LoadState =
   | Readonly<{ status: 'idle' }>
@@ -68,63 +76,145 @@ const statusColors: Record<
   resolved: { background: '#dcfce7', text: '#166534' },
 };
 
+const segmentOptions: readonly Readonly<{
+  glyph: string;
+  key: CommunitySegment;
+  label: string;
+}>[] = [
+  { glyph: '⌖', key: 'nearby', label: 'Nearby' },
+  { glyph: '↗', key: 'trending', label: 'Trending' },
+  { glyph: '◉', key: 'heatmap', label: 'Heatmap' },
+];
+
+const feedSortFor = (segment: CommunitySegment): PublicComplaintSort =>
+  segment === 'trending' ? 'trending' : 'recent';
+
+const feedViewportFor = (
+  nearbyViewport: PublicTransparencyViewport,
+  sort: PublicComplaintSort,
+): PublicTransparencyViewport =>
+  sort === 'trending' ? createRegionalTrendingViewport(nearbyViewport) : nearbyViewport;
+
 const captureNearbyViewport = async (): Promise<PublicTransparencyViewport> => {
   if (!(await Location.hasServicesEnabledAsync())) {
-    throw new NearbyLocationError('Turn on device location services to explore reports near you.');
+    throw new NearbyLocationError('Turn on location services to see your community.');
   }
+
   const permission = await Location.requestForegroundPermissionsAsync();
   if (!permission.granted) {
     throw new NearbyLocationError(
       permission.canAskAgain
-        ? 'Location access is needed to choose a nearby public viewport.'
+        ? 'Location access is needed to find reports near you.'
         : 'Enable location access for Local Wellness in device settings.',
       { requiresAppSettings: !permission.canAskAgain },
     );
   }
+
   const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
   return createNearbyViewport(location.coords.latitude, location.coords.longitude);
 };
 
-const FeedCard = ({
+const CommunityCard = ({
+  busy,
+  engagement,
   item,
   onOpen,
-}: Readonly<{ item: PublicComplaintMapItem; onOpen: () => void }>) => {
+  onStar,
+  onSupport,
+}: Readonly<{
+  busy: boolean;
+  engagement: PublicComplaintEngagementState;
+  item: PublicComplaintMapItem;
+  onOpen: () => void;
+  onStar: () => void;
+  onSupport: () => void;
+}>) => {
   const colors = statusColors[item.status];
   return (
-    <Pressable
-      accessibilityLabel={`${item.title}, ${statusLabels[item.status]}, ${item.localBody.name}`}
-      accessibilityRole="button"
-      onPress={onOpen}
-      style={({ pressed }) => [styles.feedCard, pressed && styles.pressedCard]}
-    >
-      <View style={styles.feedHeader}>
-        <View style={styles.categoryIcon}>
-          <Text accessibilityElementsHidden style={styles.categoryInitial}>
-            {item.category.name.charAt(0).toLocaleUpperCase()}
-          </Text>
+    <View style={styles.feedCard}>
+      <Pressable
+        accessibilityLabel={`${item.title}, ${statusLabels[item.status]}, ${item.localBody.name}`}
+        accessibilityRole="button"
+        onPress={onOpen}
+        style={({ pressed }) => [styles.cardContent, pressed && styles.pressed]}
+      >
+        <View style={styles.feedHeader}>
+          <View style={styles.categoryIcon}>
+            <Text accessibilityElementsHidden style={styles.categoryInitial}>
+              {item.category.name.charAt(0).toLocaleUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.feedMetaCopy}>
+            <Text numberOfLines={1} style={styles.localityName}>
+              {item.ward?.name ?? item.localBody.name}
+            </Text>
+            <Text style={styles.feedDate}>
+              {item.category.name} · {new Date(item.submittedAt).toLocaleDateString()}
+            </Text>
+          </View>
+          <View style={[styles.statusPill, { backgroundColor: colors.background }]}>
+            <Text style={[styles.statusPillText, { color: colors.text }]}>
+              {statusLabels[item.status]}
+            </Text>
+          </View>
         </View>
-        <View style={styles.feedMetaCopy}>
-          <Text style={styles.localityName}>{item.localBody.name}</Text>
-          <Text style={styles.feedDate}>
-            {item.ward ? `${item.ward.name} · ` : ''}
-            {new Date(item.submittedAt).toLocaleDateString()}
-          </Text>
-        </View>
-        <View style={[styles.statusPill, { backgroundColor: colors.background }]}>
-          <Text style={[styles.statusPillText, { color: colors.text }]}>
-            {statusLabels[item.status]}
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.feedTitle}>{item.title}</Text>
-      <Text style={styles.categoryLabel}>{item.category.name}</Text>
-      <View style={styles.feedFooter}>
-        <Text style={styles.approximateLabel}>
-          Approximate area · {item.location.precisionMeters.toLocaleString()} m privacy radius
+        <Text numberOfLines={2} style={styles.feedTitle}>
+          {item.title}
         </Text>
-        <Text style={styles.openLabel}>Open report →</Text>
+      </Pressable>
+
+      <View style={styles.actionRow}>
+        <Pressable
+          accessibilityLabel={`${engagement.supported ? 'Remove support from' : 'Support'} ${item.title}`}
+          accessibilityRole="button"
+          accessibilityState={{ busy, selected: engagement.supported }}
+          disabled={busy}
+          onPress={onSupport}
+          style={({ pressed }) => [
+            styles.actionButton,
+            engagement.supported && styles.actionButtonSelected,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[styles.actionGlyph, engagement.supported && styles.actionTextSelected]}>
+            ↑
+          </Text>
+          <Text style={[styles.actionText, engagement.supported && styles.actionTextSelected]}>
+            {engagement.supportCount.toLocaleString()}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel={`${engagement.starred ? 'Unstar' : 'Star'} ${item.title}`}
+          accessibilityRole="button"
+          accessibilityState={{ busy, selected: engagement.starred }}
+          disabled={busy}
+          onPress={onStar}
+          style={({ pressed }) => [
+            styles.actionButton,
+            engagement.starred && styles.starButtonSelected,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[styles.actionGlyph, engagement.starred && styles.starTextSelected]}>
+            {engagement.starred ? '★' : '☆'}
+          </Text>
+          <Text style={[styles.actionText, engagement.starred && styles.starTextSelected]}>
+            Star
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel={`Open ${item.title}`}
+          accessibilityRole="button"
+          onPress={onOpen}
+          style={({ pressed }) => [styles.openButton, pressed && styles.pressed]}
+        >
+          <Text style={styles.openButtonText}>View</Text>
+          <Text accessibilityElementsHidden style={styles.chevron}>
+            ›
+          </Text>
+        </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 };
 
@@ -138,24 +228,25 @@ const HotspotDensityPlot = ({
   const visuals = buildHotspotVisuals(hotspots.items, viewport);
   return (
     <View
-      accessibilityLabel={`${visuals.length} privacy-preserving complaint density areas. Darker, larger areas contain more reviewed ongoing reports.`}
+      accessibilityLabel={`${visuals.length} privacy-protected complaint density areas`}
       accessibilityRole="image"
       style={styles.heatmapPlot}
     >
-      <View style={[styles.gridLine, styles.horizontalOne]} />
-      <View style={[styles.gridLine, styles.horizontalTwo]} />
-      <View style={[styles.gridLine, styles.verticalOne]} />
-      <View style={[styles.gridLine, styles.verticalTwo]} />
-      <View style={styles.centerMarker} />
+      <View style={[styles.mapRoad, styles.mapRoadHorizontal]} />
+      <View style={[styles.mapRoad, styles.mapRoadVertical]} />
+      <View style={[styles.mapRoad, styles.mapRoadDiagonal]} />
+      <View style={styles.centerMarker}>
+        <View style={styles.centerDot} />
+      </View>
       {visuals.map((visual) => (
         <View
-          accessibilityLabel={`${visual.complaintCount} reviewed ongoing complaints in this generalized area`}
+          accessibilityLabel={`${visual.complaintCount} reports in this generalized area`}
           accessible
           key={visual.id}
           style={[
             styles.densityCircle,
             {
-              backgroundColor: `rgba(220, 38, 38, ${visual.intensity})`,
+              backgroundColor: `rgba(239, 68, 68, ${visual.intensity})`,
               height: visual.diameter,
               left: `${visual.xPercent}%`,
               marginLeft: -visual.diameter / 2,
@@ -168,13 +259,17 @@ const HotspotDensityPlot = ({
           <Text style={styles.densityCount}>{visual.complaintCount}</Text>
         </View>
       ))}
+      <View style={styles.mapBadge}>
+        <Text style={styles.mapBadgeText}>Approximate areas</Text>
+      </View>
     </View>
   );
 };
 
 export default function TransparencyScreen() {
+  const auth = useAuth();
   const router = useRouter();
-  const [activeSegment, setActiveSegment] = useState<TransparencySegment>('feed');
+  const [activeSegment, setActiveSegment] = useState<CommunitySegment>('nearby');
   const [loadState, setLoadState] = useState<LoadState>({ status: 'idle' });
   const [viewport, setViewport] = useState<PublicTransparencyViewport | null>(null);
   const [filters, setFilters] = useState<MobileTransparencyFilters>(
@@ -183,8 +278,16 @@ export default function TransparencyScreen() {
   const [appliedFilters, setAppliedFilters] = useState<MobileTransparencyFilters>(
     defaultMobileTransparencyFilters,
   );
+  const [appliedSort, setAppliedSort] = useState<PublicComplaintSort>('recent');
+  const [engagements, setEngagements] = useState<
+    Readonly<Record<string, PublicComplaintEngagementState>>
+  >({});
+  const [busyEngagementId, setBusyEngagementId] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [paginationError, setPaginationError] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const activeSegmentRef = useRef<CommunitySegment>('nearby');
+  const requestGenerationRef = useRef(0);
+  const accessToken = auth.state.status === 'signed-in' ? auth.state.session.access_token : null;
   const isBusy = loadState.status === 'loading' || isLoadingMore;
 
   const categories = useMemo(() => {
@@ -194,21 +297,56 @@ export default function TransparencyScreen() {
     );
   }, [loadState]);
 
+  const hydrateEngagements = async (
+    items: readonly PublicComplaintMapItem[],
+    requestGeneration?: number,
+  ): Promise<void> => {
+    if (accessToken === null || items.length === 0) return;
+    try {
+      const states = await listPublicComplaintEngagements(accessToken, {
+        publicIds: items.slice(0, 100).map(({ publicId }) => publicId),
+      });
+      if (requestGeneration !== undefined && requestGeneration !== requestGenerationRef.current) {
+        return;
+      }
+      setEngagements((current) => ({
+        ...current,
+        ...Object.fromEntries(states.map((state) => [state.publicId, state])),
+      }));
+    } catch (error) {
+      if (requestGeneration !== undefined && requestGeneration !== requestGenerationRef.current) {
+        return;
+      }
+      setOperationError(getUserFacingTransparencyError(error));
+    }
+  };
+
   const load = async (
     requestedViewport: PublicTransparencyViewport,
     requestedFilters: MobileTransparencyFilters,
+    segment: CommunitySegment,
   ): Promise<void> => {
+    const requestGeneration = requestGenerationRef.current + 1;
+    requestGenerationRef.current = requestGeneration;
+    const sort = feedSortFor(segment);
+    const feedViewport = feedViewportFor(requestedViewport, sort);
     setLoadState({ status: 'loading' });
-    setPaginationError(null);
+    setOperationError(null);
     setViewport(requestedViewport);
     try {
       const [feed, hotspots] = await Promise.all([
-        listPublicComplaints(createMobileTransparencyQuery(requestedViewport, requestedFilters)),
+        listPublicComplaints(
+          createMobileTransparencyQuery(feedViewport, requestedFilters, undefined, sort),
+        ),
         listPublicComplaintHotspots(createMobileHotspotQuery(requestedViewport, requestedFilters)),
       ]);
+      if (requestGeneration !== requestGenerationRef.current) return;
       setAppliedFilters(requestedFilters);
+      setAppliedSort(sort);
       setLoadState({ feed, hotspots, status: 'ready' });
+      await hydrateEngagements(feed.items, requestGeneration);
     } catch (error) {
+      if (requestGeneration !== requestGenerationRef.current) return;
       setLoadState({
         message: getUserFacingTransparencyError(error),
         settingsRequired: false,
@@ -218,15 +356,28 @@ export default function TransparencyScreen() {
   };
 
   const handleCurrentArea = async (): Promise<void> => {
+    const locationRequestGeneration = requestGenerationRef.current + 1;
+    requestGenerationRef.current = locationRequestGeneration;
     setLoadState({ status: 'loading' });
     try {
-      await load(await captureNearbyViewport(), filters);
+      const requestedViewport = await captureNearbyViewport();
+      if (locationRequestGeneration !== requestGenerationRef.current) return;
+      await load(requestedViewport, filters, activeSegmentRef.current);
     } catch (error) {
+      if (locationRequestGeneration !== requestGenerationRef.current) return;
       setLoadState({
         message: error instanceof Error ? error.message : 'Your nearby area is unavailable.',
         settingsRequired: requiresNearbyLocationSettings(error),
         status: 'error',
       });
+    }
+  };
+
+  const selectSegment = (segment: CommunitySegment): void => {
+    activeSegmentRef.current = segment;
+    setActiveSegment(segment);
+    if (viewport !== null && (feedSortFor(segment) !== appliedSort || isBusy)) {
+      void load(viewport, filters, segment);
     }
   };
 
@@ -240,171 +391,224 @@ export default function TransparencyScreen() {
       return;
     }
     setIsLoadingMore(true);
-    setPaginationError(null);
+    setOperationError(null);
+    const requestGeneration = requestGenerationRef.current;
     try {
       const next = await listPublicComplaints(
-        createMobileTransparencyQuery(viewport, appliedFilters, loadState.feed.nextCursor),
+        createMobileTransparencyQuery(
+          feedViewportFor(viewport, appliedSort),
+          appliedFilters,
+          loadState.feed.nextCursor,
+          appliedSort,
+        ),
       );
-      setLoadState({
-        ...loadState,
-        feed: mergePublicComplaintPages(loadState.feed, next),
-      });
+      if (requestGeneration !== requestGenerationRef.current) return;
+      const merged = mergePublicComplaintPages(loadState.feed, next);
+      setLoadState({ ...loadState, feed: merged });
+      await hydrateEngagements(next.items, requestGeneration);
     } catch (error) {
-      setPaginationError(getUserFacingTransparencyError(error));
+      if (requestGeneration !== requestGenerationRef.current) return;
+      setOperationError(getUserFacingTransparencyError(error));
     } finally {
       setIsLoadingMore(false);
     }
   };
 
+  const setComplaintEngagement = async (
+    item: PublicComplaintMapItem,
+    change: 'star' | 'support',
+  ): Promise<void> => {
+    if (accessToken === null) {
+      router.push('/auth' as Href);
+      return;
+    }
+
+    const current = engagements[item.publicId] ?? {
+      publicId: item.publicId,
+      starred: false,
+      supportCount: item.supportCount,
+      supported: false,
+    };
+    setBusyEngagementId(item.publicId);
+    setOperationError(null);
+    try {
+      const updated = await updatePublicComplaintEngagement(accessToken, item.publicId, {
+        starred: change === 'star' ? !current.starred : current.starred,
+        supported: change === 'support' ? !current.supported : current.supported,
+      });
+      setEngagements((states) => ({ ...states, [item.publicId]: updated }));
+      setLoadState((state) =>
+        state.status === 'ready'
+          ? {
+              ...state,
+              feed: {
+                ...state.feed,
+                items: state.feed.items.map((candidate) =>
+                  candidate.publicId === item.publicId
+                    ? { ...candidate, supportCount: updated.supportCount }
+                    : candidate,
+                ),
+              },
+            }
+          : state,
+      );
+    } catch (error) {
+      setOperationError(getUserFacingTransparencyError(error));
+    } finally {
+      setBusyEngagementId(null);
+    }
+  };
+
   const loadedFeed = loadState.status === 'ready' ? loadState.feed : null;
   const loadedHotspots = loadState.status === 'ready' ? loadState.hotspots : null;
-  const hotspotComplaintCount =
-    loadedHotspots?.items.reduce((total, item) => total + item.complaintCount, 0) ?? 0;
+  const isAnonymous = auth.state.status === 'signed-out';
+
+  const returnFromCommunity = (): void => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/auth' as Href);
+  };
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
+        {isAnonymous ? (
+          <View style={styles.guestActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={returnFromCommunity}
+              style={({ pressed }) => [styles.guestBackButton, pressed && styles.pressed]}
+            >
+              <Text accessibilityElementsHidden style={styles.guestBackGlyph}>
+                ‹
+              </Text>
+              <Text style={styles.guestBackText}>Back</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/auth' as Href)}
+              style={({ pressed }) => [styles.guestSignInButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.guestSignInText}>Sign in</Text>
+            </Pressable>
+          </View>
+        ) : null}
         <View style={styles.hero}>
-          <Text style={styles.eyebrow}>LOCAL TRANSPARENCY</Text>
-          <Text accessibilityRole="header" style={styles.title}>
-            Your locality
-          </Text>
-          <Text style={styles.description}>
-            Reviewed, ongoing civic reports near a rounded device viewport. No map or tile provider
-            receives these coordinates.
-          </Text>
+          <View>
+            <Text style={styles.eyebrow}>COMMUNITY</Text>
+            <Text accessibilityRole="header" style={styles.title}>
+              What’s happening nearby
+            </Text>
+          </View>
+          <Pressable
+            accessibilityLabel="Refresh current area"
+            accessibilityRole="button"
+            disabled={isBusy}
+            onPress={() => void handleCurrentArea()}
+            style={({ pressed }) => [styles.locationButton, pressed && styles.pressed]}
+          >
+            {loadState.status === 'loading' ? (
+              <ActivityIndicator color="#17683b" size="small" />
+            ) : (
+              <Text accessibilityElementsHidden style={styles.locationGlyph}>
+                ⌖
+              </Text>
+            )}
+          </Pressable>
         </View>
 
         <View accessibilityRole="tablist" style={styles.segmentedControl}>
-          {(['feed', 'heatmap'] as const).map((segment) => {
-            const selected = activeSegment === segment;
+          {segmentOptions.map((segment) => {
+            const selected = activeSegment === segment.key;
             return (
               <Pressable
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
-                key={segment}
-                onPress={() => setActiveSegment(segment)}
+                key={segment.key}
+                onPress={() => selectSegment(segment.key)}
                 style={[styles.segment, selected && styles.segmentSelected]}
               >
+                <Text style={[styles.segmentGlyph, selected && styles.segmentTextSelected]}>
+                  {segment.glyph}
+                </Text>
                 <Text style={[styles.segmentText, selected && styles.segmentTextSelected]}>
-                  {segment === 'feed' ? 'Feed' : 'Heatmap'}
+                  {segment.label}
                 </Text>
               </Pressable>
             );
           })}
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ busy: loadState.status === 'loading', disabled: isBusy }}
-          disabled={isBusy}
-          onPress={() => void handleCurrentArea()}
-          style={styles.primaryButton}
-        >
-          {loadState.status === 'loading' ? (
-            <ActivityIndicator accessibilityLabel="Finding reviewed reports nearby" color="#fff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>
-              {viewport === null ? 'Use my current area' : 'Refresh current area'}
+        {viewport === null && loadState.status !== 'loading' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void handleCurrentArea()}
+            style={({ pressed }) => [styles.areaCard, pressed && styles.pressed]}
+          >
+            <View style={styles.areaIcon}>
+              <Text accessibilityElementsHidden style={styles.areaIconText}>
+                ◎
+              </Text>
+            </View>
+            <View style={styles.areaCopy}>
+              <Text style={styles.areaTitle}>Use my current area</Text>
+              <Text style={styles.areaHint}>Find reviewed civic reports around you</Text>
+            </View>
+            <Text accessibilityElementsHidden style={styles.chevron}>
+              ›
             </Text>
-          )}
-        </Pressable>
-
-        {loadState.status === 'ready' ? (
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{loadState.feed.items.length}</Text>
-              <Text style={styles.statLabel}>Feed reports loaded</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{hotspotComplaintCount}</Text>
-              <Text style={styles.statLabel}>Reports in density cohorts</Text>
-            </View>
-          </View>
+          </Pressable>
         ) : null}
 
         {viewport ? (
-          <View style={styles.filterCard}>
-            <Text style={styles.filterHeading}>Ongoing status</Text>
-            <View style={styles.chipRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: filters.status === null }}
-                disabled={isBusy}
-                onPress={() => setFilters((current) => ({ ...current, status: null }))}
-                style={[styles.filterChip, filters.status === null && styles.selectedChip]}
-              >
-                <Text style={styles.filterChipText}>All ongoing</Text>
-              </Pressable>
-              {ongoingPublicComplaintStatuses.map((status) => (
+          <View style={styles.filters}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.chipRow}>
+                <FilterChip
+                  label="All ongoing"
+                  onPress={() => setFilters((current) => ({ ...current, status: null }))}
+                  selected={filters.status === null}
+                />
+                {ongoingPublicComplaintStatuses.map((status) => (
+                  <FilterChip
+                    key={status}
+                    label={statusLabels[status]}
+                    onPress={() => setFilters((current) => ({ ...current, status }))}
+                    selected={filters.status === status}
+                  />
+                ))}
+                {categories.map((category) => (
+                  <FilterChip
+                    key={category.code}
+                    label={category.name}
+                    onPress={() =>
+                      setFilters((current) => ({
+                        ...current,
+                        categoryCode: current.categoryCode === category.code ? null : category.code,
+                      }))
+                    }
+                    selected={filters.categoryCode === category.code}
+                  />
+                ))}
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ selected: filters.status === status }}
                   disabled={isBusy}
-                  key={status}
-                  onPress={() => setFilters((current) => ({ ...current, status }))}
-                  style={[styles.filterChip, filters.status === status && styles.selectedChip]}
+                  onPress={() => void load(viewport, filters, activeSegment)}
+                  style={styles.applyChip}
                 >
-                  <Text style={styles.filterChipText}>{statusLabels[status]}</Text>
+                  <Text style={styles.applyChipText}>Apply</Text>
                 </Pressable>
-              ))}
-            </View>
-            {categories.length ? (
-              <>
-                <Text style={styles.filterHeading}>Category</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={styles.chipRow}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: filters.categoryCode === null }}
-                      disabled={isBusy}
-                      onPress={() => setFilters((current) => ({ ...current, categoryCode: null }))}
-                      style={[
-                        styles.filterChip,
-                        filters.categoryCode === null && styles.selectedChip,
-                      ]}
-                    >
-                      <Text style={styles.filterChipText}>All categories</Text>
-                    </Pressable>
-                    {categories.map((category) => (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: filters.categoryCode === category.code }}
-                        disabled={isBusy}
-                        key={category.code}
-                        onPress={() =>
-                          setFilters((current) => ({ ...current, categoryCode: category.code }))
-                        }
-                        style={[
-                          styles.filterChip,
-                          filters.categoryCode === category.code && styles.selectedChip,
-                        ]}
-                      >
-                        <Text style={styles.filterChipText}>{category.name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-              </>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              disabled={isBusy}
-              onPress={() => void load(viewport, filters)}
-              style={styles.applyButton}
-            >
-              <Text style={styles.applyButtonText}>Apply locality filters</Text>
-            </Pressable>
+              </View>
+            </ScrollView>
           </View>
         ) : null}
 
-        {loadState.status === 'idle' ? (
-          <View style={styles.stateCard}>
-            <Text style={styles.stateTitle}>Choose your nearby area</Text>
-            <Text style={styles.stateText}>
-              Location access selects a bounded, rounded search area. Exact device coordinates are
-              not sent to the public transparency endpoint.
-            </Text>
+        {loadState.status === 'loading' ? (
+          <View accessibilityLiveRegion="polite" style={styles.loadingCard}>
+            <ActivityIndicator accessibilityLabel="Loading community reports" color="#17683b" />
+            <Text style={styles.loadingText}>Loading community reports…</Text>
           </View>
         ) : null}
 
@@ -413,148 +617,219 @@ export default function TransparencyScreen() {
             <Text accessibilityRole="alert" style={styles.errorText}>
               {loadState.message}
             </Text>
-            {viewport ? (
+            <View style={styles.errorActions}>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => void load(viewport, filters)}
-                style={styles.errorRetry}
+                onPress={() => void handleCurrentArea()}
+                style={styles.errorButton}
               >
-                <Text style={styles.errorRetryText}>Try this area again</Text>
+                <Text style={styles.errorButtonText}>Try again</Text>
               </Pressable>
-            ) : null}
-            {loadState.settingsRequired ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => void Linking.openSettings()}
-                style={styles.errorRetry}
-              >
-                <Text style={styles.errorRetryText}>Open location settings</Text>
-              </Pressable>
-            ) : null}
+              {loadState.settingsRequired ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void Linking.openSettings()}
+                  style={styles.errorButton}
+                >
+                  <Text style={styles.errorButtonText}>Settings</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         ) : null}
 
-        {activeSegment === 'feed' && loadedFeed ? (
+        {operationError ? (
+          <Text accessibilityRole="alert" style={styles.operationError}>
+            {operationError}
+          </Text>
+        ) : null}
+
+        {activeSegment !== 'heatmap' && loadedFeed ? (
           loadedFeed.items.length ? (
             <View accessibilityRole="list" style={styles.feedList}>
-              {loadedFeed.items.map((item) => (
-                <FeedCard
-                  item={item}
-                  key={item.publicId}
-                  onOpen={() => router.push(`/transparency/${item.publicId}`)}
-                />
-              ))}
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>
+                  {activeSegment === 'trending' ? 'Trending across your region' : 'Latest nearby'}
+                </Text>
+                <Text style={styles.resultCount}>{loadedFeed.items.length} loaded</Text>
+              </View>
+              {loadedFeed.items.map((item) => {
+                const engagement = engagements[item.publicId] ?? {
+                  publicId: item.publicId,
+                  starred: false,
+                  supportCount: item.supportCount,
+                  supported: false,
+                };
+                return (
+                  <CommunityCard
+                    busy={busyEngagementId === item.publicId}
+                    engagement={engagement}
+                    item={item}
+                    key={item.publicId}
+                    onOpen={() => router.push(`/transparency/${item.publicId}`)}
+                    onStar={() => void setComplaintEngagement(item, 'star')}
+                    onSupport={() => void setComplaintEngagement(item, 'support')}
+                  />
+                );
+              })}
               {loadedFeed.hasMore && loadedFeed.nextCursor ? (
-                <>
-                  {paginationError ? (
-                    <Text accessibilityRole="alert" style={styles.errorText}>
-                      {paginationError}
-                    </Text>
-                  ) : null}
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={isLoadingMore}
-                    onPress={() => void loadMore()}
-                    style={styles.loadMoreButton}
-                  >
-                    {isLoadingMore ? (
-                      <ActivityIndicator color="#166534" />
-                    ) : (
-                      <Text style={styles.loadMoreText}>Load more ongoing reports</Text>
-                    )}
-                  </Pressable>
-                </>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isLoadingMore}
+                  onPress={() => void loadMore()}
+                  style={styles.loadMoreButton}
+                >
+                  {isLoadingMore ? (
+                    <ActivityIndicator color="#17683b" />
+                  ) : (
+                    <Text style={styles.loadMoreText}>Load more</Text>
+                  )}
+                </Pressable>
               ) : null}
             </View>
           ) : (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>No reviewed ongoing reports here</Text>
-              <Text style={styles.stateText}>
-                Try another filter or refresh later. Unreviewed and private reports remain hidden.
-              </Text>
-            </View>
+            <EmptyState title="Nothing reported here yet" />
           )
         ) : null}
 
         {activeSegment === 'heatmap' && loadedHotspots && viewport ? (
           loadedHotspots.items.length ? (
             <View style={styles.heatmapSection}>
-              <View>
-                <Text style={styles.sectionTitle}>Complaint density</Text>
-                <Text style={styles.stateText}>
-                  Aggregated cohorts only. Larger, darker areas contain more reviewed ongoing
-                  reports.
-                </Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Issue density</Text>
+                <Text style={styles.resultCount}>Privacy protected</Text>
               </View>
               <HotspotDensityPlot hotspots={loadedHotspots} viewport={viewport} />
               <View style={styles.legendRow}>
-                <Text style={styles.legendText}>Lower density</Text>
+                <Text style={styles.legendText}>Fewer</Text>
                 <View style={styles.legendGradient} />
-                <Text style={styles.legendText}>Higher density</Text>
+                <Text style={styles.legendText}>More reports</Text>
               </View>
             </View>
           ) : (
-            <View style={styles.stateCard}>
-              <Text style={styles.stateTitle}>No public density cohort yet</Text>
-              <Text style={styles.stateText}>
-                A hotspot appears only after enough reviewed reports meet the privacy threshold.
-              </Text>
-            </View>
+            <EmptyState title="No public hotspots yet" />
           )
         ) : null}
 
-        <View style={styles.privacyCard}>
-          <Text style={styles.privacyTitle}>Public-safe by design</Text>
-          <Text style={styles.privacyText}>
-            Citizen identities, exact coordinates, original media, private messages, and internal
-            government notes never appear in this guest experience.
+        {loadedFeed ? (
+          <Text style={styles.privacyNote}>
+            Exact locations and citizen identities stay private.
           </Text>
-        </View>
+        ) : null}
       </ScrollView>
+      {auth.state.status === 'signed-in' ? <AppBottomNavigation current="nearby" /> : null}
     </Screen>
   );
 }
 
+const FilterChip = ({
+  label,
+  onPress,
+  selected,
+}: Readonly<{ label: string; onPress: () => void; selected: boolean }>) => (
+  <Pressable
+    accessibilityRole="button"
+    accessibilityState={{ selected }}
+    onPress={onPress}
+    style={[styles.filterChip, selected && styles.filterChipSelected]}
+  >
+    <Text style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>{label}</Text>
+  </Pressable>
+);
+
+const EmptyState = ({ title }: Readonly<{ title: string }>) => (
+  <View style={styles.emptyCard}>
+    <Text accessibilityElementsHidden style={styles.emptyGlyph}>
+      ◌
+    </Text>
+    <Text style={styles.emptyTitle}>{title}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  applyButton: {
+  actionButton: {
     alignItems: 'center',
-    borderColor: '#166534',
-    borderRadius: 12,
+    borderColor: '#dce5df',
+    borderRadius: 999,
     borderWidth: 1,
-    minHeight: 46,
-    padding: 12,
+    flexDirection: 'row',
+    gap: 5,
+    minHeight: 38,
+    paddingHorizontal: 12,
   },
-  applyButtonText: { color: '#166534', fontWeight: '800' },
-  approximateLabel: { color: '#64748b', flex: 1, fontSize: 12, lineHeight: 17 },
+  actionButtonSelected: { backgroundColor: '#e8f7ed', borderColor: '#74b88d' },
+  actionGlyph: { color: '#52665a', fontSize: 17, fontWeight: '900' },
+  actionRow: {
+    alignItems: 'center',
+    borderTopColor: '#edf1ee',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  actionText: { color: '#52665a', fontSize: 13, fontWeight: '800' },
+  actionTextSelected: { color: '#17683b' },
+  applyChip: {
+    backgroundColor: '#17683b',
+    borderRadius: 999,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: 16,
+  },
+  applyChipText: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  areaCard: {
+    alignItems: 'center',
+    backgroundColor: '#173f2a',
+    borderRadius: 22,
+    flexDirection: 'row',
+    gap: 13,
+    padding: 17,
+  },
+  areaCopy: { flex: 1, gap: 3 },
+  areaHint: { color: '#cfe1d5', fontSize: 13 },
+  areaIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 18,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  areaIconText: { color: '#fff', fontSize: 21 },
+  areaTitle: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  cardContent: { gap: 12, padding: 15 },
   categoryIcon: {
     alignItems: 'center',
-    backgroundColor: '#dcfce7',
-    borderRadius: 18,
-    height: 36,
+    backgroundColor: '#e7f5eb',
+    borderRadius: 16,
+    height: 34,
     justifyContent: 'center',
-    width: 36,
+    width: 34,
   },
-  categoryInitial: { color: '#166534', fontSize: 15, fontWeight: '900' },
-  categoryLabel: { color: '#166534', fontSize: 13, fontWeight: '800' },
+  categoryInitial: { color: '#17683b', fontSize: 14, fontWeight: '900' },
+  centerDot: { backgroundColor: '#17683b', borderRadius: 6, height: 10, width: 10 },
   centerMarker: {
-    backgroundColor: '#166534',
-    borderColor: '#fff',
-    borderRadius: 6,
-    borderWidth: 2,
-    height: 12,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    elevation: 4,
+    height: 28,
+    justifyContent: 'center',
     left: '50%',
-    marginLeft: -6,
-    marginTop: -6,
+    marginLeft: -14,
+    marginTop: -14,
     position: 'absolute',
     top: '50%',
-    width: 12,
-    zIndex: 3,
+    width: 28,
+    zIndex: 4,
   },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  content: { gap: 16, padding: 20, paddingBottom: 48 },
+  chevron: { color: '#6c7f72', fontSize: 24, lineHeight: 24 },
+  chipRow: { flexDirection: 'row', gap: 8, paddingRight: 4 },
+  content: { gap: 15, padding: 18, paddingBottom: 34 },
   densityCircle: {
     alignItems: 'center',
-    borderColor: 'rgba(255,255,255,0.8)',
+    borderColor: 'rgba(255,255,255,0.82)',
     borderRadius: 999,
     borderWidth: 2,
     justifyContent: 'center',
@@ -564,135 +839,168 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowRadius: 3,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowRadius: 2,
   },
-  description: { color: '#475569', fontSize: 16, lineHeight: 24 },
-  errorCard: { backgroundColor: '#fef2f2', borderRadius: 14, gap: 8, padding: 16 },
-  errorRetry: { alignItems: 'center', minHeight: 42, padding: 9 },
-  errorRetryText: { color: '#991b1b', fontWeight: '800' },
-  errorText: { color: '#991b1b', lineHeight: 21, textAlign: 'center' },
-  eyebrow: { color: '#237345', fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
+  emptyCard: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderColor: '#e2e8e3',
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 8,
+    padding: 34,
+  },
+  emptyGlyph: { color: '#88a493', fontSize: 34 },
+  emptyTitle: { color: '#3d5345', fontSize: 16, fontWeight: '800' },
+  errorActions: { flexDirection: 'row', justifyContent: 'center' },
+  errorButton: { minHeight: 42, padding: 11 },
+  errorButtonText: { color: '#991b1b', fontWeight: '800' },
+  errorCard: { backgroundColor: '#fef2f2', borderRadius: 16, gap: 5, padding: 15 },
+  errorText: { color: '#991b1b', lineHeight: 20, textAlign: 'center' },
+  eyebrow: { color: '#2b774c', fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
   feedCard: {
     backgroundColor: '#fff',
-    borderColor: '#e2e8f0',
-    borderRadius: 18,
+    borderColor: '#dfe7e1',
+    borderRadius: 20,
     borderWidth: 1,
     elevation: 1,
-    gap: 10,
-    padding: 16,
+    overflow: 'hidden',
   },
-  feedDate: { color: '#64748b', fontSize: 12 },
-  feedFooter: {
-    alignItems: 'flex-end',
-    borderTopColor: '#f1f5f9',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    gap: 10,
-    paddingTop: 10,
-  },
+  feedDate: { color: '#718078', fontSize: 12 },
   feedHeader: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   feedList: { gap: 12 },
   feedMetaCopy: { flex: 1, gap: 2 },
-  feedTitle: { color: '#17251d', fontSize: 18, fontWeight: '800', lineHeight: 25 },
-  filterCard: {
-    backgroundColor: '#fff',
-    borderColor: '#e2e8f0',
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 11,
-    padding: 15,
-  },
+  feedTitle: { color: '#183526', fontSize: 17, fontWeight: '800', lineHeight: 23 },
   filterChip: {
-    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+    borderColor: '#d7e1da',
     borderRadius: 999,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: 13,
   },
-  filterChipText: { color: '#334155', fontWeight: '700' },
-  filterHeading: { color: '#334155', fontWeight: '800' },
-  gridLine: { backgroundColor: 'rgba(148,163,184,0.3)', position: 'absolute' },
+  filterChipSelected: { backgroundColor: '#e7f5eb', borderColor: '#75ad87' },
+  filterChipText: { color: '#617268', fontSize: 13, fontWeight: '700' },
+  filterChipTextSelected: { color: '#17683b' },
+  filters: { marginHorizontal: -18, paddingLeft: 18 },
+  guestActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 38,
+  },
+  guestBackButton: { alignItems: 'center', flexDirection: 'row', gap: 4, minHeight: 38 },
+  guestBackGlyph: { color: '#52665a', fontSize: 27, lineHeight: 27 },
+  guestBackText: { color: '#52665a', fontSize: 14, fontWeight: '800' },
+  guestSignInButton: {
+    backgroundColor: '#17683b',
+    borderRadius: 999,
+    justifyContent: 'center',
+    minHeight: 38,
+    paddingHorizontal: 17,
+  },
+  guestSignInText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   heatmapPlot: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#cbd5e1',
-    borderRadius: 18,
+    backgroundColor: '#edf4ef',
+    borderColor: '#d3e0d7',
+    borderRadius: 24,
     borderWidth: 1,
-    height: 310,
+    height: 390,
     overflow: 'hidden',
     position: 'relative',
   },
   heatmapSection: { gap: 12 },
-  hero: { gap: 7, marginTop: 8 },
-  horizontalOne: { height: 1, left: 0, right: 0, top: '33%' },
-  horizontalTwo: { height: 1, left: 0, right: 0, top: '66%' },
+  hero: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 3,
+  },
   legendGradient: {
-    backgroundColor: 'rgba(220,38,38,0.55)',
+    backgroundColor: 'rgba(239,68,68,0.52)',
     borderRadius: 999,
     flex: 1,
     height: 8,
   },
-  legendRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-  legendText: { color: '#64748b', fontSize: 11 },
-  loadMoreButton: { alignItems: 'center', justifyContent: 'center', minHeight: 52 },
-  loadMoreText: { color: '#166534', fontWeight: '800' },
-  localityName: { color: '#334155', fontSize: 13, fontWeight: '800' },
-  openLabel: { color: '#166534', fontSize: 12, fontWeight: '800' },
-  pressedCard: { opacity: 0.82, transform: [{ scale: 0.995 }] },
-  primaryButton: {
+  legendRow: { alignItems: 'center', flexDirection: 'row', gap: 10, paddingHorizontal: 4 },
+  legendText: { color: '#718078', fontSize: 11, fontWeight: '700' },
+  loadingCard: { alignItems: 'center', gap: 11, padding: 40 },
+  loadingText: { color: '#5e7164', fontWeight: '700' },
+  localityName: { color: '#31483a', fontSize: 13, fontWeight: '800' },
+  locationButton: {
     alignItems: 'center',
-    backgroundColor: '#166534',
-    borderRadius: 14,
+    backgroundColor: '#e6f3ea',
+    borderRadius: 20,
+    height: 42,
     justifyContent: 'center',
-    minHeight: 54,
-    padding: 14,
+    width: 42,
   },
-  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  privacyCard: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#86efac',
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 5,
-    padding: 16,
+  locationGlyph: { color: '#17683b', fontSize: 21, fontWeight: '900' },
+  loadMoreButton: { alignItems: 'center', minHeight: 48, padding: 12 },
+  loadMoreText: { color: '#17683b', fontWeight: '900' },
+  mapBadge: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 999,
+    bottom: 13,
+    left: 13,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    position: 'absolute',
   },
-  privacyText: { color: '#3f6650', lineHeight: 21 },
-  privacyTitle: { color: '#14532d', fontSize: 16, fontWeight: '900' },
-  sectionTitle: { color: '#1e293b', fontSize: 20, fontWeight: '900' },
+  mapBadgeText: { color: '#4c6354', fontSize: 11, fontWeight: '800' },
+  mapRoad: { backgroundColor: 'rgba(255,255,255,0.9)', position: 'absolute' },
+  mapRoadDiagonal: {
+    height: 9,
+    left: '-8%',
+    top: '62%',
+    transform: [{ rotate: '-18deg' }],
+    width: '120%',
+  },
+  mapRoadHorizontal: { height: 12, left: 0, right: 0, top: '33%' },
+  mapRoadVertical: { bottom: 0, left: '65%', top: 0, width: 10 },
+  openButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 2,
+    marginLeft: 'auto',
+    minHeight: 38,
+    paddingHorizontal: 5,
+  },
+  openButtonText: { color: '#52665a', fontSize: 13, fontWeight: '800' },
+  operationError: { color: '#991b1b', fontSize: 13, textAlign: 'center' },
+  pressed: { opacity: 0.68 },
+  privacyNote: { color: '#819087', fontSize: 11, textAlign: 'center' },
+  resultCount: { color: '#7a8980', fontSize: 12, fontWeight: '700' },
+  sectionHeader: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: { color: '#1a3827', fontSize: 18, fontWeight: '900' },
   segment: {
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 13,
     flex: 1,
+    flexDirection: 'row',
+    gap: 5,
     justifyContent: 'center',
-    minHeight: 46,
+    minHeight: 43,
   },
+  segmentGlyph: { color: '#718078', fontSize: 15, fontWeight: '900' },
   segmentSelected: { backgroundColor: '#fff', elevation: 1 },
-  segmentText: { color: '#64748b', fontSize: 15, fontWeight: '800' },
-  segmentTextSelected: { color: '#14532d' },
+  segmentText: { color: '#718078', fontSize: 13, fontWeight: '800' },
+  segmentTextSelected: { color: '#17683b' },
   segmentedControl: {
-    backgroundColor: '#e7efe9',
-    borderRadius: 15,
+    backgroundColor: '#e8efea',
+    borderRadius: 17,
     flexDirection: 'row',
     padding: 4,
   },
-  selectedChip: { backgroundColor: '#dcfce7', borderColor: '#166534' },
-  statCard: { backgroundColor: '#eff6ff', borderRadius: 14, flex: 1, gap: 2, padding: 13 },
-  statLabel: { color: '#475569', fontSize: 11, lineHeight: 15 },
-  statValue: { color: '#1e3a5f', fontSize: 22, fontWeight: '900' },
-  stateCard: {
-    backgroundColor: '#fff',
-    borderColor: '#e2e8f0',
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 7,
-    padding: 18,
-  },
-  stateText: { color: '#64748b', lineHeight: 21 },
-  stateTitle: { color: '#1e293b', fontSize: 18, fontWeight: '900' },
-  statsRow: { flexDirection: 'row', gap: 10 },
-  statusPill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 },
-  statusPillText: { fontSize: 11, fontWeight: '900' },
-  title: { color: '#143b27', fontSize: 34, fontWeight: '900' },
-  verticalOne: { bottom: 0, left: '33%', top: 0, width: 1 },
-  verticalTwo: { bottom: 0, left: '66%', top: 0, width: 1 },
+  starButtonSelected: { backgroundColor: '#fff8df', borderColor: '#e9c85d' },
+  starTextSelected: { color: '#9a6800' },
+  statusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5 },
+  statusPillText: { fontSize: 10, fontWeight: '900' },
+  title: { color: '#173b27', fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
 });

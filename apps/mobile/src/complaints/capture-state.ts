@@ -36,6 +36,7 @@ export type ComplaintCaptureState = Readonly<{
   isBusy: boolean;
   isOnline: boolean;
   locationSettingsRequired: boolean;
+  pendingOperationCount: number;
   receipt: ComplaintReceipt | null;
   step: ComplaintCaptureStep;
   upload: UploadState | null;
@@ -52,6 +53,7 @@ export const initialComplaintCaptureState: ComplaintCaptureState = {
   isBusy: false,
   isOnline: true,
   locationSettingsRequired: false,
+  pendingOperationCount: 0,
   receipt: null,
   step: 'details',
   upload: null,
@@ -91,8 +93,13 @@ export const complaintCaptureReducer = (
         error: null,
         locationSettingsRequired: false,
       };
-    case 'busy':
-      return { ...state, isBusy: action.value };
+    case 'busy': {
+      const pendingOperationCount = Math.max(
+        0,
+        state.pendingOperationCount + (action.value ? 1 : -1),
+      );
+      return { ...state, isBusy: pendingOperationCount > 0, pendingOperationCount };
+    }
     case 'categories_loaded':
       return { ...state, categories: action.categories };
     case 'draft_loaded':
@@ -111,7 +118,9 @@ export const complaintCaptureReducer = (
       return {
         ...initialComplaintCaptureState,
         categories: state.categories,
+        isBusy: state.isBusy,
         isOnline: state.isOnline,
+        pendingOperationCount: state.pendingOperationCount,
       };
     case 'duplicates_loaded':
       return {
@@ -128,7 +137,6 @@ export const complaintCaptureReducer = (
       return {
         ...state,
         error: action.message,
-        isBusy: false,
         locationSettingsRequired:
           action.message === null ? false : (action.locationSettingsRequired ?? false),
       };
@@ -138,7 +146,6 @@ export const complaintCaptureReducer = (
       return {
         ...state,
         error: null,
-        isBusy: false,
         receipt: action.receipt,
         step: 'submitted',
         upload: null,
@@ -192,6 +199,127 @@ export type DraftReadiness = Readonly<{
     'category' | 'category details' | 'description' | 'location' | 'media' | 'media limit'
   )[];
 }>;
+
+export const complaintSubmissionBlockerCodes = [
+  'category',
+  'category_details',
+  'description',
+  'unsaved_details',
+  'location',
+  'asset',
+  'media',
+  'media_limit',
+  'upload',
+  'duplicate_check',
+  'duplicate_acknowledgement',
+  'voice_confirmation',
+  'emergency_acknowledgement',
+  'offline',
+] as const;
+
+export type ComplaintSubmissionBlockerCode = (typeof complaintSubmissionBlockerCodes)[number];
+
+export const complaintSubmissionBlockerMessages: Readonly<
+  Record<ComplaintSubmissionBlockerCode, string>
+> = {
+  asset: 'Choose a verified nearby asset.',
+  category: 'Choose a category with verified routing.',
+  category_details: 'Complete and save the category details.',
+  description: 'Add and save a description.',
+  duplicate_acknowledgement: 'Review and confirm the similar reports.',
+  duplicate_check: 'Check for similar reports.',
+  emergency_acknowledgement: 'Acknowledge the emergency warning.',
+  location: 'Capture an accepted current location.',
+  media: 'Add the required photo or video evidence.',
+  media_limit: 'The report has more evidence than this category allows.',
+  offline: 'Reconnect to submit the complaint.',
+  unsaved_details: 'Save your latest issue details.',
+  upload: 'Wait for the private evidence upload to finish.',
+  voice_confirmation: 'Confirm the typed description for the voice note.',
+};
+
+type ComplaintSubmissionBlockerInput = Readonly<{
+  assetOptions: ComplaintCaptureState['assetOptions'];
+  category: RoutingCategoryCatalogItem | null;
+  draft: ComplaintDraft;
+  duplicateCheck: ComplaintCaptureState['duplicateCheck'];
+  duplicatesAcknowledged: boolean;
+  emergencyAcknowledged: boolean;
+  hasUnsavedDetails: boolean;
+  hasVoice: boolean;
+  isOnline: boolean;
+  upload: ComplaintCaptureState['upload'];
+  voiceDescriptionConfirmed: boolean;
+}>;
+
+const readinessBlockerByMissingField: Readonly<
+  Record<DraftReadiness['missing'][number], ComplaintSubmissionBlockerCode>
+> = {
+  category: 'category',
+  'category details': 'category_details',
+  description: 'description',
+  location: 'location',
+  media: 'media',
+  'media limit': 'media_limit',
+};
+
+export const getComplaintSubmissionBlockers = ({
+  assetOptions,
+  category,
+  draft,
+  duplicateCheck,
+  duplicatesAcknowledged,
+  emergencyAcknowledged,
+  hasUnsavedDetails,
+  hasVoice,
+  isOnline,
+  upload,
+  voiceDescriptionConfirmed,
+}: ComplaintSubmissionBlockerInput): readonly ComplaintSubmissionBlockerCode[] => {
+  const blockers = new Set<ComplaintSubmissionBlockerCode>();
+
+  for (const missingField of getDraftReadiness(draft, category).missing) {
+    blockers.add(readinessBlockerByMissingField[missingField]);
+  }
+  if (hasUnsavedDetails) blockers.add('unsaved_details');
+  if (
+    category?.requiresAsset === true &&
+    !assetOptions.some((asset) => asset.id === draft.assetId)
+  ) {
+    blockers.add('asset');
+  }
+  if (upload !== null) blockers.add('upload');
+  if (duplicateCheck === null) {
+    blockers.add('duplicate_check');
+  } else if (duplicateCheck.suggestions.length > 0 && !duplicatesAcknowledged) {
+    blockers.add('duplicate_acknowledgement');
+  }
+  if (hasVoice && !voiceDescriptionConfirmed) blockers.add('voice_confirmation');
+  if (category?.isEmergency === true && !emergencyAcknowledged) {
+    blockers.add('emergency_acknowledgement');
+  }
+  if (!isOnline) blockers.add('offline');
+
+  return complaintSubmissionBlockerCodes.filter((code) => blockers.has(code));
+};
+
+const normalizedAttributes = (
+  attributes: Record<string, boolean | number | string>,
+): readonly (readonly [string, boolean | number | string])[] =>
+  Object.entries(attributes)
+    .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value] as const)
+    .sort(([left], [right]) => left.localeCompare(right));
+
+export const hasUnsavedComplaintDetails = (
+  draft: ComplaintDraft,
+  details: Readonly<{
+    customAttributes: Record<string, boolean | number | string>;
+    description: string;
+  }>,
+): boolean =>
+  details.description.trim() !== (draft.description ?? '').trim() ||
+  JSON.stringify(normalizedAttributes(details.customAttributes)) !==
+    JSON.stringify(normalizedAttributes(draft.customAttributes));
 
 export const getDraftReadiness = (
   draft: ComplaintDraft | null,

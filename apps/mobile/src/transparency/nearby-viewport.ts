@@ -47,6 +47,30 @@ export const createNearbyViewport = (
   };
 };
 
+export const createRegionalTrendingViewport = (
+  nearbyViewport: PublicTransparencyViewport,
+  halfSpanDegrees = 0.75,
+): PublicTransparencyViewport => {
+  const longitudeSpan = nearbyViewport.east - nearbyViewport.west;
+  const latitudeSpan = nearbyViewport.north - nearbyViewport.south;
+  if (
+    !Number.isFinite(longitudeSpan) ||
+    !Number.isFinite(latitudeSpan) ||
+    longitudeSpan <= 0 ||
+    latitudeSpan <= 0 ||
+    longitudeSpan > 2 ||
+    latitudeSpan > 2
+  ) {
+    throw new RangeError('The nearby transparency viewport is invalid.');
+  }
+
+  return createNearbyViewport(
+    nearbyViewport.south + latitudeSpan / 2,
+    nearbyViewport.west + longitudeSpan / 2,
+    halfSpanDegrees,
+  );
+};
+
 export const projectApproximatePoint = (
   location: Pick<PublicComplaintMapItem['location'], 'latitude' | 'longitude'>,
   viewport: PublicTransparencyViewport,

@@ -170,6 +170,40 @@ An email that already exists in Supabase Auth intentionally conflicts until the 
 assign/revoke/renew lifecycle under `AUTH-001` is implemented. Do not work around that gap by
 editing Auth metadata or copying another user's authenticator factor.
 
+### Staging-only synthetic privileged accounts
+
+When a bounded portal demonstration cannot depend on email delivery, a trusted operator may create
+the fixed synthetic staging matrix after the current migrations and reviewed BMC invitation choices
+are present:
+
+```bash
+pnpm access:provision-staging-demo -- \
+  --acknowledge-staging \
+  --project-ref <20-character-project-ref> \
+  --authority-name "Brihanmumbai Municipal Corporation" \
+  --expires-in-days 30
+```
+
+The root environment must provide the matching hosted `SUPABASE_URL`, a server-only
+secret/service-role key, and a publishable/anonymous key. The project-ref and URL guard is
+mandatory, the access lifetime must be 1–90 days, and the command fails on ambiguous reviewed
+scope, partial existing state, or an unexpected active platform administrator. Do not run this
+helper against production.
+
+The helper creates separate confirmed synthetic Auth identities and preassigns their platform,
+municipal, operator, ward, and department roles through the existing trusted database functions.
+Do not send another Admin Console invitation to these accounts: they are already provisioned for
+their bounded staging scopes. Generated passwords are verified, not printed, and written only to
+`.local/staging-demo-accounts.<project-ref>.json`, a gitignored file forced to mode `0600`. Keep the
+artifact local to the operator and remove it after the demonstration.
+
+Each account that is exercised must enroll and challenge its own TOTP factor. Password sign-in is
+only a Supabase Auth entry method and does not bypass AAL2 enforcement or current database
+authorization. Role and membership expiry removes effective access, but disabling/removing the
+synthetic Auth identities remains an explicit trusted teardown step. Production onboarding stays
+invitation-first, and arbitrary existing-user assignment, renewal, additional scope, and revocation
+remain incomplete under `AUTH-001`.
+
 ---
 
 ## 6. Configure Citizen Phone MFA
@@ -420,7 +454,7 @@ pnpm database:master:check
 
 `supabase/master.sql` is the complete clean-database artifact. For an existing project created from
 an earlier Local Wellness master, run `supabase/master.part-1.sql` and then
-`supabase/master.part-2.sql`. Both files include the full ordered history in a 23/19 split. They
+`supabase/master.part-2.sql`. Both files include the full ordered history in a 23/21 split. They
 fingerprint completed migrations, skip them as whole units, and execute only missing exact sources.
 Keep applications stopped between parts and run at low traffic. Stop on any `LOCAL_WELLNESS_*`
 error; it indicates partial or non-contiguous state that blanket `IF NOT EXISTS` would conceal.
@@ -429,6 +463,30 @@ Each part is one advisory-locked transaction and validates its target before com
 command validates all generated files, and all exclude `supabase/seed/`. Dashboard execution does
 not populate the Supabase migration ledger. Normal managed deployments should use immutable files
 under `supabase/migrations/` once direct/CLI access and the ledger are reconciled.
+
+For the current hosted target, prefer the compact
+`supabase/deploy/current-session/01_migrations_39_through_43.sql` only after confirming migration
+38 (`20260716115000_phase_10_profile_images.sql`) is complete. The 77,849-byte query is one
+advisory-locked transaction: it skips a coherent completed 39–43 prefix, executes exact missing
+source migrations, verifies migration 43/readiness, and is safe to rerun after success. It does not
+load seeds or repair `supabase_migrations.schema_migrations`. A baseline, partial, or
+non-contiguous-state error means stop and reconcile; use Part 1 followed by Part 2 only when their
+adaptive coherent-prefix checks are appropriate.
+
+The compact file intentionally ends at migration 43. If the current BMC data is already loaded but
+complaint submission reaches routing and returns `DEPENDENCY_UNAVAILABLE`, run the complete
+`supabase/migrations/20260718100000_complaint_routing_evidence_diagnostics.sql` next in **SQL
+Editor → New query**. It is an additive, rerunnable function repair; it does not reload BMC data or
+update the official migration ledger. Then run the read-only
+`supabase/deploy/diagnostics/bmc_submission_runtime_audit.sql` and retry the authenticated saved
+report.
+
+Generate and drift-check this focused artifact with:
+
+```bash
+pnpm database:current-session:generate
+pnpm database:current-session:check
+```
 
 ---
 
@@ -769,11 +827,17 @@ the application still fails closed outside its scope and effective period. Never
 placeholder, ambiguous, or expired policy automatically.
 
 Phase 8 adds the transparency schema/security migrations, the `20260716105000` RPC/ACL forward fix,
-and `20260716106000_phase_8_duplicate_group_publication.sql`. The duplicate forward migration keeps
+`20260716106000_phase_8_duplicate_group_publication.sql`, and the additive
+`20260717100000_public_complaint_engagements.sql`. The duplicate forward migration keeps
 review/withdrawal service-only, requires every member to have a current public projection, bounds a
 group at 100 reports, and returns only public IDs/counts through detail. The focused plans 029–030
-passed 91 assertions. This focused result does not replace the root session's final aggregate
-reset/lint/type/test report, and no transparency policy, projection, or duplicate group is seeded.
+previously passed 91 assertions. With the engagement coverage, plans 029, 030, and 044 pass 120
+assertions, and the full clean local run passes 1,542 assertions across 44 plans. No transparency
+policy, projection, or duplicate group is seeded.
+The engagement migration keeps one private forced-RLS row per complaint/account, publishes only an
+aggregate support count, keeps star/follow state private to the authenticated actor, and adds
+`recent|trending` reviewed-public ordering. Generated database types, schema lint, and the adaptive
+43-migration master artifacts also pass their local drift/validation checks.
 
 Phase 9 adds `20260716110000_phase_9_sla_escalation_kpi_schema.sql` and
 `20260716111000_phase_9_sla_escalation_kpi_security_and_rpc.sql`. They introduce 19 private
@@ -790,16 +854,38 @@ readiness probes, privileged and citizen MFA verification helpers, the owner-pri
 bucket/metadata, 50 m complaint/media proximity constraints, and routing delivery-readiness
 metadata. Two later additive migrations add BMC ward relationship versions and the service-only
 government invitation selector projection through
-`20260716119000_government_invitation_scope_options.sql`. The current clean-bootstrap artifact
-contains 42 ordered migrations. Apply these as
+`20260716119000_government_invitation_scope_options.sql`. The current repository cutoff is the
+45th migration, `20260718110000_governance_source_bundle_imports.sql`; the deterministic SQL
+Editor split is migrations 1–23 and 24–45. Apply these as
 incremental migrations to an existing project; never apply `supabase/master.sql` as an upgrade.
 
 The BMC generator now emits governance/checksum seeds `50`/`51` and routing/verification seeds
 `52`/`53`. A clean local reset applies all four in order. The routing pair activates only garbage
-dump, missed sweeping, and mosquito breeding, with 66 direct rules over 22 one-to-one wards; nine
-asset-dependent categories and the split K/P wards remain fail-closed. The full local database run
+dump, missed sweeping, and mosquito breeding, with 66 direct rules over 22 one-to-one wards. The
+other nine categories remain unavailable, six explicitly because asset ownership evidence is
+absent in the generic seed; the canonical BMC references require ownership for all nine, and the
+split K/P wards remain fail-closed. The prior 42-migration full local database run
 passed 1,513 assertions across 43 pgTAP plans. No managed project is changed by generation, reset,
 or those local test results.
+
+The compact current-session SQL was also applied locally from an exact migration-38 database. It
+successfully installed migrations 39–43, then safely skipped all five on an immediate rerun.
+Focused plans 038, 039, 040, 042, and 044 passed 90 assertions after that path. This validates the compact local
+upgrade/rerun behavior but does not claim hosted execution; the full 43-migration clean-reset result
+is recorded in the Phase 8 section above.
+
+After adding migration 45 and the Batch 0 seed, a clean local reset and all 47 pgTAP files pass
+1,612 assertions. Application-schema lint is clean, and generated database types plus all
+45-migration master artifacts are current. These local checks do not apply schema or data to hosted
+Supabase.
+
+For an existing reconciled target, the generated `supabase/deploy/maharashtra-batch0/` package is
+the SQL Editor path. Run its three complete files in lexical order. The first safely applies/skips
+ZIP import metadata support; the second records the immutable archive ledger and applies only the
+state plus 35 exact district LGD enrichments; the third records the generated seed checksum. The
+target must already contain the canonical Phase 2 seed and schema through migration `20260718100000`.
+The package intentionally leaves the ambiguous Mumbai alias and every operational dataset
+quarantined and does not alter the Supabase migration ledger.
 
 Before managed Phase 10 activation:
 
@@ -838,9 +924,16 @@ explicitly applied to staging.
 The owner subsequently replaced the configured staging project and reports applying a generated
 master SQL file to it. That report does not identify the artifact revision and the database ledger
 was not reachable for independent verification in this session. Treat the current target as
-unreconciled: compare `supabase_migrations.schema_migrations` with all 42 current migration files,
+unreconciled: compare `supabase_migrations.schema_migrations` with all 45 current migration files,
 verify schema objects and RLS, and establish the seed/Auth/profile/role state before enabling any
-application, worker, Edge Function, schedule, routing, transparency, SLA, or KPI capability.
+application, worker, Edge Function, schedule, routing, transparency, SLA, or KPI capability. A
+later credential-safe read audit found `/health/ready` healthy and all five expected private
+Storage buckets present, so the earlier missing-readiness-RPC failure is no longer current. That
+same audit initially returned zero category projections and no tested BMC jurisdiction rows. That
+data observation is superseded by a clean hosted smoke returning 12 catalog categories, three
+operational categories, finalized private media, K/W jurisdiction, and deterministic routing.
+Hosted complaint completion still needs migration `20260718100000`; healthy routing is not evidence
+that this unapplied function repair is present.
 
 When `REQUIRE_LOCAL_SUPABASE=true`, the Auth E2E harness accepts only loopback API hosts. This guard
 fails before user creation if a generic environment file points at hosted Supabase. Hosted database
@@ -886,13 +979,22 @@ Before managed routing or governance synchronization activation, operators must 
   the V1 numeric bootstrap targets as audit history, then create a new reviewed scope for BMC
   administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`; never ordinal-map
   `BRIH-W01`–`BRIH-W05` to the BMC letters;
-- for an explicitly reviewed non-production BMC demo, apply migrations through `20260716119000`
-  before `50_bmc_demo_governance.generated.sql` and
-  `51_bmc_demo_governance_checksum.generated.sql`, then apply
-  `52_bmc_demo_routing.generated.sql` and
-  `53_bmc_demo_routing_verification.generated.sql`; verify three operational asset-independent
-  categories, 66 rules, 22 one-to-one ward crosswalks, nine fail-closed asset-dependent categories,
-  split K/P exclusions, and disabled external delivery;
+- for the current non-production BMC mobile demo, open **SQL Editor → New query** and run
+  `supabase/deploy/current-session/01_migrations_39_through_43.sql` first when migration 38 is
+  confirmed complete; if its baseline/partial/non-contiguous guard fails, stop and reconcile or use
+  the two adaptive master parts as appropriate; this compact artifact installs schema only and does
+  not load BMC seed data;
+- after migrations 39–43 are verified, run
+  `supabase/deploy/bmc-mobile-demo/01_baseline_categories_and_core.sql`,
+  `02_official_boundaries.sql`, `03_ward_crosswalk_and_governance_verify.sql`, and
+  `04_routing_activation_and_verify.sql` in that exact order; if Part 1 reports
+  `BMC_MOBILE_DEMO_SCHEMA_NOT_CURRENT`, reconcile through all 43 migrations first; verify all 12
+  visible categories, three operational categories, 66 rules, 22 one-to-one ward crosswalks,
+  unavailable split K/P wards, and disabled external delivery; do not apply the broad Phase 2 seed
+  afterward without immediately rerunning all four parts;
+- apply `20260718100000_complaint_routing_evidence_diagnostics.sql` after the schema/BMC data is
+  present, run the read-only submission runtime audit, and require an authenticated complaint
+  receipt before declaring hosted submission operational;
 - verify that a source-authenticated value remains staged, public visibility requires attributed
   manual verification, and complaint delivery requires its separate explicit approval;
 - verify contact publication binds the target owner UUID, value, source URL, evidence-value hash,
@@ -964,7 +1066,7 @@ Before managed Phase 7 activation, operators must also:
 Before enabling the mobile verified-governance directory, operators must also:
 
 - apply `20260716104000_verified_governing_body_projection.sql` through the incremental migration
-  workflow and regenerate/check the committed database types; the 42-migration master SQL is only
+  workflow and regenerate/check the committed database types; the 45-migration master SQL is only
   for a clean database and must not be applied over staging history;
 - repeat plan `028_verified_governing_body_projection.test.sql` and application-schema database
   lint in managed development, then verify `anon`/`authenticated` cannot execute the RPC while the
@@ -985,7 +1087,8 @@ Before managed Phase 8 activation, operators must also:
 
 - apply all Phase 8 transparency migrations in repository order in managed development and staging,
   including the `20260716105000` RPC/ACL forward fix and
-  `20260716106000_phase_8_duplicate_group_publication.sql`; regenerate/check database types and
+  `20260716106000_phase_8_duplicate_group_publication.sql` plus
+  `20260717100000_public_complaint_engagements.sql`; regenerate/check database types and
   repeat forced-RLS, direct-ACL, function-grant, approximate-geometry, withdrawal, aggregate-
   threshold, and private-field leakage tests;
 - publish no operational policy until public eligibility, sensitive-category handling, sanitized
@@ -998,7 +1101,11 @@ Before managed Phase 8 activation, operators must also:
 - smoke service-only duplicate review/exact replay/conflict/withdrawal, require every member to be
   currently published, verify the 100-member bound, and assert detail contains public IDs/counts
   only; never auto-promote a private similarity result;
-- keep public comments and processed media disabled until their independent moderation, abuse,
+- smoke one-support-per-account, private star/follow lookup, aggregate-only public output,
+  withdrawn-projection denial, read/mutation quotas, and live `recent|trending` ordering; confirm
+  support/star state never changes routing, assignment, status, escalation, SLA, or KPI records;
+- keep public comments, supporter identities, public avatars, engagement notifications, automatic
+  government-priority effects, and processed media disabled until their independent moderation, abuse,
   scanning/redaction, retention, and delivery gates are satisfied;
 - keep the provider-neutral map mode unless a later ADR approves a basemap and outbound-coordinate
   policy.

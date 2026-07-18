@@ -33,6 +33,7 @@ const insertRows = (
   rows: readonly (readonly SqlLiteral[])[],
   conflictColumns: readonly string[],
   immutableColumns: readonly string[] = ['id'],
+  preserveExistingNonNullColumns: readonly string[] = [],
 ): string => {
   if (rows.length === 0) {
     return '';
@@ -43,7 +44,13 @@ const insertRows = (
   const conflict =
     updates.length === 0
       ? 'do nothing'
-      : `do update set\n${updates.map((column) => `  ${column} = excluded.${column}`).join(',\n')}`;
+      : `do update set\n${updates
+          .map((column) =>
+            preserveExistingNonNullColumns.includes(column)
+              ? `  ${column} = coalesce(${table}.${column}, excluded.${column})`
+              : `  ${column} = excluded.${column}`,
+          )
+          .join(',\n')}`;
 
   return [
     `insert into ${table} (${columns.join(', ')})`,
@@ -367,6 +374,8 @@ export const renderGovernanceSeedSql = (
         ...verificationColumns(state).slice(3),
       ]),
       ['id'],
+      ['id'],
+      ['lgd_code'],
     ),
   );
 
@@ -402,6 +411,8 @@ export const renderGovernanceSeedSql = (
         ...verificationColumns(district).slice(3),
       ]),
       ['id'],
+      ['id'],
+      ['lgd_code'],
     ),
   );
 

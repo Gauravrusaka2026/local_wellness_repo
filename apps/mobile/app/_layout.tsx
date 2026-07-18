@@ -76,7 +76,7 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="transparency/index"
-              options={{ ...detailScreenOptions, title: 'Public reports' }}
+              options={{ headerShown: false, title: 'Community' }}
             />
             <Stack.Screen
               name="transparency/[publicId]"

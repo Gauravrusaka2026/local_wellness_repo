@@ -191,19 +191,13 @@ export default function SignInScreen() {
         )}
 
         <Pressable
+          accessibilityHint="Shows reviewed, privacy-protected reports"
           accessibilityRole="button"
           onPress={() => router.push('/transparency')}
           style={styles.publicReportsButton}
         >
-          <Text style={styles.publicReportsText}>
-            Explore reviewed public reports without signing in
-          </Text>
+          <Text style={styles.publicReportsText}>Browse public reports</Text>
         </Pressable>
-
-        <View style={styles.trustCard}>
-          <Text style={styles.trustTitle}>Two-step protection</Text>
-          <Text style={styles.trustText}>{phoneMfaCopy.trustText}</Text>
-        </View>
       </ScrollView>
     </Screen>
   );
@@ -288,7 +282,4 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   title: { color: '#143b27', fontSize: 34, fontWeight: '900', marginBottom: 10 },
-  trustCard: { backgroundColor: '#edf7f0', borderRadius: 16, gap: 5, marginTop: 8, padding: 15 },
-  trustText: { color: '#4d6857', fontSize: 13, lineHeight: 19 },
-  trustTitle: { color: '#185b36', fontSize: 14, fontWeight: '900' },
 });

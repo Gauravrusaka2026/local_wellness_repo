@@ -3119,6 +3119,47 @@ export type Database = {
           },
         ];
       };
+      public_complaint_engagements: {
+        Row: {
+          complaint_id: string;
+          created_at: string;
+          follow_changed_at: string;
+          is_following: boolean;
+          is_supporting: boolean;
+          support_changed_at: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          complaint_id: string;
+          created_at?: string;
+          follow_changed_at?: string;
+          is_following?: boolean;
+          is_supporting?: boolean;
+          support_changed_at?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          complaint_id?: string;
+          created_at?: string;
+          follow_changed_at?: string;
+          is_following?: boolean;
+          is_supporting?: boolean;
+          support_changed_at?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'public_complaint_engagements_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       public_media_derivatives: {
         Row: {
           bucket_id: string | null;
@@ -4010,9 +4051,41 @@ export type Database = {
         };
         Returns: boolean;
       };
+      complaint_routing_evidence_mismatches: {
+        Args: {
+          p_actor_user_id: string;
+          p_routing_decision_id: string;
+          p_submission_request_id: string;
+        };
+        Returns: string[];
+      };
       complaint_status_at: {
         Args: { p_complaint_id: string; p_source_cutoff_at: string };
         Returns: string;
+      };
+      complete_complaint_submission_v2: {
+        Args: {
+          p_acknowledged_duplicate_suggestion_ids?: string[];
+          p_actor_user_id: string;
+          p_emergency_disclaimer_acknowledged?: boolean;
+          p_routing_decision_id: string;
+          p_submission_request_id: string;
+        };
+        Returns: {
+          assignment_id: string;
+          authority_id: string;
+          complaint_id: string;
+          complaint_number: string;
+          department_id: string;
+          draft_id: string;
+          local_body_id: string;
+          officer_role_id: string;
+          replayed: boolean;
+          routing_decision_id: string;
+          status: string;
+          submitted_at: string;
+          ward_id: string;
+        }[];
       };
       current_action_request_id: { Args: never; Returns: string };
       current_citizen_action_request_id: { Args: never; Returns: string };
@@ -4098,6 +4171,10 @@ export type Database = {
           p_projection: Database['complaints']['Tables']['complaint_publication_projections']['Row'];
         };
         Returns: Json;
+      };
+      public_complaint_support_count: {
+        Args: { p_complaint_id: string };
+        Returns: number;
       };
       public_duplicate_group_payload: {
         Args: { p_at?: string; p_complaint_id: string };
@@ -5100,10 +5177,11 @@ export type Database = {
           generated_seed_sha256: string | null;
           id: string;
           manifest_sha256: string;
+          source_bundle_sha256: string | null;
           started_at: string;
           status: string;
           validation_summary: Json;
-          workbook_sha256: string;
+          workbook_sha256: string | null;
         };
         Insert: {
           canonical_root: string;
@@ -5114,10 +5192,11 @@ export type Database = {
           generated_seed_sha256?: string | null;
           id?: string;
           manifest_sha256: string;
+          source_bundle_sha256?: string | null;
           started_at?: string;
           status?: string;
           validation_summary?: Json;
-          workbook_sha256: string;
+          workbook_sha256?: string | null;
         };
         Update: {
           canonical_root?: string;
@@ -5128,10 +5207,11 @@ export type Database = {
           generated_seed_sha256?: string | null;
           id?: string;
           manifest_sha256?: string;
+          source_bundle_sha256?: string | null;
           started_at?: string;
           status?: string;
           validation_summary?: Json;
-          workbook_sha256?: string;
+          workbook_sha256?: string | null;
         };
         Relationships: [];
       };
@@ -8630,6 +8710,31 @@ export type Database = {
           ward_id: string;
         }[];
       };
+      list_public_complaint_engagements: {
+        Args: { p_actor_user_id: string; p_public_ids: string[] };
+        Returns: {
+          engagement: Json;
+        }[];
+      };
+      list_public_complaint_feed: {
+        Args: {
+          p_category_codes: string[];
+          p_cursor: string;
+          p_date_from: string;
+          p_date_to: string;
+          p_east: number;
+          p_limit: number;
+          p_north: number;
+          p_sort: string;
+          p_south: number;
+          p_statuses: string[];
+          p_west: number;
+          p_zoom: number;
+        };
+        Returns: {
+          projection: Json;
+        }[];
+      };
       list_public_complaint_hotspots: {
         Args: {
           p_category_codes: string[];
@@ -9199,6 +9304,17 @@ export type Database = {
         Returns: {
           authority_id: string;
           run_id: string;
+        }[];
+      };
+      set_public_complaint_engagement: {
+        Args: {
+          p_actor_user_id: string;
+          p_public_id: string;
+          p_starred: boolean;
+          p_supported: boolean;
+        };
+        Returns: {
+          engagement: Json;
         }[];
       };
       submit_complaint: {

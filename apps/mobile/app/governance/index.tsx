@@ -89,9 +89,6 @@ const ResolutionContent = ({ result }: Readonly<{ result: GoverningBodyResolutio
         <Text accessibilityRole="header" style={styles.sectionTitle}>
           Your governing bodies
         </Text>
-        <Text style={styles.sectionDescription}>
-          This match uses current verified jurisdiction boundaries for your captured location.
-        </Text>
         {result.matches.map((match, index) => (
           <MatchCard key={`${match.localBody.name}-${index}`} match={match} />
         ))}
@@ -171,10 +168,7 @@ export default function GovernanceDirectoryScreen() {
             <Text accessibilityRole="header" style={styles.title}>
               Who looks after your area?
             </Text>
-            <Text style={styles.description}>
-              Find the verified ward, local body, and authority for where you are standing—without
-              publishing your coordinates.
-            </Text>
+            <Text style={styles.description}>Find your verified ward and local authority.</Text>
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ disabled: state.status === 'loading' }}
@@ -196,8 +190,7 @@ export default function GovernanceDirectoryScreen() {
             <View style={styles.privacyCard}>
               <Text style={styles.privacyTitle}>Private by design</Text>
               <Text style={styles.privacyText}>
-                Your precise position is sent securely for a one-time boundary lookup. Only verified
-                public governance information is returned.
+                Your exact location is used only for this lookup.
               </Text>
             </View>
           ) : null}
@@ -287,7 +280,6 @@ const styles = StyleSheet.create({
   privacyTitle: { color: '#155d38', fontSize: 17, fontWeight: '800' },
   resultSection: { gap: 12 },
   retryText: { color: '#9f1239', fontWeight: '900' },
-  sectionDescription: { color: '#617066', lineHeight: 21 },
   sectionTitle: { color: '#173c29', fontSize: 24, fontWeight: '900' },
   shell: { flex: 1 },
   sourceButton: {

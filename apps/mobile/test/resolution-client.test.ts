@@ -325,9 +325,21 @@ test('classifies routing terminal errors separately from ambiguous submission ou
       new ApiClientError({
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'internal dependency detail',
+        requestId: 'request-123',
         status: 503,
       }),
     ),
-    'Local Wellness is temporarily unavailable. Please try again shortly.',
+    'Local Wellness is temporarily unavailable. Please try again shortly. Reference: request-123.',
+  );
+
+  assert.equal(
+    getUserFacingComplaintError(
+      new ApiClientError({
+        code: 'COMPLAINT_ROUTING_LOCATION_MISMATCH',
+        message: 'internal routing evidence detail',
+        status: 409,
+      }),
+    ),
+    'Your saved report changed while routing was verified. Refresh the report and submit it again.',
   );
 });

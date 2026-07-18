@@ -13,7 +13,9 @@ test('explains that government sign-in cannot create or authorize an account', (
     <OtpSignInForm accountNotice={null} callbackError={false} nextPath="/" />,
   );
 
-  assert.match(markup, /exact email address that received your government invitation/u);
+  assert.match(markup, /existing authorized government identity/u);
+  assert.match(markup, /Password/u);
+  assert.match(markup, /Email code or link/u);
   assert.match(markup, /never creates a government account/u);
   assert.match(markup, /active authority membership/u);
   assert.match(markup, /current scoped government role/u);

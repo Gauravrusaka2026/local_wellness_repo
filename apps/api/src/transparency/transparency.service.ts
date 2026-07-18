@@ -3,6 +3,7 @@ import type {
   PublicComplaintDetail,
   PublicComplaintHotspotQuery,
   PublicComplaintHotspotResult,
+  PublicComplaintEngagementState,
   PublicComplaintMapQuery,
   PublicComplaintMapResult,
   PublicWardBoundaryQuery,
@@ -10,6 +11,8 @@ import type {
 } from '@local-wellness/types';
 import {
   publicComplaintDetailSchema,
+  publicComplaintEngagementListSchema,
+  publicComplaintEngagementStateSchema,
   publicComplaintHotspotResultSchema,
   publicComplaintMapResultSchema,
   publicWardBoundaryResultSchema,
@@ -67,6 +70,38 @@ export class TransparencyService {
       throw new TransparencyDataAccessError('validate public complaint detail response');
     }
 
+    return result.data;
+  }
+
+  public async listEngagements(
+    actorUserId: string,
+    publicIds: readonly string[],
+  ): Promise<PublicComplaintEngagementState[]> {
+    const result = publicComplaintEngagementListSchema.safeParse(
+      await this.store.listEngagements(actorUserId, publicIds),
+    );
+    if (!result.success) {
+      throw new TransparencyDataAccessError('validate public complaint engagement states');
+    }
+    return result.data;
+  }
+
+  public async setEngagement(
+    actorUserId: string,
+    publicId: string,
+    input: Readonly<{ supported: boolean; starred: boolean }>,
+  ): Promise<PublicComplaintEngagementState> {
+    const engagement = await this.store.setEngagement(actorUserId, publicId, input);
+    if (!engagement) {
+      throw ApiException.notFound(
+        'PUBLIC_COMPLAINT_NOT_FOUND',
+        'The public complaint was not found.',
+      );
+    }
+    const result = publicComplaintEngagementStateSchema.safeParse(engagement);
+    if (!result.success) {
+      throw new TransparencyDataAccessError('validate updated public complaint engagement');
+    }
     return result.data;
   }
 }

@@ -149,6 +149,45 @@ pnpm governance:data:check
 
 Generated artifacts are `docs/worklogs/phase-2-maharashtra-governance/data-validation.json`, `supabase/seed/20_phase_2_governance.generated.sql` and `supabase/seed/21_phase_2_governance_checksum.generated.sql`. Never hand-edit them.
 
+## Maharashtra Batch 0 Source-Bundle Intake
+
+`resources/governance/local_wellness_maharashtra_batch0_2026-07-18.zip` is an immutable enrichment
+bundle, not a replacement for the canonical Phase 2 CSVs/workbook. Its pinned manifest and
+validation report live under `resources/governance/manifests/`. The generator validates safe ZIP
+paths, bounded expansion, all 28 members, 27 internal member hashes, 22 CSV schemas, exact row
+counts/keys, duplicate rows, non-routable hierarchy flags, canonical district reconciliation, and
+transient-query redaction.
+
+The bundle contains 160 CSV records: 38 source observations, 17 conflicting observations, one
+state, 36 districts, 21 open issues, 23 refresh-plan entries, and 24 supplied validation entries.
+Every operational entity CSV is header-only, and the boundary GeoJSON has zero features. The PMC
+CARE PDF is retained only as stale 2016 evidence. Consequently, the generated seed:
+
+- records the ZIP plus all members and all 160 rows in the immutable import ledger;
+- catalogs 38 canonical official-source URLs without activating synchronization endpoints;
+- adds LGD `27` to the existing Maharashtra state and LGD codes to 35 exact existing district
+  matches, aborting on any non-null conflict;
+- retains `Mumbai`/LGD `482` as reference-only until an attributed `Mumbai City` crosswalk exists;
+- creates or activates no local body, ward, boundary, department, office, role, officer,
+  assignment, contact, utility, emergency contact, asset, routing rule, public projection, or
+  external delivery.
+
+Four rows contained an ephemeral CSRF query value. Generated JSON/SQL uses the canonical URL,
+records `SENSITIVE_QUERY_REDACTED`, and retains the SHA-256 of the original pre-redaction row. Do not
+copy the transient query value into a source endpoint, report, log, or review note.
+
+Use:
+
+```bash
+pnpm governance:mh:batch0:generate
+pnpm governance:mh:batch0:check
+```
+
+Generated local-reset seeds are `supabase/seed/60_maharashtra_batch0_governance.generated.sql` and
+`61_maharashtra_batch0_governance_checksum.generated.sql`. Existing hosted targets use the three
+ordered, generated files in `supabase/deploy/maharashtra-batch0/`; they require the canonical Phase
+2 seed and schema through migration `20260718100000`. A successful import is not routing approval.
+
 ## Promotion Criteria
 
 The following are operator review criteria for promoting a quarantined or unverified record. PostgreSQL enforces lifecycle, placeholder, provenance-presence, geometry, temporal and routing-eligibility invariants, but it cannot determine whether a generic government page is sufficiently record-specific or whether an external identifier is the current official LGD value.
@@ -187,6 +226,32 @@ rename or promote `PUNE-W01`–`PUNE-W05` or ordinal-map `BRIH-W01`–`BRIH-W05`
 Preserve those rows and the V1 scope seed as audit history; publish reviewed canonical records and a
 new scope version when official evidence is available.
 
+### Separate BMC Demo Overlay
+
+The read-only Maharashtra baseline is not rewritten to make Mumbai operational. The separate
+`resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/` dataset, workbook, manifest, validation
+report, and official legacy-ward GeoJSON preserve their own provenance and warnings. Generated
+BMC governance/routing artifacts create separate source-backed operational records and retain the
+canonical numeric placeholders as audit history.
+
+For the current existing Supabase staging project, `supabase/deploy/bmc-mobile-demo/` packages the
+reviewed subset into four transaction-atomic SQL Editor files: baseline categories/core, official
+boundaries, ward/governance crosswalk, and routing activation/verification. Run them in that exact
+order. The bundle exposes 12 categories but activates only garbage dump, missed sweeping, and
+mosquito breeding across 22 one-to-one wards. K/S, K/N, P/E, P/W, the other nine categories, and
+automatic external delivery remain fail closed. All nine canonical BMC routing-reference rows
+require asset ownership evidence. The bundle must never be used to claim official BMC-system
+submission or to promote the canonical Maharashtra placeholders.
+
+`resources/governance/manifests/bmc-routing-asset-sources.v1.json` is the network-free discovery
+contract for those nine categories. It pins only official MCGM ArcGIS metadata for road, storm-water,
+sewer/manhole, water-pipeline, streetlight, building, tree, and related right-of-way candidates. It
+does not contain feature data and does not approve a source registration, retrieval schedule,
+stable identifier, ownership match, publication, routing activation, or external delivery. Validate
+it with `pnpm governance:bmc:assets:validate`; immutable snapshots, bounded parsers, versioned asset
+and ownership records, ward joins, entity matching, and human approval remain required before any
+candidate can become routable.
+
 ## Refresh Process
 
 The following remains the required operator workflow for a replacement repository bundle; it is not
@@ -222,8 +287,15 @@ foundation does not yet implement connectors, scheduling, parsing, review UI, or
 - Pune Municipal Corporation has no verified pilot ward geometry, operational category ownership,
   asset-owner mapping, current assignment set, confidence policy, or fallback route in the current
   bootstrap.
-- BMC administrative wards `A`–`E` and Pune's current numeric wards `1`–`5` still require official
-  identity and boundary evidence; the existing numeric placeholder rows are not an approved
-  crosswalk.
+- The BMC overlay has no reviewed asset/ownership import for potholes, blocked drains, sewage
+  overflows, water leaks, broken streetlights, open manholes, illegal construction, encroachment, or
+  fallen trees. Its official layer manifest is discovery metadata only. The generic taxonomy also
+  treats illegal construction, encroachment, and fallen trees as not requiring an asset while the
+  BMC-specific canonical references require ownership; resolve that municipality-specific policy
+  mismatch before activation instead of weakening the BMC records.
+- The canonical BMC numeric placeholders and Pune's current numeric wards `1`–`5` still lack an
+  approved identity/boundary promotion. The separate BMC overlay supplies source-backed operational
+  ward identities and legacy geometry without promoting those placeholders; split K/P child
+  geometry and the remaining category/ownership evidence are still incomplete.
 
 These gaps are expected inputs to quarantine and later refresh work. They must not be hidden by marking the corresponding records verified.

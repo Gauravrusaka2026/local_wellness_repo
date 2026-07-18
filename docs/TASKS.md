@@ -5,20 +5,20 @@
 - Project: Local Wellness
 - Current phase: Phase 10 — Hardening and launch
 - Current sprint: Sprint 11 — V1 citizen access, security, and launch readiness
-- Current sprint implementation progress: 72%
-- Overall implementation progress: 90%
+- Current sprint implementation progress: 79%
+- Overall implementation progress: 91%
 - Phase 0 implementation progress: 100%
 - Phase 1 implementation progress: 100%
 - Phase 2 implementation progress: 90%
-- Phase 3 implementation progress: 88%
-- Phase 4 implementation progress: 98%
+- Phase 3 implementation progress: 89%
+- Phase 4 implementation progress: 99%
 - Phase 5 implementation progress: 95%
 - Phase 6 implementation progress: 85%
 - Phase 7 implementation progress: 92%
-- Phase 8 implementation progress: 85%
+- Phase 8 implementation progress: 92%
 - Phase 9 implementation progress: 85%
-- Phase 10 implementation progress: 72%
-- Last updated: 2026-07-17
+- Phase 10 implementation progress: 79%
+- Last updated: 2026-07-18
 
 ## Phase 0 Scope
 
@@ -217,6 +217,26 @@ Phase 0 deferred all feature dependencies. Phase 1 introduced only its required 
 - [x] Update the database, architecture, authentication, API, deployment, Supabase setup, and governance import documentation.
 - [x] Update TASKS, CHANGELOG, PROGRESS, DECISIONS, KNOWN_ISSUES, and the Phase 2 worklog with final results and unresolved data gaps.
 
+### Maharashtra Batch 0 Intake — 2026-07-18
+
+- [x] Audit `resources/governance/local_wellness_maharashtra_batch0_2026-07-18.zip`
+      without modifying it; verify safe archive paths, bounded expansion, all 28 member CRCs, and
+      the complete internal SHA-256 manifest.
+- [x] Reconcile the supplied schemas and row counts: 38 source observations, 17 conflicting count
+      observations, 1 state, 36 districts, 21 data issues, 23 refresh-plan rows, 24 validation rows,
+      and zero taluka/local-body/ward/boundary/department/office/person/assignment/contact/utility/
+      emergency/routing/asset/ownership records.
+- [x] Add a hash-pinned, deterministic Batch 0 validator/generator that reads the immutable ZIP,
+      rejects member/header/count/hash drift, preserves every source observation and issue, and
+      emits a review-gated additive seed without rewriting the canonical Phase 2 CSV/workbook.
+- [x] Extend governance import-batch metadata for a ZIP source bundle without misusing the existing
+      workbook checksum field; retain backward compatibility for the canonical and BMC imports.
+- [x] Seed the official source registry and only the non-routable hierarchy identifiers that match
+      existing canonical entities unambiguously; retain the `Mumbai` versus `Mumbai City` row as a
+      quarantined review item and activate no route, boundary, assignment, contact, or delivery.
+- [x] Add migration/seed/RLS/routing-negative tests, generate an SQL Editor deployment artifact,
+      run focused/full verification, and document the exact refresh and human-review path.
+
 ## Phase 3 Execution Plan
 
 Phase 3 engineering may use synthetic records inside rollback-isolated tests, but operational resolution must reject placeholder, unverified, inactive, expired, or non-routable records. Pune Municipal Corporation is the reference pilot for architecture and test planning only; no Pune municipality, ward, department, officer, or routing branch may be hardcoded in application logic.
@@ -228,8 +248,9 @@ Phase 3 engineering may use synthetic records inside rollback-isolated tests, bu
 - [x] Implement service-only PostGIS candidate queries that reuse versioned governance boundaries and filter inactive, placeholder, unverified, expired, and non-routable records.
 - [x] Add constraints, indexes, immutable/version-history guards, least-privilege grants, forced RLS, and migration/RLS tests for the routing schema.
 - [x] Add optional, data-driven BMC internal-routing seeds for three asset-independent categories,
-      exactly 22 one-to-one wards, and 66 deterministic rules; fail closed for nine asset-dependent
-      categories, split child wards, hosted activation, and external delivery.
+      exactly 22 one-to-one wards, and 66 deterministic rules; fail closed for the other nine
+      categories (six explicitly asset-dependent), split child wards, hosted activation, and
+      external delivery.
 
 ### Routing Package and API
 
@@ -393,6 +414,9 @@ generated BMC routing seeds enable only the documented bounded non-production in
 - [x] Add an authenticated, data-driven category catalog that shows every non-placeholder category,
       marks unavailable routing explicitly, disables unsafe selection, and preserves the existing
       verified-only category lookup/submission boundary.
+- [x] Replace the six-screen complaint wizard presentation with one scrollable form while retaining
+      resumable server state, private uploads, duplicate review, idempotent submission, and verified
+      routing; show all client-visible submit blockers explicitly and use a bell for notifications.
 - [x] Persist local draft/upload state in SQLite and resume interrupted signed uploads safely without
       persisting bearer tokens or signed-upload secrets.
 - [x] Add focused mobile unit tests and verify the Expo Android export.
@@ -604,10 +628,20 @@ and outbound-coordinate policy is approved.
       builds, Expo checks/export, Compose validation, and dependency audit.
 - [x] Create the Phase 8 ADR/worklog and update all required architecture, database, API, deployment,
       setup, tracker, decision, and known-issue documents.
+- [x] Add account-bound support and private star/follow state only for current reviewed public
+      projections, publish only aggregate support counts, and prevent community signals from
+      changing routing, assignment, workflow status, escalation, SLA, or KPI state.
+- [x] Add bounded authenticated engagement lookup/mutation APIs, PostgreSQL-backed quotas, strict
+      shared validation, `recent|trending` reviewed-public ordering, and focused migration/API/
+      client tests. The clean 43-migration aggregate database and repository release gates passed.
+- [x] Refine the Expo information hierarchy with compact visible copy and a primary Community
+      destination containing Local, Trending, and privacy-safe Heat views. Keep detailed guidance
+      in state-specific help and accessibility labels instead of repeating it below every option.
 
-Phase 8 engineering is complete locally. Operational completion remains gated on the approved
+Phase 8 core engineering is complete locally, including reviewed-public support/star and community
+ordering. Operational completion remains gated on the approved
 visibility/generalization/moderation policy, reviewed public projections, verified ward geometry,
-provider/privacy decisions, managed migration deployment, and rendered/load/device validation
+abuse operations, provider/privacy decisions, managed migration deployment, and rendered/load/device validation
 (`TRANSPARENCY-001`, `TRANSPARENCY-002`, `GOVDIR-001`). No complaint was published by fixtures.
 
 ## Phase 9 Execution Plan
@@ -713,6 +747,20 @@ physical-device evidence remain release gates and must not be replaced by demo v
       that already exists in Supabase Auth (`AUTH-001`).
 - [ ] Add authority-first search and bounded pagination to the platform-wide invitation catalog
       before statewide administrator rollout (`AUTH-011`).
+- [x] Add existing-user-only email/password sign-in to the Admin Console and Government Dashboard
+      while retaining invitation-controlled account creation, individual TOTP enrollment/AAL2, and
+      current database membership/scope authorization.
+- [x] Add a project-ref-guarded, non-production staging account provisioner that creates confirmed
+      synthetic Auth identities without outbound email, uses only reviewed governance selector
+      records, assigns time-bounded BMC test scopes through the trusted atomic persistence boundary,
+      and writes generated passwords only to a permission-restricted git-ignored local artifact.
+- [x] Provision and verify the current staging matrix: one global platform administrator, one BMC
+      municipal administrator, one authority operator, A and K/W ward officers, and Public Health
+      and Solid Waste Management department officers. All seven passwords, active profiles, exact
+      role/membership selectors, and 30-day assignment expiry were verified without outbound email.
+- [ ] Complete the interactive first-login TOTP handoff plus municipal, A Ward, K/W Ward, Solid
+      Waste Management, and Public Health queue-isolation smoke. The identities and passwords are
+      ready; personal authenticator enrollment and rendered cross-scope denial remain manual.
 
 ### Citizen Authentication and Locality Experience
 
@@ -750,9 +798,12 @@ physical-device evidence remain release gates and must not be replaced by demo v
 - [ ] Design a dedicated owner-private address schema/API, consent and retention behavior, and a
       reviewed reverse-geocoding/provider policy before persisting a citizen street address from
       current location (`PROFILE-002`).
-- [ ] Define community support/trending semantics, public-visibility/privacy rules, moderation and
-      abuse controls before enabling votes, follows, comments, or ranking. Community signals must
-      not silently change official complaint priority or routing (`COMMUNITY-001`, `NOTIFY-003`).
+- [x] Implement reviewed-public support/trending semantics: one support per active account,
+      aggregate-only public counts, private star/follow state, current-projection withdrawal,
+      bounded API quotas, and explicit separation from official routing/workflow/SLA/KPI behavior.
+- [ ] Approve pilot moderation/abuse operations, retention and support-response procedures before
+      managed community activation. Public comments remain a separate disabled feature requiring
+      reporting, moderation, notification, and privacy policy (`COMMUNITY-001`, `NOTIFY-003`).
 
 ### Reliability, Health, and Release Verification
 
@@ -884,6 +935,9 @@ absent.
       preserving their effective-dated membership, role, and audit history.
 - [ ] Run authenticated account/admin/government OTP and dashboard browser smoke tests against the
       staging-configured applications.
+- [ ] Run the interactive password-based privileged staging smoke with the provisioned matrix;
+      enroll TOTP only for the accounts actively used in the demo and retain the remaining scoped
+      identities for cross-scope denial tests.
 - [x] Keep explicit code entry while making citizen, government, and administrator clients
       compatible with provider-default PKCE links; narrowly support only the default government
       `invite` fragment and preserve all database role/membership guards.
@@ -893,16 +947,25 @@ absent.
 
 ## Automatically Discovered Tasks
 
-- [x] Generate and checksum a single `supabase/master.sql` empty-database bootstrap from all 42
+- [x] Generate and checksum a single `supabase/master.sql` empty-database bootstrap from all 45
       ordered migrations, add deterministic generate/check commands, and document that seeds and
       existing migrated databases are outside its use boundary.
-- [x] Replace the unproven fixed-baseline Dashboard parts with adaptive full-history 23/19 bundles
+- [x] Replace the unproven fixed-baseline Dashboard parts with adaptive full-history 23/22 bundles
       that fingerprint and skip coherent completed migrations, apply exact missing sources, reject
       partial/non-contiguous state, and keep seeds and the official ledger separate.
-- [ ] Run adaptive Part 1 and Part 2 on current staging, then verify readiness and reconcile the
-      managed migration ledger against all 42 local migrations before exercising verified
-      directory, transparency, SLA, escalation, or KPI features. `master.sql` remains
-      empty-database-only.
+- [x] Generate the 77,849-byte current-session SQL Editor artifact for a verified migration-38
+      baseline, embedding exact migrations 39–43 with adaptive fingerprints, an advisory-locked
+      transaction, final readiness verification, deterministic generate/check commands, and static
+      artifact tests.
+- [x] Rehearse the compact upgrade locally from migration 38, verify migrations 39–43 apply, verify
+      an immediate rerun safely skips all five, and pass 90 focused assertions across pgTAP plans
+      038, 039, 040, 042, and 044.
+- [x] Prevent stale Nearby/Trending responses during rapid Community navigation and provide visible
+      Back/Sign in controls for anonymous Community visitors.
+- [ ] On current staging, use the compact migrations 39–43 bundle when its migration-38 baseline
+      preflight passes. The owner reports running it successfully through SQL Editor on 2026-07-17;
+      readiness, schema, and official migration-ledger reconciliation against all 45 source
+      migrations remain required. `master.sql` remains empty-database-only.
 - [x] Generate the official-source BMC staging/demo pack, ten machine-readable CSVs, workbook,
       manifest, six-warning validation report, relationship-version migration, deterministic seed,
       checksum, and rollback-isolated tests without rewriting the Maharashtra canonical inputs.
@@ -913,12 +976,39 @@ absent.
       asset-independent categories `garbage_dump`, `missed_sweeping`, and `mosquito_breeding`, with
       66 deterministic rules, one confidence policy, three duplicate policies, and fail-closed
       verification. No asset-dependent category or split child ward is activated.
-- [ ] Apply migrations `20260716118000` and `20260716119000` plus BMC seeds `50`–`53` in order to
-      the reconciled staging target, then run one authenticated administrator invitation and one BMC
-      internal complaint-routing smoke without claiming official external submission.
-- [ ] Acquire and review BMC ownership inventories for roads, drains, sewer/manholes, water,
-      streetlights, buildings, public land/right-of-way, and trees/gardens before activating the
-      remaining nine pilot categories (`ROUTING-001`).
+- [x] Generate a four-part, transaction-atomic SQL Editor bundle for an existing Supabase target
+      that loads baseline categories/core, official BMC boundaries, the reviewed ward/governance
+      crosswalk, and bounded routing activation without rewriting canonical governance inputs.
+- [x] Verify the current hosted BMC data projection exposes 12 visible categories, three
+      operational categories, 22 one-to-one wards/66 rules, finalized private media, a K/W Ward
+      internal route, and `automaticOutboundDelivery = false`. This proves internal routing data,
+      not external BMC-system delivery.
+- [x] Reproduce the hosted submit failure with a clean citizen/draft/location/duplicate/routing
+      smoke, isolate the first failure to redundant candidate-boundary evidence validation and the
+      second to hosted submission-function drift, then prove the corrected full stack locally from
+      draft creation through a `201` complaint receipt.
+- [x] Remove the redundant candidate-payload boundary check while retaining separately verified
+      jurisdiction evidence and exact boundary-version matching; add safe dependency-operation
+      diagnostics without logging coordinates, tokens, descriptions, contacts, or raw provider
+      errors.
+- [x] Add forward migration
+      `20260718100000_complaint_routing_evidence_diagnostics.sql`, a protected canonical V2
+      completion function, exact granular evidence-mismatch markers, replay-safe public delegation,
+      ACL checks, and BMC submission integration coverage without weakening any evidence check.
+- [x] Serialize mobile complaint mutations and make repeated submit taps single-flight so category,
+      location, media, duplicate, discard, and submit operations cannot race one another.
+- [ ] Apply `20260718100000_complaint_routing_evidence_diagnostics.sql` to hosted staging through
+      **SQL Editor → New query**, run the read-only BMC submission runtime audit, and repeat the
+      authenticated saved-report submission smoke. Do not claim hosted repair until it returns a
+      complaint receipt.
+- [x] Pin a network-free official MCGM ArcGIS source manifest for the nine currently unavailable
+      BMC categories, mapping candidate road, drain, sewer/manhole, water, streetlight, building,
+      public-right-of-way, and tree layers while explicitly prohibiting import, publication,
+      routing activation, or external delivery.
+- [ ] Acquire, snapshot, validate, match, and manually review BMC asset ownership for roads, drains,
+      sewer/manholes, water, streetlights, buildings, public land/right-of-way, and trees/gardens
+      before activating any of the nine remaining categories; all nine canonical BMC routing rows
+      require asset ownership (`ROUTING-001`).
 - [ ] Acquire reviewed child geometry or an approved address/PIN crosswalk for the K/S, K/N, P/E,
       and P/W split wards; legacy K and P parent geometry must continue to fail closed for routing
       (`DATA-004`).
@@ -1022,9 +1112,12 @@ absent.
       separate resolution-evidence access boundary (`COMPLAINT-005`).
 - [ ] Add a dedicated private persisted-address model only after the provider, consent, RLS,
       retention, and exact-location privacy design is approved (`PROFILE-002`).
-- [ ] Design and implement reviewed locality support/trending behavior, moderation, anti-abuse,
-      privacy-safe ranking, and an explicit separation from official routing/SLA priority
-      (`COMMUNITY-001`, `NOTIFY-003`).
+- [x] Implement reviewed locality support/trending behavior with one private row per account,
+      aggregate-only support output, private star/follow state, privacy-safe live ranking, current-
+      projection withdrawal, and explicit separation from official routing/SLA priority.
+- [ ] Complete managed migration/data activation, pilot moderation and abuse operations, rendered/
+      device testing, and public-projection smoke before enabling community interaction. Public
+      comments remain separately disabled (`COMMUNITY-001`, `NOTIFY-003`).
 - [ ] Paginate mobile notification history beyond its current newest-100 request using the existing
       API cursor, with stable deduplication and refresh behavior (`NOTIFY-004`).
 - [x] Backfill missing Auth profiles and baseline citizen roles idempotently without altering existing privileged or revoked assignments; add local OTP-only email templates and delivered-code E2E coverage.
@@ -1051,10 +1144,14 @@ absent.
 - The replacement staging target's migration ledger has not been independently reconciled. Even if
   its owner-reported master import includes the verified-governing-body projection, no verified
   pilot geometry is documented as active; Nearby therefore cannot return a real authority yet.
-- A 2026-07-16 live managed check confirmed API liveness but readiness returned 503; the target's
-  PostgREST schema cache reports `PGRST202` for missing `public.api_readiness_check()`. Apply and
-  verify migrations `20260716112000` through `20260716119000` before treating profile, complaint,
-  routing, quota, avatar, or administrator-selector flows as staging-ready.
+- The earlier credential-safe managed read audit found zero category projections and no tested BMC
+  jurisdiction rows, but that observation is superseded for pilot data: a current hosted smoke now
+  returns 12 catalog categories, three operational categories, a verified K/W Ward jurisdiction,
+  and a deterministic mosquito-breeding route with finalized private media. Submission still fails
+  after routing because hosted staging has not applied the additive
+  `20260718100000_complaint_routing_evidence_diagnostics.sql` repair. Local in-process submission
+  returns `201`, so the remaining immediate blocker is managed schema/function rollout, not mobile
+  location, media, category selection, PostGIS, or routing availability.
 - Citizen, government, and administrator callbacks now accept default PKCE links or delivered codes
   without requiring template edits. Exact managed redirect allow-lists, SSR-cookie smoke, and an
   installed mobile build remain environment-gated under `AUTH-005`/`ENV-002`.
@@ -1074,21 +1171,21 @@ absent.
 - The `PLAN.md` Phase 2 pilot-coordinate exit criterion remains blocked by pilot selection and absent verified boundary geometry (`DATA-004`).
 - Workbook-to-CSV visual/cell parity remains blocked by the unavailable approved spreadsheet runtime (`DATA-007`).
 - Rendered application inspection remains blocked by the unavailable in-app browser; route-level runtime smoke checks passed (`ENV-003`).
-- Phase 3 engineering has no implementation blocker. The optional BMC routing seed resolves only
-  three asset-independent categories across 22 exact one-to-one wards; it is not applied to hosted
-  staging. Pune and the remaining nine BMC categories still fail closed pending reviewed geometry,
-  ownership, and routing evidence (`ROUTING-001`).
-- Governance synchronization persistence and draft source/scope seeds are verified locally but not
-  on the replacement staging target. The Edge Function, Cron, dispatch secret, and every scheduled
-  source remain undeployed/inactive. Optional BMC staging seeds now supply source-backed operational
-  wards and three-category internal demo-routing evidence locally, but managed application, parser,
-  review/publishing, DNS hardening, refresh, and external-delivery validation remain open
-  (`GOVSYNC-001` through `GOVSYNC-003`). Pune still needs reviewed current geometry/data.
-- Phase 4 engineering is locally complete. The Maharashtra baseline alone exposes zero verified
-  routable categories; optional BMC seeds `52`/`53` add 66 internal rules for three categories and
-  22 wards but are not applied to the replacement staging target and do not authorize external
-  submission. Pune production routing remains blocked on reviewed geometry and routing evidence
-  (`ROUTING-001`).
+- Phase 3 engineering has no implementation blocker. Hosted BMC routing currently resolves only
+  three categories across 22 exact one-to-one wards. Pune and the remaining nine BMC categories
+  still fail closed; the canonical BMC routing references require reviewed asset ownership for all
+  nine. The official MCGM layer manifest is discovery evidence only, not an approved import or
+  route (`ROUTING-001`).
+- Governance synchronization persistence and draft source/scope seeds are verified locally. The
+  Edge Function, Cron, dispatch secret, and every scheduled source remain undeployed/inactive.
+  Hosted BMC staging now has source-backed operational wards and three-category internal routing,
+  but parser/review/publication, DNS hardening, refresh, and external-delivery validation remain
+  open (`GOVSYNC-001` through `GOVSYNC-003`). Pune still needs reviewed current geometry/data.
+- Phase 4 engineering is locally complete, including a clean full-stack BMC draft/location/
+  duplicate/routing/submission smoke. Hosted BMC data exposes 66 internal rules for three
+  categories, but the final hosted submission function remains at the pre-repair definition until
+  migration `20260718100000` is applied. Pune production routing remains blocked on reviewed
+  geometry and routing evidence (`ROUTING-001`, `COMPLAINT-006`).
 - Automatic voice transcription/media moderation and physical-device capture/resume validation require approved providers and devices (`COMPLAINT-001`, `COMPLAINT-002`).
 - Phase 5 government-workflow schema/API/UI engineering is implemented locally. Its replacement-
   target schema and the prior platform-administrator/Pune municipal-administrator assignments must
@@ -1109,9 +1206,10 @@ absent.
   intentionally unavailable until an operational policy is approved and published
   (`RESOLUTION-001`); the replacement target's Phase 7 migration state is unreconciled.
 - Citizen Web now exposes owner complaint history/detail/timeline plus feedback and policy-aware
-  reopen actions locally. Community voting, following, trending, and comments remain deliberately
-  unavailable until visibility, privacy, moderation, abuse, and ranking policy is approved
-  (`COMMUNITY-001`, `NOTIFY-003`).
+  reopen actions locally. Mobile reviewed-public support, private stars, and live trending are
+  implemented, but remain operationally inactive until the engagement migration, public policy,
+  reviewed projections, moderation/abuse procedures, and hosted/device smoke are complete. Public
+  comments remain deliberately unavailable (`COMMUNITY-001`, `NOTIFY-003`).
 - Government accountability currently exposes evidence metadata without a signed before/reopen
   evidence review action, and transferred complaints can display historical work references that
   PostgreSQL safely rejects for a new resolution (`RESOLUTION-002`).
@@ -1137,8 +1235,10 @@ absent.
   full media decoding/malware moderation before public operation (`GOVDASH-002`).
 - The mobile civic-area lookup intentionally retains only derived labels in memory. A persisted
   street address needs a dedicated private model and provider/privacy decision (`PROFILE-002`).
-- Community support/trending/comments need reviewed visibility, privacy, moderation, anti-abuse,
-  ranking, and official-priority separation before implementation (`COMMUNITY-001`, `NOTIFY-003`).
+- Reviewed-public support, private star/follow state, live trending, and official-priority
+  separation are implemented. Pilot moderation/abuse operations, managed data activation, rendered
+  validation, and any future comments/reporting/notification model remain technical and operational
+  debt (`COMMUNITY-001`, `NOTIFY-003`).
 
 ## ADRs Created
 
@@ -1166,6 +1266,8 @@ absent.
 - ADR-0021 — Use private owner-scoped profile images.
 - ADR-0022 — Use PostgreSQL-backed V1 API hardening.
 - ADR-0023 — Separate queue routing from external contact delivery.
+- ADR-0024 — Use account-bound reviewed-public complaint engagements.
+- ADR-0025 — Use password sign-in for pre-provisioned privileged identities.
 
 ## Files Modified This Session
 
@@ -1191,8 +1293,9 @@ absent.
 - Added exact signed-in account context across all three web portals, clear first-enrollment versus
   returning TOTP guidance, account switching/recovery paths, and named administrator invitation
   selectors backed by a strict service-only governance projection.
-- Added migrations `20260716118000` and `20260716119000`, bringing generated database types and the
-  deterministic master artifacts to 42 migrations with a 23/19 adaptive split.
+- Added migrations `20260716118000`, `20260716119000`, and
+  `20260717100000_public_complaint_engagements.sql`, bringing that milestone's source set to 43
+  migrations with a 23/20 adaptive split.
 
 - Added the modern Expo citizen shell, its original login/create/recovery modes, complaint
   dashboard/history, grouped menu, verified-governance Nearby screen, category-aware dynamic form,
@@ -1222,13 +1325,53 @@ absent.
 - Optional BMC seeds `52`/`53` activate source-backed internal demo routing only for three
   asset-independent categories across 22 exact wards; external complaint delivery and official-
   system submission remain false. Redis, BullMQ, Redis adapters/caching, and Sentry remain absent.
+- Added compact mobile navigation and a dedicated Community surface with Local, Trending, and Heat
+  views; authenticated citizens can support once and privately star current reviewed reports.
+- Replaced the mobile six-stage complaint presentation with one scrollable form, added an explicit
+  submission-blocker checklist, changed notification dots to bells, and shortened remaining visible
+  option copy without weakening routing, media, duplicate, or acknowledgement gates.
+- Added the four-part `supabase/deploy/bmc-mobile-demo/` SQL Editor bundle for targeted category,
+  boundary, crosswalk, and routing activation on an existing staging project. The bundle keeps K/P
+  split wards and unavailable categories fail closed and never enables external delivery.
+- Added the compact `supabase/deploy/current-session/01_migrations_39_through_43.sql` upgrade,
+  deterministic generator/check commands, and static/runtime tests. A local migration-38 rehearsal
+  applied all five migrations, reran safely, and passed 90 focused pgTAP assertions.
+- Diagnosed the hosted BMC complaint failure in two stages, removed redundant candidate-boundary
+  payload validation while preserving exact independently verified versions, added safe dependency
+  diagnostics, and proved a complete local submission returns `201`.
+- Added migration `20260718100000_complaint_routing_evidence_diagnostics.sql`, granular exact
+  mismatch markers, a protected canonical submission implementation, a read-only hosted runtime
+  audit, mobile mutation single-flight protection, and official MCGM discovery contracts for all
+  nine unavailable BMC categories.
+- Added password entry for existing Admin Console and Government Dashboard identities without
+  changing their TOTP/AAL2 or database authorization gates; provisioned seven distinct expiring BMC
+  staging identities and stored their generated credentials only in a gitignored mode-`0600` local
+  artifact.
 
 ## Next Recommended Task
 
-Reconcile the managed staging ledger and apply all 42 incremental migrations through
-`20260716119000`, followed by reviewed BMC seeds `50`–`53` in order. Use the Admin Console to invite
-one new unique official account, verify that account's individual TOTP and scoped Government
-Dashboard access, and run an authenticated BMC internal-routing smoke. Configure exact Auth/
-recovery redirects and run citizen browser/device smoke while Phone MFA remains in observe mode.
-Keep automatic external complaint delivery disabled until BMC integration and delivery controls are
-separately approved.
+Review Batch 0's 21 open data issues and six discrepancy groups, then acquire a hash-pinned Batch 1
+official export containing entity-level local bodies, talukas/villages, current wards and boundary
+versions. Resolve `Mumbai` LGD `482` to canonical `Mumbai City` only through an attributed crosswalk;
+do not treat the Batch 0 source registry, stale PMC booklet, or empty operational files as routing
+evidence. For a reconciled existing Supabase target, apply the three files under
+`supabase/deploy/maharashtra-batch0/` in order after confirming the target already includes schema
+through migration `20260718100000`.
+
+Run the complete
+`supabase/migrations/20260718100000_complaint_routing_evidence_diagnostics.sql` in hosted staging's
+**SQL Editor → New query**, then run
+`supabase/deploy/diagnostics/bmc_submission_runtime_audit.sql` and repeat the authenticated saved-
+report submission. The current hosted target already exposes 12 catalog categories, three
+operational categories, 22 routable BMC wards, private finalized media, and K/W routing; do not
+repeat those completed data loads merely to repair submission. Reconcile the official migration
+ledger separately.
+Use the Admin Console to invite one unique official account and verify individual TOTP plus scoped
+Government Dashboard access. Keep Phone MFA in observe mode and automatic external complaint
+delivery disabled until their provider, recovery, integration, and delivery controls are approved.
+For the immediate staging demo, use the pre-provisioned synthetic accounts instead of sending an
+invitation: enroll a separate authenticator only for each account exercised, verify A/K-Ward and
+department isolation, and remove the local credential artifact plus disable the synthetic Auth
+identities after testing.
+Next, review the official MCGM asset-source manifest, snapshot and validate bounded feature data,
+and approve owner/maintainer matches plus K/P child geometry before activating any further category.

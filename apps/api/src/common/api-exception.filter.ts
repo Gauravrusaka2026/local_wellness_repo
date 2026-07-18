@@ -100,6 +100,28 @@ export const stripQueryString = (url: string): string => {
   return queryIndex === -1 ? url : url.slice(0, queryIndex);
 };
 
+const safeDependencyCodeSuffix = (code: string | null): string =>
+  code !== null && /^[A-Z0-9_]{2,32}$/u.test(code) ? `:${code}` : '';
+
+export const getSafeFailureSource = (exception: unknown): string | null => {
+  if (exception instanceof ComplaintDataAccessError) {
+    return `complaint:${exception.operation}${safeDependencyCodeSuffix(exception.dependencyCode)}`;
+  }
+  if (exception instanceof RoutingDataAccessError) {
+    return `routing:${exception.operation}${safeDependencyCodeSuffix(exception.dependencyCode)}`;
+  }
+  if (exception instanceof IdentityDataAccessError) {
+    return `identity:${exception.operation}`;
+  }
+  if (exception instanceof RateLimitDataAccessError) {
+    return `rate-limit:consume quota${safeDependencyCodeSuffix(exception.dependencyCode)}`;
+  }
+  if (exception instanceof ApiException) {
+    return `api:${exception.code}`;
+  }
+  return null;
+};
+
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApiExceptionFilter.name);
@@ -324,8 +346,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       const requestPath = stripQueryString(request.originalUrl ?? request.url ?? '');
+      const failureSource = getSafeFailureSource(exception);
       this.logger.error(
-        `Request ${requestId} failed with ${error.code} (${request.method} ${requestPath}).`,
+        `Request ${requestId} failed with ${error.code} (${request.method} ${requestPath})${
+          failureSource === null ? '.' : ` at ${failureSource}.`
+        }`,
       );
     }
 

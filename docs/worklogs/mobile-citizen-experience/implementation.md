@@ -3,8 +3,10 @@
 ## Mobile Shell and Authentication
 
 The root layout supplies the authenticated providers and safe-area boundary. A persistent bottom
-navigation maps stable routes to Home, Complaints, central Report, Nearby, and More. More groups
-secondary functionality without moving existing complaint/deep-link routes.
+navigation maps stable routes to Home, Complaints, central Report, Community, and More. More groups
+verified governance/Nearby and other secondary functionality without moving existing complaint/
+deep-link routes. Visible cards/actions use concise labels; accessibility and state-specific help
+retain the detail removed from repeated screen copy.
 
 The auth screen selects email/password sign-in, create-account, or provider-managed password
 recovery. Supabase Phone MFA is a separate staged verification factor; observe mode explains that it
@@ -24,6 +26,16 @@ recommendations. Its authenticated catalog lists every non-placeholder category 
 server-derived availability flag. Unavailable categories are visible but disabled; resumed drafts,
 asset discovery, readiness checks, and draft updates all continue to reject them. Attributes are
 persisted in the draft rather than held only in UI state.
+
+The previous six-screen presentation is now one scrollable form. Category/details, location and
+optional asset, evidence, similar-report review, and final submission remain visually separate
+sections, but they do not require Back/Continue navigation. The persisted step still supports safe
+resume and duplicate reloading internally. A pure readiness projection shows unsaved details,
+location, asset, media, upload, duplicate, voice, emergency, and offline blockers immediately above
+the only final submit action. Ward resolution is explained separately from category-specific route
+availability; neither the UI nor the helper can promote database evidence. Server-mutating controls
+are disabled during an in-flight draft request so the one-page layout cannot create overlapping
+updates; an active recording can still be stopped safely.
 
 Expo Location, Camera, and Audio remain the device capability adapters. SQLite/SecureStore retain
 only the existing allow-listed resume evidence. Voice evidence does not satisfy a database
@@ -66,6 +78,16 @@ governance resolver. It holds only the derived ward/local-body/authority labels,
 and official source URL in component memory. It persists no exact profile coordinate or street
 address and keeps low-accuracy, ambiguous, and unsupported results explicit.
 
+## Reviewed-Public Community
+
+Community reuses the reviewed transparency projection through three compact modes. Local uses
+recent ordering inside the selected viewport, Trending orders live aggregate support followed by
+publication time/public ID, and Heat renders minimum-cohort hotspot aggregates without a basemap or
+third-party coordinate transfer. Authenticated lookup restores only the current account's support
+and star state; mutation sets those booleans idempotently for a current reviewed public ID. No
+supporter identity, avatar, exact location, original media, or private complaint data is rendered.
+Withdrawal removes the current surface, and support/star never changes official complaint state.
+
 ## Configuration and Notifications
 
 The root `.env` is the single local environment source. Mobile startup checks detectable Supabase
@@ -74,4 +96,5 @@ values. Physical Expo Go testing must inject a LAN-reachable service URL.
 
 No `expo-notifications` dependency or OS push-token registration was added. Expo/EAS ownership,
 FCM/APNs credentials, consent/preferences, verified destinations, templates, and retry/fallback
-policy are required before that channel can be implemented.
+policy are required before that channel can be implemented. Existing in-app notification entry
+points use a bell glyph rather than a generic dot.

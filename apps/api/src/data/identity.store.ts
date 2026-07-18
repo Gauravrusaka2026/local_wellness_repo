@@ -68,7 +68,7 @@ export interface ActiveAccess {
 }
 
 export class IdentityDataAccessError extends Error {
-  public constructor(operation: string) {
+  public constructor(public readonly operation: string) {
     super(`Identity persistence operation failed: ${operation}.`);
     this.name = 'IdentityDataAccessError';
   }

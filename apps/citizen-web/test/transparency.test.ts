@@ -28,6 +28,7 @@ const publicItem = {
   location: { latitude: 18.52, longitude: 73.86, precisionMeters: 500 },
   publicId: identifiers.publicComplaint,
   publishedAt: '2026-07-16T10:05:00.000Z',
+  supportCount: 2,
   status: 'reported',
   submittedAt: '2026-07-16T10:00:00.000Z',
   title: 'Road surface needs attention',

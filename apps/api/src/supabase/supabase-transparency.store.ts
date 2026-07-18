@@ -3,6 +3,7 @@ import type {
   PublicComplaintDetail,
   PublicComplaintHotspotQuery,
   PublicComplaintHotspotResult,
+  PublicComplaintEngagementState,
   PublicComplaintMapQuery,
   PublicComplaintMapResult,
   PublicWardBoundaryQuery,
@@ -10,6 +11,8 @@ import type {
 } from '@local-wellness/types';
 import {
   publicComplaintDetailSchema,
+  publicComplaintEngagementListSchema,
+  publicComplaintEngagementStateSchema,
   publicComplaintHotspotResultSchema,
   publicComplaintHotspotSchema,
   publicComplaintMapItemSchema,
@@ -38,6 +41,7 @@ const complaintProjectionRowSchema = z
 const complaintDetailRowSchema = z.object({ projection: publicComplaintDetailSchema }).strict();
 const hotspotRowSchema = z.object({ hotspot: publicComplaintHotspotSchema }).strict();
 const wardBoundaryRowSchema = z.object({ ward_boundary: publicWardBoundarySchema }).strict();
+const engagementRowSchema = z.object({ engagement: publicComplaintEngagementStateSchema }).strict();
 
 const hasDuplicateIdentifiers = <T>(
   items: readonly T[],
@@ -54,7 +58,7 @@ export class SupabaseTransparencyStore extends TransparencyStore {
   }
 
   public async listComplaints(query: PublicComplaintMapQuery): Promise<PublicComplaintMapResult> {
-    const data = await this.rpc('list_public_complaint_projections', {
+    const data = await this.rpc('list_public_complaint_feed', {
       p_west: query.west,
       p_south: query.south,
       p_east: query.east,
@@ -66,6 +70,7 @@ export class SupabaseTransparencyStore extends TransparencyStore {
       p_zoom: query.zoom,
       p_limit: query.limit + 1,
       p_cursor: query.cursor ?? null,
+      p_sort: query.sort ?? 'recent',
     });
     const rows = z.array(complaintProjectionRowSchema).max(201).safeParse(data);
     if (!rows.success) {
@@ -141,6 +146,46 @@ export class SupabaseTransparencyStore extends TransparencyStore {
     }
 
     return rows.data[0]?.projection ?? null;
+  }
+
+  public async listEngagements(
+    actorUserId: string,
+    publicIds: readonly string[],
+  ): Promise<PublicComplaintEngagementState[]> {
+    const data = await this.rpc('list_public_complaint_engagements', {
+      p_actor_user_id: actorUserId,
+      p_public_ids: publicIds,
+    });
+    const rows = z.array(engagementRowSchema).max(100).safeParse(data);
+    if (!rows.success) {
+      throw new TransparencyDataAccessError('decode public complaint engagement states');
+    }
+
+    const engagements = rows.data.map(({ engagement }) => engagement);
+    if (hasDuplicateIdentifiers(engagements, ({ publicId }) => publicId)) {
+      throw new TransparencyDataAccessError('decode unique public complaint engagement states');
+    }
+
+    return publicComplaintEngagementListSchema.parse(engagements);
+  }
+
+  public async setEngagement(
+    actorUserId: string,
+    publicId: string,
+    input: Readonly<{ supported: boolean; starred: boolean }>,
+  ): Promise<PublicComplaintEngagementState | null> {
+    const data = await this.rpc('set_public_complaint_engagement', {
+      p_actor_user_id: actorUserId,
+      p_public_id: publicId,
+      p_supported: input.supported,
+      p_starred: input.starred,
+    });
+    const rows = z.array(engagementRowSchema).max(1).safeParse(data);
+    if (!rows.success) {
+      throw new TransparencyDataAccessError('decode updated public complaint engagement');
+    }
+
+    return rows.data[0]?.engagement ?? null;
   }
 
   private async rpc(functionName: string, arguments_: Record<string, unknown>): Promise<unknown> {

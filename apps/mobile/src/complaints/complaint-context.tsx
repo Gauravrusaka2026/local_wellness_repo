@@ -64,7 +64,13 @@ import {
   type PendingMediaResume,
 } from './resume-record';
 import { clearComplaintResume, loadComplaintResume, saveComplaintResume } from './resume-store';
-import { runSingleFlight } from './single-flight';
+import {
+  ComplaintOperationInProgressError,
+  isComplaintOperationInProgress,
+  runExclusiveComplaintOperation,
+  type ComplaintMutationGuardState,
+  type ComplaintOperationName,
+} from './mutation-guard';
 
 type ComplaintContextValue = Readonly<{
   acknowledgeDuplicates: (value: boolean) => void;
@@ -127,8 +133,21 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
   const auth = useAuth();
   const session = useMemo(() => currentSession(auth.state), [auth.state]);
   const [state, dispatch] = useReducer(complaintCaptureReducer, initialComplaintCaptureState);
-  const duplicateCheckOperationRef = useRef<Promise<void> | null>(null);
+  const complaintOperationRef = useRef<ComplaintMutationGuardState>({ current: null });
   const resumeRef = useRef<ComplaintResumeRecord | null>(null);
+
+  const runComplaintOperation = useCallback(
+    <Result,>(
+      name: ComplaintOperationName,
+      operation: () => Promise<Result>,
+      singleFlight = false,
+    ): Promise<Result> =>
+      runExclusiveComplaintOperation(complaintOperationRef.current, name, operation, {
+        onBusyChange: (isBusy) => dispatch({ type: 'busy', value: isBusy }),
+        singleFlight,
+      }),
+    [],
+  );
 
   const persistResume = useCallback(async (overrides: Partial<ComplaintResumeRecord> = {}) => {
     if (resumeRef.current === null) return;
@@ -246,213 +265,265 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     return state.draft;
   }, [state.draft]);
 
-  const reloadCategories = useCallback(async (): Promise<void> => {
-    const activeSession = requireSession();
-    dispatch({ message: null, type: 'error' });
-    dispatch({ type: 'busy', value: true });
-    try {
-      const categories = await listRoutingCategoryCatalog(activeSession.accessToken);
-      dispatch({ categories, type: 'categories_loaded' });
-    } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-      throw error;
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [requireSession]);
-
-  const startDraft = useCallback(async (): Promise<void> => {
-    if (state.draft !== null) return;
-    const activeSession = requireSession();
-    dispatch({ message: null, type: 'error' });
-    dispatch({ type: 'busy', value: true });
-
-    try {
-      const existingResume = resumeRef.current;
-      if (existingResume?.ownerUserId === activeSession.userId && existingResume.draftId !== null) {
-        try {
-          const resumedDraft = await getComplaintDraft(
-            activeSession.accessToken,
-            existingResume.draftId,
-          );
-          if (resumedDraft.status !== 'active') {
-            await clearPendingMediaArtifacts(existingResume);
-            await clearComplaintResume(activeSession.userId);
-            resumeRef.current = null;
-            dispatch({ type: 'draft_cleared' });
-            throw new Error(
-              resumedDraft.status === 'submitted'
-                ? 'This report was already submitted. Open Your complaints to view it.'
-                : 'This saved draft is no longer active.',
-            );
-          }
-          const mustReviewDuplicatesAgain =
-            existingResume.step === 'duplicates' || existingResume.step === 'review';
-          dispatch({
-            draft: resumedDraft,
-            step: mustReviewDuplicatesAgain ? 'duplicates' : existingResume.step,
-            type: 'draft_loaded',
-          });
-          dispatch({
-            assets: await loadAssetOptions(
-              activeSession.accessToken,
-              state.categories,
-              resumedDraft,
-            ),
-            type: 'assets_loaded',
-          });
-          if (mustReviewDuplicatesAgain) {
-            const duplicateCheck = await checkComplaintDuplicates(
-              activeSession.accessToken,
-              resumedDraft.id,
-            );
-            dispatch({ duplicateCheck, type: 'duplicates_loaded' });
-          }
-          return;
-        } catch (error) {
-          if (!(error instanceof ApiClientError) || error.code !== 'COMPLAINT_DRAFT_NOT_FOUND') {
+  const reloadCategories = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'reload_categories',
+        async () => {
+          const activeSession = requireSession();
+          dispatch({ message: null, type: 'error' });
+          try {
+            const categories = await listRoutingCategoryCatalog(activeSession.accessToken);
+            dispatch({ categories, type: 'categories_loaded' });
+          } catch (error) {
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
             throw error;
           }
-          await clearPendingMediaArtifacts(existingResume);
-          await clearComplaintResume(activeSession.userId);
-          resumeRef.current = null;
-        }
-      }
-
-      const resume =
-        existingResume?.ownerUserId === activeSession.userId && existingResume.draftId === null
-          ? existingResume
-          : (() => {
-              const keys = createComplaintIdempotencyKeys();
-              return {
-                createIdempotencyKey: keys.create,
-                draftId: null,
-                ownerUserId: activeSession.userId,
-                pendingMedia: null,
-                step: 'details' as const,
-                submitIdempotencyKey: keys.submit,
-                updatedAt: new Date().toISOString(),
-              } satisfies ComplaintResumeRecord;
-            })();
-      if (existingResume !== resume) await saveComplaintResume(resume);
-      resumeRef.current = resume;
-
-      const draft = await createComplaintDraft(
-        activeSession.accessToken,
-        {},
-        resume.createIdempotencyKey,
-      );
-      await persistResume({ draftId: draft.id });
-      dispatch({ draft, step: 'details', type: 'draft_loaded' });
-    } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-      throw error;
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [persistResume, requireSession, state.categories, state.draft]);
-
-  const refresh = useCallback(async (): Promise<void> => {
-    const activeSession = requireSession();
-    const draft = requireDraft();
-    dispatch({ type: 'busy', value: true });
-    try {
-      const refreshed = await getComplaintDraft(activeSession.accessToken, draft.id);
-      dispatch({ draft: refreshed, type: 'draft_loaded' });
-      dispatch({
-        assets: await loadAssetOptions(activeSession.accessToken, state.categories, refreshed),
-        type: 'assets_loaded',
-      });
-    } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [requireDraft, requireSession, state.categories]);
-
-  const updateDetails = useCallback(
-    async (input: UpdateComplaintDraftInput): Promise<void> => {
-      const activeSession = requireSession();
-      const draft = requireDraft();
-      dispatch({ type: 'busy', value: true });
-      try {
-        if (input.categoryId !== undefined) {
-          const category = state.categories.find((candidate) => candidate.id === input.categoryId);
-          if (category?.submissionAvailability !== 'available') {
-            throw new Error(
-              'This category is not currently available for verified complaint submission.',
-            );
-          }
-        }
-        const categoryChanged =
-          input.categoryId !== undefined && input.categoryId !== draft.categoryId;
-        const updated = await updateComplaintDraft(
-          activeSession.accessToken,
-          draft.id,
-          categoryChanged ? { ...input, assetId: null } : input,
-        );
-        await persistWithRotatedSubmitKey();
-        dispatch({ draft: updated, type: 'draft_loaded' });
-        if (categoryChanged) {
-          dispatch({ type: 'assets_cleared' });
-          dispatch({
-            assets: await loadAssetOptions(activeSession.accessToken, state.categories, updated),
-            type: 'assets_loaded',
-          });
-        }
-      } catch (error) {
-        dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-        throw error;
-      } finally {
-        dispatch({ type: 'busy', value: false });
-      }
-    },
-    [persistWithRotatedSubmitKey, requireDraft, requireSession, state.categories],
+        },
+        true,
+      ),
+    [requireSession, runComplaintOperation],
   );
 
-  const captureLocation = useCallback(async (): Promise<void> => {
-    const activeSession = requireSession();
-    const draft = requireDraft();
-    dispatch({ type: 'busy', value: true });
-    dispatch({ message: null, type: 'error' });
-    try {
-      const location = await captureCurrentLocation();
-      const updated = await setComplaintLocation(activeSession.accessToken, draft.id, location);
-      await persistWithRotatedSubmitKey();
-      dispatch({ draft: updated, type: 'draft_loaded' });
-      dispatch({ type: 'assets_cleared' });
-      dispatch({
-        assets: await loadAssetOptions(activeSession.accessToken, state.categories, updated),
-        type: 'assets_loaded',
-      });
-    } catch (error) {
-      dispatch({
-        locationSettingsRequired: requiresLocationPermissionSettings(error),
-        message: getUserFacingComplaintError(error),
-        type: 'error',
-      });
-      throw error;
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [persistWithRotatedSubmitKey, requireDraft, requireSession, state.categories]);
+  const startDraft = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'start_draft',
+        async () => {
+          if (state.draft !== null) return;
+          const activeSession = requireSession();
+          dispatch({ message: null, type: 'error' });
 
-  const loadNearbyAssets = useCallback(async (): Promise<void> => {
-    const activeSession = requireSession();
-    const draft = requireDraft();
-    dispatch({ type: 'busy', value: true });
-    try {
-      dispatch({
-        assets: await loadAssetOptions(activeSession.accessToken, state.categories, draft),
-        type: 'assets_loaded',
-      });
-    } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-      throw error;
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [requireDraft, requireSession, state.categories]);
+          try {
+            const existingResume = resumeRef.current;
+            if (
+              existingResume?.ownerUserId === activeSession.userId &&
+              existingResume.draftId !== null
+            ) {
+              try {
+                const resumedDraft = await getComplaintDraft(
+                  activeSession.accessToken,
+                  existingResume.draftId,
+                );
+                if (resumedDraft.status !== 'active') {
+                  await clearPendingMediaArtifacts(existingResume);
+                  await clearComplaintResume(activeSession.userId);
+                  resumeRef.current = null;
+                  dispatch({ type: 'draft_cleared' });
+                  throw new Error(
+                    resumedDraft.status === 'submitted'
+                      ? 'This report was already submitted. Open Your complaints to view it.'
+                      : 'This saved draft is no longer active.',
+                  );
+                }
+                const mustReviewDuplicatesAgain =
+                  existingResume.step === 'duplicates' || existingResume.step === 'review';
+                dispatch({
+                  draft: resumedDraft,
+                  step: mustReviewDuplicatesAgain ? 'duplicates' : existingResume.step,
+                  type: 'draft_loaded',
+                });
+                dispatch({
+                  assets: await loadAssetOptions(
+                    activeSession.accessToken,
+                    state.categories,
+                    resumedDraft,
+                  ),
+                  type: 'assets_loaded',
+                });
+                if (mustReviewDuplicatesAgain) {
+                  const duplicateCheck = await checkComplaintDuplicates(
+                    activeSession.accessToken,
+                    resumedDraft.id,
+                  );
+                  dispatch({ duplicateCheck, type: 'duplicates_loaded' });
+                }
+                return;
+              } catch (error) {
+                if (
+                  !(error instanceof ApiClientError) ||
+                  error.code !== 'COMPLAINT_DRAFT_NOT_FOUND'
+                ) {
+                  throw error;
+                }
+                await clearPendingMediaArtifacts(existingResume);
+                await clearComplaintResume(activeSession.userId);
+                resumeRef.current = null;
+              }
+            }
+
+            const resume =
+              existingResume?.ownerUserId === activeSession.userId &&
+              existingResume.draftId === null
+                ? existingResume
+                : (() => {
+                    const keys = createComplaintIdempotencyKeys();
+                    return {
+                      createIdempotencyKey: keys.create,
+                      draftId: null,
+                      ownerUserId: activeSession.userId,
+                      pendingMedia: null,
+                      step: 'details' as const,
+                      submitIdempotencyKey: keys.submit,
+                      updatedAt: new Date().toISOString(),
+                    } satisfies ComplaintResumeRecord;
+                  })();
+            if (existingResume !== resume) await saveComplaintResume(resume);
+            resumeRef.current = resume;
+
+            const draft = await createComplaintDraft(
+              activeSession.accessToken,
+              {},
+              resume.createIdempotencyKey,
+            );
+            await persistResume({ draftId: draft.id });
+            dispatch({ draft, step: 'details', type: 'draft_loaded' });
+          } catch (error) {
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+            throw error;
+          }
+        },
+        true,
+      ),
+    [persistResume, requireSession, runComplaintOperation, state.categories, state.draft],
+  );
+
+  const refresh = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'refresh_draft',
+        async () => {
+          const activeSession = requireSession();
+          const draft = requireDraft();
+          try {
+            const refreshed = await getComplaintDraft(activeSession.accessToken, draft.id);
+            dispatch({ draft: refreshed, type: 'draft_loaded' });
+            dispatch({
+              assets: await loadAssetOptions(
+                activeSession.accessToken,
+                state.categories,
+                refreshed,
+              ),
+              type: 'assets_loaded',
+            });
+          } catch (error) {
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+          }
+        },
+        true,
+      ),
+    [requireDraft, requireSession, runComplaintOperation, state.categories],
+  );
+
+  const updateDetails = useCallback(
+    (input: UpdateComplaintDraftInput): Promise<void> =>
+      runComplaintOperation('update_details', async () => {
+        const activeSession = requireSession();
+        const draft = requireDraft();
+        try {
+          if (input.categoryId !== undefined) {
+            const category = state.categories.find(
+              (candidate) => candidate.id === input.categoryId,
+            );
+            if (category?.submissionAvailability !== 'available') {
+              throw new Error(
+                'This category is not currently available for verified complaint submission.',
+              );
+            }
+          }
+          const categoryChanged =
+            input.categoryId !== undefined && input.categoryId !== draft.categoryId;
+          const updated = await updateComplaintDraft(
+            activeSession.accessToken,
+            draft.id,
+            categoryChanged ? { ...input, assetId: null } : input,
+          );
+          await persistWithRotatedSubmitKey();
+          dispatch({ draft: updated, type: 'draft_loaded' });
+          if (categoryChanged) {
+            dispatch({ type: 'assets_cleared' });
+            dispatch({
+              assets: await loadAssetOptions(activeSession.accessToken, state.categories, updated),
+              type: 'assets_loaded',
+            });
+          }
+        } catch (error) {
+          dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+          throw error;
+        }
+      }),
+    [
+      persistWithRotatedSubmitKey,
+      requireDraft,
+      requireSession,
+      runComplaintOperation,
+      state.categories,
+    ],
+  );
+
+  const captureLocation = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'capture_location',
+        async () => {
+          const activeSession = requireSession();
+          const draft = requireDraft();
+          dispatch({ message: null, type: 'error' });
+          try {
+            const location = await captureCurrentLocation();
+            const updated = await setComplaintLocation(
+              activeSession.accessToken,
+              draft.id,
+              location,
+            );
+            await persistWithRotatedSubmitKey();
+            dispatch({ draft: updated, type: 'draft_loaded' });
+            dispatch({ type: 'assets_cleared' });
+            dispatch({
+              assets: await loadAssetOptions(activeSession.accessToken, state.categories, updated),
+              type: 'assets_loaded',
+            });
+          } catch (error) {
+            dispatch({
+              locationSettingsRequired: requiresLocationPermissionSettings(error),
+              message: getUserFacingComplaintError(error),
+              type: 'error',
+            });
+            throw error;
+          }
+        },
+        true,
+      ),
+    [
+      persistWithRotatedSubmitKey,
+      requireDraft,
+      requireSession,
+      runComplaintOperation,
+      state.categories,
+    ],
+  );
+
+  const loadNearbyAssets = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'load_assets',
+        async () => {
+          const activeSession = requireSession();
+          const draft = requireDraft();
+          try {
+            dispatch({
+              assets: await loadAssetOptions(activeSession.accessToken, state.categories, draft),
+              type: 'assets_loaded',
+            });
+          } catch (error) {
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+            throw error;
+          }
+        },
+        true,
+      ),
+    [requireDraft, requireSession, runComplaintOperation, state.categories],
+  );
 
   const selectAsset = useCallback(
     async (assetId: string): Promise<void> => {
@@ -551,190 +622,219 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
   );
 
   const uploadMedia = useCallback(
-    async (
-      media: PreparedComplaintMedia,
-      mediaLocation: ComplaintLocationCapture,
-    ): Promise<void> => {
-      const draft = requireDraft();
-      if (!isLocationEvidenceEligible(draft.location))
-        throw new Error('Verify the complaint location before adding media.');
-      const distance = assessMediaDistance(draft.location, mediaLocation);
-      if (!distance.isAcceptable) {
-        throw new Error(
-          `The media was captured ${Math.round(distance.distanceMeters)} metres from the complaint location. Capture it at the issue location.`,
-        );
-      }
+    (media: PreparedComplaintMedia, mediaLocation: ComplaintLocationCapture): Promise<void> =>
+      runComplaintOperation('upload_media', async () => {
+        const draft = requireDraft();
+        if (!isLocationEvidenceEligible(draft.location))
+          throw new Error('Verify the complaint location before adding media.');
+        const distance = assessMediaDistance(draft.location, mediaLocation);
+        if (!distance.isAcceptable) {
+          throw new Error(
+            `The media was captured ${Math.round(distance.distanceMeters)} metres from the complaint location. Capture it at the issue location.`,
+          );
+        }
 
-      const pending = createPendingMediaResume(media, createComplaintIdempotencyKey('media'));
-      if (resumeRef.current === null) {
-        throw new Error('The resumable draft state is unavailable. Return home and try again.');
-      }
-      try {
-        await saveMediaCaptureLocation(pending.idempotencyKey, mediaLocation);
-        await persistResume({ pendingMedia: pending });
-      } catch (error) {
-        await clearMediaCaptureLocation(pending.idempotencyKey).catch(() => undefined);
-        deletePreparedMedia(media.localUri);
+        const pending = createPendingMediaResume(media, createComplaintIdempotencyKey('media'));
+        if (resumeRef.current === null) {
+          throw new Error('The resumable draft state is unavailable. Return home and try again.');
+        }
+        try {
+          await saveMediaCaptureLocation(pending.idempotencyKey, mediaLocation);
+          await persistResume({ pendingMedia: pending });
+        } catch (error) {
+          await clearMediaCaptureLocation(pending.idempotencyKey).catch(() => undefined);
+          deletePreparedMedia(media.localUri);
+          throw error;
+        }
+        try {
+          await performUpload(media, pending, mediaLocation);
+        } catch (error) {
+          dispatch({
+            type: 'upload_changed',
+            upload: { localUri: media.localUri, progress: 0, status: 'failed' },
+          });
+          dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+          throw error;
+        }
+      }).catch((error: unknown) => {
+        if (error instanceof ComplaintOperationInProgressError) {
+          deletePreparedMedia(media.localUri);
+        }
         throw error;
-      }
-      try {
-        await performUpload(media, pending, mediaLocation);
-      } catch (error) {
-        dispatch({
-          type: 'upload_changed',
-          upload: { localUri: media.localUri, progress: 0, status: 'failed' },
-        });
-        dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-        throw error;
-      }
-    },
-    [performUpload, persistResume, requireDraft],
+      }),
+    [performUpload, persistResume, requireDraft, runComplaintOperation],
   );
 
-  const retryPendingUpload = useCallback(async (): Promise<void> => {
-    const pending = resumeRef.current?.pendingMedia;
-    if (pending === null || pending === undefined) return;
-    try {
-      await performUpload(pendingMediaToPreparedMedia(pending), pending);
-    } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-    }
-  }, [performUpload]);
+  const retryPendingUpload = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'retry_upload',
+        async () => {
+          const pending = resumeRef.current?.pendingMedia;
+          if (pending === null || pending === undefined) return;
+          try {
+            await performUpload(pendingMediaToPreparedMedia(pending), pending);
+          } catch (error) {
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+          }
+        },
+        true,
+      ),
+    [performUpload, runComplaintOperation],
+  );
 
   const checkDuplicates = useCallback(
     (): Promise<void> =>
-      runSingleFlight(duplicateCheckOperationRef, async () => {
-        const activeSession = requireSession();
-        const draft = requireDraft();
-        dispatch({ type: 'busy', value: true });
-        try {
-          const duplicateCheck = await checkComplaintDuplicates(
-            activeSession.accessToken,
-            draft.id,
-          );
-          dispatch({ duplicateCheck, type: 'duplicates_loaded' });
-          await persistWithRotatedSubmitKey({ step: 'duplicates' });
-          dispatch({ step: 'duplicates', type: 'step_changed' });
-        } catch (error) {
-          dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-          throw error;
-        } finally {
-          dispatch({ type: 'busy', value: false });
-        }
-      }),
-    [persistWithRotatedSubmitKey, requireDraft, requireSession],
+      runComplaintOperation(
+        'check_duplicates',
+        async () => {
+          const activeSession = requireSession();
+          const draft = requireDraft();
+          try {
+            const duplicateCheck = await checkComplaintDuplicates(
+              activeSession.accessToken,
+              draft.id,
+            );
+            dispatch({ duplicateCheck, type: 'duplicates_loaded' });
+            await persistWithRotatedSubmitKey({ step: 'duplicates' });
+            dispatch({ step: 'duplicates', type: 'step_changed' });
+          } catch (error) {
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+            throw error;
+          }
+        },
+        true,
+      ),
+    [persistWithRotatedSubmitKey, requireDraft, requireSession, runComplaintOperation],
   );
 
-  const submit = useCallback(async (): Promise<void> => {
-    const activeSession = requireSession();
-    const draft = requireDraft();
-    const resume = resumeRef.current;
-    if (resume === null) throw new Error('The resumable submission state is unavailable.');
-    const category = getSelectedCategory(state);
-    const readiness = getDraftReadiness(draft, category);
-    if (!readiness.isReady) {
-      throw new Error(`Complete the required fields: ${readiness.missing.join(', ')}.`);
-    }
-    if (
-      category?.requiresAsset === true &&
-      !state.assetOptions.some((asset) => asset.id === draft.assetId)
-    ) {
-      throw new Error('This category requires a verified asset selection before submission.');
-    }
-    if (state.duplicateCheck === null) {
-      throw new Error('Check and review similar nearby reports before submitting.');
-    }
-    if (state.duplicateCheck.suggestions.length > 0 && !state.duplicatesAcknowledged) {
-      throw new Error('Review and acknowledge the similar-report suggestions before submitting.');
-    }
-    if (category?.isEmergency === true && !state.emergencyAcknowledged) {
-      throw new Error('Acknowledge the emergency-services warning before submitting.');
-    }
+  const submit = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'submit',
+        async () => {
+          const activeSession = requireSession();
+          const draft = requireDraft();
+          const resume = resumeRef.current;
+          if (resume === null) throw new Error('The resumable submission state is unavailable.');
+          const category = getSelectedCategory(state);
+          const readiness = getDraftReadiness(draft, category);
+          if (!readiness.isReady) {
+            throw new Error(`Complete the required fields: ${readiness.missing.join(', ')}.`);
+          }
+          if (
+            category?.requiresAsset === true &&
+            !state.assetOptions.some((asset) => asset.id === draft.assetId)
+          ) {
+            throw new Error('This category requires a verified asset selection before submission.');
+          }
+          if (state.duplicateCheck === null) {
+            throw new Error('Check and review similar nearby reports before submitting.');
+          }
+          if (state.duplicateCheck.suggestions.length > 0 && !state.duplicatesAcknowledged) {
+            throw new Error(
+              'Review and acknowledge the similar-report suggestions before submitting.',
+            );
+          }
+          if (category?.isEmergency === true && !state.emergencyAcknowledged) {
+            throw new Error('Acknowledge the emergency-services warning before submitting.');
+          }
 
-    dispatch({ type: 'busy', value: true });
-    try {
-      const input: SubmitComplaintInput = {
-        acknowledgedDuplicateSuggestionIds: state.duplicateCheck.suggestions.map(
-          (suggestion) => suggestion.complaintId,
-        ),
-        ...(category?.isEmergency === true ? { emergencyDisclaimerAcknowledged: true } : {}),
-      };
-      const receipt = await submitComplaintDraft(
-        activeSession.accessToken,
-        draft.id,
-        input,
-        resume.submitIdempotencyKey,
-      );
-      await clearComplaintResume(activeSession.userId);
-      resumeRef.current = null;
-      dispatch({ receipt, type: 'receipt_loaded' });
-    } catch (error) {
-      if (shouldRotateSubmitIdempotencyKeyAfterError(error)) {
-        try {
-          await persistWithRotatedSubmitKey();
-        } catch (rotationError) {
-          dispatch({ message: getUserFacingComplaintError(rotationError), type: 'error' });
-          throw rotationError;
-        }
-      }
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-      throw error;
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [persistWithRotatedSubmitKey, requireDraft, requireSession, state]);
+          try {
+            const input: SubmitComplaintInput = {
+              acknowledgedDuplicateSuggestionIds: state.duplicateCheck.suggestions.map(
+                (suggestion) => suggestion.complaintId,
+              ),
+              ...(category?.isEmergency === true ? { emergencyDisclaimerAcknowledged: true } : {}),
+            };
+            const receipt = await submitComplaintDraft(
+              activeSession.accessToken,
+              draft.id,
+              input,
+              resume.submitIdempotencyKey,
+            );
+            await clearComplaintResume(activeSession.userId);
+            resumeRef.current = null;
+            dispatch({ receipt, type: 'receipt_loaded' });
+          } catch (error) {
+            if (shouldRotateSubmitIdempotencyKeyAfterError(error)) {
+              try {
+                await persistWithRotatedSubmitKey();
+              } catch (rotationError) {
+                dispatch({ message: getUserFacingComplaintError(rotationError), type: 'error' });
+                throw rotationError;
+              }
+            }
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+            throw error;
+          }
+        },
+        true,
+      ),
+    [persistWithRotatedSubmitKey, requireDraft, requireSession, runComplaintOperation, state],
+  );
 
-  const discardDraft = useCallback(async (): Promise<void> => {
-    const activeSession = requireSession();
-    const draft = requireDraft();
-    dispatch({ type: 'busy', value: true });
-    try {
-      await discardComplaintDraft(activeSession.accessToken, draft.id);
-      const pending = resumeRef.current?.pendingMedia;
-      if (pending) await clearMediaCaptureLocation(pending.idempotencyKey);
-      const pendingUri = pending?.localUri;
-      if (pendingUri) deletePreparedMedia(pendingUri);
-      await clearComplaintResume(activeSession.userId);
-      resumeRef.current = null;
-      dispatch({ type: 'draft_cleared' });
-    } catch (error) {
-      dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-      throw error;
-    } finally {
-      dispatch({ type: 'busy', value: false });
-    }
-  }, [requireDraft, requireSession]);
+  const discardDraft = useCallback(
+    (): Promise<void> =>
+      runComplaintOperation(
+        'discard_draft',
+        async () => {
+          const activeSession = requireSession();
+          const draft = requireDraft();
+          try {
+            await discardComplaintDraft(activeSession.accessToken, draft.id);
+            const pending = resumeRef.current?.pendingMedia;
+            if (pending) await clearMediaCaptureLocation(pending.idempotencyKey);
+            const pendingUri = pending?.localUri;
+            if (pendingUri) deletePreparedMedia(pendingUri);
+            await clearComplaintResume(activeSession.userId);
+            resumeRef.current = null;
+            dispatch({ type: 'draft_cleared' });
+          } catch (error) {
+            dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+            throw error;
+          }
+        },
+        true,
+      ),
+    [requireDraft, requireSession, runComplaintOperation],
+  );
 
   const goToStep = useCallback(
-    async (step: ComplaintCaptureStep): Promise<void> => {
-      if (
-        state.step === 'location' &&
-        step === 'media' &&
-        !isLocationEvidenceEligible(state.draft?.location ?? null)
-      ) {
-        dispatch({
-          message: 'Capture a verified or partially verified location before continuing.',
-          type: 'error',
-        });
-        return;
-      }
+    (step: ComplaintCaptureStep): Promise<void> =>
+      runComplaintOperation('change_step', async () => {
+        if (
+          state.step === 'location' &&
+          step === 'media' &&
+          !isLocationEvidenceEligible(state.draft?.location ?? null)
+        ) {
+          dispatch({
+            message: 'Capture a verified or partially verified location before continuing.',
+            type: 'error',
+          });
+          return;
+        }
 
-      try {
-        await persistResume({ step });
-        dispatch({ step, type: 'step_changed' });
-      } catch (error) {
-        dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
-      }
-    },
-    [persistResume, state.draft?.location, state.step],
+        try {
+          await persistResume({ step });
+          dispatch({ step, type: 'step_changed' });
+        } catch (error) {
+          dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
+        }
+      }),
+    [persistResume, runComplaintOperation, state.draft?.location, state.step],
   );
 
   const value = useMemo<ComplaintContextValue>(
     () => ({
-      acknowledgeDuplicates: (acknowledged) =>
-        dispatch({ type: 'duplicates_acknowledged', value: acknowledged }),
-      acknowledgeEmergency: (acknowledged) =>
-        dispatch({ type: 'emergency_acknowledged', value: acknowledged }),
+      acknowledgeDuplicates: (acknowledged) => {
+        if (isComplaintOperationInProgress(complaintOperationRef.current)) return;
+        dispatch({ type: 'duplicates_acknowledged', value: acknowledged });
+      },
+      acknowledgeEmergency: (acknowledged) => {
+        if (isComplaintOperationInProgress(complaintOperationRef.current)) return;
+        dispatch({ type: 'emergency_acknowledged', value: acknowledged });
+      },
       captureLocation,
       checkDuplicates,
       clearError: () => dispatch({ message: null, type: 'error' }),

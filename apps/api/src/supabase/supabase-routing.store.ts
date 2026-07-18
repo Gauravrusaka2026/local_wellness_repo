@@ -341,7 +341,16 @@ const decode = <Output>(schema: z.ZodType<Output>, data: unknown, operation: str
   const result = schema.safeParse(data);
 
   if (!result.success) {
-    throw new RoutingDataAccessError(operation);
+    const issuePath = result.error.issues[0]?.path
+      .filter(
+        (segment): segment is number | string =>
+          typeof segment === 'number' || typeof segment === 'string',
+      )
+      .join('.');
+    throw new RoutingDataAccessError(
+      issuePath ? `${operation} response at ${issuePath}` : `${operation} response`,
+      'INVALID_RESPONSE',
+    );
   }
 
   return result.data;
@@ -349,6 +358,15 @@ const decode = <Output>(schema: z.ZodType<Output>, data: unknown, operation: str
 
 const hasDatabaseErrorMarker = (error: unknown, marker: string): boolean =>
   typeof error === 'object' && error !== null && 'message' in error && error.message === marker;
+
+const databaseErrorCode = (error: unknown): string | null =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  typeof error.code === 'string' &&
+  /^[A-Z0-9_]{2,32}$/u.test(error.code)
+    ? error.code
+    : null;
 
 const decodeCategory = (row: z.infer<typeof categoryRowSchema>): RoutingCategory => {
   const mediaRequirements = publishedMediaRequirementsSchema.safeParse(row.media_requirements);
@@ -597,39 +615,18 @@ const assertCandidateJurisdictionEvidence = (
   operation: string,
 ): void => {
   const evidence = row.explanation_metadata.evidence;
+  // Boundary provenance is validated by resolveJurisdiction. loadRoutingContext also compares
+  // every candidate boundary version to that verified result before this target evidence check.
   const hasRequiredEvidence =
     evidence.every(isVerifiedRoutingEvidence) &&
-    hasJurisdictionEntityEvidence(evidence, 'state', row.state_id, row.state_boundary_version_id) &&
-    hasJurisdictionEntityEvidence(
-      evidence,
-      'district',
-      row.district_id,
-      row.district_boundary_version_id,
-    ) &&
-    hasJurisdictionEntityEvidence(
-      evidence,
-      'taluka',
-      row.taluka_id,
-      row.taluka_boundary_version_id,
-    ) &&
+    hasEvidence(evidence, 'state', row.state_id) &&
+    (row.district_id === null || hasEvidence(evidence, 'district', row.district_id)) &&
+    (row.taluka_id === null || hasEvidence(evidence, 'taluka', row.taluka_id)) &&
     (row.taluka_id === null || row.district_id !== null) &&
     hasEvidence(evidence, 'local_body', row.local_body_id) &&
-    hasEvidence(
-      evidence,
-      'jurisdiction_boundary',
-      row.local_body_boundary_version_id,
-      row.local_body_boundary_version_id,
-    ) &&
     (row.ward_id === null
       ? row.ward_boundary_version_id === null
-      : row.ward_boundary_version_id !== null &&
-        hasEvidence(evidence, 'ward', row.ward_id) &&
-        hasEvidence(
-          evidence,
-          'jurisdiction_boundary',
-          row.ward_boundary_version_id,
-          row.ward_boundary_version_id,
-        ));
+      : row.ward_boundary_version_id !== null && hasEvidence(evidence, 'ward', row.ward_id));
 
   if (!hasRequiredEvidence) {
     throw new RoutingDataAccessError(operation);
@@ -939,7 +936,8 @@ export class SupabaseRoutingStore extends RoutingStore {
       throw new RoutingDataAccessError(operation);
     }
 
-    const data = await this.callRpc(operation, 'resolve_routing_candidates', {
+    const candidateOperation = 'load routing candidates';
+    const data = await this.callRpc(candidateOperation, 'resolve_routing_candidates', {
       p_longitude: input.location.longitude,
       p_latitude: input.location.latitude,
       p_accuracy_meters: input.accuracyMeters,
@@ -947,19 +945,20 @@ export class SupabaseRoutingStore extends RoutingStore {
       p_asset_id: input.assetId,
       p_resolved_at: input.resolvedAt,
     });
-    const rows = decode(z.array(routingCandidateRowSchema), data, operation);
+    const rows = decode(z.array(routingCandidateRowSchema), data, candidateOperation);
 
     if (rows.length === 0) {
-      const policyData = await this.callRpc(operation, 'resolve_routing_policy_context', {
+      const policyOperation = 'load routing policy context';
+      const policyData = await this.callRpc(policyOperation, 'resolve_routing_policy_context', {
         p_category_id: input.categoryId,
         p_local_body_id: expectedJurisdiction.localBodyId,
         p_ward_id: expectedJurisdiction.wardId,
         p_resolved_at: input.resolvedAt,
       });
-      const policyRows = decode(z.array(routingPolicyRowSchema), policyData, operation);
+      const policyRows = decode(z.array(routingPolicyRowSchema), policyData, policyOperation);
 
       if (policyRows.length > 1) {
-        throw new RoutingDataAccessError(operation);
+        throw new RoutingDataAccessError('validate routing policy uniqueness');
       }
 
       return {
@@ -977,7 +976,7 @@ export class SupabaseRoutingStore extends RoutingStore {
         (candidatePolicy) => routingPolicyKey(candidatePolicy) !== routingPolicyKey(policy),
       )
     ) {
-      throw new RoutingDataAccessError(operation);
+      throw new RoutingDataAccessError('validate routing policy consistency');
     }
 
     const candidates = rows.map((row) => {
@@ -1005,11 +1004,11 @@ export class SupabaseRoutingStore extends RoutingStore {
           expectedJurisdiction.wardBoundaryVersionId ||
         (input.assetId !== null && row.asset_id !== input.assetId)
       ) {
-        throw new RoutingDataAccessError(operation);
+        throw new RoutingDataAccessError('validate routing candidate jurisdiction');
       }
 
-      assertCandidateJurisdictionEvidence(row, operation);
-      assertCandidateVersionEvidence(row, operation);
+      assertCandidateJurisdictionEvidence(row, 'validate routing candidate jurisdiction evidence');
+      assertCandidateVersionEvidence(row, 'validate routing candidate version evidence');
       return decodeCandidate(row);
     });
 
@@ -1099,7 +1098,7 @@ export class SupabaseRoutingStore extends RoutingStore {
       }
 
       if (error) {
-        throw new RoutingDataAccessError(operation);
+        throw new RoutingDataAccessError(operation, databaseErrorCode(error));
       }
 
       return data;

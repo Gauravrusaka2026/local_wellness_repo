@@ -182,9 +182,6 @@ export default function ComplaintListScreen() {
             <Text accessibilityRole="header" style={styles.title}>
               Your complaints
             </Text>
-            <Text style={styles.help}>
-              Follow every submitted report, government update and resolution.
-            </Text>
           </View>
           <Pressable
             accessibilityLabel="Open menu"
@@ -251,8 +248,8 @@ export default function ComplaintListScreen() {
             </Text>
             <Text style={styles.emptyText}>
               {loadState.items.length === 0
-                ? 'Use Report below when you find a local issue. Your receipt and progress will appear here.'
-                : 'Choose another status to see the rest of your complaint history.'}
+                ? 'Tap Report below to get started.'
+                : 'Try another status.'}
             </Text>
           </View>
         ) : (
@@ -278,7 +275,7 @@ export default function ComplaintListScreen() {
             {isLoadingMore ? (
               <ActivityIndicator accessibilityLabel="Loading more complaints" color="#17683b" />
             ) : (
-              <Text style={styles.loadMoreText}>Load more complaints</Text>
+              <Text style={styles.loadMoreText}>Load more</Text>
             )}
           </Pressable>
         ) : null}
@@ -334,7 +331,6 @@ const styles = StyleSheet.create({
   filterTextSelected: { color: '#ffffff' },
   header: { alignItems: 'flex-start', flexDirection: 'row', gap: 12, marginTop: 8 },
   headerCopy: { flex: 1, gap: 5 },
-  help: { color: '#65766b', lineHeight: 21 },
   list: { gap: 11 },
   loadMoreButton: {
     alignItems: 'center',

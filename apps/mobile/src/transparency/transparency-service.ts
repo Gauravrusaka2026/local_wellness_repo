@@ -1,20 +1,27 @@
 import type {
   PublicComplaintDetail,
+  PublicComplaintEngagementLookupInput,
+  PublicComplaintEngagementState,
   PublicComplaintHotspotQuery,
   PublicComplaintHotspotResult,
   PublicComplaintMapQuery,
   PublicComplaintMapResult,
+  UpdatePublicComplaintEngagementInput,
 } from '@local-wellness/types';
 import {
   publicComplaintDetailSchema,
+  publicComplaintEngagementListSchema,
+  publicComplaintEngagementLookupSchema,
+  publicComplaintEngagementStateSchema,
   publicComplaintHotspotQuerySchema,
   publicComplaintHotspotResultSchema,
   publicComplaintIdParametersSchema,
   publicComplaintMapQuerySchema,
   publicComplaintMapResultSchema,
+  updatePublicComplaintEngagementSchema,
 } from '@local-wellness/validation';
 
-import { ApiError } from '../api/client';
+import { apiRequest, ApiError } from '../api/client';
 import { getPublicApiUrl } from '../config/environment';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -84,6 +91,7 @@ export const buildPublicComplaintMapPath = (query: PublicComplaintMapQuery): `/$
     south: String(validatedQuery.data.south),
     west: String(validatedQuery.data.west),
     zoom: String(validatedQuery.data.zoom),
+    sort: validatedQuery.data.sort,
   });
   validatedQuery.data.categoryCodes?.forEach((categoryCode) =>
     parameters.append('categoryCodes', categoryCode),
@@ -164,6 +172,44 @@ export const getPublicComplaint = async (publicId: string): Promise<PublicCompla
 
   const result = publicComplaintDetailSchema.safeParse(
     await requestPublicTransparency(`/api/v1/transparency/complaints/${parameters.data.publicId}`),
+  );
+  if (!result.success) throw invalidResponse();
+  return result.data;
+};
+
+export const listPublicComplaintEngagements = async (
+  accessToken: string,
+  input: PublicComplaintEngagementLookupInput,
+): Promise<PublicComplaintEngagementState[]> => {
+  const validated = publicComplaintEngagementLookupSchema.safeParse(input);
+  if (!validated.success) throw invalidRequest();
+
+  const result = publicComplaintEngagementListSchema.safeParse(
+    await apiRequest('/api/v1/transparency/engagements/lookup', {
+      accessToken,
+      body: validated.data,
+      method: 'POST',
+    }),
+  );
+  if (!result.success) throw invalidResponse();
+  return result.data;
+};
+
+export const updatePublicComplaintEngagement = async (
+  accessToken: string,
+  publicId: string,
+  input: UpdatePublicComplaintEngagementInput,
+): Promise<PublicComplaintEngagementState> => {
+  const parameters = publicComplaintIdParametersSchema.safeParse({ publicId });
+  const validated = updatePublicComplaintEngagementSchema.safeParse(input);
+  if (!parameters.success || !validated.success) throw invalidRequest();
+
+  const result = publicComplaintEngagementStateSchema.safeParse(
+    await apiRequest(`/api/v1/transparency/complaints/${parameters.data.publicId}/engagement`, {
+      accessToken,
+      body: validated.data,
+      method: 'PUT',
+    }),
   );
   if (!result.success) throw invalidResponse();
   return result.data;

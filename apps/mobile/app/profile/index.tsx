@@ -288,9 +288,7 @@ const ProfileImageCard = ({
           <Text accessibilityRole="header" style={styles.sectionTitle}>
             Profile photo
           </Text>
-          <Text style={styles.mutedText}>
-            Private by default. Only your signed-in account receives a short-lived viewing link.
-          </Text>
+          <Text style={styles.mutedText}>Visible only to your account.</Text>
         </View>
         <View accessibilityLabel="Current profile photo" style={styles.avatarPreview}>
           {previewUrl ? (
@@ -312,7 +310,7 @@ const ProfileImageCard = ({
           )}
         </View>
       </View>
-      <Text style={styles.mutedText}>JPEG, PNG, or WebP. Maximum size: 5 MiB.</Text>
+      <Text style={styles.mutedText}>JPEG, PNG or WebP · max 5 MiB</Text>
       <View style={styles.avatarActions}>
         <Pressable
           accessibilityRole="button"
@@ -420,10 +418,7 @@ const CurrentCivicAreaCard = ({ accessToken }: Readonly<{ accessToken: string }>
       <Text accessibilityRole="header" style={styles.sectionTitle}>
         Current civic area
       </Text>
-      <Text style={styles.mutedText}>
-        Use a one-time location lookup to see your verified ward and local body. Your exact
-        coordinates are not saved to your profile.
-      </Text>
+      <Text style={styles.mutedText}>Find your verified ward and local body.</Text>
 
       <Pressable
         accessibilityRole="button"
@@ -553,11 +548,7 @@ const ProfileEditor = ({
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text accessibilityRole="header" style={styles.title}>
-          Set up your profile
-        </Text>
-        <Text style={styles.description}>
-          Your name is private account information. Your language preference controls future Local
-          Wellness content.
+          Your profile
         </Text>
 
         <ProfileImageCard onProfileUpdated={onProfileUpdated} profile={profile} />
@@ -643,10 +634,7 @@ const ProfileEditor = ({
             <Text accessibilityRole="header" style={styles.sectionTitle}>
               Phone verification
             </Text>
-            <Text style={styles.mutedText}>
-              Phone MFA is optional while the Supabase SMS provider is being configured. You can
-              prepare your verified phone factor now if the provider is available.
-            </Text>
+            <Text style={styles.mutedText}>Optional in this environment.</Text>
             <Link href={'/auth/phone-verification?optional=1' as Href} asChild>
               <Pressable accessibilityRole="button" style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>Set up phone verification</Text>
@@ -667,7 +655,7 @@ const ProfileEditor = ({
           ) : null}
           {deviceRegistration.state.status === 'registered' ? (
             <Text accessibilityLiveRegion="polite" style={styles.successText}>
-              This installation is registered with a one-way device identifier.
+              This device is securely registered.
             </Text>
           ) : null}
           {deviceRegistration.state.status === 'error' ? (
@@ -758,7 +746,6 @@ const styles = StyleSheet.create({
   },
   centeredPanel: { flex: 1, gap: 18, justifyContent: 'center', padding: 24 },
   content: { gap: 18, padding: 20, paddingBottom: 40 },
-  description: { color: '#475569', fontSize: 16, lineHeight: 24 },
   errorText: { color: '#991b1b', fontSize: 15, lineHeight: 22 },
   inlineStatus: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   inlineResult: { backgroundColor: '#f8fafc', borderRadius: 10, gap: 8, padding: 12 },

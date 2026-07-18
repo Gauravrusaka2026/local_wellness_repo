@@ -12,5 +12,14 @@
   sorted list of related public IDs excluding the report being viewed, and the total group size.
   Internal complaint IDs, review notes, and similarity evidence never cross the public contract.
 - Withdraw a public duplicate-group version instead of overwriting or deleting it.
+- Store one private forced-RLS engagement row per complaint/account and publish only its aggregate
+  support count. Return the current account's support/star flags only through authenticated,
+  non-cacheable API responses.
+- Rank `trending` by live support count, publication time, and public ID inside the requested
+  viewport. Cursor pages may shift when support changes; the ranking is not a frozen snapshot.
+- Make Local, Trending, and Heat the mobile community modes while keeping all source data reviewed,
+  generalized, and provider-neutral.
+- Never let engagement modify official routing, assignment, status, escalation, SLA, or KPI state.
+  Keep comments, public participant identity, and engagement notifications disabled.
 - Use provider-neutral client rendering and retain an accessible list fallback.
 - Seed no operational policy or public complaint.

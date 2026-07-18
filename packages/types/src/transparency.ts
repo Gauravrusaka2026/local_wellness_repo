@@ -1,6 +1,9 @@
 export const publicComplaintStatuses = ['reported', 'in_progress', 'resolved', 'closed'] as const;
 export type PublicComplaintStatus = (typeof publicComplaintStatuses)[number];
 
+export const publicComplaintSorts = ['recent', 'trending'] as const;
+export type PublicComplaintSort = (typeof publicComplaintSorts)[number];
+
 export interface PublicApproximateLocation {
   latitude: number;
   longitude: number;
@@ -34,6 +37,7 @@ export interface PublicComplaintMapItem {
   submittedAt: string;
   updatedAt: string;
   publishedAt: string;
+  supportCount: number;
 }
 
 export interface PublicComplaintMapResult {
@@ -110,6 +114,7 @@ export interface PublicComplaintMapQuery
   extends PublicTransparencyViewport, PublicTransparencyFilters {
   zoom: number;
   limit: number;
+  sort?: PublicComplaintSort | undefined;
   cursor?: string | undefined;
 }
 
@@ -121,4 +126,20 @@ export interface PublicComplaintHotspotQuery
 
 export interface PublicWardBoundaryQuery extends PublicTransparencyViewport {
   limit: number;
+}
+
+export interface PublicComplaintEngagementState {
+  publicId: string;
+  supportCount: number;
+  supported: boolean;
+  starred: boolean;
+}
+
+export interface PublicComplaintEngagementLookupInput {
+  publicIds: string[];
+}
+
+export interface UpdatePublicComplaintEngagementInput {
+  supported: boolean;
+  starred: boolean;
 }

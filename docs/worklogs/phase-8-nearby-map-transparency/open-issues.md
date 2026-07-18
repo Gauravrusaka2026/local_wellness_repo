@@ -9,5 +9,9 @@
 - Import reviewed pilot ward geometry (`DATA-004`).
 - Complete processed-media decoding, malware/moderation, redaction, cleanup, and delivery policy
   before exposing derivatives (`GOVDASH-002`).
+- Apply the engagement migration and reviewed public policy/data in managed staging, then run
+  aggregate-only, withdrawal, quota, Local/Trending/Heat, and physical-device smoke tests.
+- Staff and approve pilot support/moderation, coordinated-abuse monitoring and response, retention/
+  deletion handling, and an owner go/no-go before enabling community interaction (`COMMUNITY-001`).
 - Keep public comments disabled until the separate moderation and abuse-control decision
   (`NOTIFY-003`).

@@ -150,10 +150,11 @@ rows must supersede them.
 
 The optional BMC staging pack now creates separate source-backed operational ward, office, role,
 officer, assignment, and contact records without promoting the five numeric placeholder rows. It is
-eligible for the optional internal demo queue only when seeds `50`–`53` are applied in order. The
-routing seeds cover three asset-independent categories across 22 exact one-to-one wards; they are
-not applied to the replacement staging target and keep external production delivery false. Pune and
-the rest of the canonical placeholder corpus remain unresolved under this issue.
+eligible for the optional internal demo queue only when the generated four-part BMC SQL Editor
+bundle is applied in order. The routing data covers three asset-independent categories across 22
+exact one-to-one wards; a hosted read audit found none of those tested BMC jurisdiction rows on the
+replacement target. External production delivery remains false. Pune and the rest of the canonical
+placeholder corpus remain unresolved under this issue.
 
 Phase 2 must not create verified officers or assignments from those labels. Placeholder rows may be retained only with an explicit placeholder/unverified state and raw-source provenance. Production-facing officer names and contacts require record-specific official verification.
 
@@ -169,7 +170,8 @@ The optional BMC pack now includes official legacy administrative-ward GeoJSON a
 crosswalks. Twenty-two operational wards have one-to-one internal demo routing for three
 asset-independent categories; split K and P units retain parent geometry and fail closed until child
 geometry or an approved address/PIN crosswalk exists. This does not provide Pune or statewide
-geometry and is not yet active in managed staging.
+geometry. A credential-safe hosted read audit found no tested BMC jurisdiction rows, so the
+four-part deployment bundle is not recorded as active in managed staging.
 
 ### DATA-005 — Cross-file names and routing labels are not normalized
 
@@ -223,6 +225,47 @@ The CSV files remain the machine-readable source of truth. Add an approved workb
 The committed governance generator intentionally reproduces the hash-pinned Phase 2 baseline and fails closed on source or artifact drift. It does not yet compare a replacement bundle with the accepted batch, close superseded temporal versions, or publish reviewed verification promotions.
 
 Do not overwrite the current canonical bundle or use the baseline generator as an unreviewed in-place refresh. Before importing a replacement dataset, implement a reviewed delta workflow that reports additions, removals, hierarchy/identifier changes and version closures, then applies the accepted change through an additive seed/version artifact or migration.
+
+### DATA-009 — Maharashtra Batch 0 is a hierarchy/source intake, not routing coverage
+
+- Severity: High if the batch is mistaken for statewide operational data
+- Status: Engineering intake complete; operational data and reviewed crosswalks still open
+- Discovered: 2026-07-18
+
+`resources/governance/local_wellness_maharashtra_batch0_2026-07-18.zip` is internally
+hash-consistent and contains a useful official-source registry plus one Maharashtra state row and
+36 district identity/code rows. It contains zero taluka, village, local-body, ward, boundary,
+department, office, officer-role, officer, assignment, contact-version, utility, emergency-contact,
+routing-reference, asset, or ownership records. Its GeoJSON is an empty FeatureCollection and its
+only archived source document is a 2016 PMC CARE booklet that the batch itself correctly marks
+stale and non-routable.
+
+The batch also preserves 17 conflicting observations across six statewide local-government count
+groups, five stale source observations, five unverified/inaccessible observations, and 21 explicit
+data issues. Thirty-seven of 38 source-registry rows lack an archived content hash, so the registry
+records URL/review evidence rather than immutable copies of those web pages. All sources lack an
+explicit content-effective date. These facts must remain visible and cannot be converted into
+verified current contacts, geometry, assignments, ownership, or routing.
+
+Thirty-five district names match the existing canonical district registry exactly. The new LGD row
+uses `Mumbai`, while the existing canonical entity uses `Mumbai City`; do not infer that crosswalk
+or assign LGD code `482` until an official export/notification or attributed reviewer explicitly
+confirms it. The safe seed may add source evidence and unambiguous non-routable identifiers only.
+It must activate zero boundaries, routing rules, contacts, assignments, external delivery, or
+public projections.
+
+The deterministic Batch 0 pipeline now implements that safe boundary. It preserves all 160 CSV
+rows across a 29-file import ledger, catalogs all 38 canonical source URLs, redacts four transient
+CSRF-token observations from staged JSON while retaining their original row hashes, adds LGD `27`
+to Maharashtra, and enriches 35 exact existing district matches. `Mumbai`/LGD `482` remains a
+reference-only record with no normalized target. The generated seed, checksum companion, SQL Editor
+deployment, generated database types, clean local reset, database lint, and 47-file pgTAP suite are
+verified. Hosted Supabase was not changed.
+
+Closing this issue still requires a reviewed Batch 1 with entity-level official local bodies,
+talukas/villages, current ward identities and boundary versions, plus attributed resolution of the
+six count discrepancies and the `Mumbai` alias. Batch 0 must not be used to activate statewide
+routing or represent the 2016 PMC booklet as a current contact directory.
 
 ### GOVSYNC-001 — Governance synchronization is not yet production-operational
 
@@ -320,18 +363,25 @@ complete fallback paths. The 12 seeded categories are draft, unverified, and non
 Phase 2 placeholder records remain excluded. Until those inputs pass record-specific official-source
 review, a real Pune coordinate must not produce a production route.
 
-The optional BMC routing seeds locally activate exactly three asset-independent categories—garbage
-dump, missed sweeping, and mosquito breeding—across 22 exact one-to-one wards using 66 deterministic
-rules. They do not cover split K/P child wards, are not applied to managed staging, and do not enable
-external delivery. Activating the remaining nine pilot categories requires reviewed ownership
-inventories for roads, drains, sewer/manholes, water, streetlights, buildings, public land/right-of-
-way, and trees/gardens. This limited non-production BMC capability does not close the Pune or
-statewide routing gap.
+The current hosted BMC projection activates exactly three categories—garbage dump, missed sweeping,
+and mosquito breeding—across 22 exact one-to-one wards using 66 deterministic rules. A clean hosted
+smoke resolved K/W Ward and a mosquito-breeding route, so those data are no longer merely local.
+Split K/P child wards and external delivery remain disabled. Activating the remaining nine pilot
+categories requires reviewed feature snapshots, stable identifiers, geometry, authority ownership,
+department/role/fallback mappings, and operational evidence. The canonical BMC routing references
+require asset ownership for all nine, including illegal construction, encroachment, and fallen tree.
 
-### GOVDIR-001 — Verified governance directory is engineered but not verified active in staging
+The network-free `bmc-routing-asset-sources.v1` manifest now pins candidate official MCGM GIS layers
+for roads, drains, sewer/manholes, water pipelines, streetlights, buildings, public right-of-way,
+and trees. It is discovery evidence only: automatic retrieval, bulk import, verification,
+publication, route activation, and external delivery are all explicitly prohibited until the
+review-gated synchronization workflow completes. This limited BMC capability does not close the
+Pune or statewide routing gap.
+
+### GOVDIR-001 — Verified governance directory has bounded BMC coverage only
 
 - Severity: High for real Nearby governing-body results
-- Status: Engineering complete; managed ledger reconciliation and verified data pending
+- Status: BMC K/W path verified in staging; statewide data and ledger reconciliation pending
 - Discovered: 2026-07-16
 
 The authenticated NestJS endpoint, strict shared/mobile contracts, service-role-only PostGIS
@@ -339,13 +389,12 @@ projection, accuracy/ambiguity handling, placeholder/official-source gates, and 
 tests are implemented locally. The projection returns no internal IDs, geometry, officers, contact
 channels, or private office data.
 
-The current managed migration ledger has not been reconciled with
-`20260716104000_verified_governing_body_projection.sql`, and no reviewed official pilot boundary
-geometry is documented as active. Reconcile/apply the additive migration through the incremental
-workflow, then load and review current non-placeholder geometry and entity provenance before
-expecting Nearby to resolve. Until then, dependency/unsupported output is correct. Never use the
-42-migration master file as an upgrade, copy synthetic pgTAP fixtures into staging, or hardcode
-Pune/BMC names to close this issue.
+The earlier current-target audit found no tested BMC jurisdiction rows, but a later authenticated
+hosted smoke resolved K/W Ward through the verified projection. Coverage remains bounded to the BMC
+overlay: K/S, K/N, P/E, P/W, Pune, and statewide geometry are still incomplete, and the official
+migration ledger still needs reconciliation. Unsupported output outside the reviewed geometry is
+correct. Never use the master file as an upgrade, copy synthetic pgTAP fixtures into staging, or
+hardcode Pune/BMC names to close this issue.
 
 ### COMPLAINT-001 — Transcription and media moderation providers are not configured
 
@@ -371,14 +420,17 @@ coverage before claiming automatic transcription or moderation.
 - Discovered: 2026-07-14
 
 The mobile unit suites and Android Expo export pass, and database/API integration covers the secure
-submission path with rollback-isolated verified fixtures. Profile camera/gallery selection and the
-verified civic-area lookup have focused tests, but this environment had no connected physical
-device or in-app browser target. Camera, video, microphone, foreground GPS, mock-location behavior,
-OS protected storage, interrupted upload recovery, deep links, delivered email callbacks, and
-network transitions therefore still require representative Android/iOS and managed-environment
-testing. The client can display all non-placeholder catalog categories, but the canonical bootstrap
-still exposes zero operational choices. Optional BMC seeds make only three categories selectable
-after deliberate non-production application and do not justify activating placeholders or claiming
+submission path with rollback-isolated verified fixtures. Complaint capture now uses one scrollable
+form and exposes all locally knowable submit blockers instead of relying on six-screen ordering or
+an unexplained disabled button. Profile camera/gallery selection and the verified civic-area lookup
+have focused tests, but this environment had no connected physical device or in-app browser target.
+Camera, video, microphone, foreground GPS, mock-location behavior, OS protected storage,
+interrupted upload recovery, deep links, delivered email callbacks, and network transitions
+therefore still require representative Android/iOS and managed-environment testing. The client can
+display all non-placeholder catalog categories, but the canonical bootstrap still exposes zero
+operational choices. The hosted target now returns the three bounded BMC categories and verified
+K/W routing. Final complaint creation is separately blocked by the unapplied forward repair tracked
+in `COMPLAINT-006`; that function drift does not justify activating placeholders or claiming
 external submission.
 
 ### COMPLAINT-003 — Expired private upload reservations need scheduled cleanup
@@ -429,6 +481,35 @@ state, resolves the private locator server-side, returns a short-lived non-cache
 and logs only bounded identifiers. Add a mobile viewer/player with expiry/error/retry states and
 cross-owner, unfinalized, missing-object, path/token leakage, and replay tests. Do not create a
 public bucket, persistent URL, or direct Data API/Storage policy.
+
+### COMPLAINT-006 — Hosted BMC complaint completion requires the additive submission repair
+
+- Severity: High for the current staging demo
+- Status: Fixed and verified locally; hosted SQL migration and smoke pending
+- Discovered: 2026-07-18
+
+An authenticated hosted report with valid K/W Ward location, the operational mosquito-breeding
+category, 15.851 m non-mock GPS evidence, two finalized private media objects, duplicate evidence,
+and exactly one verified route reached routing but returned `DEPENDENCY_UNAVAILABLE`. A clean hosted
+reproduction found two independent causes: the API redundantly required local-body/ward boundary
+entries to be duplicated in candidate explanation metadata even though jurisdiction provenance was
+already verified separately with exact boundary-version equality, and the hosted complaint
+completion function diverged at its exact routing-evidence gate.
+
+The API now requires verified candidate hierarchy evidence while relying on the independently
+verified jurisdiction plus exact boundary-version vector for boundary provenance. It does not
+weaken entity, version, geometry, or routing checks. Forward migration
+`20260718100000_complaint_routing_evidence_diagnostics.sql` installs an internal exact mismatch
+classifier, a protected canonical V2 completion implementation, granular non-sensitive conflict
+markers, and a service-role-only public delegate. A clean in-process API smoke against local
+Supabase completed catalog, draft, GPS, duplicate, routing, and submission with `201`.
+
+Hosted staging must still run the complete forward migration in **SQL Editor → New query**, then run
+`supabase/deploy/diagnostics/bmc_submission_runtime_audit.sql` and retry the saved report. Do not
+claim the managed issue resolved until the runtime audit passes and submission returns a complaint
+receipt. If PostgREST alone reports `PGRST202` after the audit passes, use the guarded schema-cache
+reload file once. No tolerance, placeholder promotion, direct client grant, or external BMC delivery
+was introduced.
 
 ### ENV-003 — Rendered application smoke test needs an in-app browser session
 
@@ -555,16 +636,33 @@ and six seeds applies to the previous staging target and is historical evidence 
 The first clean-bootstrap split failed on `public.profiles`, confirming that the current project
 contains an earlier Local Wellness schema but not its cutoff. A later fixed Phase 9 assumption also
 failed and was removed. The two SQL Editor parts now contain the full 42-migration history split
-23/19, fingerprint a coherent prefix, skip complete migrations as units, and reject partial or
+23/19 as a historical verified artifact. The current 43-migration source set uses a 23/20 split,
+fingerprints a coherent prefix, skips complete migrations as units, and rejects partial or
 non-contiguous state. This avoids duplicate-object replay without concealing security drift, but it
 still does not populate or repair the Supabase migration ledger. Full post-run schema/ledger, seed,
 Auth, and role reconciliation remains required.
 
-On 2026-07-16 the current API liveness endpoint succeeded, but its readiness endpoint returned 503.
-A direct, credential-safe RPC probe returned PostgREST `PGRST202`: the managed project does not have
-`public.api_readiness_check()`, which is introduced by
-`20260716112000_phase_10_api_hardening.sql`. This proves the target is not at the current 42-
-migration cutoff and API-backed profile/complaint/routing demos must not be represented as ready.
+On 2026-07-16 the API liveness endpoint succeeded while readiness returned `503`/`PGRST202` for a
+missing `public.api_readiness_check()`. A later credential-safe read audit found readiness healthy
+and all five expected private Storage buckets present, so that symptom is resolved. The same audit
+returned zero category projections and no tested BMC jurisdiction rows. This proves infrastructure
+availability but not current migration-ledger reconciliation, pilot data, Auth/role state, or an
+operational complaint/community demo.
+
+A follow-up read-only RPC probe confirmed the Phase 10 privileged/citizen MFA functions are present,
+while both `list_government_invitation_options` (migration 42) and
+`list_public_complaint_engagements` (migration 43) return `PGRST202`. The exact status of migrations
+38–41 is not proven through the exposed API. Therefore the small migration 43 delta must not be used
+alone on this target. The recommended first path is the 77,849-byte adaptive migrations 39–43
+bundle when its migration-38 baseline preflight passes. If it reports a baseline, partial, or
+non-contiguous error, stop/reconcile or use adaptive master Part 1 then Part 2 as appropriate. Apply
+the BMC bundle only after migration 43 is verified. SQL Editor execution still does not repair the
+migration-history ledger.
+
+The compact path is locally verified: an exact migration-38 database accepted migrations 39–43,
+an immediate rerun skipped all five safely, and pgTAP plans 038, 039, 040, 042, and 044 passed 90
+focused assertions. The owner reports successfully running that artifact through the staging SQL
+Editor on 2026-07-17; independent schema/readiness/ledger verification remains pending.
 
 The current target still needs fully reviewed SMS/email provider settings, exact redirects,
 delivered code/link/invite behavior, rate limits, backup settings, managed secrets, and application
@@ -575,7 +673,7 @@ as well as delivered codes.
 Before completing hosted identity activation:
 
 - finish the historical security audit under `SEC-001` without reusing prior values;
-- reconcile the current target against all 42 migrations and verify its seed/Auth/profile/role
+- reconcile the current target against all 43 migrations and verify its seed/Auth/profile/role
   state before starting managed workers or treating privileged access as active;
 - configure exact citizen, government, administrator, and installed-mobile callback allow-list
   entries; custom token/code templates are optional;
@@ -586,9 +684,10 @@ Before completing hosted identity activation:
   independently reviewed production project/deployment.
 
 The invitation and demo-role reconciliation completed on the previous staging target prove that
-historical environment only. Current-target identities and assignments must be verified or
-recreated through the audited workflows; they must not be inferred from email addresses or copied
-from Auth metadata.
+historical environment only. The current target now has a separately provisioned, verified,
+time-bounded synthetic BMC matrix under ADR-0025; it does not transfer or validate any historical
+official identity. Real officials must still enter through reviewed onboarding and must never be
+inferred from an email address or Auth metadata.
 
 ### AUTH-001 — Existing-user assignment and role renewal are incomplete
 
@@ -606,6 +705,12 @@ A one-time trusted staging transaction reconciled the demo privileges between al
 identities while retaining revoked rows and audit history. That environment operation does not
 provide the missing application/API lifecycle and does not close this issue.
 
+The ADR-0025 staging helper is likewise not the missing lifecycle. It creates only a fixed synthetic
+account matrix, resolves bounded reviewed scopes, and preassigns expiring access through existing
+trusted functions. It cannot promote an arbitrary existing citizen, add or replace general scopes,
+renew normal officials, or perform application-level revocation. Those operations still require
+the audited API/database lifecycle and concurrency handling described above.
+
 ### AUTH-002 — Privileged MFA needs managed enforcement and recovery validation
 
 - Severity: High before pilot launch
@@ -617,6 +722,11 @@ database authorization as separate gates, distinguish first-time QR enrollment f
 challenge, and provide sign-out/account-switch and reviewed recovery guidance. The API can enforce
 `aal2` for privileged operations. Matching `observe` and `enforce` modes keep the local and staging
 rollout from locking operators out before enrollment and recovery are proven.
+
+Password entry for a pre-provisioned identity follows this same path and does not weaken the
+remaining managed-enforcement or recovery work. Every synthetic staging identity used in a demo
+still requires its own factor and an AAL2 validation smoke before privileged enforcement can be
+claimed operational.
 
 Keep privileged enforcement in observe mode until current administrators and government users can
 enroll, a documented recovery procedure is rehearsed, exact hosted callbacks work, and both AAL1
@@ -678,6 +788,27 @@ Before Maharashtra-wide onboarding, add authority-first server search, keyset pa
 result limits, deterministic ordering, and UI loading/empty/error coverage without weakening the
 same eligibility or caller-authority filters. Do not cache the private catalog or reintroduce raw
 UUID entry as a workaround.
+
+### AUTH-012 — Synthetic staging Auth identities require explicit teardown
+
+- Severity: Medium for staging credential hygiene
+- Status: Bounded role expiry and secure local artifact implemented; Auth-user teardown pending
+- Discovered: 2026-07-18
+
+The staging helper gives every synthetic role and authority membership a bounded
+`effective_until`, so current database authorization fails after expiry. Supabase Auth identities
+and their passwords are not automatically disabled or deleted, however, and an expired account may
+still establish an AAL1 session without effective application access. The credential artifact also
+remains on the operator machine until deliberately removed.
+
+The current staging run created seven distinct identities whose privileged assignments expire at
+`2026-08-17T07:14:01.280Z`. Their generated credentials remain only in the gitignored mode-`0600`
+operator artifact; personal TOTP enrollment has not been performed for the unused test identities.
+
+After each demonstration, delete the gitignored `0600` artifact and revoke, disable, or rotate the
+synthetic Auth identities through a trusted operator process. Do not automate destructive Auth-user
+deletion until audit/history references, repeatable cleanup, and failure recovery are designed and
+tested. Never run the helper in production or treat assignment expiry as credential revocation.
 
 ### PROFILE-001 — Profile images need production media scanning and orphan reconciliation
 
@@ -773,23 +904,27 @@ complaint policy, moderation lifecycle, reporting and abuse controls, retention/
 safe public media derivatives, and an explicit architectural/privacy decision. The structural
 table must not be mistaken for an operational public feature.
 
-### COMMUNITY-001 — Locality support and trending need reviewed policy and moderation
+### COMMUNITY-001 — Locality engagement engineering is complete; pilot operations remain pending
 
 - Severity: High before community interaction is enabled
-- Status: Open product, privacy, moderation, ranking, and abuse-control decision
+- Status: Engineering complete; managed activation, moderation, and abuse operations pending
 - Discovered: 2026-07-17
 
-The reviewed locality feed and aggregate heatmap are read-only. Citizen Web/mobile do not currently
-offer public upvotes, follows, trending ranking, or open comments. Existing private complaint-
-supporter structure and the non-operational comments table must not be exposed as a shortcut because
-publication, identity visibility, duplicate grouping, abuse handling, and retention semantics are
-not approved.
+The reviewed-public community slice now stores one private forced-RLS engagement row per complaint
+and active authenticated account. It publishes only an aggregate support count, keeps star/follow
+state private to that account, rejects withdrawn/non-current projections, applies separate API
+quotas, and offers bounded Local, Trending, and Heat mobile views. Trending uses live aggregate
+support followed by publication time and public ID; cursor pages may shift as support changes.
 
-Before implementing a Reddit-like community layer, define who can support/follow, one-person/one-
-issue semantics, locality eligibility, privacy-preserving counts, ranking/time decay, coordinated-
-abuse controls, reporting/moderation/appeal, deletion/retention, notification preferences, and public
-projection rules. Community engagement may inform a separately reviewed public signal but must not
-silently change official category routing, assignment, status, escalation, or SLA priority.
+No supporter identity, avatar, exact location, private media, or private complaint detail becomes
+public. Support/star signals cannot alter official routing, assignment, workflow status,
+escalation, SLA, or KPI state. Public comments remain disabled under `NOTIFY-003`.
+
+Operational activation still requires applying the engagement migration, an approved transparency
+policy, reviewed public projections, hosted and physical-device smoke, pilot moderation/support
+staffing, coordinated-abuse monitoring and response, retention/deletion procedures, and an owner
+go/no-go decision. The current account requirement, uniqueness constraint, and PostgreSQL-backed
+quotas are baseline controls, not a complete public-community abuse program.
 
 ### NOTIFY-004 — Mobile notification history currently shows only the newest 100 records
 

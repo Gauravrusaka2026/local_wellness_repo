@@ -164,6 +164,7 @@ export class RoutingService {
 
     this.logger.log({
       event: 'routing_decision_recorded',
+      routingDecisionId: decisionId,
       routingRequestId: idempotencyKey,
       status: decision.status,
       categoryId: routingCategory.id,

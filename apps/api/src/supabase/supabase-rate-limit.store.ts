@@ -12,6 +12,15 @@ import { SupabaseClients } from './supabase-clients.js';
 const isRecord = (value: Json): value is { [key: string]: Json | undefined } =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const databaseErrorCode = (error: unknown): string | null =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  typeof error.code === 'string' &&
+  /^[A-Z0-9_]{2,32}$/u.test(error.code)
+    ? error.code
+    : null;
+
 const decodeConsumption = (value: Json): RateLimitConsumption => {
   if (!isRecord(value)) {
     throw new RateLimitDataAccessError();
@@ -55,7 +64,7 @@ export class SupabaseRateLimitStore extends RateLimitStore {
     });
 
     if (error || data === null) {
-      throw new RateLimitDataAccessError();
+      throw new RateLimitDataAccessError(databaseErrorCode(error));
     }
 
     return decodeConsumption(data);

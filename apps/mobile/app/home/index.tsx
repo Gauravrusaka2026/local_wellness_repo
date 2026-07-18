@@ -139,7 +139,7 @@ export default function HomeScreen() {
           <View style={styles.headerActions}>
             <HeaderAction
               accessibilityLabel="Open notifications"
-              glyph="●"
+              glyph="🔔"
               onPress={() => router.push('/notifications')}
             />
             <HeaderAction
@@ -153,12 +153,9 @@ export default function HomeScreen() {
         <View style={styles.heroCard}>
           <View style={styles.heroCopy}>
             <Text style={styles.heroTitle}>See it. Report it. Track it.</Text>
-            <Text style={styles.heroDescription}>
-              Send verified location and private evidence to the right governing body.
-            </Text>
           </View>
           <Pressable
-            accessibilityHint="Begins the guided complaint form"
+            accessibilityHint="Opens the complaint form"
             accessibilityRole="button"
             accessibilityState={{
               disabled: complaintCapture.state.isBusy || !complaintCapture.state.isOnline,
@@ -215,7 +212,6 @@ export default function HomeScreen() {
             <Text accessibilityRole="header" style={styles.sectionTitle}>
               Complaint overview
             </Text>
-            <Text style={styles.sectionHint}>Your latest submitted reports</Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -265,9 +261,7 @@ export default function HomeScreen() {
           recentComplaints.length === 0 ? (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>No complaints submitted yet</Text>
-              <Text style={styles.emptyText}>
-                Your complaint numbers, status changes and government updates will appear here.
-              </Text>
+              <Text style={styles.emptyText}>New reports and updates will appear here.</Text>
             </View>
           ) : (
             <View style={styles.cardList}>
@@ -278,11 +272,6 @@ export default function HomeScreen() {
                   onPress={() => router.push(`/complaints/${complaint.id}`)}
                 />
               ))}
-              {dashboardState.hasMore ? (
-                <Text style={styles.moreHint}>
-                  More complaints are available in Your complaints.
-                </Text>
-              ) : null}
             </View>
           )
         ) : null}
@@ -299,10 +288,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={styles.nearbyCopy}>
-            <Text style={styles.nearbyTitle}>Governing bodies near you</Text>
-            <Text style={styles.nearbyText}>
-              Check verified municipality, ward and public office coverage for your location.
-            </Text>
+            <Text style={styles.nearbyTitle}>Your governing bodies</Text>
           </View>
           <Text accessibilityElementsHidden style={styles.nearbyChevron}>
             ›
@@ -311,28 +297,23 @@ export default function HomeScreen() {
 
         {availableCategoryCount === 0 && !complaintCapture.state.isBusy ? (
           <View style={styles.coverageCard}>
-            <Text style={styles.coverageTitle}>Complaint coverage update</Text>
+            <Text style={styles.coverageTitle}>Routing coverage</Text>
             <Text accessibilityRole="alert" style={styles.coverageText}>
-              No category currently has verified operational routing in this environment. You can
-              inspect every configured category in the complaint flow, but unavailable categories
-              remain safely disabled.
+              Verified routing is not available in this environment yet.
             </Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => void complaintCapture.reloadCategories().catch(() => undefined)}
               style={({ pressed }) => [styles.coverageButton, pressed && styles.buttonPressed]}
             >
-              <Text style={styles.coverageButtonText}>Check available categories</Text>
+              <Text style={styles.coverageButtonText}>Refresh categories</Text>
             </Pressable>
           </View>
         ) : null}
 
         <View style={styles.emergencyCard}>
-          <Text style={styles.emergencyTitle}>Immediate danger?</Text>
-          <Text style={styles.emergencyText}>
-            Local Wellness is not an emergency dispatch service. Call 112 for immediate police, fire
-            or medical help.
-          </Text>
+          <Text style={styles.emergencyTitle}>Immediate danger? Call 112.</Text>
+          <Text style={styles.emergencyText}>Complaints are not emergency dispatch.</Text>
         </View>
       </ScrollView>
       <AppBottomNavigation current="home" />
@@ -452,7 +433,6 @@ const styles = StyleSheet.create({
     padding: 21,
   },
   heroCopy: { gap: 7 },
-  heroDescription: { color: '#d7eadf', fontSize: 15, lineHeight: 22 },
   heroTitle: { color: '#ffffff', fontSize: 25, fontWeight: '900', lineHeight: 31 },
   inlineErrorCard: { backgroundColor: '#fff0f0', borderRadius: 16, gap: 10, padding: 16 },
   inlineErrorText: { color: '#972626', lineHeight: 21 },
@@ -475,7 +455,6 @@ const styles = StyleSheet.create({
   metricResolved: { backgroundColor: '#e8f7ed' },
   metricsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metricValue: { color: '#173c28', fontSize: 25, fontWeight: '900' },
-  moreHint: { color: '#6b7e71', fontSize: 13, textAlign: 'center' },
   nearbyCard: {
     alignItems: 'center',
     backgroundColor: '#eef8f1',
@@ -487,7 +466,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   nearbyChevron: { color: '#286443', fontSize: 28 },
-  nearbyCopy: { flex: 1, gap: 4 },
+  nearbyCopy: { flex: 1 },
   nearbyIcon: {
     alignItems: 'center',
     backgroundColor: '#d6efde',
@@ -497,7 +476,6 @@ const styles = StyleSheet.create({
     width: 46,
   },
   nearbyIconText: { color: '#17683b', fontSize: 24 },
-  nearbyText: { color: '#53705e', fontSize: 13, lineHeight: 19 },
   nearbyTitle: { color: '#17492c', fontSize: 16, fontWeight: '800' },
   primaryButton: {
     alignItems: 'center',
@@ -522,7 +500,6 @@ const styles = StyleSheet.create({
   },
   retryText: { color: '#89590d', fontWeight: '800' },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  sectionHint: { color: '#718076', fontSize: 13, marginTop: 3 },
   sectionTitle: { color: '#173b27', fontSize: 20, fontWeight: '900' },
   textButton: { justifyContent: 'center', minHeight: 44, paddingHorizontal: 4 },
   textButtonLabel: { color: '#217044', fontSize: 14, fontWeight: '800' },

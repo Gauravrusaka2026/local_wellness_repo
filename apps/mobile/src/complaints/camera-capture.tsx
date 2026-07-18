@@ -21,9 +21,11 @@ import {
 type CameraMode = 'photo' | 'video';
 
 export const ComplaintCameraCapture = ({
+  disabled = false,
   onCancel,
   onCaptured,
 }: Readonly<{
+  disabled?: boolean;
   onCancel: () => void;
   onCaptured: (media: PreparedComplaintMedia, location: ComplaintLocationCapture) => Promise<void>;
 }>) => {
@@ -163,9 +165,9 @@ export const ComplaintCameraCapture = ({
             accessibilityRole="radio"
             accessibilityState={{
               checked: mode === candidate,
-              disabled: isRecording || isProcessing,
+              disabled: disabled || isRecording || isProcessing,
             }}
-            disabled={isRecording || isProcessing}
+            disabled={disabled || isRecording || isProcessing}
             key={candidate}
             onPress={() => setMode(candidate)}
             style={[styles.modeButton, mode === candidate && styles.modeButtonSelected]}
@@ -204,7 +206,7 @@ export const ComplaintCameraCapture = ({
         {mode === 'photo' ? (
           <Pressable
             accessibilityRole="button"
-            disabled={!isCameraReady || isProcessing}
+            disabled={disabled || !isCameraReady || isProcessing}
             onPress={() => void takePhoto()}
             style={styles.primaryButton}
           >
@@ -225,7 +227,7 @@ export const ComplaintCameraCapture = ({
         ) : (
           <Pressable
             accessibilityRole="button"
-            disabled={!isCameraReady || isProcessing}
+            disabled={disabled || !isCameraReady || isProcessing}
             onPress={() => void recordVideo()}
             style={styles.primaryButton}
           >

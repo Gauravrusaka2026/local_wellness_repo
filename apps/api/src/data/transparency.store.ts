@@ -2,6 +2,7 @@ import type {
   PublicComplaintDetail,
   PublicComplaintHotspotQuery,
   PublicComplaintHotspotResult,
+  PublicComplaintEngagementState,
   PublicComplaintMapQuery,
   PublicComplaintMapResult,
   PublicWardBoundaryQuery,
@@ -25,4 +26,15 @@ export abstract class TransparencyStore {
   public abstract listWards(query: PublicWardBoundaryQuery): Promise<PublicWardBoundaryResult>;
 
   public abstract getComplaint(publicId: string): Promise<PublicComplaintDetail | null>;
+
+  public abstract listEngagements(
+    actorUserId: string,
+    publicIds: readonly string[],
+  ): Promise<PublicComplaintEngagementState[]>;
+
+  public abstract setEngagement(
+    actorUserId: string,
+    publicId: string,
+    input: Readonly<{ supported: boolean; starred: boolean }>,
+  ): Promise<PublicComplaintEngagementState | null>;
 }

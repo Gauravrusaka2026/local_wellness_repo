@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0.0",
+  "datasetKey": "maharashtra_governance_batch0",
+  "datasetVersion": "MH-LW-BATCH0-2026-07-18",
+  "validatedAt": "2026-07-18T12:21:03+05:30",
+  "status": "passed_with_warnings",
+  "archive": {
+    "path": "resources/governance/local_wellness_maharashtra_batch0_2026-07-18.zip",
+    "sha256": "731c4aaad413b529ffdbd3638627d222bc4d3cf0714fe130ac54a75e06b1b7e4",
+    "byteSize": 1100841,
+    "memberCount": 28,
+    "expandedBytes": 1324331,
+    "internalManifestSha256": "169c56fed8ef0a30221e6217f2ea8d4192129b7aa1424048f7958700cd22971d",
+    "internalMemberHashesVerified": 27
+  },
+  "records": {
+    "csvFiles": 22,
+    "importFiles": 29,
+    "rawCsvRecords": 160,
+    "referenceSources": 38,
+    "stateRecords": 1,
+    "districtRecords": 36,
+    "exactDistrictMatches": 35,
+    "quarantinedDistricts": [
+      {
+        "sourceId": "district:lgd:482",
+        "name": "Mumbai",
+        "lgdCode": "482",
+        "reason": "No exact canonical name match; reviewed alias crosswalk required."
+      }
+    ],
+    "redactedRecords": 4,
+    "populatedOperationalRows": 0
+  },
+  "dataQuality": {
+    "malformedRows": 0,
+    "duplicatePrimaryKeys": 0,
+    "duplicateRows": 0,
+    "sourceVerificationCounts": {
+      "source_verified": 28,
+      "unverified": 5,
+      "stale": 5
+    },
+    "sourceRowsWithoutArchivedContentHash": 37,
+    "sourceRowsWithoutExplicitContentEffectiveDate": 38,
+    "discrepancyObservations": 17,
+    "discrepancyGroups": 6,
+    "openDataIssues": 21,
+    "headerOnlyOperationalCsvFiles": 15,
+    "wardBoundaryFeatures": 0
+  },
+  "safeguards": {
+    "canonicalCsvFilesModified": false,
+    "routingActivated": false,
+    "synchronizationEndpointsActivated": false,
+    "externalDeliveryApproved": false,
+    "placeholderOrUnverifiedRecordsPromoted": false,
+    "stalePmcBookletPromoted": false
+  },
+  "unresolved": {
+    "suppliedValidationFailures": 1,
+    "discrepancyGroups": 6,
+    "dataIssues": 21,
+    "missingHierarchyAndOperationalDatasets": [
+      "taluka",
+      "local_body",
+      "ward",
+      "jurisdiction_boundary",
+      "department",
+      "office",
+      "officer_role",
+      "officer",
+      "officer_assignment",
+      "contact_version",
+      "utility",
+      "emergency_contact",
+      "routing_reference",
+      "asset",
+      "asset_ownership"
+    ]
+  },
+  "generated": {
+    "seedPath": "supabase/seed/60_maharashtra_batch0_governance.generated.sql",
+    "seedSha256": "cc0c42f336269f1a98665ebade85b051684619a63b02454954943ee05cec3b2b",
+    "checksumPath": "supabase/seed/61_maharashtra_batch0_governance_checksum.generated.sql",
+    "checksumSha256": "9a5c4565d1802596144fc2f6a2aabeb5e8dc18c706b2cc01361883cefe72d9aa",
+    "sqlEditorDeployment": {
+      "readmePath": "supabase/deploy/maharashtra-batch0/README.md",
+      "schemaPath": "supabase/deploy/maharashtra-batch0/01_source_bundle_import_support.sql",
+      "schemaSha256": "9e0d2ff843a82e8e4ae7395f281da321791d228fabf91665d9cbf0cb438b64af",
+      "seedPath": "supabase/deploy/maharashtra-batch0/02_batch0_reference_and_lgd_seed.sql",
+      "seedSha256": "cc0c42f336269f1a98665ebade85b051684619a63b02454954943ee05cec3b2b",
+      "checksumPath": "supabase/deploy/maharashtra-batch0/03_batch0_seed_checksum.sql",
+      "checksumSha256": "9a5c4565d1802596144fc2f6a2aabeb5e8dc18c706b2cc01361883cefe72d9aa"
+    }
+  }
+}

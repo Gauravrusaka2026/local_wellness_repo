@@ -13,10 +13,13 @@ or placeholder governance data.
 - approximate ward-derived locations, bounded nearby filters, hotspots, and verified boundaries;
 - separately reviewed, versioned public duplicate groups that reference only current published
   projections;
+- one account-bound support per current reviewed projection, aggregate-only public counts, and
+  private star/follow state for the current authenticated actor;
+- `recent|trending` bounded locality ordering and provider-neutral Local/Trending/Heat mobile views;
 - anonymous API contracts and provider-neutral citizen web/mobile experiences;
 - forced-RLS, migration, privacy, API, validation, and client verification.
 
-Public comments, public original media, a third-party basemap, production pilot data, Redis,
+Public comments, public participant identities/avatars, public original media, a third-party basemap, production pilot data, Redis,
 BullMQ, and Sentry are outside this worklog.
 
 ## Activation Boundary
@@ -30,3 +33,7 @@ Duplicate similarity remains private input rather than public fact. A service-ro
 explicitly create a group after every member already has a current public projection. Public detail
 then exposes only the canonical public ID, related public IDs, and group size; withdrawal removes
 the relationship from subsequent reads without mutating private complaint history.
+
+Engagement is likewise unavailable without a current reviewed projection. Withdrawal immediately
+removes the feed and engagement surface while retaining the private account-bound row for audit.
+Support and stars do not change routing, assignment, workflow status, escalation, SLA, or KPI data.

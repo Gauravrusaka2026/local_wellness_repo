@@ -31,6 +31,14 @@ The Phase 3 seed registers this corpus once as the manual `repository_bootstrap`
 an external reference source or official URL. The registry record remains draft and unverified; it
 is provenance for the immutable bootstrap, not a scheduled retrieval target.
 
+The separate 2026-07-18 Batch 0 ZIP follows the same non-publishing boundary. Its deterministic
+adapter records a `source_bundle_sha256`, every archive member and every CSV row, catalogs canonical
+official URLs, and performs only conflict-safe LGD enrichment of exact existing hierarchy matches.
+It does not create `source_endpoints`, schedules, snapshots, candidates, change proposals, or review
+approvals. The six supplied discrepancy groups, 21 issues, stale PMC document, empty operational
+files, and ambiguous `Mumbai`/`Mumbai City` identity remain inputs for a future reviewed Batch 1 and
+the permanent synchronization pipeline.
+
 Official sources are separate registry records. Their public retrieval URLs and parser-contract versions belong in the database. Credentials do not: a source may retain only an opaque secret reference resolved by the runtime environment.
 
 Each registry record selects one retrieval method: `http_get`, `api`, or `manual_upload`. Supported

@@ -74,10 +74,13 @@ Responsibilities:
 - nearby complaint map.
 
 The authenticated Expo shell exposes five stable destinations: Home, Complaints, the central Report
-action, Nearby, and More. Home aggregates the owner's complaint history and provides honest empty,
-loading, refresh, and API-error states; Complaints adds filter, pagination, detail, and timeline
-navigation; More groups profile, language, notification, transparency, device-help, and sign-out
-actions. Authentication has explicit email/password sign-in, create-account, and password-recovery
+action, Community, and More. Home aggregates the owner's complaint history and provides honest
+empty, loading, refresh, and API-error states; Complaints adds filter, pagination, detail, and
+timeline navigation; Community provides Local, Trending, and Heat views; More groups profile,
+verified governing-body lookup, language, notification, device-help, and sign-out actions. Primary
+cards and actions use short labels and state badges while accessibility hints retain fuller context
+outside the visible hierarchy. Authentication has explicit email/password sign-in, create-account,
+and password-recovery
 modes plus staged Phone MFA. Observe mode keeps access usable before SMS activation; enforce mode
 requires a verified phone factor and `aal2` at both client and API boundaries.
 
@@ -95,6 +98,17 @@ current, verified, non-placeholder, and routable. The client advances only when 
 location evidence is `verified` or `partially_verified`. V1 requires at most 50 metre accuracy and
 keeps captured media within 50 metres of the selected issue point in both client and PostgreSQL.
 
+The Expo presentation renders category/details, location/asset, evidence, duplicate review, and
+final confirmation as sections of one scrollable form. The reducer's persisted stage, resumable
+draft, idempotency keys, signed upload, duplicate evidence, and server routing transaction remain
+unchanged internal lifecycle controls. A pure client projection lists every unmet submission gate,
+including unsaved details, required asset, pending upload, duplicate/emergency/voice acknowledgement,
+and connectivity; it does not relax the authoritative API or PostgreSQL checks. Mutating controls
+are disabled while a draft request is in flight to prevent overlapping one-page form updates. A
+complaint-wide exclusive mutation guard also serializes category, details, location, asset, media,
+duplicate, discard, and submit work below the presentation layer; repeated submit taps share the
+same in-flight promise.
+
 The profile surface reuses the same Expo permission discipline for avatar capture. A citizen may
 take a photo with Expo Camera or select one from the media library; the resulting image still passes
 the existing private profile-image validation, owner-scoped Storage upload, and short-lived signed
@@ -110,8 +124,11 @@ OS-level push is deliberately not installed until an Expo/EAS project, FCM/APNs 
 consent/preferences, destination verification, and delivery policy are approved. Phase 7 adds
 private before/after resolution review, policy-driven outcome ratings and confirmation, and
 policy-controlled reopening with live additional evidence. Phase 8 adds provider-neutral public
-transparency views; mobile presents reviewed ongoing reports as a locality-first Feed and aggregate
-hotspots as a tile-provider-free Heatmap. Phase 9 adds private policy-derived SLA clocks, overdue escalation, and
+transparency views; mobile presents reviewed ongoing reports as Local and Trending feeds and
+aggregate hotspots as a tile-provider-free Heat view. Signed-in citizens can contribute one support
+per current reviewed projection and retain an account-private star. Only aggregate support is
+public, no supporter identity is exposed, and engagement never changes the official complaint
+workflow. Phase 9 adds private policy-derived SLA clocks, overdue escalation, and
 persisted organizational KPI snapshots; background governance normalization and a third-party
 native basemap remain deferred.
 
@@ -283,6 +300,22 @@ package. Transcription, media processing/moderation, and private-object cleanup 
 unimplemented. Governance retrieval runs separately through a Supabase Scheduled Edge Function;
 its source schedule is inactive by default. No Redis, BullMQ, or Sentry dependency backs any of
 these boundaries.
+
+### Immutable Governance Source-Bundle Intake
+
+Repository-supplied research bundles enter through a deterministic intake adapter before the
+permanent synchronization lifecycle. The adapter verifies the outer archive hash, safe member
+paths and expansion limit, exact inventory, internal member hashes, CSV headers/counts/keys, and
+canonical identity reconciliation. It records immutable raw file/row evidence and emits additive
+SQL; it never changes the canonical Phase 2 CSV/workbook or directly publishes a sync candidate.
+
+The Maharashtra Batch 0 adapter applies only null-to-value LGD enrichment for Maharashtra and 35
+exact existing district matches. It preserves all current verification, provenance, and routing
+state. Ambiguous aliases, conflicts, stale documents, and header-only operational datasets remain
+review evidence. Sensitive transient URL query parameters are excluded from generated artifacts
+while the original row hash and immutable archive retain auditability. This is a bootstrap-intake
+path, not a municipality-specific application branch or an alternative to human-reviewed
+synchronization publication.
 
 ### Governance Synchronization
 
@@ -457,6 +490,20 @@ administrators are restricted to their own authority. Opaque IDs remain transpor
 than operator-entered fields, and clients still cannot choose grantor, status, or privileged role
 state.
 
+ADR-0025 adds password authentication for an already provisioned privileged identity; it does not
+add a new authorization path. Password and email code/link entry converge on the same personal
+TOTP/AAL2 gate and current database membership, role, and scope checks. The portal forms never
+create an identity or assign access. Production onboarding remains invitation-first.
+
+A separate trusted operator script can create a fixed matrix of synthetic, expiring staging
+identities after reviewed BMC scopes are available. It resolves scopes through the same verified
+invitation catalog, persists roles and memberships through the existing trusted functions, and
+writes generated credentials only to a gitignored local `0600` artifact. This is an operator
+provisioning boundary, not an API endpoint or application runtime dependency. Role expiry removes
+effective database access; Auth-identity teardown and artifact deletion remain explicit operator
+steps. The helper cannot be used as production onboarding and does not implement the arbitrary
+existing-user assign/revoke/renew lifecycle tracked by `AUTH-001`.
+
 Device registration and soft revocation are atomic with their audit events. Sensitive device hashes and push tokens remain server-only. Client session events are explicitly marked as client-reported; provider logs and server-generated access events carry the authoritative security meaning.
 
 ### Governance Domain
@@ -515,9 +562,16 @@ departments, durable roles, versioned incumbents/assignments/contacts, legacy bo
 categories, and internal routing records. Its separate activation seed makes exactly three
 asset-independent categories operational—garbage dump, missed sweeping, and mosquito breeding—and
 creates 66 rules for their category/ward pairs across the 22 one-to-one ward relationships. The
-other nine pilot categories require asset inventory and ownership evidence. Split `K/S`, `K/N`,
-`P/E`, and `P/W` units and legacy K/P boundary anchors have no executable route. External production
+other nine pilot categories remain unavailable; their canonical BMC routing references all require
+reviewed asset inventory and ownership evidence. Split `K/S`, `K/N`, `P/E`, and `P/W` units and
+legacy K/P boundary anchors have no executable route. External production
 delivery stays false, and applying the seed does not claim integration with BMC's grievance system.
+
+An official MCGM ArcGIS discovery manifest now maps candidate road, drain, sewer/manhole, water,
+streetlight, building, right-of-way, and tree layers to those nine categories. It is not an import
+or publication source by itself. Immutable snapshot preservation, bounded parsing, identifier and
+geometry validation, ownership/entity matching, human review, versioned publication, and routing
+activation remain separate gates.
 
 As of 2026-07-14, the dedicated staging database contains all 23 migrations through
 `20260714124000` and all six reviewed non-production seeds. Its fail-closed state is 12 categories
@@ -527,8 +581,8 @@ official ward records or geometry, routes, complaints, and production remain und
 inactive.
 
 That paragraph records a historical managed-environment observation, not the current repository
-cutoff. The incremental schema now contains 42 migrations through
-`20260716119000_government_invitation_scope_options.sql`; each managed target must reconcile its own
+cutoff. The incremental schema now contains 43 migrations through
+`20260717100000_public_complaint_engagements.sql`; each managed target must reconcile its own
 migration ledger before activation. The preceding BMC relationship-version migration and generated
 demo seed provide source-backed internal queue data while keeping external complaint delivery
 explicitly disabled.
@@ -617,6 +671,20 @@ are approved. Comments remain disabled. Client rendering uses a first-party prov
 and accessible list, so no coordinate or tile request leaves Local Wellness infrastructure; a
 third-party basemap requires a later provider/privacy decision.
 
+Account engagement is a second private read model over the same current reviewed projections. One
+forced-RLS row per complaint/account stores independent support and private follow/star state.
+Bearer-authenticated NestJS operations derive the actor and use service-only database functions;
+ordinary clients receive no table or direct RPC access. Public list/detail output gains only an
+aggregate support count. The authenticated account may retrieve its own `supported` and `starred`
+flags for at most 100 public IDs or set them idempotently. Projection withdrawal immediately removes
+the item from public feed and engagement operations while retaining the private row as history.
+
+The public feed supports `recent` and `trending` inside the same bounded viewport. Trending orders
+current projections by support count, publication time, and public ID; because support is live,
+cursor pages are not a frozen ranking snapshot. Local, Trending, and Heat clients still receive only
+reviewed generalized data. A support or star has no path into official routing, assignment, status,
+escalation, SLA, or KPI records, and comments remain separately disabled.
+
 ### SLA, Escalation, and KPI Accountability Boundary
 
 Phase 9 stores operational policy and materialized evidence in the unexposed, forced-RLS
@@ -685,9 +753,9 @@ dataset.
 The generated BMC non-production activation is a deliberately narrower data layer over this generic
 engine, not municipality-specific code. It enables one confidence policy, three category-specific
 duplicate policies, and 66 direct, non-fallback rules for three asset-independent categories across
-22 unambiguous wards. Nine asset-dependent categories, split K/P wards, and external delivery remain
-fail-closed. The activation and verification seeds are separate from migrations and must not be
-assumed present in any managed environment.
+22 unambiguous wards. Nine ownership-gated categories, split K/P wards, and external delivery
+remain fail-closed. The activation and verification seeds are separate from migrations and must
+not be assumed present in any managed environment without an environment-specific verification.
 
 ### Communication Domain
 
@@ -783,10 +851,13 @@ Candidate loading resolves all identifiers from current database records:
 6. optional current verified officer assignment;
 7. current rule version, confidence policy, priority, and fallback path.
 
-The service adapter requires the candidate's full hierarchy and five-level boundary-version vector
-to equal the independently resolved jurisdiction. Asset candidates retain the exact asset version,
-distance and ownership version. SQL caps candidate output at 100 rows using a stable ordering to
-bound runtime work; conflicting policy versions for one applicable context fail closed.
+The service adapter requires verified evidence for the candidate's full hierarchy and its
+five-level boundary-version vector to equal the independently resolved jurisdiction. Boundary
+provenance is established by that separate PostGIS jurisdiction result and exact version equality;
+candidate explanation metadata does not need to duplicate the already verified local-body/ward
+boundary entries. Asset candidates retain the exact asset version, distance and ownership version.
+SQL caps candidate output at 100 rows using a stable ordering to bound runtime work; conflicting
+policy versions for one applicable context fail closed.
 
 The evaluator independently rejects inactive, expired, unverified, placeholder, or non-routable
 evidence. It prefers direct rules before fallbacks, then more specific asset/ward scope, configured
@@ -877,6 +948,13 @@ stored draft, verified or partially verified PostGIS location evidence, active v
 finalized media, duplicate acknowledgements, optional emergency acknowledgement, and routed
 decision all agree.
 
+The final database gate compares the routing decision's actor, stable request, routed status,
+category, optional asset, exact PostGIS point, accuracy, and capture time. Migration
+`20260718100000_complaint_routing_evidence_diagnostics.sql` preserves those exact comparisons while
+returning a non-sensitive marker for the first mismatching field through a protected V2 completion
+implementation. Its public wrapper remains service-role only; the classifier and implementation
+are not client-executable.
+
 The mobile resume record preserves a submission key across ambiguous transport failures, but
 rotates it after successful draft-evidence mutations and explicit terminal no-route outcomes. This
 keeps exact retries safe without pinning a draft forever to an earlier stored routing decision.
@@ -901,8 +979,11 @@ catalog may display its non-placeholder taxonomy, but every entry remains disabl
 reset additionally applies the generated BMC non-production seeds and therefore makes only the
 three reviewed internal-demo categories selectable through their 66 rules. It does not enable the nine
 asset-dependent categories, split K/P wards, production routing, or external BMC delivery. Hosted
-activation, physical-device capture, provider-backed processing, and final operational policy
-validation remain pending.
+staging now exposes the same 12-category catalog, three operational categories, finalized private
+media, and K/W internal routing. A clean local end-to-end API smoke returns a complaint receipt;
+hosted completion still requires migration `20260718100000` and a post-migration submission smoke.
+Physical-device capture, provider-backed processing, and final operational policy validation remain
+pending.
 
 ---
 
@@ -1126,8 +1207,9 @@ Phase 10 adds shared PostgreSQL-backed API quotas with hashed subjects, security
 shutdown, a narrow database/private-Storage readiness probe, dependency-free smoke/load tooling,
 secret scanning, owner-private profile images, and staged MFA assurance enforcement. It also makes
 the 50-metre complaint-location/media-proximity limit a client-and-database invariant, gives mobile
-reviewed locality Feed and aggregate Heatmap views, and separates verified government-queue
-routing from approved external-contact readiness without performing automatic outbound delivery.
+reviewed Local/Trending/Heat views, adds account-bound support and private star state behind the
+reviewed-public projection boundary, and separates verified government-queue routing from approved
+external-contact readiness without performing automatic outbound delivery.
 Provider edge controls, managed alerting, full profile-image processing, SMS-provider activation,
 and device-to-provider-session revocation remain rollout work.
 

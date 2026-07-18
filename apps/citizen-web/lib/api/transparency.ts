@@ -109,6 +109,7 @@ export const buildPublicComplaintMapPath = (query: PublicComplaintMapQuery): `/$
     south: String(validatedQuery.data.south),
     west: String(validatedQuery.data.west),
     zoom: String(validatedQuery.data.zoom),
+    sort: validatedQuery.data.sort,
   });
   appendFilters(parameters, validatedQuery.data);
   if (validatedQuery.data.cursor !== undefined) {

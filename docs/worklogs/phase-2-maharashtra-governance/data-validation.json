@@ -21460,10 +21460,10 @@
   },
   "generatedSeed": {
     "path": "supabase/seed/20_phase_2_governance.generated.sql",
-    "sha256": "60f19516ea7a0e7a81824e49a3e81bbef77ffd3f87abcd1d4eecc5a0e80dac23"
+    "sha256": "b946eaeea4a06d16d9a53e80b0ab2e1eb6d30254ca9be0ec1232f82746a3c085"
   },
   "databaseGeneratedSeedSha256": {
-    "value": "60f19516ea7a0e7a81824e49a3e81bbef77ffd3f87abcd1d4eecc5a0e80dac23",
+    "value": "b946eaeea4a06d16d9a53e80b0ab2e1eb6d30254ca9be0ec1232f82746a3c085",
     "companionPath": "supabase/seed/21_phase_2_governance_checksum.generated.sql",
     "reason": "The generated companion records the externally computed main-seed SHA-256 in governance.import_batches without changing the hashed seed bytes."
   }

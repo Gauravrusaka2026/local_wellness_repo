@@ -142,9 +142,7 @@ export default function NotificationsScreen() {
             <Text style={styles.refresh}>Refresh</Text>
           </Pressable>
         </View>
-        <Text style={styles.help}>
-          This history remains available after you reconnect. Realtime delivery is an enhancement.
-        </Text>
+        <Text style={styles.help}>Notifications remain available after reconnect.</Text>
         {operationError === null ? null : (
           <Text accessibilityRole="alert" style={styles.error}>
             {operationError}

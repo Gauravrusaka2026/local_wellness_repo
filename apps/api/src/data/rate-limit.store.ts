@@ -13,7 +13,7 @@ export type ConsumeRateLimitInput = Readonly<{
 }>;
 
 export class RateLimitDataAccessError extends Error {
-  public constructor() {
+  public constructor(public readonly dependencyCode: string | null = null) {
     super('The API quota dependency is unavailable.');
     this.name = 'RateLimitDataAccessError';
   }

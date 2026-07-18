@@ -431,6 +431,9 @@ Provide locality awareness without exposing sensitive information.
 - hotspot view;
 - duplicate groups;
 - public complaint page;
+- locality-first Local and Trending report views;
+- one support per active account with aggregate-only public counts;
+- account-private star/follow state;
 - approximate public coordinates;
 - sensitive-category hiding;
 - processed media only;
@@ -441,6 +444,8 @@ Provide locality awareness without exposing sensitive information.
 - sensitive exact coordinates remain private;
 - private complaints remain private;
 - public pages exclude internal notes;
+- supporter identity and private star/follow state remain private;
+- community signals never alter official routing, status, escalation, SLA, or KPI evidence;
 - map performance is acceptable.
 
 # Phase 9 — SLA, escalation and KPI
