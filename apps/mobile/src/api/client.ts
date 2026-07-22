@@ -90,7 +90,7 @@ export const apiRequest = async <T>(path: `/${string}`, options: ApiRequestOptio
   } catch {
     throw new ApiError({
       code: 'NETWORK_ERROR',
-      message: 'Unable to reach Local Wellness. Check your connection and try again.',
+      message: 'Unable to reach JagrukSetu. Check your connection and try again.',
       status: 0,
     });
   }
@@ -110,7 +110,7 @@ export const apiRequest = async <T>(path: `/${string}`, options: ApiRequestOptio
   if (!isRecord(payload) || !('data' in payload)) {
     throw new ApiError({
       code: 'INVALID_RESPONSE',
-      message: 'Local Wellness returned an invalid response. Please try again.',
+      message: 'JagrukSetu returned an invalid response. Please try again.',
       requestId: readRequestId(payload),
       status: response.status,
     });

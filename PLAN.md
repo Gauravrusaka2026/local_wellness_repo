@@ -59,6 +59,13 @@ Recommended categories:
 
 Only activate categories with confirmed ownership.
 
+For the immediate V1 staging release, BMC is the operational data pilot while Pune remains the
+generic architecture/test reference. The BMC path is intentionally reduced to PostGIS ward
+resolution plus a private ward/category recipient matrix for all 12 pilot categories. It retains
+the complaint ledger, assignment history and security controls, but defers asset-owner specificity
+and outbound provider activation. Expansion outside the configured BMC ward geometry remains
+fail-closed and data-driven.
+
 # Phase 0 — Foundation
 
 ## Goals
@@ -169,6 +176,8 @@ Create structured categories and deterministic routing.
 - jurisdiction, ward, category, asset, department, role, assignment and SLA selection;
 - unsupported area and missing mapping handling;
 - routing confidence and explanation.
+- a bounded V1 ward-recipient facade and idempotent external-email outbox that preserve the
+  canonical complaint assignment/audit boundary;
 
 ## Exit criteria
 

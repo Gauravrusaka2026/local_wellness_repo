@@ -787,3 +787,91 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
   never as a current officer/contact source. Missing rows never deactivate existing entities.
 - No ADR is required: this convention extends the immutable bootstrap and review-gated publication
   boundaries already accepted in ADR-0008; it does not change their architecture.
+
+## 2026-07-18 — Privileged TOTP QR Rendering and Recovery Convention
+
+- Provider-generated TOTP QR SVG data URLs are trimmed before use. They are short-lived private
+  enrollment material and render through a fixed-size native image, not Next image optimization or
+  inline SVG injection.
+- An interrupted setup is recovered only after explicit user action. Each portal may remove its own
+  unverified TOTP factors identified by the exact friendly name it created, but it never
+  automatically deletes verified factors or another application's factor.
+- Provider factor-name conflicts and disabled TOTP enrollment map to actionable bounded messages;
+  raw provider errors and QR/setup secrets are never logged or displayed.
+- No ADR is required. This hardens the already accepted personal TOTP/AAL2 flow without changing
+  its identity, authorization, recovery, or enforcement architecture.
+
+## 2026-07-18 — Hosted Database Load-Shedding Convention
+
+- Fixed-interval PostgreSQL claim loops use bounded adaptive backoff while idle or failing and
+  reset to their configured base interval immediately after work is claimed. Realtime delivery is
+  capped at 15 seconds and notification, SLA, and KPI workers at 60 seconds.
+- Only immutable or broadly shared non-user-specific reads may use a bounded process-local cache.
+  The complaint-category catalog uses 30 seconds plus in-flight coalescing; exact jurisdiction and
+  routing, profiles, MFA, roles, memberships, drafts, complaints, and workflow state never use a
+  completed in-process authorization cache.
+- Identical concurrent actor-context reads may share only the same in-flight promise. Current
+  database rows still determine every completed request's authorization and privileged policy.
+- Indexes and query rewrites require hosted `pg_stat_statements`, `EXPLAIN`, or Index Advisor
+  evidence. Table count alone is not a performance diagnosis, and application tables are not
+  removed or denormalized merely to reduce their count.
+- Redis, BullMQ, Redis adapters, and Sentry remain excluded under ADR-0007. ADR-0026 records the
+  separate verified-JWT-claims authentication decision.
+
+## 2026-07-20 — Simplified V1 BMC Ward Routing and Contact Convention
+
+- ADR-0027 replaces the advanced candidate/evaluator pipeline only on the current BMC V1 citizen-
+  submission path. The normalized governance registry, legacy engine and versioned evidence remain
+  installed for compatibility and later statewide expansion; no destructive table removal occurs.
+- The runtime derives the ward from PostGIS, then resolves one active ward/category configuration.
+  Application source never contains municipality, ward, recipient, department or role branches.
+- The V1 matrix has two immutable inputs: `Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` supplies
+  category/phone/WhatsApp/role evidence and `local_wellness_bmc_ward_directory_2026-07-20.zip`
+  supplies email/office evidence. They must reconcile to 26 unique email-resolved wards, 12
+  categories and 312 unique ward/category rows before the generated seed changes. Source bytes are
+  never rewritten.
+- Direct K/N and P/E email records take precedence; K/S maps to the K/E parent-office mailbox and
+  P/W maps to the P/N parent-office mailbox. These are generator input-resolution rules, not
+  application-source routing branches.
+- Recipient email, primary/secondary phone, `1916`, WhatsApp and source metadata are private
+  operational data. Raw source-reported email status/provenance remains separate from explicit
+  owner-approved staging routing under migration `20260720103000_v1_ward_email_provenance.sql`.
+  Citizen/category/governance responses never expose those values.
+- Complaint assignment and external delivery are separate facts. Initial assignment atomically
+  creates one idempotent ward-email outbox row; `pending` is not `sent`, and no provider runtime is
+  implied by schema or seed installation.
+- Duplicate suggestions remain advisory and do not block a V1 submission when no duplicate check
+  was requested. Existing suggestions must still be acknowledged before submission.
+- Split-boundary crosswalks may provide deterministic staging coverage, but exact K/P child geometry
+  remains an explicit data-quality follow-up. Coverage never falls back to a hardcoded ward.
+- Redis, BullMQ, caching and Sentry are not introduced. Email claim RPCs use bounded PostgreSQL
+  leases and must not be polled until a trusted provider worker is configured.
+- The trusted ward-email worker maps snake_case RPC rows into the camelCase template contract at one
+  explicit boundary. SMTP delivery is enabled only by complete server-only `EMAIL_SMTP_*`
+  configuration, records provider IDs through the lease owner, and never logs credentials,
+  recipient addresses, complaint descriptions, or rendered message bodies.
+
+## 2026-07-20 — JagrukSetu UI Benchmark Conventions
+
+- The benchmark is implemented as an incremental evolution of the existing Local Wellness clients;
+  it does not create a parallel starter app or rebrand the repository's legal/product identity.
+- Shared design tokens and typed UI contracts live in `packages/design-system`; locale-neutral
+  message keys and `en`/`hi`/`mr` fallback resolution live in `packages/localization`. Persisted
+  profile language codes remain `en`, `hi`, and `mr`, with English formatted as `en-GB`.
+- The mobile complaint flow remains one scrollable page. Benchmark-style progressive disclosure is
+  represented by an accessible section-progress summary and compact state indicators, not six new
+  routes or a second draft lifecycle.
+- First-party privacy-safe spatial plots remain the default. Leaflet, Mapbox, geocoding, public
+  comments, guest/public complaint modes, and contact-directory exposure require their existing
+  provider/privacy/moderation/API decisions and are not faked in UI.
+- Demo/mock records may appear in tests and stories only. Production application surfaces consume
+  existing server-owned contracts and show explicit unavailable states when policy or data is absent.
+- Authenticated mobile Home derives its avatar and display name from the current private profile,
+  falls back to an initial when no signed image is available, and selects its greeting from the
+  device-local time.
+- The five stable mobile destinations use a rounded, detached navigation capsule and
+  dependency-free filled React Native icon shapes; this refinement does not add another menu
+  destination or icon package.
+- Nearby may use a clearly schematic, first-party spatial panel for orientation, but its result
+  cards remain backed by the safe governance projection and must not fabricate contacts,
+  distances, opening hours, directions, or external-map data.

@@ -1813,3 +1813,385 @@ boundary without changing the accepted architecture.
 ### Breaking Changes
 
 None. Workbook-backed import batches remain valid.
+
+## 2026-07-18 — Privileged Authenticator Enrollment Rendering Repair
+
+### Summary
+
+Repaired the Admin Console and Government Dashboard first-login TOTP flow after staging proved that
+Supabase enrollment succeeded but its newline-terminated SVG QR crashed Next Image rendering.
+
+### Feature
+
+- Trimmed provider-generated QR data URLs and rendered the private, short-lived SVG through a
+  fixed-size native image without optimization or inline SVG injection.
+- Added an explicit restart state for each portal's own unfinished unverified TOTP factors while
+  preserving verified and unrelated factors.
+- Added actionable safe messages for factor-name conflicts and environments where TOTP enrollment
+  is disabled.
+
+### Files Modified
+
+- Admin Console and Government Dashboard MFA helpers, enrollment forms, and focused tests.
+- README, authentication guide, task/progress/decision/known-issue tracking, and this changelog.
+
+### Migrations Created
+
+None.
+
+### Tests Added and Verification
+
+- Added provider-shaped trailing-newline QR regression coverage, deterministic same-portal factor
+  recovery, unrelated-factor isolation, and safe provider-error mapping.
+- Admin Console passed 27 tests and Government Dashboard passed 54 tests. Both portals passed lint,
+  strict type-check, and production build; repository formatting and secret checks passed.
+- Staging confirmed one verified TOTP on both the platform-administrator and BMC
+  municipal-administrator identities, followed by HTTP `200` portal-root requests.
+
+### Security
+
+No QR source, setup secret, authenticator code, password, token, or service credential is logged or
+persisted. MFA and database authorization gates are unchanged.
+
+### ADR
+
+No ADR was required; the repair implements the existing privileged TOTP/AAL2 architecture.
+
+### Breaking Changes
+
+None.
+
+## 2026-07-18 — Hosted Database Load and API Fan-out Hardening
+
+### Summary
+
+Reduced concrete sources of avoidable hosted Supabase work without collapsing the normalized
+schema, caching authorization/routing decisions, or introducing Redis. Added a read-only diagnostic
+for identifying the actual highest-cost hosted statements before applying indexes or resizing
+compute.
+
+### Feature
+
+- Replaced one-second fixed idle polling with bounded adaptive backoff for realtime delivery and
+  notification, SLA, and KPI workers; active work resets each loop to its configured base delay.
+- Replaced redundant remote user verification plus claims parsing with one locally verified
+  asymmetric-JWT claims operation while retaining current database-backed profile, role,
+  membership, and MFA authorization.
+- Coalesced only identical concurrent actor-context reads and added a 30-second process-local cache
+  for the non-user-specific complaint-category catalog. Exact location, routing, drafts,
+  complaints, and security decisions remain uncached and submission revalidates its route.
+- Added a private, read-only hosted performance audit covering `pg_stat_statements`, waits, table
+  churn, index use, and storage size. No speculative index or schema migration was added.
+
+### Files Modified
+
+- API authentication guard/gateway, category service, and focused tests.
+- Realtime delivery pump, notification/SLA/KPI workers, shared polling helper, and focused tests.
+- Hosted diagnostic SQL/guide, ADR-0026, README, architecture/API/authentication/database/
+  deployment/Supabase guides, and project tracking documents.
+
+### Migrations Created
+
+None. `supabase/deploy/diagnostics/database_performance_audit.sql` is a read-only operator query,
+not a migration.
+
+### Tests Added and Verification
+
+- Added strict verified-claim rejection, actor-context in-flight coalescing/no-completed-cache,
+  category-cache/failure, claimed-work reset, and adaptive-delay cap/reset coverage.
+- API passed 221 tests, strict type-check, lint, and build; realtime passed 12 tests, strict
+  type-check, lint, and build; workers passed 26 tests, strict type-check, lint, and build; config
+  passed 7 tests, lint, and build. The concurrently retained portal repair also passed 27 Admin
+  Console and 54 Government Dashboard tests plus lint and strict type-check.
+- The diagnostic SQL passed a local Supabase execution with stop-on-error. Hosted query output and
+  CPU/complaint-latency improvement remain intentionally unclaimed pending an operator run.
+
+### Security
+
+Verified JWT signature/audience/role/subject/AAL validation remains mandatory. Current database
+profiles, assignments, memberships, privileged MFA policy, and citizen Phone MFA policy continue
+to authorize requests; no completed security decision is cached. The category cache contains no
+user data, coordinates, routes, or complaint state.
+
+### ADR
+
+ADR-0026 records verified JWT claims for API authentication and the decision to retain current
+database authorization without a completed security cache.
+
+### Breaking Changes
+
+None. Redis, BullMQ, Redis adapters, and Sentry remain absent.
+
+## 2026-07-18 — Mobile Report Restore Busy-State Repair
+
+### Summary
+
+Fixed a mobile-only infinite Report-button spinner caused by an Auth session refresh interrupting
+saved-draft restoration before its busy-state decrement ran.
+
+### Feature
+
+- Every complaint-restore busy increment now has a matching decrement even when a newer Auth session
+  replaces the restore effect while network work is still settling.
+- Refreshed Expo Metro with the current LAN API URL for physical-device testing.
+
+### Files Modified
+
+- `apps/mobile/src/complaints/complaint-context.tsx`
+- Mobile verification and project tracking documents.
+
+### Migrations Created
+
+None.
+
+## 2026-07-18 — Stale Routing Retry Repair
+
+### Summary
+
+Made mobile complaint submission recover from an explicit pre-insert routing-evidence mismatch
+without reusing the stale submission idempotency key.
+
+### Feature
+
+- Rotates the submission key for allow-listed routing evidence mismatch markers before the next
+  attempt; the server still resolves and validates the current draft, location, category, asset,
+  and routing evidence.
+- Preserves ambiguous network/dependency outcomes, which remain non-rotating to avoid duplicate
+  complaints after an unknown commit state.
+
+### Files Modified
+
+- `apps/mobile/src/complaints/complaint-service.ts`
+- `apps/mobile/test/resolution-client.test.ts`
+
+### Migrations Created
+
+None.
+
+### Tests and Verification
+
+- Mobile lint, strict type-check, and all 97 mobile tests pass.
+
+### Breaking Changes
+
+None.
+
+### Tests and Verification
+
+- Mobile lint, strict type-check, and all 97 mobile tests pass.
+- API live/readiness checks return HTTP 200.
+
+### Breaking Changes
+
+None.
+
+## 2026-07-18 — Routing Evidence Precision Forward Fix
+
+### Summary
+
+Submission routing validation now tolerates harmless GPS and timestamp precision differences
+between the mobile capture, routing decision, and persisted evidence while retaining strict
+actor, request, category, asset, and routed-status checks.
+
+### Files Modified
+
+- `supabase/migrations/20260718123000_relax_routing_evidence_precision.sql`
+
+### Migrations Created
+
+- `20260718123000_relax_routing_evidence_precision.sql`
+
+### Breaking Changes
+
+None.
+
+## 2026-07-18 — Complaint Receipt Response Contract Fix
+
+Removed an internal routing `categoryId` field from complaint receipt and detail responses. The
+mobile strict decoders now receive the documented `ComplaintRoutingSummary` shape, allowing
+submitted complaints and their details to render normally.
+
+Files modified: `apps/api/src/supabase/supabase-complaint.store.ts`.
+
+## 2026-07-18 — Mobile Civic Visual Refresh
+
+Added a reusable civic color theme and distinct saffron, navy, teal, and green navigation icon
+accents. Existing profile language preferences already support English, Marathi, and Hindi; the
+visual refresh preserves that setting while localization coverage continues to expand.
+
+### Files Modified
+
+- `apps/mobile/src/ui/theme.ts`
+- `apps/mobile/src/ui/app-bottom-navigation.tsx`
+
+## 2026-07-18 — Worker Polling CPU Reduction
+
+Raised default idle polling intervals for notification, SLA, KPI, and realtime delivery workers
+from 1 second to 10 seconds. Existing adaptive backoff remains in place, reducing empty Supabase
+RPC traffic while preserving prompt processing when work exists.
+
+Files modified: `apps/workers/src/worker-configuration.ts`, `.env.example`, and worker configuration
+tests.
+
+## 2026-07-20 — Simplified BMC V1 Ward Routing and Contact Intake
+
+### Summary
+
+Replaced the current BMC citizen-submission critical path with a smaller database-driven PostGIS
+ward/contact facade while preserving the existing complaint ledger, assignments, history, RLS and
+Government Dashboard scope. All 12 pilot categories now have 26-ward contact coverage in the
+generated V1 staging seed.
+
+### Feature
+
+- Validated the immutable Mumbai ward/contact ZIP as 26 wards, 12 categories and 312 unique routes.
+- Stored private recipient email, primary/secondary phone, `1916`, WhatsApp, durable role and source
+  metadata without exposing them to citizen clients.
+- Added service-only ward resolution and replay, plus an idempotent private ward-email outbox with
+  lease/retry/sent/dead transitions.
+- Made duplicate discovery optional when no suggestions exist and fixed replay timestamp comparison
+  across equivalent `Z`/`+00:00` PostgREST representations.
+- Generated a focused hosted SQL Editor deployment file. No hosted database or email provider was
+  changed by repository generation.
+
+### Files Modified
+
+- `scripts/generate-bmc-v1-ward-contacts.mjs`
+- `scripts/generate-v1-simple-ward-routing-deployment.mjs`
+- `supabase/migrations/20260720100000_v1_simple_ward_routing.sql`
+- `supabase/seed/54_bmc_v1_ward_issue_contacts.generated.sql`
+- `supabase/deploy/v1-simple-ward-routing.sql`
+- API routing store/service/tests, mobile complaint context/service/tests, generated database types,
+  routing/database tests and required project documentation.
+
+### Migration and Tests
+
+- Added migration `20260720100000_v1_simple_ward_routing.sql` and pgTAP plan
+  `048_v1_simple_ward_routing.test.sql`.
+- Clean reset and all 48 database plans pass 1,637 assertions.
+- API passes 225 tests, lint and strict type-check; mobile passes all 18 test files, lint and strict
+  type-check; archive and deployment drift checks pass.
+
+### Security and Operational Status
+
+Both new tables force RLS; citizen roles have no direct access and contact values do not enter
+citizen responses. Queue creation does not claim external delivery. Provider activation, hosted
+deployment/smoke and exact K/P child geometry remain open. Redis, BullMQ and Sentry remain absent.
+
+### ADR
+
+ADR-0027 accepted; ADR-0009 is superseded for the current BMC V1 path only.
+
+### Breaking Changes
+
+No public HTTP shape changed. The BMC V1 routing implementation now uses the ward facade instead of
+the advanced candidate evaluator, and duplicate checking is no longer mandatory when no duplicate
+suggestions were requested.
+
+## 2026-07-20 — BMC Ward Email Directory Merge and Provenance
+
+### Summary
+
+Extended the private BMC V1 routing matrix to derive recipient mailboxes from the separate immutable
+ward-directory archive while retaining the existing immutable issue-contact archive for category,
+phone and WhatsApp data. The deterministic merge covers all 26 configured operational wards and 12
+categories (312 rows) without putting contact data in application source.
+
+### Feature
+
+- Added `resources/local_wellness_bmc_ward_directory_2026-07-20.zip` as the ward-email/office input;
+  `resources/Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` remains the phone/WhatsApp/category input.
+- Resolved direct K/N and P/E emails and the K/S→K/E plus P/W→P/N parent-office mappings during
+  seed generation.
+- Retained raw email-source URL, dates, record locator and reported status separately from explicit
+  owner-approved staging activation.
+- Kept all contact and source detail private; no citizen response, hosted deployment or outbound
+  provider activation was introduced.
+
+### Files Modified
+
+- `scripts/generate-bmc-v1-ward-contacts.mjs`
+- `scripts/generate-v1-simple-ward-routing-deployment.mjs`
+- `supabase/migrations/20260720103000_v1_ward_email_provenance.sql`
+- `supabase/seed/54_bmc_v1_ward_issue_contacts.generated.sql`
+- `supabase/deploy/v1-simple-ward-routing.sql`
+- generated database/master artifacts, pgTAP coverage, ADR-0027, the V1 routing worklog, and required
+  architecture/database/API/deployment/governance/project-tracking documentation.
+
+### Migration and Tests
+
+- Added forward migration `20260720103000_v1_ward_email_provenance.sql`.
+- A clean local reset applied all 48 migrations and seeds; all 48 pgTAP files passed 1,645
+  assertions.
+- Repository-wide tests passed all 28 Turbo tasks; the root suite passed 72 tests and skipped only
+  three environment-gated local Auth E2E cases.
+- The contact generator verified 26 email-resolved wards, 12 categories and 312 routes.
+- The 286,915-byte focused deployment artifact passed drift validation with ordered payload
+  SHA-256 `bf3f3ee8a902160ab726484468f0996639816dece02ef47ec8b6ac6ee1d1bb72`.
+- The full master artifacts cover all 48 migrations with the reviewed 23/25 split.
+
+### Documentation Updated
+
+Updated repository setup, architecture, database, API, authentication, deployment, governance,
+tracking, ADR and worklog documentation for the two-source merge and delivery boundary.
+
+### Breaking Changes
+
+None. The change is additive and private. Hosted staging remains unchanged until the focused SQL
+Editor artifact is applied, and `pending` outbox rows remain unsent until an approved provider
+runtime records delivery.
+
+## 2026-07-20 — JagrukSetu Civic UI Benchmark Foundation
+
+### Summary
+
+Started the benchmark-driven UI/UX implementation inside the existing Local Wellness clients.
+
+### Feature
+
+- Added shared civic design tokens, status labels, typed report/map/timeline/contact contracts,
+  token JSON/CSS, and reduced-motion support in `packages/design-system`.
+- Added typed English copy with Marathi/Hindi fallback resources and `en-GB`/`hi-IN`/`mr-IN`
+  locale formatting helpers in `packages/localization`.
+- Added an accessible progress summary to the existing one-page mobile report form.
+- Added a responsive citizen-web navigation/feed shell with report launcher, search affordance,
+  reviewed public issue entry, trust explanation, and explicit no-data states.
+
+### Tests and verification
+
+The changed source and tests pass ESLint and the shared packages pass direct TypeScript build. The
+workspace package test command could not run in this environment because pnpm attempted to repair
+an incomplete node_modules state and its SQLite store was unavailable; no test pass is claimed for
+that command. Full dependency installation and rendered/device/browser QA remain open.
+
+### Documentation
+
+Updated TASKS, PROGRESS, DECISIONS, KNOWN_ISSUES, and this changelog. No ADR was required: this
+extends existing UI boundaries and does not change routing, privacy, storage, authentication, map,
+or notification architecture.
+
+# 2026-07-22
+
+- Added a server-only SMTP ward-email sender and data-minimized JagrukSetu complaint template.
+- Wired the sender to the existing leased `ward_email_outbox` RPCs with completion and retry
+  recording; no client bundle receives SMTP credentials.
+- Decode the snake_case claim RPC contract and explicitly map it into the email-template model so
+  complaint number, ward, category, timestamp, and description cannot silently render undefined.
+- Added `nodemailer` to the workers package, documented blank server-only SMTP configuration, and
+  covered successful send/completion plus sanitized failure recording in focused worker tests.
+
+## Mobile Home and Nearby UI refinement
+
+- Authenticated Home now uses the current private profile avatar with an initial fallback, shows a
+  device-time greeting and display name, and presents report, status, and Nearby quick actions in
+  one row with a View all path.
+- Nearby governance now presents current-location context, a first-party schematic area/count
+  surface, and compact governing-body cards backed by the existing safe governance response. It
+  does not invent contacts, distances, opening hours, directions, or an external basemap.
+- The five-destination bottom navigation now uses filled dependency-free React Native icon shapes
+  in a rounded detached capsule. Home and Nearby use the same code-native icon language, and the
+  unrelated Community tab is no longer selected on the governance screen.
+- Added focused device-time greeting coverage. All 19 mobile test files, mobile TypeScript, focused
+  ESLint, changed-file whitespace validation, and a live Android Metro bundle pass.
+- Migrations: none. ADR: none; this extends the existing JagrukSetu UI conventions. Breaking
+  changes: none.

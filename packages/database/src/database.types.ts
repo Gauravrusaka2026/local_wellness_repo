@@ -3972,6 +3972,71 @@ export type Database = {
           },
         ];
       };
+      ward_email_outbox: {
+        Row: {
+          attempt_count: number;
+          available_at: string;
+          category_id: string;
+          complaint_id: string;
+          created_at: string;
+          id: string;
+          last_error_code: string | null;
+          lease_expires_at: string | null;
+          lease_owner: string | null;
+          provider_message_id: string | null;
+          queued_at: string;
+          recipient_email: string;
+          sent_at: string | null;
+          state: string;
+          updated_at: string;
+          ward_id: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          available_at?: string;
+          category_id: string;
+          complaint_id: string;
+          created_at?: string;
+          id?: string;
+          last_error_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_owner?: string | null;
+          provider_message_id?: string | null;
+          queued_at?: string;
+          recipient_email: string;
+          sent_at?: string | null;
+          state?: string;
+          updated_at?: string;
+          ward_id: string;
+        };
+        Update: {
+          attempt_count?: number;
+          available_at?: string;
+          category_id?: string;
+          complaint_id?: string;
+          created_at?: string;
+          id?: string;
+          last_error_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_owner?: string | null;
+          provider_message_id?: string | null;
+          queued_at?: string;
+          recipient_email?: string;
+          sent_at?: string | null;
+          state?: string;
+          updated_at?: string;
+          ward_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ward_email_outbox_complaint_id_fkey';
+            columns: ['complaint_id'];
+            isOneToOne: false;
+            referencedRelation: 'complaints';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -7956,12 +8021,40 @@ export type Database = {
           lease_token: string;
         }[];
       };
+      claim_v1_ward_emails: {
+        Args: {
+          p_lease_seconds?: number;
+          p_limit?: number;
+          p_worker_id: string;
+        };
+        Returns: {
+          attempt_count: number;
+          category_name: string;
+          complaint_id: string;
+          complaint_number: string;
+          description: string;
+          latitude: number;
+          longitude: number;
+          outbox_id: string;
+          recipient_email: string;
+          submitted_at: string;
+          ward_name: string;
+        }[];
+      };
       complete_notification_delivery: {
         Args: {
           p_claim_token: string;
           p_delivered_socket_count: number;
           p_delivery_id: string;
           p_instance_id: string;
+        };
+        Returns: undefined;
+      };
+      complete_v1_ward_email: {
+        Args: {
+          p_outbox_id: string;
+          p_provider_message_id: string;
+          p_worker_id: string;
         };
         Returns: undefined;
       };
@@ -8120,6 +8213,16 @@ export type Database = {
           next_attempt_at: string;
           status: string;
         }[];
+      };
+      fail_v1_ward_email: {
+        Args: {
+          p_error_code: string;
+          p_max_attempts?: number;
+          p_outbox_id: string;
+          p_retry_after_seconds?: number;
+          p_worker_id: string;
+        };
+        Returns: undefined;
       };
       finalize_citizen_reopen_evidence: {
         Args: {
@@ -9229,6 +9332,20 @@ export type Database = {
           confidence_policy_version_id: string;
           confidence_weights: Json;
         }[];
+      };
+      resolve_v1_ward_route: {
+        Args: {
+          p_accuracy_meters: number;
+          p_actor_user_id: string;
+          p_asset_id?: string;
+          p_captured_at: string;
+          p_category_id: string;
+          p_latitude: number;
+          p_longitude: number;
+          p_request_id: string;
+          p_resolved_at: string;
+        };
+        Returns: string;
       };
       resolve_verified_governing_bodies: {
         Args: {
@@ -10606,6 +10723,92 @@ export type Database = {
             columns: ['route_rule_version_id'];
             isOneToOne: false;
             referencedRelation: 'route_rule_versions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      ward_issue_contacts: {
+        Row: {
+          category_id: string;
+          central_fallback: string;
+          created_at: string;
+          durable_role: string;
+          email_last_checked_on: string | null;
+          email_owner_approved_for_routing: boolean;
+          email_source_as_of: string | null;
+          email_source_locator: string | null;
+          email_source_reported_status: string | null;
+          email_source_url: string | null;
+          id: string;
+          is_active: boolean;
+          issue_source_url: string;
+          last_checked_on: string;
+          primary_contact: string;
+          recipient_email: string;
+          secondary_contact: string | null;
+          source_as_of: string;
+          updated_at: string;
+          usage_note: string;
+          ward_id: string;
+          ward_source_url: string;
+          whatsapp_contact: string;
+        };
+        Insert: {
+          category_id: string;
+          central_fallback: string;
+          created_at?: string;
+          durable_role: string;
+          email_last_checked_on?: string | null;
+          email_owner_approved_for_routing?: boolean;
+          email_source_as_of?: string | null;
+          email_source_locator?: string | null;
+          email_source_reported_status?: string | null;
+          email_source_url?: string | null;
+          id?: string;
+          is_active?: boolean;
+          issue_source_url: string;
+          last_checked_on: string;
+          primary_contact: string;
+          recipient_email: string;
+          secondary_contact?: string | null;
+          source_as_of: string;
+          updated_at?: string;
+          usage_note: string;
+          ward_id: string;
+          ward_source_url: string;
+          whatsapp_contact: string;
+        };
+        Update: {
+          category_id?: string;
+          central_fallback?: string;
+          created_at?: string;
+          durable_role?: string;
+          email_last_checked_on?: string | null;
+          email_owner_approved_for_routing?: boolean;
+          email_source_as_of?: string | null;
+          email_source_locator?: string | null;
+          email_source_reported_status?: string | null;
+          email_source_url?: string | null;
+          id?: string;
+          is_active?: boolean;
+          issue_source_url?: string;
+          last_checked_on?: string;
+          primary_contact?: string;
+          recipient_email?: string;
+          secondary_contact?: string | null;
+          source_as_of?: string;
+          updated_at?: string;
+          usage_note?: string;
+          ward_id?: string;
+          ward_source_url?: string;
+          whatsapp_contact?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ward_issue_contacts_category_id_fkey';
+            columns: ['category_id'];
+            isOneToOne: false;
+            referencedRelation: 'issue_categories';
             referencedColumns: ['id'];
           },
         ];

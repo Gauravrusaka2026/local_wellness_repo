@@ -604,6 +604,65 @@ const fingerprintDefinitions = new Map([
       ),
     },
   ],
+  [
+    '20260718123000_relax_routing_evidence_precision.sql',
+    {
+      present: functionDefinitionContains(
+        'complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)',
+        'extensions.st_dwithin(',
+      ),
+      complete: all(
+        functionDefinitionContains(
+          'complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)',
+          'extensions.st_dwithin(',
+        ),
+        functionDefinitionContains(
+          'complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)',
+          'COMPLAINT_ROUTING_ACCURACY_MISMATCH',
+        ),
+        functionDefinitionContains(
+          'complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)',
+          'COMPLAINT_ROUTING_CAPTURE_TIME_MISMATCH',
+        ),
+      ),
+    },
+  ],
+  [
+    '20260720100000_v1_simple_ward_routing.sql',
+    {
+      present: relation('routing.ward_issue_contacts'),
+      complete: all(
+        relation('routing.ward_issue_contacts'),
+        relation('complaints.ward_email_outbox'),
+        forcedRls('routing.ward_issue_contacts'),
+        forcedRls('complaints.ward_email_outbox'),
+        functionNamed('public', 'resolve_v1_ward_route'),
+        functionNamed('public', 'claim_v1_ward_emails'),
+        functionNamed('public', 'complete_v1_ward_email'),
+        functionNamed('public', 'fail_v1_ward_email'),
+        trigger('complaints', 'complaint_assignments', 'enqueue_v1_ward_email_after_assignment'),
+      ),
+    },
+  ],
+  [
+    '20260720103000_v1_ward_email_provenance.sql',
+    {
+      present: column('routing', 'ward_issue_contacts', 'email_source_url'),
+      complete: all(
+        column('routing', 'ward_issue_contacts', 'email_source_url'),
+        column('routing', 'ward_issue_contacts', 'email_source_as_of'),
+        column('routing', 'ward_issue_contacts', 'email_last_checked_on'),
+        column('routing', 'ward_issue_contacts', 'email_source_locator'),
+        column('routing', 'ward_issue_contacts', 'email_source_reported_status'),
+        column('routing', 'ward_issue_contacts', 'email_owner_approved_for_routing'),
+        constraint(
+          'routing',
+          'ward_issue_contacts',
+          'ward_issue_contacts_active_email_provenance_check',
+        ),
+      ),
+    },
+  ],
 ]);
 
 const migrationNames = (await readdir(migrationsDirectory))

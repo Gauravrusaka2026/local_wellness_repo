@@ -1,5 +1,11 @@
 # Supabase Setup
 
+## UI benchmark setup
+
+The token/localisation/mobile-progress work requires no SQL Editor execution or hosted schema
+change. Do not run master or BMC seed artifacts for this UI slice; empty/unavailable states remain
+expected when reviewed transparency or routing data is not active.
+
 ## Purpose
 
 This guide defines the verified local Supabase workflow and the separate operator steps required to activate managed environments.
@@ -454,7 +460,7 @@ pnpm database:master:check
 
 `supabase/master.sql` is the complete clean-database artifact. For an existing project created from
 an earlier Local Wellness master, run `supabase/master.part-1.sql` and then
-`supabase/master.part-2.sql`. Both files include the full ordered history in a 23/21 split. They
+`supabase/master.part-2.sql`. Both files include the full ordered history in a 23/24 split. They
 fingerprint completed migrations, skip them as whole units, and execute only missing exact sources.
 Keep applications stopped between parts and run at low traffic. Stop on any `LOCAL_WELLNESS_*`
 error; it indicates partial or non-contiguous state that blanket `IF NOT EXISTS` would conceal.
@@ -480,6 +486,35 @@ Editor → New query**. It is an additive, rerunnable function repair; it does n
 update the official migration ledger. Then run the read-only
 `supabase/deploy/diagnostics/bmc_submission_runtime_audit.sql` and retry the authenticated saved
 report.
+
+For the current V1 BMC routing/contact change, use the focused generated artifact after those
+prerequisites are reconciled:
+
+```text
+supabase/deploy/v1-simple-ward-routing.sql
+```
+
+Run it through **SQL Editor → New query**, then verify 312 active contact rows, 12 operational
+categories, a coordinate-specific routed decision, a submitted complaint/assignment and one
+`pending` ward-email outbox row. The file applies
+`20260720100000_v1_simple_ward_routing.sql`, then
+`20260720103000_v1_ward_email_provenance.sql`, then generated seed `54`. That seed merges the
+immutable phone/WhatsApp/category archive
+`resources/Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` with the immutable ward-email/office archive
+`resources/local_wellness_bmc_ward_directory_2026-07-20.zip`; it retains raw email-source status
+and record provenance separately from owner-approved staging routing. Direct K/N and P/E email
+records are used, while K/S maps to the K/E parent office and P/W maps to the P/N parent office.
+Generate/check the seed with
+`pnpm governance:bmc:v1-contacts:generate` / `pnpm governance:bmc:v1-contacts:check` and generate/
+check the deployment artifact with `pnpm governance:bmc:v1-routing:deploy:generate` /
+`pnpm governance:bmc:v1-routing:deploy:check`. The query contains no obsolete source-snapshot
+prerequisite and does not update `supabase_migrations.schema_migrations`. Do not run any email claim
+RPC repeatedly until a trusted sender provider has been configured.
+
+The latest checked artifact is 286,915 bytes with ordered payload SHA-256
+`bf3f3ee8a902160ab726484468f0996639816dece02ef47ec8b6ac6ee1d1bb72`. A clean local reset applied
+all 48 migrations and seeds, and all 48 pgTAP files passed 1,645 assertions. Re-run the drift check
+immediately before hosted SQL Editor use; local verification is not evidence of hosted application.
 
 Generate and drift-check this focused artifact with:
 
@@ -676,7 +711,7 @@ EXPO_PUBLIC_REALTIME_URL=http://localhost:3002
 REALTIME_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3003,http://localhost:3004
 REALTIME_DELIVERY_BATCH_SIZE=25
 REALTIME_DELIVERY_LEASE_SECONDS=30
-REALTIME_DELIVERY_POLL_INTERVAL_MS=1000
+REALTIME_DELIVERY_POLL_INTERVAL_MS=10000
 REALTIME_EVENT_RATE_LIMIT_PER_MINUTE=120
 REALTIME_MAX_HTTP_BUFFER_SIZE_BYTES=65536
 REALTIME_MAX_ROOMS_PER_SOCKET=32
@@ -684,17 +719,23 @@ REALTIME_MAX_ROOMS_PER_SOCKET=32
 NOTIFICATION_WORKER_ID=notification-worker:local
 NOTIFICATION_BATCH_SIZE=25
 NOTIFICATION_LEASE_SECONDS=60
-NOTIFICATION_POLL_INTERVAL_MS=1000
+NOTIFICATION_POLL_INTERVAL_MS=10000
 
 SLA_ESCALATION_WORKER_ID=sla-escalation-worker:local
 SLA_ESCALATION_BATCH_SIZE=25
 SLA_ESCALATION_LEASE_SECONDS=60
-SLA_ESCALATION_POLL_INTERVAL_MS=1000
+SLA_ESCALATION_POLL_INTERVAL_MS=10000
 
 KPI_CALCULATION_WORKER_ID=kpi-calculation-worker:local
 KPI_CALCULATION_BATCH_SIZE=10
 KPI_CALCULATION_LEASE_SECONDS=120
-KPI_CALCULATION_POLL_INTERVAL_MS=1000
+KPI_CALCULATION_POLL_INTERVAL_MS=10000
+
+EMAIL_SMTP_HOST=
+EMAIL_SMTP_PORT=587
+EMAIL_SMTP_USER=
+EMAIL_SMTP_PASSWORD=
+EMAIL_FROM=
 ```
 
 Do not place real secrets inside `.env.example`.
@@ -704,6 +745,13 @@ client-safe publishable/anon key; all three notification/SLA/KPI worker loops re
 only credential.
 Neither value belongs in an `EXPO_PUBLIC_` or `NEXT_PUBLIC_` variable. Public realtime URLs are
 transport locations, not credentials.
+
+The V1 ward-email loop is a separate trusted-worker channel. It starts only when SMTP host, user,
+and password are configured, uses port 587 by default, and records the provider message ID before
+an outbox row becomes `sent`. Keep these values only in the ignored root `.env` for local work or
+the hosted worker's secret store. A successful SMTP connection or `sent` outbox transition does not
+by itself prove that the ward mailbox accepted or acted on the complaint; verify a controlled
+recipient delivery before representing external routing as operational.
 
 Use an untracked repository-root `.env` as the single local source, export it into the process
 before starting Supabase CLI or the full workspace command, and do not create any app-local
@@ -813,6 +861,13 @@ retry/dead behavior, and no direct public-comment access. Push and email rows mu
 `unsupported`; do not configure a provider or mark them delivered without the later provider,
 consent, preference, privacy, and destination-lifecycle work.
 
+Do not leave either process running merely because an API or client is under test. Start workers only
+for notification/SLA/KPI behavior and realtime only for Socket.IO delivery behavior, then stop them
+afterward. With the committed environment template, realtime adaptively backs off from a 10-second
+base interval to 15 seconds while idle or failing. Each notification, SLA, and KPI loop independently
+backs off from 10 seconds to 60 seconds. A claimed row resets only that loop to its configured base
+interval. These PostgreSQL-backed loops do not require Redis, BullMQ, or Sentry.
+
 Phase 7 adds two resolution-accountability migrations and pgTAP plans 026–027. They extend
 resolution records with nullable historical completion fields, add effective-dated policy and
 private citizen accountability tables, and expose narrow service-role RPCs for context, feedback,
@@ -855,8 +910,8 @@ bucket/metadata, 50 m complaint/media proximity constraints, and routing deliver
 metadata. Two later additive migrations add BMC ward relationship versions and the service-only
 government invitation selector projection through
 `20260716119000_government_invitation_scope_options.sql`. The current repository cutoff is the
-45th migration, `20260718110000_governance_source_bundle_imports.sql`; the deterministic SQL
-Editor split is migrations 1–23 and 24–45. Apply these as
+48th migration, `20260720103000_v1_ward_email_provenance.sql`; the deterministic SQL
+Editor split is migrations 1–23 and 24–48. Apply these as
 incremental migrations to an existing project; never apply `supabase/master.sql` as an upgrade.
 
 The BMC generator now emits governance/checksum seeds `50`/`51` and routing/verification seeds
@@ -900,6 +955,20 @@ Before managed Phase 10 activation:
 - load only reviewed official pilot geometry, routes, authority memberships, assignments, and
   complaint-intake contacts. Queue routing does not imply automatic email/SMS/contact delivery.
 
+Use `/health/live` for frequent uptime probes and configure `/health/ready` at a 30–60 second cadence.
+The readiness path can reach hosted database dependencies and is not intended as a high-frequency
+heartbeat.
+
+### Hosted database performance diagnostics
+
+If hosted database CPU or latency is elevated, open **Supabase Dashboard → SQL Editor** and run
+`supabase/deploy/diagnostics/database_performance_audit.sql` privately while the issue is observable.
+It is a read-only audit, but its normalized statement text and results are operationally sensitive;
+do not share them in public issues, public chat, or logs. Review the output together with Dashboard
+**Observability** and **Query Performance**, identify the actual high-call or high-cost statements,
+and check active worker/realtime instances plus health-probe cadence before resizing compute. Do not
+infer or report improved hosted metrics from the adaptive-polling implementation alone.
+
 ### Previous dedicated staging deployment — historical record, 2026-07-14
 
 The connected managed project is owner-confirmed as staging, and its privileged/database
@@ -924,7 +993,7 @@ explicitly applied to staging.
 The owner subsequently replaced the configured staging project and reports applying a generated
 master SQL file to it. That report does not identify the artifact revision and the database ledger
 was not reachable for independent verification in this session. Treat the current target as
-unreconciled: compare `supabase_migrations.schema_migrations` with all 45 current migration files,
+unreconciled: compare `supabase_migrations.schema_migrations` with all 48 current migration files,
 verify schema objects and RLS, and establish the seed/Auth/profile/role state before enabling any
 application, worker, Edge Function, schedule, routing, transparency, SLA, or KPI capability. A
 later credential-safe read audit found `/health/ready` healthy and all five expected private

@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by [ADR-0027](./0027-use-a-simple-ward-contact-routing-facade-for-the-v1-bmc-pilot.md)
+for the current V1 BMC routing path. The versioned evidence model and historical records remain in
+place for compatibility and future routing work.
 
 ## Date
 
@@ -66,6 +70,7 @@ Rejected because composite free-text department and role labels are not verified
 
 ## Related Documents
 
+- `docs/adr/0027-use-a-simple-ward-contact-routing-facade-for-the-v1-bmc-pilot.md`
 - `PLAN.md`
 - `docs/architecture.md`
 - `docs/database.md`

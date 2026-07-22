@@ -475,6 +475,18 @@ eligibility, deterministic ranking, confidence, ambiguity, and fallback behavior
 API exposes only authenticated, sanitized results. Placeholder or unverified records can support
 engineering fixtures but cannot become an operational route.
 
+For the current V1 BMC staging scope, the runtime uses a deliberately smaller database facade:
+captured location → PostGIS ward → category → durable municipal intake role → ward recipient.
+The existing append-only decision, complaint, assignment, history, and RLS boundaries remain
+authoritative. A private ward/category matrix contains 26 wards × 12 categories and queues a ward
+email after complaint assignment; no municipality or contact is hardcoded in application source.
+The immutable issue-contact archive supplies category, phone and WhatsApp evidence, while the
+immutable 2026-07-20 ward-directory archive supplies ward-office email and office evidence. Direct
+K/N and P/E mailboxes and the K/S→K/E and P/W→P/N operational mappings are resolved during
+generation. Raw source status/provenance remains separate from the owner's staging approval.
+Phone, WhatsApp, email and exact location remain server-only. Provider delivery is a separate
+operational step and a queued job is not represented as sent.
+
 ### Communication
 
 - reviewed-public support counts and private account stars/follows;
@@ -519,6 +531,10 @@ location
 ```
 
 The routing result must include confidence, matched rule, authority, administrative unit, department, officer role, current assignment, fallback and explanation metadata.
+
+V1 may route to a durable municipal intake role without requiring a current named incumbent or an
+asset-owner lookup. The more granular asset-owner and incumbent model remains available for later
+reviewed categories, but it is not on the BMC V1 complaint-submission critical path.
 
 ## Location verification
 

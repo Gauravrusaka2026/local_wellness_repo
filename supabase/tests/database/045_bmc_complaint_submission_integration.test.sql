@@ -428,12 +428,13 @@ cross join lateral public.resolve_routing_candidates(
   null,
   fixture.resolved_at
 ) as candidate
-where candidate.ward_id = fixture.ward_id;
+where candidate.ward_id = fixture.ward_id
+  and candidate.routing_rule_code like 'BMC_INTERNAL_%';
 
 select is(
   (select count(*)::integer from bmc_submission_candidate),
   1,
-  'the selected BMC category and A Ward point produce exactly one route candidate'
+  'the legacy BMC route family produces exactly one A Ward candidate'
 );
 
 select ok(

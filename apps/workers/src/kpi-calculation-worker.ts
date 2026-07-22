@@ -1,3 +1,5 @@
+import { nextAdaptivePollingDelay } from '@local-wellness/config';
+
 import type { KpiCalculationStore } from './kpi-calculation.store.js';
 import type { WorkerLogger } from './worker-logger.js';
 
@@ -20,6 +22,7 @@ const errorCode = 'KPI_CALCULATION_FAILED';
 
 export class KpiCalculationWorker {
   private running = false;
+  private pollDelayMilliseconds: number;
   private timer: NodeJS.Timeout | null = null;
   private activeBatch: Promise<KpiCalculationBatchResult> | null = null;
 
@@ -27,7 +30,9 @@ export class KpiCalculationWorker {
     private readonly store: KpiCalculationStore,
     private readonly logger: WorkerLogger,
     private readonly options: KpiCalculationWorkerOptions,
-  ) {}
+  ) {
+    this.pollDelayMilliseconds = options.pollIntervalMilliseconds;
+  }
 
   public async runBatch(): Promise<KpiCalculationBatchResult> {
     const claimed = await this.store.claim({
@@ -92,13 +97,19 @@ export class KpiCalculationWorker {
     await this.activeBatch?.catch(() => undefined);
   }
 
-  private schedule(): void {
+  private schedule(workClaimed: boolean): void {
     if (!this.running) {
       return;
     }
+    this.pollDelayMilliseconds = nextAdaptivePollingDelay({
+      baseDelayMilliseconds: this.options.pollIntervalMilliseconds,
+      currentDelayMilliseconds: this.pollDelayMilliseconds,
+      maximumDelayMilliseconds: Math.max(this.options.pollIntervalMilliseconds, 60_000),
+      workClaimed,
+    });
     this.timer = setTimeout(() => {
       void this.tick();
-    }, this.options.pollIntervalMilliseconds);
+    }, this.pollDelayMilliseconds);
   }
 
   private async tick(): Promise<void> {
@@ -106,8 +117,10 @@ export class KpiCalculationWorker {
       return;
     }
     this.activeBatch = this.runBatch();
+    let workClaimed = false;
     try {
       const result = await this.activeBatch;
+      workClaimed = result.claimed > 0;
       if (result.claimed > 0) {
         this.logger.info('kpi_calculation_batch_completed', {
           claimed: result.claimed,
@@ -121,7 +134,7 @@ export class KpiCalculationWorker {
       this.logger.error('kpi_calculation_claim_failed');
     } finally {
       this.activeBatch = null;
-      this.schedule();
+      this.schedule(workClaimed);
     }
   }
 }

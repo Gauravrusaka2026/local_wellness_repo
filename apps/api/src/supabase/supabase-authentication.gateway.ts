@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { AuthenticatedUser } from '@local-wellness/types';
+import { z } from 'zod';
 
 import {
   AuthenticationGateway,
@@ -18,6 +19,22 @@ const invitationConflictCodes = new Set([
 const isAuthenticationRejection = (status: number | undefined): boolean =>
   status === 400 || status === 401 || status === 403;
 
+const authenticatedAudienceSchema = z.union([
+  z.literal('authenticated'),
+  z.array(z.string()).refine((audiences) => audiences.includes('authenticated')),
+]);
+
+const authenticatedClaimsSchema = z
+  .object({
+    aal: z.enum(['aal1', 'aal2']),
+    aud: authenticatedAudienceSchema,
+    email: z.string().max(320).nullable().optional(),
+    phone: z.string().max(64).nullable().optional(),
+    role: z.literal('authenticated'),
+    sub: z.uuid(),
+  })
+  .passthrough();
+
 @Injectable()
 export class SupabaseAuthenticationGateway extends AuthenticationGateway {
   public constructor(@Inject(SupabaseClients) private readonly clients: SupabaseClients) {
@@ -25,20 +42,6 @@ export class SupabaseAuthenticationGateway extends AuthenticationGateway {
   }
 
   public async verifyAccessToken(accessToken: string): Promise<AuthenticatedUser | null> {
-    const { data, error } = await this.clients.publicClient.auth.getUser(accessToken);
-
-    if (error) {
-      if (isAuthenticationRejection(error.status)) {
-        return null;
-      }
-
-      throw new AuthenticationProviderUnavailableError();
-    }
-
-    if (!data.user) {
-      return null;
-    }
-
     const claimsResult = await this.clients.publicClient.auth.getClaims(accessToken);
 
     if (claimsResult.error) {
@@ -49,15 +52,17 @@ export class SupabaseAuthenticationGateway extends AuthenticationGateway {
       throw new AuthenticationProviderUnavailableError();
     }
 
-    if (!claimsResult.data || claimsResult.data.claims.sub !== data.user.id) {
+    const claims = authenticatedClaimsSchema.safeParse(claimsResult.data?.claims);
+
+    if (!claims.success) {
       return null;
     }
 
     return {
-      assuranceLevel: claimsResult.data.claims.aal === 'aal2' ? 'aal2' : 'aal1',
-      id: data.user.id,
-      email: data.user.email ?? null,
-      phone: data.user.phone ?? null,
+      assuranceLevel: claims.data.aal,
+      id: claims.data.sub,
+      email: claims.data.email ?? null,
+      phone: claims.data.phone ?? null,
     };
   }
 

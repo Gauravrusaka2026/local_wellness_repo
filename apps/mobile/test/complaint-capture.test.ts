@@ -8,6 +8,7 @@ import type {
 
 import {
   complaintCaptureReducer,
+  getAcknowledgedDuplicateSuggestionIds,
   getComplaintSubmissionBlockers,
   getDraftReadiness,
   getLocationRecaptureGuidance,
@@ -321,17 +322,28 @@ describe('complaint capture reducer and readiness', () => {
         upload: { localUri: 'private-file', progress: 0.5, status: 'uploading' },
         voiceDescriptionConfirmed: false,
       }),
-      [
-        'category',
-        'description',
-        'unsaved_details',
-        'location',
-        'media',
-        'upload',
-        'duplicate_check',
-        'offline',
-      ],
+      ['category', 'description', 'unsaved_details', 'location', 'media', 'upload', 'offline'],
     );
+  });
+
+  it('allows submission without a duplicate check and sends no acknowledgements', () => {
+    assert.deepEqual(
+      getComplaintSubmissionBlockers({
+        assetOptions: [],
+        category: category(),
+        draft: eligibleDraft(),
+        duplicateCheck: null,
+        duplicatesAcknowledged: false,
+        emergencyAcknowledged: false,
+        hasUnsavedDetails: false,
+        hasVoice: false,
+        isOnline: true,
+        upload: null,
+        voiceDescriptionConfirmed: false,
+      }),
+      [],
+    );
+    assert.deepEqual(getAcknowledgedDuplicateSuggestionIds(null), []);
   });
 
   it('requires the asset and acknowledgements that the old step order enforced implicitly', () => {
@@ -396,6 +408,9 @@ describe('complaint capture reducer and readiness', () => {
       }),
       [],
     );
+    assert.deepEqual(getAcknowledgedDuplicateSuggestionIds(checkWithSuggestion), [
+      '88888888-8888-4888-8888-888888888888',
+    ]);
   });
 });
 

@@ -2,7 +2,18 @@
 
 ## Overall Completion
 
-91% implemented.
+92% implemented.
+
+The current BMC V1 complaint path is locally complete: all 12 pilot categories resolve through a
+private PostGIS ward/contact facade across 26 configured wards. The immutable issue-contact archive
+supplies 12-category phone/WhatsApp evidence and the immutable 2026-07-20 ward-directory archive
+supplies ward-email/office evidence; their deterministic merge generates 312 private rows. Direct
+K/N and P/E mailboxes and K/S→K/E plus P/W→P/N mappings are represented explicitly. Raw source
+status/provenance remains separate from owner-approved staging activation. Complaint assignment
+atomically queues a ward email and retains the existing decision/history/RLS model. Actual provider
+sending is implemented behind server-only SMTP configuration; hosted worker deployment and a
+controlled recipient-mailbox smoke remain pending, along with hosted bundle verification, exact
+K/P child geometry and Pune/statewide coverage.
 
 Phase 0 and Phase 1 are complete. Phase 2's engineering baseline is complete and locally verified;
 its remaining exit work requires external, verified pilot identifiers, contacts and real boundary
@@ -40,7 +51,12 @@ smoke. Transcription/moderation and physical-device validation remain open. The 
 more compact, with Home, Complaints, Report, Community, and More as primary destinations. Community
 offers Local, Trending, and Heat views plus one support per authenticated account and private
 star/follow state over current reviewed projections only. Public output exposes only aggregate
-support counts, and community signals cannot change official workflow or SLA/KPI state. Phase 5 now adds
+support counts, and community signals cannot change official workflow or SLA/KPI state.
+Authenticated Home now presents the current private profile avatar/name with a device-time greeting
+and concise report/status/Nearby actions. The five-destination navigation is a rounded, detached
+capsule with filled code-native icons. Nearby uses the existing safe governance projection in a
+first-party schematic location/result layout and does not invent public contacts or distance data.
+Phase 5 now adds
 database-enforced government workflow, an authenticated NestJS operations API, private verified
 resolution evidence, and an accessible access-scoped government dashboard. Its engineering is
 locally complete with synthetic verified fixtures; production-like use remains gated on verified
@@ -52,13 +68,18 @@ verification matrix are complete; managed activation, push/email providers, publ
 and physical-device/hosted validation remain open. The configured replacement Supabase project uses
 owner-confirmed staging credentials. Dashboard failures confirmed an earlier Local Wellness schema
 without identifying a reliable cutoff, so the fixed Phase 9 assumption was removed. Adaptive
-transaction-atomic SQL Editor parts now cover all 45 migrations, skip only a coherent completed
+transaction-atomic SQL Editor parts now cover all 48 migrations, skip only a coherent completed
 prefix, and apply the missing suffix. The owner reports running the focused migrations 39–43
 artifact successfully on current staging; post-upgrade readiness/schema reconciliation,
 migration/seed ledger remains unreconciled. The current staging target now has seven distinct,
 confirmed synthetic privileged identities with active profiles and exact time-bounded BMC
 role/membership scopes; every generated password was verified without email delivery. Interactive
-TOTP enrollment, queue-isolation, and rendered portal smoke testing remain pending. The successful
+TOTP enrollment previously reached Supabase but failed while rendering its newline-terminated SVG
+through Next Image. Both portals now trim the provider QR, use a native fixed-size private image,
+and offer explicit recovery for their own unfinished factors. The staging platform-administrator
+and BMC municipal-administrator now each have a verified TOTP factor, and both portal roots returned
+HTTP `200`. Targeted portal tests pass; remaining role-specific queue-isolation and cross-scope
+smoke still remain pending. The successful
 23-migration deployment and its earlier identities belong to the previous staging target.
 For the likely late-Phase-10 target, a separate 77,849-byte adaptive artifact now covers exact
 migrations 39–43 from a verified migration-38 baseline. Its local rehearsal applied all five and
@@ -76,13 +97,21 @@ no fixture. Phase 9
 local engineering adds reviewed business calendars/SLA policies, materialized clocks and pauses,
 transactional escalation, PostgreSQL-leased workers, reproducible organizational KPI snapshots,
 strict APIs, and a scoped dashboard. No operational visibility/SLA policy or KPI schedule is seeded,
-and their versions have not been reconciled against the current staging ledger. Phase 10 is now 79%
+and their versions have not been reconciled against the current staging ledger. Phase 10 is now 80%
 implemented locally: PostgreSQL-backed quotas, security headers, health/readiness, graceful
 shutdown, secret scanning, bounded HTTP checks, operator runbooks, citizen email/password and
 staged Phone MFA, privileged password entry plus TOTP modes, explicit account context/switching
 across all portals, named data-driven official invitation selectors, a guarded expiring staging
 account matrix, private avatars, 50 m evidence enforcement, and routing delivery-readiness metadata
-are present. Phone SMS/provider recovery, managed migration
+are present. Hosted-load hardening now removes a redundant Auth network verification, coalesces only
+identical concurrent authorization reads, briefly caches only the non-user-specific category
+catalog, and applies bounded idle backoff to the PostgreSQL-leased realtime and worker claim loops.
+Authorization, MFA, exact location/routing, drafts, complaints, and workflow state remain uncached.
+A read-only hosted performance audit is available, but its output and any resulting query/index
+repair remain pending; no hosted CPU improvement is claimed yet. A mobile-only restore race that
+could leave the Report button permanently busy across Auth refresh was fixed and mobile verification
+passes; physical-device confirmation remains pending. Phone SMS/provider recovery,
+managed migration
 activation, official-account browser validation, cleanup jobs, accessibility/legal review, and
 hosted/device smoke remain open.
 
@@ -99,14 +128,14 @@ does not prove the hosted database state.
 | Phase 0 — Foundation                         | Complete    |       100% |
 | Phase 1 — Identity and access                | Complete    |       100% |
 | Phase 2 — Maharashtra governance model       | In progress |        90% |
-| Phase 3 — Taxonomy and routing               | In progress |        89% |
+| Phase 3 — Taxonomy and routing               | In progress |        94% |
 | Phase 4 — Citizen complaint capture          | In progress |        99% |
 | Phase 5 — Government dashboard               | In progress |        95% |
 | Phase 6 — Realtime and notifications         | In progress |        85% |
 | Phase 7 — Resolution, feedback and reopening | In progress |        92% |
 | Phase 8 — Nearby map and transparency        | In progress |        92% |
 | Phase 9 — SLA, escalation and KPI            | In progress |        85% |
-| Phase 10 — Hardening and launch              | In progress |        79% |
+| Phase 10 — Hardening and launch              | In progress |        82% |
 
 Phase 1 completion is measured against the `PLAN.md` exit criteria: citizen email/password clients
 and privileged delivered-invite sessions pass locally; current database scope gates government
@@ -201,9 +230,14 @@ validation remains pending.
 - Sprint 8 — Citizen resolution review and accountable reopening: 92% complete.
 - Sprint 9 — Mobile citizen experience completion and privacy-safe projections: 92% complete.
 - Sprint 10 — Organizational accountability and managed activation readiness: 85% complete.
-- Sprint 11 — V1 citizen access, security, and launch readiness: 79% complete.
+- Sprint 11 — V1 citizen access, security, and launch readiness: 80% complete.
 
 ## Completed Milestones
+
+- Hosted-load hardening with verified local JWT claims, current database-backed authorization,
+  identical in-flight actor-context coalescing, a 30-second non-user-specific category cache,
+  bounded adaptive idle backoff for realtime/workers, and a locally validated read-only database
+  performance audit. Hosted query evidence and complaint latency validation remain pending.
 
 - Maharashtra Batch 0 immutable ZIP intake with a deterministic archive/header/hash validator,
   29-file/160-record import ledger, 38 canonical source registrations, non-destructive Maharashtra
@@ -370,44 +404,45 @@ validation remains pending.
 
 ## Current Milestone
 
-Phase 10 citizen-access and launch-hardening engineering is in progress. Email/password recovery,
-staged Phone MFA, privileged TOTP modes, private profile images, mobile profile camera and verified
-civic-area lookup, compact Local/Trending/Heat community views, reviewed-public support/private
-stars, Citizen Web complaint accountability, 50 m
-evidence controls, PostgreSQL quotas, health/readiness, release tooling, and routing-delivery
-readiness are implemented locally. All web portals now identify the current account, distinguish
-TOTP enrollment from a returning challenge, and provide safe account-switch/recovery guidance. The
-Admin Console uses named verified/routable governance choices for new official invitations. A
-guarded operator helper has also created the fixed synthetic BMC staging matrix for email-free demo
-access; its roles are already assigned and expire after 30 days. The
-API, mobile, and portal scripts now share the repository-root environment, closing the known local
-split-project configuration path. Hosted staging now resolves the bounded BMC K/W path but fails at
-the final completion function. The current milestone is applying migration `20260718100000`,
-obtaining one hosted complaint receipt, and completing personal TOTP plus cross-scope portal smoke
-with the staged identities without enabling external complaint delivery.
+The simplified BMC V1 route is implemented and locally verified. All 12 pilot categories resolve
+through captured location → PostGIS ward → private ward/category contact → durable municipal
+assignment. Two immutable Mumbai inputs generate 312 routes over 26 wards: the issue-contact ZIP
+provides phone/WhatsApp/category data and the ward-directory ZIP provides email/office data. The
+forward `20260720103000_v1_ward_email_provenance.sql` migration retains raw email evidence
+separately from the owner's staging approval. Complaint assignment atomically queues a ward email
+without claiming delivery. The current milestone is hosted application of the focused SQL Editor
+bundle, one authenticated complaint/assignment/outbox smoke, and provider design under
+`DELIVERY-001`.
 
 ## Next Milestone
 
-Run `supabase/migrations/20260718100000_complaint_routing_evidence_diagnostics.sql` in hosted SQL
-Editor, run the read-only BMC submission runtime audit, and repeat the saved-report submit until a
-receipt is returned. The catalog, three operational categories, 22 eligible BMC wards, finalized
-private media, and K/W route are already present and do not need to be reloaded for this repair.
-Reconcile the official schema/ledger separately, then use the staged identities to enroll separate
-TOTP factors and verify municipal, ward, and department scope isolation. Retain Admin Console
-invitations for real official-controlled email identities once delivery is available.
-External BMC delivery, OS push, Redis, BullMQ, Redis adapters/caching, and Sentry remain disabled/
-deferred.
+Run `supabase/deploy/v1-simple-ward-routing.sql` in hosted staging **SQL Editor → New query** after
+confirming the existing BMC governance/schema prerequisites. Then submit one fresh authenticated
+report and verify its complaint receipt, ward assignment and exactly one `pending`
+`complaints.ward_email_outbox` row. Next configure a trusted email provider/sender and complete one
+leased job with a provider message ID. Reconcile the official migration ledger separately. OS
+push, automatic WhatsApp/phone action, Redis, BullMQ, Redis adapters/caching, and Sentry remain
+disabled/deferred.
 
 ## Current Blockers
+
+- Hosted Supabase has reported CPU above 80% and the mobile report action can stall while the
+  project is under pressure. Application-side one-second idle claim loops and redundant Auth work
+  are mitigated locally, but the highest-cost hosted statements have not yet been captured. Run the
+  private read-only performance audit during the condition and validate any repair with
+  `pg_stat_statements`, `EXPLAIN`, and Index Advisor before adding indexes, removing tables, or
+  resizing compute.
 
 - The mobile code path is locally complete, but a physical phone still needs a LAN-reachable API/
   realtime URL and representative permission, capture, interruption, SecureStore/SQLite, callback,
   refresh, and logout testing (`COMPLAINT-002`, `AUTH-005`).
-- The earlier hosted audit's zero-data result is superseded: staging now returns 12 catalog
-  categories, three operational categories, finalized private media, K/W jurisdiction, and a
-  deterministic route. Final submission remains blocked because migration `20260718100000` has not
-  been applied to hosted Supabase. The local corrected flow returns `201`; apply the forward repair,
-  run the runtime audit, and require a hosted receipt (`COMPLAINT-006`).
+- The new 12-category/26-ward facade and 312 contact rows are locally verified but have not been
+  claimed as applied to hosted Supabase. Both immutable source hashes and the forward email-
+  provenance migration are included in the focused SQL Editor file. Apply that file, then require
+  one fresh complaint receipt, assignment and `pending` outbox row before closing the hosted gate.
+- Ward complaint email sending still needs an approved provider, sender identity, template,
+  retries/bounce reconciliation and a provider-message-ID smoke (`DELIVERY-001`). Phone/WhatsApp
+  values are stored only as private operational contacts and are not automated.
 - OS push notifications require an owned Expo/EAS project, FCM/APNs credentials, consent and
   preferences, verified destinations, and delivery policy. Durable in-app history and Socket.IO
   refresh remain available (`NOTIFY-001`).
@@ -499,6 +534,19 @@ deferred.
   complaint adoption and sustained lease sizing remain explicit rollout decisions (`SLA-002`).
 
 ## Verification Summary
+
+- A clean local reset applies all 48 migrations through
+  `20260720103000_v1_ward_email_provenance.sql` plus generated seed `54`; all 48 pgTAP plans pass
+  1,645 assertions. The two-archive generator verifies 26 email-resolved wards, 12 categories and
+  312 unique routes. API passes 225 tests plus lint/type-check; mobile passes all 19 test files
+  (99 tests) plus lint/type-check; the repository-wide run passes all 30 Turbo tasks, including
+  production builds, plus 72 root tests, with only three environment-gated local Auth E2E skips.
+  Worker coverage includes ward-email mapping/completion and sanitized failure handling. Generated
+  database types and the focused SQL Editor
+  artifact are current. The
+  focused artifact is 286,915 bytes with ordered payload SHA-256
+  `bf3f3ee8a902160ab726484468f0996639816dece02ef47ec8b6ac6ee1d1bb72`; master parts retain the
+  reviewed 23/25 migration split.
 
 - Frozen installation passed for all 17 workspace projects; the lockfile remained current.
 - Canonical governance validation and generated-artifact drift checks passed across 19 source files:
@@ -643,4 +691,26 @@ deferred.
 
 ## Last Updated
 
-2026-07-18
+2026-07-22
+
+## JagrukSetu UI/UX benchmark sprint — 2026-07-22
+
+The benchmark has been translated into the existing Local Wellness architecture. Shared civic
+tokens now cover colour, status, typography, spacing, radius, motion, z-index, and breakpoints;
+the localisation package provides typed English copy with Marathi/Hindi locale fallbacks and
+locale-aware formatting; and mobile reporting now exposes an accessible five-section progress
+summary while remaining one scrollable form. Citizen Web now has a responsive navigation/feed
+shell with a report launcher, search affordance, reviewed-issue entry point, trust explanation,
+and honest empty-state handling. Mobile Home now adds the current profile avatar/name, a
+device-time greeting, and one-row quick actions; its five-destination bar is a detached rounded
+capsule with code-native icons. Nearby now mirrors the supplied information hierarchy with a
+first-party schematic area summary and safe governing-body cards backed by the existing projection.
+
+Sprint completion: 45% (foundation and refined mobile shell surfaces complete). Full string migration, reusable
+component stories, authenticated web capture, rendered accessibility tests, directory API work,
+and device/browser QA remain open. No public comments, guest submission, external map tiles,
+unverified contacts, or notification-provider claims were introduced.
+
+The complaint submission concurrency check has a forward migration that removes false failures
+caused by sub-second timestamp and small GPS serialization differences. Strict routing identity
+checks remain active; hosted staging must apply migration `20260718123000` before retesting.

@@ -4,8 +4,16 @@ import type { RoutingCategory, RoutingCategoryCatalogItem } from '@local-wellnes
 import { ApiException } from '../common/api-exception.js';
 import { RoutingStore } from '../data/routing.store.js';
 
+const categoryCatalogCacheTtlMilliseconds = 30_000;
+
 @Injectable()
 export class CategoriesService {
+  private catalogCache: Readonly<{
+    expiresAt: number;
+    value: RoutingCategoryCatalogItem[];
+  }> | null = null;
+  private catalogRequest: Promise<RoutingCategoryCatalogItem[]> | null = null;
+
   public constructor(
     @Inject(RoutingStore)
     private readonly routingStore: RoutingStore,
@@ -15,8 +23,27 @@ export class CategoriesService {
     return this.routingStore.listRoutingCategories();
   }
 
-  public listCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
-    return this.routingStore.listRoutingCategoryCatalog();
+  public async listCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
+    const now = Date.now();
+    if (this.catalogCache && this.catalogCache.expiresAt > now) {
+      return this.catalogCache.value;
+    }
+    if (this.catalogRequest) return this.catalogRequest;
+
+    const request = this.routingStore.listRoutingCategoryCatalog().then((value) => {
+      this.catalogCache = {
+        expiresAt: Date.now() + categoryCatalogCacheTtlMilliseconds,
+        value,
+      };
+      return value;
+    });
+    this.catalogRequest = request;
+
+    try {
+      return await request;
+    } finally {
+      if (this.catalogRequest === request) this.catalogRequest = null;
+    }
   }
 
   public async getCategory(categoryId: string): Promise<RoutingCategory> {

@@ -1,5 +1,11 @@
 # Database
 
+## UI benchmark data boundary
+
+The token/localisation/mobile-progress slice requires no SQL migration. Existing complaint,
+routing, transparency, engagement, and private-contact schemas remain authoritative; no mock ward,
+officer, contact, comment, or notification rows are added by the UI layer.
+
 ## Purpose
 
 This document defines the database structure, migration workflow, naming conventions, and Supabase security requirements.
@@ -433,7 +439,11 @@ event atomically.
 - `duplicate_detection_policy_versions`;
 - `route_rules`;
 - `route_rule_versions`;
-- `routing_decisions`.
+- `routing_decisions`;
+- `ward_issue_contacts` — private denormalized V1 ward/category recipient, phone, WhatsApp and
+  provenance configuration generated from two immutable BMC archives. Phone/WhatsApp/category
+  evidence and ward-email/office evidence retain separate source URLs, dates, record locators and
+  raw source status; active rows additionally require explicit owner approval for staging routing.
 
 Phase 3 creates these tables in an unexposed `routing` schema. Stable identities are separated from
 effective-dated asset, ownership, policy, and rule versions. Temporal exclusion constraints reject
@@ -478,6 +488,21 @@ The result reports only contact scope and approved channel types; it never retur
 value. Placeholder, source-only, stale, superseded, or merely unverified contacts are ineligible.
 `automaticOutboundDelivery` is always `false`: this migration reports readiness and does not send
 email, SMS, or portal traffic.
+
+The V1 matrix is a deterministic merge rather than a new source registry. The immutable
+`Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` contributes category, phone and WhatsApp evidence;
+`local_wellness_bmc_ward_directory_2026-07-20.zip` contributes ward-email and office evidence.
+Direct operational K/N and P/E mailboxes take precedence, while K/S uses the K/E parent-office
+record and P/W uses the P/N parent-office record. Migration
+`20260720103000_v1_ward_email_provenance.sql` requires each active row to retain the email source
+URL, dates, locator, raw reported status and an independent owner-approved-for-routing flag. Forced
+RLS and revoked client privileges keep all 312 merged records and their contact values private.
+
+The additive V1 simplification also creates `complaints.ward_email_outbox`. A complaint assignment
+created from a `V1_WARD_*` decision atomically snapshots its ward recipient exactly once. Service
+workers may claim, complete or fail jobs through lease-checked RPCs; the table distinguishes
+`pending`, `processing`, `retry`, `sent` and `dead`. It is forced-RLS and has no direct citizen or
+browser grant. No sender runtime or provider is configured by the migration.
 
 ### Communication
 
@@ -700,6 +725,19 @@ select * from public.resolve_routing_candidates(
   :asset_id,
   :resolved_at
 );
+
+-- Current BMC V1 complaint-submission facade (service role only).
+select public.resolve_v1_ward_route(
+  :actor_user_id,
+  :request_id,
+  :category_id,
+  :longitude,
+  :latitude,
+  :accuracy_meters,
+  :captured_at,
+  :resolved_at,
+  :asset_id
+);
 ```
 
 The candidate function returns state/district/taluka/local-body/ward identifiers and exact boundary
@@ -710,6 +748,12 @@ hierarchy evidence and every row's five-entry boundary vector to equal the separ
 jurisdiction. Boundary provenance is validated by that independent PostGIS result and exact version
 equality rather than requiring duplicate boundary entries in candidate explanation metadata.
 Applicable rows with conflicting policy versions still fail closed.
+
+`resolve_v1_ward_route` uses direct active ward boundaries first and versioned operational
+crosswalks second. It loads the target and recipient from database rows, records the normal routing
+decision, and returns only its UUID to the API. It never returns contact values. Unsupported
+coordinates or unconfigured ward/category pairs record an `unsupported_area` decision rather than
+falling back to a hardcoded municipality.
 
 Phase 4 adds service-role-only complaint wrappers for owner-scoped draft lifecycle, exact-location
 evidence, media reservation/finalization, duplicate candidate/result records, submission claim,
@@ -747,10 +791,10 @@ supabase db push
 
 ### Master bootstrap SQL
 
-`supabase/master.sql` is the deterministic, single-file clean-bootstrap form of all 45 ordered SQL
+`supabase/master.sql` is the deterministic, single-file clean-bootstrap form of all 48 ordered SQL
 files in `supabase/migrations/`. The two smaller files provide adaptive Dashboard reconciliation for
 an existing database created from an earlier Local Wellness master. Part 1 contains migrations
-1–23 through the complete Phase 5 schema/security boundary; Part 2 contains migrations 24–45.
+1–23 through the complete Phase 5 schema/security boundary; Part 2 contains migrations 24–48.
 Catalog fingerprints detect a coherent completed prefix, whole completed migrations are skipped,
 and only exact missing immutable source migrations execute. Each part is one transaction protected
 by an advisory transaction lock. Partial or non-contiguous fingerprints fail before later SQL runs.
@@ -1043,6 +1087,55 @@ Production requirements:
 
 ---
 
+## Hosted Performance Diagnosis
+
+The number of application tables is not, by itself, a database CPU diagnosis. PostgreSQL does not
+scan every table for an ordinary request. Hosted pressure is driven by the frequency and execution
+plans of active queries, the number of rows they process, lock waits, temporary-file and I/O work,
+write churn and dead tuples, and whether autovacuum and the existing indexes keep pace with that
+workload.
+
+Run the read-only
+`supabase/deploy/diagnostics/database_performance_audit.sql` script against the affected hosted
+project while the pressure is observable. It uses a read-only transaction and bounded statement
+timeout to report:
+
+- extension and statistics settings, including `pg_stat_statements` availability;
+- cumulative query frequency and execution cost from `pg_stat_statements`;
+- currently active queries and wait events from `pg_stat_activity`;
+- live/dead tuple, sequential-scan, index-scan, and autovacuum statistics for likely hot tables;
+- index usage and definitions for routing and complaint-capture paths; and
+- the largest user tables and their observed scan activity.
+
+Interpret cumulative results relative to the reported statistics-reset timestamp. The active-query
+section is only a point-in-time sample, so capture the audit during the slowdown rather than after
+the workload has stopped. Normalized query text and active statements are operationally sensitive
+and can contain literals; retain the output privately and do not paste it into public tickets,
+commits, or documentation.
+
+Current code review identifies the following paths for measurement, not as proven hosted root
+causes:
+
+- duplicate PostGIS jurisdiction resolution during one routing request;
+- reviewed-public feed and hotspot projection/aggregation queries;
+- the database write performed for each enforced API rate-limit check; and
+- complaint draft, location-evidence, and media requests that fan out into several API/database
+  operations before submission.
+
+Do not add an index from schema inspection alone. First correlate a candidate with material calls or
+execution time in `pg_stat_statements`, then capture its plan with `EXPLAIN` and use Index Advisor
+where it supports the query shape. Validate the proposed index against representative hosted-scale
+data and remeasure after deployment. Use `EXPLAIN (ANALYZE, BUFFERS)` only for controlled read-only
+queries in staging; do not analyze volatile submission, claim, or rate-limit functions on the
+hosted project because they mutate state. Index Advisor does not replace plan review and may not
+recommend the GiST expression indexes required by PostGIS predicates.
+
+This diagnostic slice adds no migration or index. Any resulting optimization must be delivered as
+an additive, tested migration or an application query change after the live evidence identifies the
+actual bottleneck.
+
+---
+
 ## Generated Types
 
 Generate the current committed `public`, `governance`, `routing`, and `complaints` schema types after migrations with the repository script:
@@ -1176,7 +1269,7 @@ production deployment was created by that database operation.
 The owner later switched the configured staging target and reports applying a generated master SQL
 file. The exact artifact revision and current target ledger were not independently verified, so the
 historical deployment above must not be treated as ledger evidence for the replacement project.
-Reconcile that target against all 45 current migrations through `20260718110000` before a managed
+Reconcile that target against all 48 current migrations through `20260720103000` before a managed
 release.
 
 An earlier read-only hosted audit found `api_readiness_check()` healthy and all five required
@@ -1324,7 +1417,11 @@ The invitation projection returns only active, verified, non-placeholder, routin
 authorities, wards, and authority departments. `anon` and `authenticated` cannot execute it; the
 trusted API supplies the caller-authorized authority filter and strictly decodes the result.
 
-The current repository cutoff is 45 ordered migrations through `20260718110000`. Plans 033–039
+The current repository cutoff is 48 ordered migrations through `20260720103000`. The final forward
+migration, `20260720103000_v1_ward_email_provenance.sql`, adds the email-specific source URL,
+source-as-of/check dates, deterministic record locator, raw source-reported status and explicit
+owner staging-approval evidence required by every active V1 matrix row. It does not make the
+recipient public or install an outbound sender. Plans 033–039
 define 124 assertions for quota/readiness ACLs and behavior, privileged and citizen-factor MFA,
 private profile-image metadata/Storage policies, the 50-metre location/media invariant, and the
 queue-versus-contact readiness boundary. Existing routing and government-workflow plans also assert

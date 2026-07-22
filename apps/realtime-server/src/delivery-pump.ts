@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { nextAdaptivePollingDelay } from '@local-wellness/config';
+
 import type { RealtimeLogger } from './logger.js';
 import type { ClaimedRealtimeDelivery, RealtimeStore } from './realtime-store.js';
 
@@ -12,8 +14,9 @@ export type RealtimeDeliveryPumpConfiguration = Readonly<{
 }>;
 
 export class RealtimeDeliveryPump {
-  private activePoll: Promise<void> | null = null;
+  private activePoll: Promise<number> | null = null;
   private isRunning = false;
+  private pollDelayMilliseconds: number;
   private ready = false;
   private timer: NodeJS.Timeout | null = null;
   private readonly instanceId = randomUUID();
@@ -23,7 +26,9 @@ export class RealtimeDeliveryPump {
     private readonly emitDelivery: RealtimeDeliveryEmitter,
     private readonly configuration: RealtimeDeliveryPumpConfiguration,
     private readonly logger: RealtimeLogger,
-  ) {}
+  ) {
+    this.pollDelayMilliseconds = configuration.pollIntervalMilliseconds;
+  }
 
   public isReady(): boolean {
     return this.ready;
@@ -45,7 +50,7 @@ export class RealtimeDeliveryPump {
     await this.activePoll;
   }
 
-  public async pollOnce(): Promise<void> {
+  public async pollOnce(): Promise<number> {
     if (this.activePoll) return this.activePoll;
     this.activePoll = this.poll().finally(() => {
       this.activePoll = null;
@@ -57,14 +62,15 @@ export class RealtimeDeliveryPump {
     if (!this.isRunning) return;
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.pollOnce().finally(() => {
-        this.schedule(this.configuration.pollIntervalMilliseconds);
-      });
+      void this.pollOnce().then(
+        (claimed) => this.scheduleNext(claimed > 0),
+        () => this.scheduleNext(false),
+      );
     }, delay);
     this.timer.unref();
   }
 
-  private async poll(): Promise<void> {
+  private async poll(): Promise<number> {
     let deliveries: ClaimedRealtimeDelivery[];
     try {
       deliveries = await this.store.claimRealtimeDeliveries({
@@ -76,10 +82,21 @@ export class RealtimeDeliveryPump {
     } catch {
       this.ready = false;
       this.logger.error('realtime_delivery_claim_failed');
-      return;
+      return 0;
     }
 
     await Promise.all(deliveries.map((delivery) => this.processDelivery(delivery)));
+    return deliveries.length;
+  }
+
+  private scheduleNext(workClaimed: boolean): void {
+    this.pollDelayMilliseconds = nextAdaptivePollingDelay({
+      baseDelayMilliseconds: this.configuration.pollIntervalMilliseconds,
+      currentDelayMilliseconds: this.pollDelayMilliseconds,
+      maximumDelayMilliseconds: Math.max(this.configuration.pollIntervalMilliseconds, 15_000),
+      workClaimed,
+    });
+    this.schedule(this.pollDelayMilliseconds);
   }
 
   private async processDelivery(delivery: ClaimedRealtimeDelivery): Promise<void> {

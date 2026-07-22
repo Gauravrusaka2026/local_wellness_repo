@@ -1,3 +1,5 @@
+import { nextAdaptivePollingDelay } from '@local-wellness/config';
+
 import type { SlaEscalationStore } from './sla-escalation.store.js';
 import type { WorkerLogger } from './worker-logger.js';
 
@@ -22,6 +24,7 @@ const errorCode = 'SLA_ESCALATION_EXECUTION_FAILED';
 
 export class SlaEscalationWorker {
   private running = false;
+  private pollDelayMilliseconds: number;
   private timer: NodeJS.Timeout | null = null;
   private activeBatch: Promise<SlaEscalationBatchResult> | null = null;
 
@@ -29,7 +32,9 @@ export class SlaEscalationWorker {
     private readonly store: SlaEscalationStore,
     private readonly logger: WorkerLogger,
     private readonly options: SlaEscalationWorkerOptions,
-  ) {}
+  ) {
+    this.pollDelayMilliseconds = options.pollIntervalMilliseconds;
+  }
 
   public async runBatch(): Promise<SlaEscalationBatchResult> {
     const claimed = await this.store.claim({
@@ -96,13 +101,19 @@ export class SlaEscalationWorker {
     await this.activeBatch?.catch(() => undefined);
   }
 
-  private schedule(): void {
+  private schedule(workClaimed: boolean): void {
     if (!this.running) {
       return;
     }
+    this.pollDelayMilliseconds = nextAdaptivePollingDelay({
+      baseDelayMilliseconds: this.options.pollIntervalMilliseconds,
+      currentDelayMilliseconds: this.pollDelayMilliseconds,
+      maximumDelayMilliseconds: Math.max(this.options.pollIntervalMilliseconds, 60_000),
+      workClaimed,
+    });
     this.timer = setTimeout(() => {
       void this.tick();
-    }, this.options.pollIntervalMilliseconds);
+    }, this.pollDelayMilliseconds);
   }
 
   private async tick(): Promise<void> {
@@ -110,8 +121,10 @@ export class SlaEscalationWorker {
       return;
     }
     this.activeBatch = this.runBatch();
+    let workClaimed = false;
     try {
       const result = await this.activeBatch;
+      workClaimed = result.claimed > 0;
       if (result.claimed > 0) {
         this.logger.info('sla_escalation_batch_completed', {
           cancelled: result.cancelled,
@@ -127,7 +140,7 @@ export class SlaEscalationWorker {
       this.logger.error('sla_escalation_claim_failed');
     } finally {
       this.activeBatch = null;
-      this.schedule();
+      this.schedule(workClaimed);
     }
   }
 }

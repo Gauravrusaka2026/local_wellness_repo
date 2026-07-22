@@ -18,15 +18,15 @@ describe('notification worker configuration', () => {
       kpiCalculation: {
         batchSize: 10,
         leaseSeconds: 120,
-        pollIntervalMilliseconds: 1_000,
+        pollIntervalMilliseconds: 10_000,
         workerId: 'notification-worker:test',
       },
       leaseSeconds: 60,
-      pollIntervalMilliseconds: 1_000,
+      pollIntervalMilliseconds: 10_000,
       slaEscalation: {
         batchSize: 25,
         leaseSeconds: 60,
-        pollIntervalMilliseconds: 1_000,
+        pollIntervalMilliseconds: 10_000,
         workerId: 'notification-worker:test',
       },
       supabaseServiceRoleKey: 'test-service-role-key',

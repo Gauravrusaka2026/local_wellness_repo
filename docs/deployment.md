@@ -1,5 +1,11 @@
 # Deployment
 
+## UI benchmark delivery
+
+The benchmark ships with the existing web and Expo builds and adds no service, worker, map
+provider, secret, or migration. Acceptance still requires dependency installation, lint,
+strict type-check, production builds, responsive browser QA, and representative device capture.
+
 ## Purpose
 
 This document defines environment, release, infrastructure, and Supabase deployment practices.
@@ -110,6 +116,10 @@ not maintain an app-local environment copy or put a secret/service-role credenti
   pump;
 - `GET /health/live` confirms process liveness and `GET /health/ready` confirms the delivery pump
   has successfully reached its database claim boundary;
+- with the committed environment template, an empty or failed delivery claim backs off from the
+  10-second base interval to at most 15 seconds; claimed work resets the loop to its configured base;
+- start this service only while testing or operating realtime delivery, not for an API/client-only
+  development session;
 - horizontal scaling requires a later reviewed delivery mechanism and ADR.
 
 ### Workers
@@ -123,6 +133,11 @@ not maintain an app-local environment copy or put a secret/service-role credenti
   request handling;
 - supervise and restart the process, drain active batches on SIGINT/SIGTERM, and alert on expired
   leases, retry/dead jobs, failed calculation runs, and stale KPI snapshots;
+- with the committed environment template, each notification, SLA, and KPI loop backs off
+  independently from a 10-second base interval to at most 60 seconds while idle or failing; any
+  claimed work resets that loop to its configured base;
+- start the process only while testing or operating notification materialization, SLA escalation, or
+  KPI calculation;
 - no Redis or BullMQ dependency in V1.
 
 ---
@@ -172,6 +187,32 @@ Production migration requires:
 Phase 2 governance deployments additionally require the reviewed manifest, canonical source checksums, machine-readable validation report, generated main-seed/checksum-companion pair, and explicit review of additions/removals, verification promotions, hierarchy changes, and temporal-version closures. Apply migrations before both generated seed files. Do not hand-edit governance rows in a hosted dashboard or silently replace a canonical CSV. Placeholder/template data must remain non-routable and excluded from effective authority access in every environment.
 
 The baseline contains no pilot geometry or verified incumbents. A successful deployment therefore proves schema/import integrity only; it must not be represented as production jurisdiction coverage or a current officer directory. Redis, BullMQ, and Sentry remain absent from the V1 deployment topology.
+
+### V1 BMC ward/contact SQL Editor deployment
+
+For a reconciled non-production target that already has the existing complaint/routing schema and
+BMC governance prerequisites, run `supabase/deploy/v1-simple-ward-routing.sql` once through
+**Supabase Dashboard → SQL Editor → New query**. The generated artifact contains migration
+`20260720100000_v1_simple_ward_routing.sql`, forward migration
+`20260720103000_v1_ward_email_provenance.sql`, and seed `54` in that order; it is safe to rerun.
+Verify it before execution with `pnpm governance:bmc:v1-routing:deploy:check`.
+
+The deployment creates a private 312-row ward/category contact matrix and an idempotent ward-email
+outbox. Seed generation joins immutable phone/WhatsApp/category input
+`resources/Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` with immutable ward-email/office input
+`resources/local_wellness_bmc_ward_directory_2026-07-20.zip`. It preserves raw email-source
+status/provenance separately from owner-approved staging activation, including direct K/N and P/E
+emails and K/S→K/E plus P/W→P/N operational mappings. It activates all 12 pilot categories only
+for the database-driven BMC facade. It neither modifies either archive or the canonical Maharashtra
+CSV/workbook nor installs a sender, Cron job, Redis, BullMQ or Sentry. After execution, smoke one
+authenticated report and confirm a complaint, assignment and `pending` outbox row. Do not mark the
+row sent or claim BMC delivery until a trusted email provider worker returns a provider message ID.
+
+The latest local verification applied all 48 migrations and seeds and passed all 48 pgTAP files
+(1,645 assertions). The generator reconciled 26 emails, 12 categories and 312 routes. The focused
+artifact is 286,915 bytes and its ordered payload SHA-256 is
+`bf3f3ee8a902160ab726484468f0996639816dece02ef47ec8b6ac6ee1d1bb72`. These results verify local
+generation only; they do not claim hosted execution or external email delivery.
 
 ### Staging database record — 2026-07-14
 
@@ -563,19 +604,28 @@ KPI_CALCULATION_WORKER_ID
 KPI_CALCULATION_BATCH_SIZE
 KPI_CALCULATION_LEASE_SECONDS
 KPI_CALCULATION_POLL_INTERVAL_MS
+EMAIL_SMTP_HOST
+EMAIL_SMTP_PORT
+EMAIL_SMTP_USER
+EMAIL_SMTP_PASSWORD
+EMAIL_FROM
 ```
 
 Prefer `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` for current projects. Anon and service-role variables are supported as legacy fallbacks. Secret/service-role values must never appear in a client-visible environment.
 
 Realtime and worker processes require the server-only secret/service-role credential for narrow
-RPC execution. Public realtime URLs contain no credential. Push/email provider variables are not
-part of the active Phase 6 delivery configuration; those channels remain `unsupported` until an
-approved provider and notification policy exist.
+RPC execution. Public realtime URLs contain no credential. General Phase 6 push/email notification
+channels remain `unsupported` until a provider and notification policy are approved. The separate
+V1 ward-email loop is enabled only when all required `EMAIL_SMTP_*` values are present in the
+trusted worker environment. `EMAIL_FROM` is optional and defaults to `EMAIL_SMTP_USER`; no SMTP
+value belongs in a client bundle, log, migration, seed, or committed environment file.
 
 The Phase 9 SLA loop defaults to a 25-row batch and 60-second lease; the KPI loop defaults to a
-10-row batch and 120-second lease. Both default to a 1,000 ms poll interval and accept an
-independently identifiable worker ID. Keep those values in the trusted worker environment only; the
-service credential and lease tokens must never enter a browser/mobile bundle or log.
+10-row batch and 120-second lease. Both use a 10,000 ms active/base poll interval, independently
+back off to 60 seconds after empty or failed claims, and reset to the base interval after claimed work.
+The notification loop follows the same adaptive timing. Each loop accepts an independently
+identifiable worker ID. Keep those values in the trusted worker environment only; the service
+credential and lease tokens must never enter a browser/mobile bundle or log.
 
 ---
 
@@ -627,6 +677,9 @@ Readiness should check:
 - storage dependency;
 - any background-work dependency implemented by the active release.
 
+Use `/health/live` for frequent liveness probes. Configure `/health/ready` at a 30–60 second cadence;
+readiness may cross the database boundary and must not be used as a high-frequency heartbeat.
+
 ---
 
 ## Monitoring
@@ -644,6 +697,20 @@ The deployed V1 target must track:
 - notification failures;
 - crash-free mobile sessions;
 - routing failures.
+
+### Hosted database performance triage
+
+When hosted database CPU or latency is elevated, run
+`supabase/deploy/diagnostics/database_performance_audit.sql` privately in **Supabase Dashboard → SQL
+Editor** while the issue is observable. The script opens a read-only transaction and reports database
+statistics, costly normalized statements, active work, and table/index activity. Its query text and
+results are operationally sensitive; do not paste them into public tickets, chat, or logs.
+
+Correlate that snapshot with Dashboard **Observability** and **Query Performance**, confirm which
+statements and services are responsible, and review idle worker/realtime processes and health-probe
+cadence before resizing compute. Adaptive polling reduces avoidable idle claims but is not evidence
+that hosted metrics have improved. Redis, BullMQ, and Sentry remain outside this V1 diagnostic and
+runtime topology.
 
 Phase 3 emits structured NestJS routing-decision logs with request correlation, status, and category
 identifier only. Exact coordinates, officer contacts, secrets, internal candidate evaluations, and

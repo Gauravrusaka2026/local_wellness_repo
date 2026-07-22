@@ -147,9 +147,21 @@ describe('LocalWellnessApiClient', () => {
     );
   });
 
+  it('accepts a valid success envelope without diagnostic request metadata', async () => {
+    const client = createApiClient({
+      baseUrl: 'https://api.example.test',
+      fetch: async () => response(200, { data: { name: 'Asha' } }),
+      getAccessToken: () => 'access-token',
+    });
+
+    await assert.doesNotReject(async () => {
+      assert.equal(await client.get('/api/v1/me', { decode: decodeName }), 'Asha');
+    });
+  });
+
   it('rejects malformed success envelopes and decoded payloads', async () => {
     for (const payload of [
-      { data: { name: 'Asha' } },
+      { meta: { requestId: 'request-4' } },
       { data: { unexpected: true }, meta: { requestId: 'request-4' } },
     ]) {
       const client = createApiClient({

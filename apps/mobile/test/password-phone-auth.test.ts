@@ -187,7 +187,7 @@ test('cleans abandoned phone enrollment before enrolling and challenging a norma
       'enroll',
       {
         factorType: 'phone',
-        friendlyName: 'Local Wellness mobile',
+        friendlyName: 'JagrukSetu mobile',
         phone: '+919876543210',
       },
     ],

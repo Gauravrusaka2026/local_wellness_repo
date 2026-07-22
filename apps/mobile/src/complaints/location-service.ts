@@ -28,7 +28,7 @@ export const captureCurrentLocation = async (): Promise<ComplaintLocationCapture
     throw new LocationCaptureError(
       permission.canAskAgain
         ? 'Location permission is required to verify a civic complaint.'
-        : 'Enable location permission for Local Wellness in your device settings.',
+        : 'Enable location permission for JagrukSetu in your device settings.',
       { requiresAppSettings: !permission.canAskAgain },
     );
   }

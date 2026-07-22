@@ -9,28 +9,34 @@ select is(
   (
     select count(*)::integer
     from routing.issue_categories
-    where code in ('garbage_dump', 'missed_sweeping', 'mosquito_breeding')
+    where code in (
+      'garbage_dump', 'missed_sweeping', 'pothole', 'blocked_drain',
+      'sewage_overflow', 'water_leakage', 'broken_streetlight', 'open_manhole',
+      'mosquito_breeding', 'illegal_construction', 'encroachment', 'fallen_tree'
+    )
       and status = 'active'
       and verification_status = 'verified'
       and not is_placeholder
       and is_routing_eligible
+      and not requires_asset
   ),
-  3,
-  'only the three reviewed asset-independent BMC categories are operational'
+  12,
+  'all 12 owner-approved V1 BMC categories are operational'
 );
 
 select is(
   (
     select count(*)::integer
-    from routing.issue_categories
-    where code not in ('garbage_dump', 'missed_sweeping', 'mosquito_breeding')
-      and status = 'draft'
-      and verification_status = 'unverified'
-      and not is_placeholder
-      and not is_routing_eligible
+    from routing.route_rules as rule
+    inner join routing.route_rule_versions as version on version.route_rule_id = rule.id
+    where rule.rule_code like 'V1_WARD_%'
+      and rule.status = 'active'
+      and rule.is_routing_eligible
+      and version.status = 'active'
+      and version.is_routing_eligible
   ),
-  9,
-  'the remaining nine pilot categories stay fail-closed'
+  12,
+  '12 auditable V1 ward-facade rules are active and routing eligible'
 );
 
 select is(

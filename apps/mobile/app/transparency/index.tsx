@@ -105,7 +105,7 @@ const captureNearbyViewport = async (): Promise<PublicTransparencyViewport> => {
     throw new NearbyLocationError(
       permission.canAskAgain
         ? 'Location access is needed to find reports near you.'
-        : 'Enable location access for Local Wellness in device settings.',
+        : 'Enable location access for JagrukSetu in device settings.',
       { requiresAppSettings: !permission.canAskAgain },
     );
   }
@@ -717,7 +717,7 @@ export default function TransparencyScreen() {
           </Text>
         ) : null}
       </ScrollView>
-      {auth.state.status === 'signed-in' ? <AppBottomNavigation current="nearby" /> : null}
+      {auth.state.status === 'signed-in' ? <AppBottomNavigation current="community" /> : null}
     </Screen>
   );
 }

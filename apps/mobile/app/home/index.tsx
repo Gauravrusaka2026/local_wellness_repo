@@ -3,6 +3,7 @@ import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +14,7 @@ import {
 import type { ComplaintListItem } from '@local-wellness/types';
 
 import { useAuth } from '../../src/auth/auth-context';
+import { getSupabaseClient } from '../../src/auth/supabase';
 import { useComplaintCapture } from '../../src/complaints/complaint-context';
 import {
   getUserFacingComplaintError,
@@ -23,8 +25,12 @@ import {
   getRecentComplaints,
 } from '../../src/dashboard/complaint-summary';
 import { AppBottomNavigation } from '../../src/ui/app-bottom-navigation';
+import { CivicIcon, type CivicIconName } from '../../src/ui/civic-icon';
 import { ComplaintCard } from '../../src/ui/complaint-card';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
+import { getTimeGreeting } from '../../src/ui/time-greeting';
+import { createProfileImageSignedUrl } from '../../src/profile/profile-image';
+import { getProfile, type Profile } from '../../src/profile/profile-service';
 
 type DashboardState =
   | Readonly<{ status: 'error'; message: string }>
@@ -41,6 +47,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const [dashboardState, setDashboardState] = useState<DashboardState>({ status: 'loading' });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const accessToken = auth.state.status === 'signed-in' ? auth.state.session.access_token : null;
 
   useFocusEffect(
@@ -66,7 +74,28 @@ export default function HomeScreen() {
         }
       };
 
+      const loadIdentity = async (): Promise<void> => {
+        try {
+          const loadedProfile = await getProfile(accessToken);
+          if (!isCurrent) return;
+          setProfile(loadedProfile);
+          if (loadedProfile.avatarObjectPath) {
+            const url = await createProfileImageSignedUrl(
+              getSupabaseClient(),
+              loadedProfile.id,
+              loadedProfile.avatarObjectPath,
+            );
+            if (isCurrent) setAvatarUrl(url);
+          } else {
+            setAvatarUrl(null);
+          }
+        } catch {
+          // The dashboard remains usable when optional identity decoration is unavailable.
+        }
+      };
+
       void loadDashboard();
+      void loadIdentity();
       return () => {
         isCurrent = false;
       };
@@ -115,6 +144,10 @@ export default function HomeScreen() {
   const availableCategoryCount = complaintCapture.state.categories.filter(
     (category) => category.submissionAvailability === 'available',
   ).length;
+  const displayName =
+    profile?.displayName ?? auth.state.session.user.email?.split('@')[0] ?? 'Citizen';
+  const greeting = getTimeGreeting(new Date());
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'C';
 
   return (
     <Screen>
@@ -130,60 +163,84 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.header}>
+          <Pressable
+            accessibilityLabel="Open profile"
+            accessibilityRole="button"
+            onPress={() => router.push('/profile')}
+            style={styles.avatar}
+          >
+            {avatarUrl ? (
+              <Image
+                onError={() => setAvatarUrl(null)}
+                source={{ uri: avatarUrl }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Text style={styles.avatarInitial}>{initial}</Text>
+            )}
+          </Pressable>
           <View style={styles.brandBlock}>
-            <Text style={styles.eyebrow}>LOCAL WELLNESS</Text>
-            <Text accessibilityRole="header" style={styles.title}>
-              Your civic dashboard
+            <Text style={styles.greeting}>{greeting},</Text>
+            <Text accessibilityRole="header" numberOfLines={1} style={styles.title}>
+              {displayName}
             </Text>
           </View>
           <View style={styles.headerActions}>
             <HeaderAction
               accessibilityLabel="Open notifications"
-              glyph="🔔"
+              icon="bell"
               onPress={() => router.push('/notifications')}
-            />
-            <HeaderAction
-              accessibilityLabel="Open menu"
-              glyph="≡"
-              onPress={() => router.push('/menu' as Href)}
             />
           </View>
         </View>
 
-        <View style={styles.heroCard}>
-          <View style={styles.heroCopy}>
-            <Text style={styles.heroTitle}>See it. Report it. Track it.</Text>
+        <Pressable
+          accessibilityHint="Opens all services and app destinations"
+          accessibilityLabel="Browse services, reports and offices"
+          accessibilityRole="button"
+          onPress={() => router.push('/menu')}
+          style={({ pressed }) => [styles.searchBar, pressed && styles.buttonPressed]}
+        >
+          <CivicIcon color="#84908a" name="search" />
+          <Text style={styles.searchText}>Search services, reports or offices</Text>
+          <View style={styles.searchFilter}>
+            <CivicIcon color="#ffffff" name="filter" />
           </View>
+        </Pressable>
+
+        <View style={styles.sectionHeader}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>
+            Quick actions
+          </Text>
           <Pressable
-            accessibilityHint="Opens the complaint form"
             accessibilityRole="button"
-            accessibilityState={{
-              disabled: complaintCapture.state.isBusy || !complaintCapture.state.isOnline,
-            }}
-            disabled={complaintCapture.state.isBusy || !complaintCapture.state.isOnline}
-            onPress={() => void openDraft()}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.buttonPressed,
-              (complaintCapture.state.isBusy || !complaintCapture.state.isOnline) &&
-                styles.disabledButton,
-            ]}
+            onPress={() => router.push('/menu')}
+            style={styles.textButton}
           >
-            {complaintCapture.state.isBusy ? (
-              <ActivityIndicator accessibilityLabel="Preparing report" color="#174b2d" />
-            ) : (
-              <>
-                <Text accessibilityElementsHidden style={styles.primaryButtonGlyph}>
-                  ＋
-                </Text>
-                <Text style={styles.primaryButtonText}>
-                  {complaintCapture.state.draft === null
-                    ? 'Report a local issue'
-                    : 'Resume saved report'}
-                </Text>
-              </>
-            )}
+            <Text style={styles.textButtonLabel}>View all</Text>
           </Pressable>
+        </View>
+        <View style={styles.quickActions}>
+          <QuickAction
+            color="#16834a"
+            disabled={complaintCapture.state.isBusy || !complaintCapture.state.isOnline}
+            icon="complaint"
+            isLoading={complaintCapture.state.isBusy}
+            label={complaintCapture.state.draft ? 'Resume report' : 'Raise complaint'}
+            onPress={() => void openDraft()}
+          />
+          <QuickAction
+            color="#1769aa"
+            icon="status"
+            label="Track status"
+            onPress={() => router.push('/complaints')}
+          />
+          <QuickAction
+            color="#e77817"
+            icon="location"
+            label="Nearby offices"
+            onPress={() => router.push('/governance' as Href)}
+          />
         </View>
 
         {!complaintCapture.state.isOnline ? (
@@ -323,18 +380,58 @@ export default function HomeScreen() {
 
 const HeaderAction = ({
   accessibilityLabel,
-  glyph,
+  icon,
   onPress,
-}: Readonly<{ accessibilityLabel: string; glyph: string; onPress: () => void }>) => (
+}: Readonly<{
+  accessibilityLabel: string;
+  icon: CivicIconName;
+  onPress: () => void;
+}>) => (
   <Pressable
     accessibilityLabel={accessibilityLabel}
     accessibilityRole="button"
     onPress={onPress}
     style={({ pressed }) => [styles.headerAction, pressed && styles.buttonPressed]}
   >
-    <Text accessibilityElementsHidden style={styles.headerActionGlyph}>
-      {glyph}
-    </Text>
+    <CivicIcon color="#17683b" name={icon} />
+  </Pressable>
+);
+
+const QuickAction = ({
+  color,
+  disabled = false,
+  icon,
+  isLoading = false,
+  label,
+  onPress,
+}: Readonly<{
+  color: string;
+  disabled?: boolean;
+  icon: CivicIconName;
+  isLoading?: boolean;
+  label: string;
+  onPress: () => void;
+}>) => (
+  <Pressable
+    accessibilityLabel={label}
+    accessibilityRole="button"
+    accessibilityState={{ busy: isLoading, disabled }}
+    disabled={disabled}
+    onPress={onPress}
+    style={({ pressed }) => [
+      styles.quickAction,
+      pressed && styles.buttonPressed,
+      disabled && styles.quickActionDisabled,
+    ]}
+  >
+    <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
+      {isLoading ? (
+        <ActivityIndicator accessibilityLabel="Preparing report" color="#ffffff" size="small" />
+      ) : (
+        <CivicIcon color="#ffffff" name={icon} />
+      )}
+    </View>
+    <Text style={styles.quickActionLabel}>{label}</Text>
   </Pressable>
 );
 
@@ -367,10 +464,23 @@ const MetricCard = ({
 );
 
 const styles = StyleSheet.create({
+  avatar: {
+    alignItems: 'center',
+    backgroundColor: '#e7f7ed',
+    borderColor: '#fff',
+    borderRadius: 27,
+    borderWidth: 2,
+    height: 54,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    width: 54,
+  },
+  avatarImage: { height: '100%', width: '100%' },
+  avatarInitial: { color: '#17683b', fontSize: 21, fontWeight: '900' },
   brandBlock: { flex: 1, gap: 3 },
   buttonPressed: { opacity: 0.76 },
   cardList: { gap: 11 },
-  content: { gap: 18, padding: 20, paddingBottom: 36 },
+  content: { gap: 18, padding: 20, paddingBottom: 26 },
   coverageCard: { backgroundColor: '#fff9e9', borderRadius: 16, gap: 6, padding: 16 },
   coverageButton: {
     alignItems: 'center',
@@ -382,7 +492,6 @@ const styles = StyleSheet.create({
   coverageButtonText: { color: '#17683b', fontWeight: '900' },
   coverageText: { color: '#785516', lineHeight: 21 },
   coverageTitle: { color: '#63430e', fontSize: 16, fontWeight: '800' },
-  disabledButton: { opacity: 0.55 },
   emergencyCard: {
     backgroundColor: '#fff3ed',
     borderColor: '#ffd0ba',
@@ -411,7 +520,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     padding: 14,
   },
-  eyebrow: { color: '#2b774c', fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
+  greeting: { color: '#64748b', fontSize: 13, fontWeight: '600' },
   header: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 8 },
   headerAction: {
     alignItems: 'center',
@@ -423,17 +532,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 44,
   },
-  headerActionGlyph: { color: '#235c3b', fontSize: 22, fontWeight: '800' },
   headerActions: { flexDirection: 'row', gap: 8 },
-  heroCard: {
-    backgroundColor: '#174f2f',
-    borderRadius: 24,
-    gap: 18,
-    overflow: 'hidden',
-    padding: 21,
-  },
-  heroCopy: { gap: 7 },
-  heroTitle: { color: '#ffffff', fontSize: 25, fontWeight: '900', lineHeight: 31 },
   inlineErrorCard: { backgroundColor: '#fff0f0', borderRadius: 16, gap: 10, padding: 16 },
   inlineErrorText: { color: '#972626', lineHeight: 21 },
   inlineRetry: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
@@ -447,6 +546,58 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   loadingText: { color: '#5a6f61' },
+  quickActions: { flexDirection: 'row', gap: 10 },
+  quickAction: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderColor: '#e0e7e2',
+    borderRadius: 18,
+    borderWidth: 1,
+    elevation: 2,
+    flex: 1,
+    gap: 9,
+    minHeight: 122,
+    padding: 12,
+    shadowColor: '#173c28',
+    shadowOffset: { height: 3, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 7,
+  },
+  quickActionDisabled: { opacity: 0.55 },
+  quickActionIcon: {
+    alignItems: 'center',
+    borderRadius: 14,
+    height: 46,
+    justifyContent: 'center',
+    width: 46,
+  },
+  quickActionLabel: {
+    color: '#263241',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 17,
+    textAlign: 'center',
+  },
+  searchBar: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderColor: '#dce5df',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 54,
+    paddingHorizontal: 13,
+  },
+  searchFilter: {
+    alignItems: 'center',
+    backgroundColor: '#16834a',
+    borderRadius: 11,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  searchText: { color: '#8a9490', flex: 1, fontSize: 14 },
   metricActive: { backgroundColor: '#e9f1ff' },
   metricAttention: { backgroundColor: '#fff4df' },
   metricCard: { borderRadius: 16, flex: 1, gap: 3, minWidth: '46%', padding: 14 },
@@ -477,18 +628,6 @@ const styles = StyleSheet.create({
   },
   nearbyIconText: { color: '#17683b', fontSize: 24 },
   nearbyTitle: { color: '#17492c', fontSize: 16, fontWeight: '800' },
-  primaryButton: {
-    alignItems: 'center',
-    backgroundColor: '#d8f56b',
-    borderRadius: 14,
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-    minHeight: 54,
-    padding: 13,
-  },
-  primaryButtonGlyph: { color: '#174b2d', fontSize: 25, lineHeight: 26 },
-  primaryButtonText: { color: '#174b2d', fontSize: 16, fontWeight: '900' },
   retryButton: {
     alignItems: 'center',
     borderColor: '#b57817',

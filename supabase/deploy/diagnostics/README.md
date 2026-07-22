@@ -1,5 +1,10 @@
 # Hosted Supabase diagnostics
 
+Run `database_performance_audit.sql` in **Supabase Dashboard → SQL Editor → New query** while CPU
+pressure is observable. It reports cumulative query cost, focused Local Wellness RPC cost, active
+waits, hot-table churn, index use, and the largest tables without changing data. Keep its result
+private because database activity and normalized statements are operationally sensitive.
+
 Run `bmc_submission_runtime_audit.sql` in **Supabase Dashboard → SQL Editor → New query** when a
 verified BMC complaint reaches routing but submission returns `DEPENDENCY_UNAVAILABLE`.
 

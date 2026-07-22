@@ -489,7 +489,7 @@ const CurrentCivicAreaCard = ({ accessToken }: Readonly<{ accessToken: string }>
           </Text>
           <Text style={styles.mutedText}>
             {unresolvedArea.status === 'ambiguous'
-              ? 'More than one verified boundary matched. Local Wellness will not guess your civic area.'
+              ? 'More than one verified boundary matched. JagrukSetu will not guess your civic area.'
               : unresolvedArea.status === 'low_accuracy'
                 ? `Move into an open area and try again. Accuracy must be within ${unresolvedArea.maximumAccuracyMeters} metres.`
                 : 'No placeholder or unverified governing body has been added to your profile.'}

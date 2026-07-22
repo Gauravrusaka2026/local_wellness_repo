@@ -236,6 +236,17 @@ owner type and UUID, channel identity/type/use/visibility, normalized value, sou
 snapshot locator, source-evidence value hash, and complaint-delivery decision. A unique constraint
 makes each review item single-use, so one approval cannot publish multiple contact versions.
 
+The V1 BMC `routing.ward_issue_contacts` matrix is an explicit owner-approved staging overlay, not a
+new synchronization publisher. It deterministically merges the immutable issue-contact ZIP
+(category, phone and WhatsApp evidence) with the immutable 2026-07-20 ward-directory ZIP (email and
+office evidence), remains private, and does not mutate normalized contact history or promote
+discovered candidates. Direct K/N and P/E mailboxes and K/S→K/E plus P/W→P/N parent-office mappings
+are input-resolution rules in the generator, not municipality branches in application code. Raw
+source-reported status, URLs, dates and locators remain separate from the owner's staging-routing
+approval. Future automatic refresh must still use the source/snapshot/parser/match/review/
+publication pipeline above; it must not overwrite the V1 matrix or mark a queued complaint email as
+sent.
+
 A future publisher must reload the authoritative run, change set, proposals, candidate matches and
 latest reviews from PostgreSQL inside its publication transaction. It must bind every proposal to
 that persisted run/change set and must not trust caller-supplied proposal/review arrays. The current

@@ -71,7 +71,7 @@ const requestPublicTransparency = async (path: `/${string}`): Promise<unknown> =
   if (!isRecord(payload) || !('data' in payload)) {
     throw new ApiError({
       code: 'INVALID_RESPONSE',
-      message: 'Local Wellness returned an invalid transparency response.',
+      message: 'JagrukSetu returned an invalid transparency response.',
       requestId: readRequestId(payload),
       status: response.status,
     });
@@ -128,7 +128,7 @@ export const buildPublicComplaintHotspotPath = (
 const invalidResponse = (): ApiError =>
   new ApiError({
     code: 'INVALID_RESPONSE',
-    message: 'Local Wellness returned an invalid transparency response.',
+    message: 'JagrukSetu returned an invalid transparency response.',
     status: 200,
   });
 

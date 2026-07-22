@@ -304,6 +304,16 @@ test('classifies routing terminal errors separately from ambiguous submission ou
   );
   assert.equal(shouldRotateSubmitIdempotencyKeyAfterError(routeUnavailable), true);
   assert.equal(shouldRotateSubmitIdempotencyKeyAfterError(unsupportedArea), true);
+  assert.equal(
+    shouldRotateSubmitIdempotencyKeyAfterError(
+      new ApiClientError({
+        code: 'COMPLAINT_ROUTING_LOCATION_MISMATCH',
+        message: 'stale routing evidence',
+        status: 409,
+      }),
+    ),
+    true,
+  );
 
   for (const code of [
     'NETWORK_ERROR',
@@ -329,7 +339,7 @@ test('classifies routing terminal errors separately from ambiguous submission ou
         status: 503,
       }),
     ),
-    'Local Wellness is temporarily unavailable. Please try again shortly. Reference: request-123.',
+    'JagrukSetu is temporarily unavailable. Please try again shortly. Reference: request-123.',
   );
 
   assert.equal(
@@ -340,6 +350,6 @@ test('classifies routing terminal errors separately from ambiguous submission ou
         status: 409,
       }),
     ),
-    'Your saved report changed while routing was verified. Refresh the report and submit it again.',
+    'Your saved report changed while routing was verified. Submission was reset for a safe retry.',
   );
 });

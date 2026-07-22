@@ -79,7 +79,7 @@ export const enrollPhoneMfa = async (
 
   const enrollment = await supabase.auth.mfa.enroll({
     factorType: 'phone',
-    friendlyName: 'Local Wellness mobile',
+    friendlyName: 'JagrukSetu mobile',
     phone,
   });
   if (enrollment.error) throw enrollment.error;

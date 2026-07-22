@@ -278,6 +278,24 @@ additional scopes, renewal, or revocation under `AUTH-001`.
 
 ## Session Handling
 
+### API bearer verification
+
+The NestJS API validates Supabase bearer tokens with `supabase.auth.getClaims()`. For the managed
+project's asymmetric signing key this verifies the signature and expiry against Supabase's bounded
+public-key cache without the former additional `getUser()` network request. The API then requires
+the authenticated audience and role, a UUID subject, and a recognized `aal1` or `aal2` claim before
+constructing the authenticated actor. Email and phone are accepted only from the same verified
+claims. Unverified decoding is never authentication.
+
+JWT claims establish identity and assurance, not application authorization. Profile status,
+current role and authority membership, and the applicable privileged or citizen MFA policy remain
+database reads. When several requests for the same actor arrive together, they may share only the
+same unfinished actor-context read. That entry is removed on success or failure; there is no
+completed profile, role, membership, MFA-policy, or bearer-token cache. Application deactivation
+therefore remains immediately effective, while session-only revocation follows the bounded access-
+token expiry. See
+[ADR-0026](adr/0026-use-verified-jwt-claims-for-api-authentication.md).
+
 ### Mobile
 
 Use secure device storage.
@@ -586,6 +604,13 @@ new enrollment and returning challenge separately, and offers a sign-out/switch-
 Observe mode avoids locking existing operators out while managed recovery and browser smoke testing
 remain incomplete.
 
+Supabase Auth returns the TOTP QR as a short-lived SVG data URL. The portals trim provider control
+characters and render that private URL with a fixed-size native image rather than Next image
+optimization; the setup secret is never logged or persisted by the application. `listFactors().all`
+is checked for this portal's own unverified friendly name. An explicit **Restart authenticator
+setup** action removes only those unfinished factors before enrolling again; unrelated or verified
+factors are never removed automatically.
+
 Citizens use Supabase Phone MFA separately. `API_CITIZEN_PHONE_MFA_MODE=enforce` requires both a
 current verified phone factor and `aal2` for citizen-only accounts. It remains `observe` until
 Advanced Phone MFA and real SMS delivery are configured. TOTP does not satisfy the citizen phone-
@@ -722,6 +747,23 @@ The mobile completion suite additionally verifies that sign-in/recovery disable 
 create-account permits it, errors remain generic, detectable Supabase project mismatch fails without
 echoing values, and a native runtime rejects loopback service URLs. Delivered hosted OTPs and the
 physical-device session/profile transition remain environment-gated.
+
+## Complaint-routing contact privacy
+
+### UI benchmark authentication boundary
+
+The UI benchmark does not change authentication. Report creation remains authenticated
+email/password plus the existing staged Phone MFA path; signed-out users use the existing login
+flow. Public/guest/private examples in the benchmark are not enabled account modes.
+
+Authentication and authorization behavior is unchanged by the V1 BMC ward-contact facade. The API
+derives the actor from the verified bearer token and the database derives every ward, assignment and
+recipient. Citizen requests cannot provide or read a recipient email, phone number, WhatsApp number,
+durable role, source status/locator, owner staging approval, exact outbox state or provider
+identifier. Those values remain in forced-RLS private schemas and are accessible only through
+narrowly granted service operations. A service key must never be placed in Expo, Citizen Web, the
+Government Dashboard, or the Admin Console. Joining the immutable issue-contact and ward-email
+archives changes routing data only; it does not change identity, MFA, membership or role policy.
 
 ## Anonymous Transparency Reads
 

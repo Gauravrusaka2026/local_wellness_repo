@@ -77,6 +77,53 @@ describe('privileged MFA API enforcement', () => {
 });
 
 describe('citizen phone MFA API enforcement', () => {
+  it('coalesces only concurrent actor-policy reads without caching completed authorization state', async () => {
+    const gateway = new FakeAuthenticationGateway();
+    const store = new FakeIdentityStore();
+    let releaseProfile!: () => void;
+    const profileGate = new Promise<void>((resolve) => {
+      releaseProfile = resolve;
+    });
+    let profileCalls = 0;
+    let privilegedMfaCalls = 0;
+    let phoneMfaCalls = 0;
+    store.findProfile = async () => {
+      profileCalls += 1;
+      await profileGate;
+      return store.profile;
+    };
+    store.userRequiresPrivilegedMfa = async () => {
+      privilegedMfaCalls += 1;
+      return false;
+    };
+    store.userHasVerifiedPhoneMfa = async () => {
+      phoneMfaCalls += 1;
+      return true;
+    };
+    const guard = new BearerAuthGuard(gateway, store, apiConfiguration);
+    const createRequest = (): RequestContext => ({
+      headers: { authorization: 'Bearer valid-token' },
+      method: 'GET',
+    });
+
+    const first = guard.canActivate(createContext(createRequest()));
+    const second = guard.canActivate(createContext(createRequest()));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    assert.equal(profileCalls, 1);
+    assert.equal(privilegedMfaCalls, 1);
+    assert.equal(phoneMfaCalls, 0);
+
+    releaseProfile();
+    assert.deepEqual(await Promise.all([first, second]), [true, true]);
+    assert.equal(phoneMfaCalls, 1);
+
+    await guard.canActivate(createContext(createRequest()));
+    assert.equal(profileCalls, 2);
+    assert.equal(privilegedMfaCalls, 2);
+    assert.equal(phoneMfaCalls, 2);
+  });
+
   it('observes an unverified citizen without locking out existing accounts', async () => {
     const gateway = new FakeAuthenticationGateway();
     const store = new FakeIdentityStore();
@@ -152,15 +199,28 @@ describe('Supabase assurance-level verification', () => {
     phone: null,
   };
 
-  it('binds the verified user to the verified AAL2 claims subject', async () => {
+  it('builds the authenticated user only from locally verified Supabase claims', async () => {
+    let getUserCalled = false;
     const clients = {
       publicClient: {
         auth: {
           getClaims: async () => ({
-            data: { claims: { aal: 'aal2', sub: user.id } },
+            data: {
+              claims: {
+                aal: 'aal2',
+                aud: 'authenticated',
+                email: user.email,
+                phone: null,
+                role: 'authenticated',
+                sub: user.id,
+              },
+            },
             error: null,
           }),
-          getUser: async () => ({ data: { user }, error: null }),
+          getUser: async () => {
+            getUserCalled = true;
+            return { data: { user }, error: null };
+          },
         },
       },
     } as unknown as SupabaseClients;
@@ -172,21 +232,28 @@ describe('Supabase assurance-level verification', () => {
       id: user.id,
       phone: null,
     });
+    assert.equal(getUserCalled, false);
   });
 
-  it('rejects mismatched claims and fails closed when claim verification is unavailable', async () => {
-    const mismatchGateway = new SupabaseAuthenticationGateway({
+  it('rejects malformed or non-user claims and fails closed when verification is unavailable', async () => {
+    const invalidClaimsGateway = new SupabaseAuthenticationGateway({
       publicClient: {
         auth: {
           getClaims: async () => ({
-            data: { claims: { aal: 'aal2', sub: 'different-user' } },
+            data: {
+              claims: {
+                aal: 'aal2',
+                aud: 'authenticated',
+                role: 'service_role',
+                sub: user.id,
+              },
+            },
             error: null,
           }),
-          getUser: async () => ({ data: { user }, error: null }),
         },
       },
     } as unknown as SupabaseClients);
-    assert.equal(await mismatchGateway.verifyAccessToken('mismatched-token'), null);
+    assert.equal(await invalidClaimsGateway.verifyAccessToken('invalid-claims-token'), null);
 
     const unavailableGateway = new SupabaseAuthenticationGateway({
       publicClient: {
@@ -195,7 +262,6 @@ describe('Supabase assurance-level verification', () => {
             data: null,
             error: { status: 500 },
           }),
-          getUser: async () => ({ data: { user }, error: null }),
         },
       },
     } as unknown as SupabaseClients);

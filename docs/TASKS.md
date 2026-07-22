@@ -4,21 +4,21 @@
 
 - Project: Local Wellness
 - Current phase: Phase 10 — Hardening and launch
-- Current sprint: Sprint 11 — V1 citizen access, security, and launch readiness
-- Current sprint implementation progress: 79%
-- Overall implementation progress: 91%
+- Current sprint: Sprint 13 — JagrukSetu citizen experience and design system
+- Current sprint implementation progress: 45%
+- Overall implementation progress: 92%
 - Phase 0 implementation progress: 100%
 - Phase 1 implementation progress: 100%
 - Phase 2 implementation progress: 90%
-- Phase 3 implementation progress: 89%
+- Phase 3 implementation progress: 94%
 - Phase 4 implementation progress: 99%
 - Phase 5 implementation progress: 95%
 - Phase 6 implementation progress: 85%
 - Phase 7 implementation progress: 92%
 - Phase 8 implementation progress: 92%
 - Phase 9 implementation progress: 85%
-- Phase 10 implementation progress: 79%
-- Last updated: 2026-07-18
+- Phase 10 implementation progress: 82%
+- Last updated: 2026-07-22
 
 ## Phase 0 Scope
 
@@ -734,6 +734,9 @@ physical-device evidence remain release gates and must not be replaced by demo v
       returning authenticator-code challenge.
 - [x] Add reviewed wrong-account, password-recovery, and administrator-mediated lost-authenticator
       guidance without adding a client-side role or MFA bypass.
+- [x] Normalize provider-generated TOTP QR data before rendering, keep ephemeral enrollment SVGs
+      outside Next image optimization, and recover explicitly from this portal's own interrupted
+      unverified enrollment without deleting another application's factor.
 - [x] Replace authority/ward/department UUID entry with a named, API-authorized selector backed by
       a service-role-only projection of active, verified, non-placeholder, routing-eligible records;
       restrict municipal administrators to their own authority.
@@ -758,9 +761,11 @@ physical-device evidence remain release gates and must not be replaced by demo v
       municipal administrator, one authority operator, A and K/W ward officers, and Public Health
       and Solid Waste Management department officers. All seven passwords, active profiles, exact
       role/membership selectors, and 30-day assignment expiry were verified without outbound email.
-- [ ] Complete the interactive first-login TOTP handoff plus municipal, A Ward, K/W Ward, Solid
-      Waste Management, and Public Health queue-isolation smoke. The identities and passwords are
-      ready; personal authenticator enrollment and rendered cross-scope denial remain manual.
+- [x] Complete first-login TOTP enrollment for the current staging platform-administrator and BMC
+      municipal-administrator identities; both factors are verified and both portal roots returned
+      HTTP `200` after the QR-render repair.
+- [ ] Complete the remaining municipal, A Ward, K/W Ward, Solid Waste Management, and Public Health
+      queue-isolation/cross-scope denial smoke with the other pre-provisioned identities.
 
 ### Citizen Authentication and Locality Experience
 
@@ -854,6 +859,86 @@ physical-device evidence remain release gates and must not be replaced by demo v
 - [ ] Design and approve any future outbound email/SMS delivery channel, audit, retry, consent, and
       privacy policy before changing `automaticOutboundDelivery` from false.
 
+## JagrukSetu Citizen Experience and Design-System Sprint
+
+This cross-phase sprint applies the approved civic-product benchmark to the existing Local Wellness
+clients. `JagrukSetu` is the working experience name for this implementation slice, not a completed
+legal/product rebrand. The sprint must reuse the existing complaint, transparency, profile,
+governance, routing, privacy and authorization boundaries rather than creating a mock parallel app.
+Unsupported guest reporting, public comments, precise public coordinates, public contact values,
+external map tiles and notification providers remain explicit unavailable states.
+
+### Shared Foundation
+
+- [x] Add exportable JSON design tokens plus typed TypeScript and CSS-variable projections for
+      colour, status, typography, spacing, radius, shadow, motion, z-index and breakpoints.
+- [x] Add framework-neutral, strongly typed reusable component contracts for reports, maps,
+      timelines, contacts, badges, progress and privacy/provenance states.
+- [x] Add dependency-free typed localisation resources for `en`, `mr` and `hi`, map English to
+      `en-GB` formatting, and keep the existing persisted language codes authoritative.
+- [x] Add focused token, component-contract and localisation tests; keep Node's existing test
+      runner rather than introducing an unrelated Jest test stack.
+- [ ] Introduce an isolated component-development/story surface only if its dependencies and build
+      boundary can be added without destabilising the existing Expo/Next applications; record a
+      genuine dependency/tooling decision in an ADR if Storybook is introduced.
+
+### Citizen Web Experience
+
+- [x] Add a responsive app shell with skip navigation, desktop top navigation, mobile bottom
+      navigation, empty logo slot, visible focus, current-route semantics and reduced-motion/
+      forced-colour support.
+- [x] Evolve Home into a concise civic dashboard/feed with a dominant report action, search,
+      category discovery, nearby reviewed reports, recent official activity and a compact trust
+      explainer, using only real or explicitly unavailable data states.
+- [ ] Evolve Transparency into an accessible map/list workspace with selectable first-party
+      markers, filters, sorting, hotspots/boundaries where available and a non-map list
+      alternative; do not add an external basemap provider.
+- [ ] Refactor complaint list/detail/history onto shared cards, status/confidence/provenance badges,
+      timeline and receipt patterns while keeping official updates distinct from community signals.
+- [ ] Add a verified-governance directory experience that exposes only the current API's safe
+      jurisdiction projection and clearly labels contact browsing as unavailable until a private,
+      reviewed contract exists.
+- [ ] Consolidate profile/history navigation and show real complaint, security, locale and profile
+      capabilities while keeping saved addresses, notification-channel preferences and guest
+      reporting unavailable until their backend/policy contracts exist.
+
+### Mobile Experience
+
+- [x] Refine authenticated Home with the current private profile avatar/name, a device-time greeting,
+      a concise browse affordance, and one-row report/status/Nearby quick actions plus View all.
+- [x] Present the five stable mobile destinations in a rounded, detached bottom capsule and replace
+      their decorative navigation glyphs plus the refined Home/Nearby glyphs with accessible,
+      dependency-free React Native icon shapes.
+- [x] Restyle Nearby governance around current-location context, a first-party schematic spatial
+      summary, result count, and compact safe governing-body cards without fabricating contact,
+      distance, opening-hours, or directions data.
+- [ ] Adapt the shared tokens to React Native, replace decorative Unicode navigation glyphs with
+      accessible colour icons, and consolidate reusable button/card/badge/empty/error primitives.
+- [ ] Add a locale provider and migrate the high-visibility shell, Home, Community, report,
+      complaint-detail, directory and profile copy to typed English/Marathi/Hindi resources.
+- [ ] Preserve the one-page complaint form while adding an accessible section-progress navigator,
+      concise completed summaries, section jump actions, privacy/evidence guidance and a reusable
+      route/receipt panel.
+- [ ] Improve Home with nearby/trending discovery and trust cues; improve complaint detail with
+      clearer route confidence/provenance, evidence and official-versus-community grouping.
+- [ ] Improve Community performance by loading Heat data only when selected, bounding feed pages,
+      providing a text alternative and virtualising long report lists where safe.
+- [ ] Improve Profile/History and governance discovery without persisting exact addresses,
+      exposing private contacts, or presenting unsupported push/SMS/WhatsApp controls as active.
+
+### Accessibility, Verification and Documentation
+
+- [ ] Add reusable accessibility states and focused tests for progress, marker/list selection,
+      directory filtering, long text, empty/error/loading and keyboard/focus behavior where the
+      current test environment can render them.
+- [ ] Verify touch targets, landmarks/headings, visible focus, text-labelled states, reduced motion,
+      colour contrast, screen-reader progress and a non-map alternative.
+- [ ] Run formatting, lint, strict type-check, focused tests, Citizen Web production build and Expo
+      Android export; visually inspect responsive web surfaces through the in-app browser.
+- [ ] Update README, architecture, authentication, API, database, deployment, Supabase setup,
+      task/progress/changelog/decision/issue tracking and an implementation worklog. Update
+      `PROJECT_OVERVIEW.md` or `PLAN.md` only if product scope or phase order actually changes.
+
 ## Mobile Citizen Experience Completion Sprint
 
 This cross-phase sprint makes the already implemented identity, complaint, media, accountability,
@@ -909,6 +994,11 @@ absent.
       prepared media, guard each finished voice URI from duplicate processing, rotate stale
       submission identities without weakening exact network retries, and distinguish no-route
       responses from generic backend dependency failures.
+- [x] Release the complaint-restore busy counter even when an Auth refresh replaces the restore
+      effect, preventing an indefinite Report-button spinner before draft entry.
+- [x] Rotate the mobile submission identity after an allow-listed pre-insert routing-evidence
+      mismatch so a stale server reservation cannot trap the next safe retry; preserve ambiguous
+      network/dependency outcomes as non-rotating.
 - [x] Pass formatting, mobile/API lint, strict type-checking, relevant tests, Android Expo export,
       database type/master-SQL drift checks, database lint, and the complete local pgTAP suite.
 - [ ] Complete the physical-device Expo Go smoke with a LAN-reachable API URL and current staging
@@ -937,7 +1027,8 @@ absent.
       staging-configured applications.
 - [ ] Run the interactive password-based privileged staging smoke with the provisioned matrix;
       enroll TOTP only for the accounts actively used in the demo and retain the remaining scoped
-      identities for cross-scope denial tests.
+      identities for cross-scope denial tests. The QR-rendering crash is fixed locally; repeat the
+      first-login flow in a fresh browser session before marking this smoke complete.
 - [x] Keep explicit code entry while making citizen, government, and administrator clients
       compatible with provider-default PKCE links; narrowly support only the default government
       `invite` fragment and preserve all database role/membership guards.
@@ -945,12 +1036,84 @@ absent.
       selections while keeping every placeholder ward and route non-routable pending official
       identity, provenance, and geometry review.
 
+## V1 Simplified BMC Ward Routing Sprint — 2026-07-20
+
+- [x] Inspect and validate all three CSVs inside
+      `resources/Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` without modifying the archive.
+- [x] Inspect `resources/local_wellness_bmc_ward_directory_2026-07-20.zip` without modifying it and
+      treat it as the separate ward-email/office evidence source for the owner-approved staging
+      overlay.
+- [x] Require exactly 26 unique wards, 12 categories, 312 unique ward/category routes, valid source
+      dates/URLs, and internally consistent directory/matrix/long-form contact values.
+- [x] Merge direct K/N and P/E email records plus K/S→K/E and P/W→P/N operational parent-office
+      mappings with the 26-ward issue-contact matrix.
+- [x] Generate a deterministic private seed containing ward email, primary/secondary phone,
+      `1916`, WhatsApp, durable role and separate provenance metadata for both immutable archives.
+- [x] Add the private forced-RLS `routing.ward_issue_contacts` matrix and indexed lookup path.
+- [x] Add forward migration `20260720103000_v1_ward_email_provenance.sql` so every active row keeps
+      raw email-source URL/date/locator/status independently from explicit owner-approved staging
+      activation.
+- [x] Add a PostGIS `resolve_v1_ward_route` facade that derives ward, authority, department, role,
+      rule and decision entirely from database records.
+- [x] Activate all 12 pilot categories for the V1 BMC facade without requiring client-selected
+      assets or mandatory duplicate discovery.
+- [x] Preserve existing routing decisions, complaint assignments, status history, idempotency and
+      Government Dashboard scope rather than destructively dropping legacy tables.
+- [x] Add the private idempotent `complaints.ward_email_outbox` plus bounded claim, complete and
+      retry/dead RPCs.
+- [x] Keep recipient email, phone, WhatsApp, exact location and provider data out of citizen
+      responses and direct client grants.
+- [x] Update NestJS routing persistence/service logic and mobile submission behavior, including
+      replay-safe timestamp equivalence.
+- [x] Generate `supabase/deploy/v1-simple-ward-routing.sql` for hosted SQL Editor use with both V1
+      migrations followed by generated seed `54`, and verify its ordered payload checksum.
+- [x] Regenerate database types and add migration, seed, RLS, PostGIS route, complaint assignment,
+      outbox lease and delivery-state tests.
+- [x] Complete a clean local database reset and all 48 pgTAP plans (1,645 assertions), API tests,
+      mobile tests, type checks and lint.
+- [ ] Apply the focused SQL Editor bundle to hosted staging and run one authenticated BMC report
+      through complaint, assignment and `pending` email-outbox creation.
+- [x] Implement a trusted SMTP email worker, data-minimized template, strict RPC response decoding,
+      leased provider-message-ID completion, and bounded failure recording.
+- [ ] Deploy that worker with a verified sender domain/address, then complete recipient-mailbox,
+      bounce/dead-letter, and provider acceptance testing before claiming external delivery
+      (`DELIVERY-001`).
+- [ ] Replace deterministic K/P split-crosswalk selection with exact current child geometry before
+      production use.
+- [ ] Expand the same data-driven contact matrix outside BMC only after municipality ward geometry
+      and recipients are supplied; never add application-source branches.
+
 ## Automatically Discovered Tasks
 
-- [x] Generate and checksum a single `supabase/master.sql` empty-database bootstrap from all 45
+### Hosted Database Performance Hardening — 2026-07-18
+
+- [x] Audit application-side hosted database load and identify one-second idle claim loops plus
+      repeated authenticated-request fan-out as concrete avoidable work; do not infer load from the
+      number of tables alone.
+- [x] Replace fixed idle polling with bounded adaptive backoff: realtime delivery reaches 15
+      seconds and notification/SLA/KPI workers reach 60 seconds while idle or failing, and each
+      resets immediately after claiming work.
+- [x] Validate asymmetric Supabase access tokens through one verified-claims operation, run current
+      database authorization reads concurrently, and coalesce only identical in-flight actor
+      context reads. Do not cache completed profile, role, membership, or MFA decisions.
+- [x] Add a 30-second process-local cache and in-flight coalescing only for the non-user-specific
+      complaint-category catalog; authoritative submission still revalidates exact jurisdiction,
+      route, policy, media, and complaint state.
+- [x] Add and locally validate the read-only
+      `supabase/deploy/diagnostics/database_performance_audit.sql` report for cumulative query cost,
+      active waits, hot-table churn, index use, and largest tables.
+- [ ] Run the performance audit on hosted staging while CPU pressure is visible, retain its output
+      privately, and use `pg_stat_statements`, `EXPLAIN`, and Index Advisor evidence before adding
+      any index or resizing compute.
+- [ ] Reduce the remaining complaint-flow fan-out by consolidating draft hydration and avoiding the
+      duplicate PostGIS jurisdiction resolution without weakening evidence/version checks.
+- [ ] Bound or stream server-side evidence hashing instead of repeatedly downloading complete
+      finalized objects, then add a representative one-photo submission load test and query budget.
+
+- [x] Generate and checksum a single `supabase/master.sql` empty-database bootstrap from all 48
       ordered migrations, add deterministic generate/check commands, and document that seeds and
       existing migrated databases are outside its use boundary.
-- [x] Replace the unproven fixed-baseline Dashboard parts with adaptive full-history 23/22 bundles
+- [x] Replace the unproven fixed-baseline Dashboard parts with adaptive full-history 23/25 bundles
       that fingerprint and skip coherent completed migrations, apply exact missing sources, reject
       partial/non-contiguous state, and keep seeds and the official ledger separate.
 - [x] Generate the 77,849-byte current-session SQL Editor artifact for a verified migration-38
@@ -964,7 +1127,7 @@ absent.
       Back/Sign in controls for anonymous Community visitors.
 - [ ] On current staging, use the compact migrations 39–43 bundle when its migration-38 baseline
       preflight passes. The owner reports running it successfully through SQL Editor on 2026-07-17;
-      readiness, schema, and official migration-ledger reconciliation against all 45 source
+      readiness, schema, and official migration-ledger reconciliation against all 48 source
       migrations remain required. `master.sql` remains empty-database-only.
 - [x] Generate the official-source BMC staging/demo pack, ten machine-readable CSVs, workbook,
       manifest, six-warning validation report, relationship-version migration, deterministic seed,
@@ -1138,6 +1301,25 @@ absent.
 
 ## Current Blockers
 
+- The 12-category/26-ward V1 facade is local until
+  `supabase/deploy/v1-simple-ward-routing.sql` is run against hosted staging and a fresh complaint,
+  assignment and single `pending` outbox row are verified. Repository generation now includes the
+  separate immutable phone/WhatsApp/category and ward-email/office sources plus the forward email-
+  provenance migration; it does not imply hosted application.
+- The SMTP sender, data-minimized template, leased completion/failure path, and server-only
+  configuration contract are implemented. Hosted worker deployment, a controlled recipient-
+  mailbox/provider-message-ID smoke, and bounce/dead-letter operations remain open under
+  `DELIVERY-001`. Phone and WhatsApp remain private reference contacts, not automated channels.
+- K/P split coverage uses deterministic stored crosswalk selection for staging; exact current child
+  geometry remains required before production.
+
+- Hosted Supabase has reported sustained CPU above 80%, and complaint submission can stall under
+  that pressure. Fixed one-second idle polling and redundant API authentication work are mitigated
+  locally, but no hosted improvement is claimed until the read-only performance audit is run while
+  the condition is present. Exact expensive statements, plans, and any evidence-backed index or
+  query repair remain a staging operational task; speculative table removal or security-sensitive
+  caching is prohibited.
+
 - Mobile navigation, dashboard, OTP modes, complaint metadata, and verified-directory engineering
   are complete locally. A physical phone must launch Expo with a LAN-reachable API URL; the root
   environment's loopback URL is intentionally rejected on native devices.
@@ -1268,6 +1450,9 @@ absent.
 - ADR-0023 — Separate queue routing from external contact delivery.
 - ADR-0024 — Use account-bound reviewed-public complaint engagements.
 - ADR-0025 — Use password sign-in for pre-provisioned privileged identities.
+- ADR-0026 — Use verified JWT claims for API authentication while retaining current database
+  authorization.
+- ADR-0027 — Use a simple ward/contact routing facade for the V1 BMC pilot.
 
 ## Files Modified This Session
 
@@ -1347,8 +1532,47 @@ absent.
   changing their TOTP/AAL2 or database authorization gates; provisioned seven distinct expiring BMC
   staging identities and stored their generated credentials only in a gitignored mode-`0600` local
   artifact.
+- Reduced avoidable hosted database pressure with verified-claims authentication, in-flight actor
+  context coalescing, a bounded category-catalog cache, adaptive idle worker/realtime polling, and a
+  read-only hosted performance audit. Current authorization, exact routing, complaint state, and
+  fail-closed verification remain uncached.
 
 ## Next Recommended Task
+
+### Current Sprint — JagrukSetu UI/UX benchmark implementation (2026-07-20)
+
+- [x] Audit the existing mobile, citizen-web, design-system, and localisation foundations against
+      the benchmark while preserving the one-page mobile report decision.
+- [x] Add shared civic design tokens, token CSS, typed component contracts, reduced-motion support,
+      and the en-GB/mr-IN/hi-IN localisation core.
+- [x] Add an accessible mobile report-progress summary inside the existing scrollable form.
+- [x] Add a responsive citizen-web landing/feed shell with report, explore, history, profile,
+      search, trust, and unavailable-data states.
+- [x] Refine authenticated mobile Home, the detached five-destination navigation capsule, and the
+      safe Nearby governing-body presentation against the supplied mobile references.
+- [ ] Localise all existing mobile/web copy through the shared catalog.
+- [ ] Add reusable web primitives/stories and migrate complaint/transparency cards and timelines.
+- [ ] Add authenticated web report capture and a verified governance directory contract before
+      rendering office contacts.
+- [ ] Add rendered accessibility/responsive tests and physical-device/browser QA.
+
+Progress: 45% of this UI/UX sprint. Backend contracts, public-comment policy, external map provider,
+guest reporting, notification preferences, and real office-directory exposure remain intentionally
+deferred until their existing product/security gates are resolved.
+
+Apply `supabase/deploy/v1-simple-ward-routing.sql` to the reconciled hosted staging project through
+**SQL Editor → New query**. Submit one fresh authenticated BMC report and verify the complaint
+receipt, resolved ward, government assignment and exactly one `pending` ward-email outbox row. Then
+configure the trusted provider worker and complete one leased delivery with a provider message ID;
+do not claim email delivery before that test.
+
+Run `supabase/deploy/diagnostics/database_performance_audit.sql` in hosted staging's **SQL Editor →
+New query** while the CPU warning or stalled report flow is observable, keep the result private,
+and identify the top statements by total execution time, mean time, and calls. Confirm candidates
+with the Dashboard Query Performance/Indexes views and `EXPLAIN` before changing schema or compute.
+Then apply only evidence-backed query/index repairs and repeat a one-photo authenticated report
+submission while monitoring CPU and latency. The current performance hardening requires no
+migration and does not introduce Redis, BullMQ, or Sentry.
 
 Review Batch 0's 21 open data issues and six discrepancy groups, then acquire a hash-pinned Batch 1
 official export containing entity-level local bodies, talukas/villages, current wards and boundary
@@ -1375,3 +1599,15 @@ department isolation, and remove the local credential artifact plus disable the 
 identities after testing.
 Next, review the official MCGM asset-source manifest, snapshot and validate bounded feature data,
 and approve owner/maintainer matches plus K/P child geometry before activating any further category.
+
+### Completed — 2026-07-18
+
+- [x] Add forward migration tolerating safe GPS/timestamp precision differences during complaint
+      submission routing evidence validation.
+- [x] Align complaint receipt and detail routing payloads with the mobile response contract.
+- [x] Add civic color tokens and distinct colored bottom-navigation icons.
+- [ ] Expand translated copy coverage across all mobile screens for English, Marathi, and Hindi.
+- [ ] Profile and measure slow mobile requests/render paths on physical devices.
+- [x] Raise default idle worker/realtime polling intervals to reduce Supabase RPC load.
+- [ ] Verify hosted scheduled jobs do not run duplicate worker instances.
+- [ ] Apply migration `20260718123000` to hosted staging and verify a fresh K/W submission.

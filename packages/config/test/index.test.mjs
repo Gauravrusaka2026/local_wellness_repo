@@ -4,11 +4,41 @@ import test from 'node:test';
 import {
   ConfigurationError,
   firstConfiguredValue,
+  nextAdaptivePollingDelay,
   parseApiConfiguration,
   parsePublicHttpUrl,
   parsePublicSupabaseConfiguration,
   parseRealtimeConfiguration,
 } from '../dist/index.js';
+
+test('adaptive polling backs off while idle and resets after work', () => {
+  const input = {
+    baseDelayMilliseconds: 1_000,
+    maximumDelayMilliseconds: 15_000,
+    workClaimed: false,
+  };
+
+  assert.equal(nextAdaptivePollingDelay({ ...input, currentDelayMilliseconds: 1_000 }), 2_000);
+  assert.equal(nextAdaptivePollingDelay({ ...input, currentDelayMilliseconds: 8_000 }), 15_000);
+  assert.equal(nextAdaptivePollingDelay({ ...input, currentDelayMilliseconds: 15_000 }), 15_000);
+  assert.equal(
+    nextAdaptivePollingDelay({
+      ...input,
+      currentDelayMilliseconds: 15_000,
+      workClaimed: true,
+    }),
+    1_000,
+  );
+  assert.equal(
+    nextAdaptivePollingDelay({
+      ...input,
+      baseDelayMilliseconds: 60_000,
+      currentDelayMilliseconds: 60_000,
+      maximumDelayMilliseconds: 60_000,
+    }),
+    60_000,
+  );
+});
 
 test('configuration aliases ignore empty preferred values', () => {
   assert.equal(firstConfiguredValue('', '  ', 'legacy-key'), 'legacy-key');

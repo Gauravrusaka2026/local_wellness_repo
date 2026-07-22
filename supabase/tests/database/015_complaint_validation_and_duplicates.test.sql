@@ -270,6 +270,14 @@ select throws_ok(
   'multiple equally specific policies fail closed'
 );
 
+update routing.issue_categories
+set
+  status = 'draft',
+  verification_status = 'unverified',
+  is_routing_eligible = false,
+  updated_at = current_timestamp
+where id = '93000000-0000-4000-8000-000000000112';
+
 update phase4_validation_fixture
 set placeholder_draft_id = created.draft_id
 from public.create_complaint_draft(

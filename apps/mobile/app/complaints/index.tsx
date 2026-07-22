@@ -1,4 +1,3 @@
-import type { Href } from 'expo-router';
 import { Redirect, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -183,16 +182,6 @@ export default function ComplaintListScreen() {
               Your complaints
             </Text>
           </View>
-          <Pressable
-            accessibilityLabel="Open menu"
-            accessibilityRole="button"
-            onPress={() => router.push('/menu' as Href)}
-            style={({ pressed }) => [styles.menuButton, pressed && styles.pressed]}
-          >
-            <Text accessibilityElementsHidden style={styles.menuGlyph}>
-              ≡
-            </Text>
-          </Pressable>
         </View>
 
         <View style={styles.summaryCard}>

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Local Wellness",
+    "name": "JagrukSetu",
     "slug": "local-wellness",
     "version": "0.0.0",
     "scheme": "localwellness",
@@ -11,28 +11,28 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Local Wellness to take a private profile photo or capture complaint evidence.",
-          "microphonePermission": "Allow Local Wellness to record sound with complaint videos.",
+          "cameraPermission": "Allow JagrukSetu to take a private profile photo or capture complaint evidence.",
+          "microphonePermission": "Allow JagrukSetu to record sound with complaint videos.",
           "recordAudioAndroid": true
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow Local Wellness to verify where the civic issue is being reported."
+          "locationWhenInUsePermission": "Allow JagrukSetu to verify where the civic issue is being reported."
         }
       ],
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Local Wellness to take a private profile photo or capture complaint evidence.",
-          "photosPermission": "Allow Local Wellness to choose a private profile photo."
+          "cameraPermission": "Allow JagrukSetu to take a private profile photo or capture complaint evidence.",
+          "photosPermission": "Allow JagrukSetu to choose a private profile photo."
         }
       ],
       [
         "expo-audio",
         {
-          "microphonePermission": "Allow Local Wellness to record a private voice description for your complaint."
+          "microphonePermission": "Allow JagrukSetu to record a private voice description for your complaint."
         }
       ]
     ],

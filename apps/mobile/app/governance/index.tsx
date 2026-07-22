@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,6 +25,7 @@ import {
   resolveGoverningBodies,
 } from '../../src/governance/governance-service';
 import { AppBottomNavigation } from '../../src/ui/app-bottom-navigation';
+import { CivicIcon } from '../../src/ui/civic-icon';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
 
 type LookupState =
@@ -54,30 +55,36 @@ const MatchCard = ({ match }: Readonly<{ match: VerifiedGoverningBodyMatch }>) =
 
   return (
     <View style={styles.matchCard}>
-      <View style={styles.verifiedRow}>
-        <View style={styles.verifiedDot} />
-        <Text style={styles.verifiedText}>Official-source verified</Text>
-      </View>
-      {entities.map((entity) => (
-        <View key={entity.kind} style={styles.entityRow}>
-          <View style={styles.entityCopy}>
-            <Text style={styles.entityLabel}>{entityLabels[entity.kind]}</Text>
-            <Text style={styles.entityName}>{entity.name}</Text>
-            <Text style={styles.entityType}>{entity.type.replaceAll('_', ' ')}</Text>
-          </View>
-          <Pressable
-            accessibilityHint="Opens the official verification source"
-            accessibilityRole="link"
-            onPress={() => void Linking.openURL(entity.sourceUrl)}
-            style={styles.sourceButton}
-          >
-            <Text style={styles.sourceButtonText}>Source</Text>
-          </Pressable>
+      <View style={styles.officeHeading}>
+        <View style={styles.officeIcon}>
+          <CivicIcon color="#16834a" name="office" />
         </View>
-      ))}
-      <Text style={styles.verifiedDate}>
-        Last verified {new Date(match.localBody.lastVerifiedOn).toLocaleDateString()}
-      </Text>
+        <View style={styles.entityCopy}>
+          <Text style={styles.entityName}>{match.localBody.name}</Text>
+          <Text style={styles.officeAddress}>
+            {match.ward?.name ?? match.district?.name ?? 'Local authority'}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.officeMetaRow}>
+        <Text style={styles.officeMeta}>Serves this location</Text>
+        <Text style={styles.officeMeta}>Verified governing body</Text>
+      </View>
+      <View style={styles.tags}>
+        {entities.slice(0, 3).map((entity) => (
+          <Text key={entity.kind} style={styles.tag}>
+            {entityLabels[entity.kind]}
+          </Text>
+        ))}
+      </View>
+      <Pressable
+        accessibilityHint="Opens the official verification source"
+        accessibilityRole="link"
+        onPress={() => void Linking.openURL(match.localBody.sourceUrl)}
+        style={styles.directoryButton}
+      >
+        <Text style={styles.directoryButtonText}>View official source</Text>
+      </Pressable>
     </View>
   );
 };
@@ -115,7 +122,9 @@ const ResolutionContent = ({ result }: Readonly<{ result: GoverningBodyResolutio
 
   return (
     <View style={styles.emptyCard}>
-      <Text style={styles.emptyGlyph}>{result.status === 'low_accuracy' ? '⌖' : '◇'}</Text>
+      <View style={styles.emptyIcon}>
+        <CivicIcon color="#28724a" name={result.status === 'low_accuracy' ? 'locate' : 'office'} />
+      </View>
       <Text accessibilityRole="header" style={styles.emptyTitle}>
         {result.status === 'low_accuracy'
           ? 'A more precise location is needed'
@@ -124,7 +133,7 @@ const ResolutionContent = ({ result }: Readonly<{ result: GoverningBodyResolutio
       <Text style={styles.emptyText}>
         {result.status === 'low_accuracy'
           ? `Move into an open area and try again. Accuracy must be within ${result.maximumAccuracyMeters} metres.`
-          : 'Local Wellness only names a governing body when its official identity and boundary have been verified. No placeholder has been shown.'}
+          : 'JagrukSetu only names a governing body when its official identity and boundary have been verified. No placeholder has been shown.'}
       </Text>
     </View>
   );
@@ -132,6 +141,7 @@ const ResolutionContent = ({ result }: Readonly<{ result: GoverningBodyResolutio
 
 export default function GovernanceDirectoryScreen() {
   const auth = useAuth();
+  const router = useRouter();
   const [state, setState] = useState<LookupState>({ status: 'idle' });
 
   if (auth.state.status === 'loading') return <LoadingScreen label="Restoring your session…" />;
@@ -161,36 +171,78 @@ export default function GovernanceDirectoryScreen() {
     <Screen>
       <View style={styles.shell}>
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.hero}>
-            <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>LOCATION-AWARE DIRECTORY</Text>
-            </View>
-            <Text accessibilityRole="header" style={styles.title}>
-              Who looks after your area?
-            </Text>
-            <Text style={styles.description}>Find your verified ward and local authority.</Text>
+          <View style={styles.pageHeader}>
             <Pressable
+              accessibilityLabel="Go back"
+              accessibilityRole="button"
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <CivicIcon color="#15271c" name="arrow-left" />
+            </Pressable>
+            <View style={styles.headerCopy}>
+              <Text accessibilityRole="header" style={styles.title}>
+                Nearby governing bodies
+              </Text>
+              <Text style={styles.description}>Find public offices serving your area</Text>
+            </View>
+          </View>
+          <View style={styles.locationBar}>
+            <CivicIcon color="#e77817" name="location" />
+            <Text style={styles.locationText}>
+              {state.status === 'ready' ? 'Current verified area' : 'Use your current location'}
+            </Text>
+            <Pressable
+              accessibilityLabel={
+                state.status === 'ready' ? 'Refresh current location' : 'Use current location'
+              }
               accessibilityRole="button"
               accessibilityState={{ disabled: state.status === 'loading' }}
               disabled={state.status === 'loading'}
               onPress={() => void locate()}
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.locateButton, pressed && styles.pressed]}
             >
               {state.status === 'loading' ? (
                 <ActivityIndicator accessibilityLabel="Finding governing bodies" color="#ffffff" />
               ) : (
-                <Text style={styles.primaryButtonText}>
-                  {state.status === 'ready' ? 'Refresh my location' : 'Use my current location'}
-                </Text>
+                <CivicIcon color="#ffffff" name="locate" />
               )}
             </Pressable>
           </View>
 
+          <View
+            accessible
+            accessibilityLabel="Schematic area overview. Use current location to resolve governing bodies."
+            style={styles.mapCard}
+          >
+            <View style={styles.mapRoadHorizontal} />
+            <View style={styles.mapRoadVertical} />
+            <View style={styles.mapWater} />
+            {state.status === 'ready' && state.result.matches.length > 0 ? (
+              <View style={styles.mapMarker}>
+                <CivicIcon color="#ffffff" name="location" />
+              </View>
+            ) : null}
+            <View style={styles.mapSummary}>
+              <View style={styles.mapSummaryIcon}>
+                <CivicIcon color="#ffffff" name="office" />
+              </View>
+              <View style={styles.mapSummaryCopy}>
+                <Text style={styles.mapSummaryTitle}>
+                  {state.status === 'ready' && state.result.matches.length > 0
+                    ? `${state.result.matches.length} governing bodies found`
+                    : 'Find offices near you'}
+                </Text>
+                <Text style={styles.mapSummaryText}>Based on your verified civic area</Text>
+              </View>
+            </View>
+          </View>
+
           {state.status === 'idle' ? (
-            <View style={styles.privacyCard}>
-              <Text style={styles.privacyTitle}>Private by design</Text>
-              <Text style={styles.privacyText}>
-                Your exact location is used only for this lookup.
+            <View style={styles.noticeCard}>
+              <Text style={styles.noticeTitle}>Find the right office</Text>
+              <Text style={styles.noticeText}>
+                Use your location to identify your municipality, ward and responsible authority.
               </Text>
             </View>
           ) : null}
@@ -211,15 +263,32 @@ export default function GovernanceDirectoryScreen() {
           ) : null}
           {state.status === 'ready' ? <ResolutionContent result={state.result} /> : null}
         </ScrollView>
-        <AppBottomNavigation current="nearby" />
+        <AppBottomNavigation current="governance" />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  backButton: {
+    alignItems: 'center',
+    backgroundColor: '#f4f7f5',
+    borderRadius: 13,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
   content: { gap: 18, padding: 18, paddingBottom: 32 },
-  description: { color: '#d7f4e3', fontSize: 16, lineHeight: 24 },
+  description: { color: '#718078', fontSize: 13, lineHeight: 19 },
+  directoryButton: {
+    alignItems: 'center',
+    backgroundColor: '#16834a',
+    borderRadius: 12,
+    justifyContent: 'center',
+    minHeight: 46,
+    padding: 12,
+  },
+  directoryButtonText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   emptyCard: {
     alignItems: 'center',
     backgroundColor: '#ffffff',
@@ -229,69 +298,157 @@ const styles = StyleSheet.create({
     gap: 9,
     padding: 24,
   },
-  emptyGlyph: { color: '#28724a', fontSize: 34 },
+  emptyIcon: {
+    alignItems: 'center',
+    backgroundColor: '#e8f7ed',
+    borderRadius: 24,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
   emptyText: { color: '#5c6f63', lineHeight: 22, textAlign: 'center' },
   emptyTitle: { color: '#143b27', fontSize: 19, fontWeight: '800', textAlign: 'center' },
   entityCopy: { flex: 1, gap: 2 },
-  entityLabel: { color: '#66786c', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   entityName: { color: '#173c29', fontSize: 17, fontWeight: '800' },
-  entityRow: {
-    alignItems: 'center',
-    borderTopColor: '#e7eee9',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    gap: 10,
-    paddingVertical: 13,
-  },
-  entityType: { color: '#718078', fontSize: 13, textTransform: 'capitalize' },
   errorCard: { backgroundColor: '#fff1f2', borderRadius: 16, gap: 12, padding: 16 },
   errorText: { color: '#9f1239', lineHeight: 21 },
-  hero: { backgroundColor: '#155d38', borderRadius: 26, gap: 14, padding: 22 },
-  heroBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  headerCopy: { flex: 1, gap: 2 },
+  pageHeader: { alignItems: 'center', flexDirection: 'row', gap: 13, marginTop: 4 },
+  locationBar: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderColor: '#dce5df',
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 52,
+    paddingHorizontal: 12,
   },
-  heroBadgeText: { color: '#d7f4e3', fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  locationText: { color: '#334155', flex: 1, fontSize: 14, fontWeight: '700' },
+  locateButton: {
+    alignItems: 'center',
+    backgroundColor: '#16834a',
+    borderRadius: 11,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  mapCard: {
+    backgroundColor: '#e9f2ed',
+    borderRadius: 18,
+    height: 230,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  mapRoadHorizontal: {
+    backgroundColor: '#fff',
+    height: 22,
+    left: -20,
+    position: 'absolute',
+    top: 70,
+    transform: [{ rotate: '-8deg' }],
+    width: 430,
+  },
+  mapRoadVertical: {
+    backgroundColor: '#fff',
+    height: 300,
+    left: 190,
+    position: 'absolute',
+    top: -20,
+    transform: [{ rotate: '20deg' }],
+    width: 18,
+  },
+  mapWater: {
+    backgroundColor: '#b9dcf2',
+    borderRadius: 80,
+    height: 190,
+    position: 'absolute',
+    right: -55,
+    top: -25,
+    transform: [{ rotate: '12deg' }],
+    width: 90,
+  },
+  mapMarker: {
+    alignItems: 'center',
+    backgroundColor: '#e84b3c',
+    borderColor: '#fff',
+    borderRadius: 20,
+    borderWidth: 4,
+    height: 36,
+    justifyContent: 'center',
+    left: '48%',
+    position: 'absolute',
+    top: 78,
+    width: 36,
+  },
+  mapSummary: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    bottom: 12,
+    elevation: 3,
+    flexDirection: 'row',
+    gap: 10,
+    left: 12,
+    padding: 12,
+    position: 'absolute',
+    right: 12,
+  },
+  mapSummaryIcon: {
+    alignItems: 'center',
+    backgroundColor: '#16834a',
+    borderRadius: 11,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  mapSummaryCopy: { flex: 1 },
+  mapSummaryText: { color: '#718078', fontSize: 11 },
+  mapSummaryTitle: { color: '#1e293b', fontSize: 14, fontWeight: '800' },
   matchCard: {
     backgroundColor: '#ffffff',
     borderColor: '#dce6df',
     borderRadius: 20,
     borderWidth: 1,
+    elevation: 2,
+    gap: 13,
     padding: 16,
+    shadowColor: '#173c28',
+    shadowOffset: { height: 3, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 7,
   },
   noticeCard: { backgroundColor: '#fff7ed', borderRadius: 16, gap: 6, padding: 16 },
   noticeText: { color: '#7c2d12', lineHeight: 21 },
   noticeTitle: { color: '#9a3412', fontSize: 17, fontWeight: '800' },
   pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  primaryButton: {
+  officeAddress: { color: '#718078', fontSize: 13, marginTop: 2 },
+  officeHeading: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  officeIcon: {
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
+    backgroundColor: '#e7f8ee',
+    borderRadius: 13,
+    height: 48,
     justifyContent: 'center',
-    minHeight: 54,
-    paddingHorizontal: 18,
+    width: 48,
   },
-  primaryButtonText: { color: '#155d38', fontSize: 16, fontWeight: '900' },
-  privacyCard: { backgroundColor: '#eaf7ef', borderRadius: 18, gap: 6, padding: 18 },
-  privacyText: { color: '#41624e', lineHeight: 22 },
-  privacyTitle: { color: '#155d38', fontSize: 17, fontWeight: '800' },
+  officeMeta: { color: '#16834a', fontSize: 11, fontWeight: '700' },
+  officeMetaRow: { flexDirection: 'row', gap: 14 },
   resultSection: { gap: 12 },
   retryText: { color: '#9f1239', fontWeight: '900' },
   sectionTitle: { color: '#173c29', fontSize: 24, fontWeight: '900' },
   shell: { flex: 1 },
-  sourceButton: {
-    backgroundColor: '#eef7f1',
+  tag: {
+    backgroundColor: '#e8fbef',
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    color: '#16834a',
+    fontSize: 11,
+    fontWeight: '700',
+    overflow: 'hidden',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  sourceButtonText: { color: '#17683b', fontSize: 12, fontWeight: '800' },
-  title: { color: '#ffffff', fontSize: 30, fontWeight: '900', letterSpacing: -0.5 },
-  verifiedDate: { color: '#718078', fontSize: 12, marginTop: 6 },
-  verifiedDot: { backgroundColor: '#22c55e', borderRadius: 999, height: 8, width: 8 },
-  verifiedRow: { alignItems: 'center', flexDirection: 'row', gap: 7, paddingBottom: 11 },
-  verifiedText: { color: '#237345', fontSize: 12, fontWeight: '800' },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  title: { color: '#17231c', fontSize: 22, fontWeight: '900', letterSpacing: -0.3 },
 });

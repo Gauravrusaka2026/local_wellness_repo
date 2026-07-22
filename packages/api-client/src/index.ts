@@ -97,7 +97,7 @@ const readRequestId = (payload: unknown): string | null => {
 const invalidResponse = (status: number, requestId: string | null): ApiClientError =>
   new ApiClientError({
     code: 'INVALID_RESPONSE',
-    message: 'Local Wellness returned an invalid response. Please try again.',
+    message: 'JagrukSetu returned an invalid response. Please try again.',
     requestId,
     status,
   });
@@ -254,7 +254,7 @@ export class LocalWellnessApiClient {
         message:
           options.signal?.aborted === true
             ? 'The request was cancelled.'
-            : 'Unable to reach Local Wellness. Please try again.',
+            : 'Unable to reach JagrukSetu. Please try again.',
         status: 0,
       });
     }
@@ -270,8 +270,12 @@ export class LocalWellnessApiClient {
       throw decodeErrorResponse(payload, response.status);
     }
 
+    if (response.status === 204) return undefined as Output;
     const requestId = readRequestId(payload);
-    if (!isRecord(payload) || !Object.hasOwn(payload, 'data') || requestId === null) {
+    // Older hosted API instances may omit `meta.requestId` while still returning
+    // a valid success envelope. Request IDs are diagnostic metadata, not part of
+    // the complaint response contract, so do not reject an otherwise valid payload.
+    if (!isRecord(payload) || !Object.hasOwn(payload, 'data')) {
       throw invalidResponse(response.status, requestId);
     }
 

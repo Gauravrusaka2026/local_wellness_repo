@@ -1,3 +1,5 @@
+import { nextAdaptivePollingDelay } from '@local-wellness/config';
+
 import type {
   NotificationOutboxStore,
   MaterializedNotificationOutboxEvent,
@@ -23,6 +25,7 @@ const errorCode = 'MATERIALIZATION_FAILED';
 
 export class NotificationOutboxWorker {
   private running = false;
+  private pollDelayMilliseconds: number;
   private timer: NodeJS.Timeout | null = null;
   private activeBatch: Promise<NotificationOutboxBatchResult> | null = null;
 
@@ -30,7 +33,9 @@ export class NotificationOutboxWorker {
     private readonly store: NotificationOutboxStore,
     private readonly logger: WorkerLogger,
     private readonly options: NotificationOutboxWorkerOptions,
-  ) {}
+  ) {
+    this.pollDelayMilliseconds = options.pollIntervalMilliseconds;
+  }
 
   public async runBatch(): Promise<NotificationOutboxBatchResult> {
     const claimed = await this.store.claim({
@@ -98,13 +103,19 @@ export class NotificationOutboxWorker {
     await this.activeBatch?.catch(() => undefined);
   }
 
-  private schedule(): void {
+  private schedule(workClaimed: boolean): void {
     if (!this.running) {
       return;
     }
+    this.pollDelayMilliseconds = nextAdaptivePollingDelay({
+      baseDelayMilliseconds: this.options.pollIntervalMilliseconds,
+      currentDelayMilliseconds: this.pollDelayMilliseconds,
+      maximumDelayMilliseconds: Math.max(this.options.pollIntervalMilliseconds, 60_000),
+      workClaimed,
+    });
     this.timer = setTimeout(() => {
       void this.tick();
-    }, this.options.pollIntervalMilliseconds);
+    }, this.pollDelayMilliseconds);
   }
 
   private async tick(): Promise<void> {
@@ -112,8 +123,10 @@ export class NotificationOutboxWorker {
       return;
     }
     this.activeBatch = this.runBatch();
+    let workClaimed = false;
     try {
       const result = await this.activeBatch;
+      workClaimed = result.claimed > 0;
       if (result.claimed > 0) {
         this.logger.info('notification_outbox_batch_completed', {
           claimed: result.claimed,
@@ -127,7 +140,7 @@ export class NotificationOutboxWorker {
       this.logger.error('notification_outbox_claim_failed');
     } finally {
       this.activeBatch = null;
-      this.schedule();
+      this.schedule(workClaimed);
     }
   }
 }

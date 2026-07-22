@@ -68,7 +68,7 @@ export default function ResetPasswordScreen() {
           Choose a new password
         </Text>
         <Text style={styles.description}>
-          After saving, verify your phone to continue into Local Wellness.
+          After saving, verify your phone to continue into JagrukSetu.
         </Text>
 
         {state === 'exchanging' ? (

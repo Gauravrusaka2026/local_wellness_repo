@@ -7,6 +7,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import type { ApiConfiguration } from '@local-wellness/config';
+import type { Profile } from '@local-wellness/types';
 
 import { ApiException } from '../common/api-exception.js';
 import type { RequestContext } from '../common/request-context.js';
@@ -19,8 +20,15 @@ import {
 
 const bearerTokenPattern = /^Bearer[ \t]+([^\s]+)$/iu;
 
+type ActorAccessContext = Readonly<{
+  hasVerifiedPhoneMfa: boolean;
+  profile: Profile | null;
+  requiresPrivilegedMfa: boolean;
+}>;
+
 @Injectable()
 export class BearerAuthGuard implements CanActivate {
+  private readonly actorAccessRequests = new Map<string, Promise<ActorAccessContext>>();
   private readonly logger = new Logger(BearerAuthGuard.name);
 
   public constructor(
@@ -62,7 +70,8 @@ export class BearerAuthGuard implements CanActivate {
       throw ApiException.authenticationRequired('The bearer token is invalid or expired.');
     }
 
-    const profile = await this.identityStore.findProfile(user.id);
+    const actorAccess = await this.loadActorAccess(user.id);
+    const profile = actorAccess.profile;
 
     if (!profile) {
       throw new ApiException(403, 'ACCOUNT_UNAVAILABLE', 'The account profile is unavailable.');
@@ -72,10 +81,7 @@ export class BearerAuthGuard implements CanActivate {
       throw new ApiException(403, 'ACCOUNT_INACTIVE', 'This account is not active.');
     }
 
-    const requiresPrivilegedMfa = await this.identityStore.userRequiresPrivilegedMfa(
-      user.id,
-      new Date().toISOString(),
-    );
+    const requiresPrivilegedMfa = actorAccess.requiresPrivilegedMfa;
 
     if (requiresPrivilegedMfa && user.assuranceLevel !== 'aal2') {
       if (this.configuration.privilegedMfaMode === 'enforce') {
@@ -92,7 +98,7 @@ export class BearerAuthGuard implements CanActivate {
     }
 
     if (!requiresPrivilegedMfa) {
-      const hasVerifiedPhoneMfa = await this.identityStore.userHasVerifiedPhoneMfa(user.id);
+      const hasVerifiedPhoneMfa = actorAccess.hasVerifiedPhoneMfa;
       const hasVerifiedPhoneSession = hasVerifiedPhoneMfa && user.assuranceLevel === 'aal2';
 
       if (!hasVerifiedPhoneSession) {
@@ -112,5 +118,32 @@ export class BearerAuthGuard implements CanActivate {
 
     request.authenticatedUser = user;
     return true;
+  }
+
+  private loadActorAccess(userId: string): Promise<ActorAccessContext> {
+    const inFlightRequest = this.actorAccessRequests.get(userId);
+    if (inFlightRequest) return inFlightRequest;
+
+    const request = this.queryActorAccess(userId);
+    this.actorAccessRequests.set(userId, request);
+    const clearRequest = (): void => {
+      if (this.actorAccessRequests.get(userId) === request) {
+        this.actorAccessRequests.delete(userId);
+      }
+    };
+    void request.then(clearRequest, clearRequest);
+    return request;
+  }
+
+  private async queryActorAccess(userId: string): Promise<ActorAccessContext> {
+    const [profile, requiresPrivilegedMfa] = await Promise.all([
+      this.identityStore.findProfile(userId),
+      this.identityStore.userRequiresPrivilegedMfa(userId, new Date().toISOString()),
+    ]);
+    const hasVerifiedPhoneMfa = requiresPrivilegedMfa
+      ? false
+      : await this.identityStore.userHasVerifiedPhoneMfa(userId);
+
+    return { hasVerifiedPhoneMfa, profile, requiresPrivilegedMfa };
   }
 }

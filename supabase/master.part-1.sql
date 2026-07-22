@@ -13,8 +13,8 @@
 -- Any partial/non-contiguous fingerprint or source failure rolls back the part.
 -- Dashboard execution does not repair supabase_migrations.schema_migrations.
 -- Seed data remains intentionally separate under supabase/seed.
--- Complete source cutoff: 20260718
--- Complete source count: 45
+-- Complete source cutoff: 20260720
+-- Complete source count: 48
 -- Migrations in this part: 23
 -- Part source range: 20260713100000_phase_1_identity_and_access.sql through 20260714124000_phase_5_government_workflow_security_and_rpc.sql
 --
@@ -686,6 +686,40 @@ values
     (pg_temp.local_wellness_column_exists('governance', 'import_batches', 'source_bundle_sha256')
       and pg_temp.local_wellness_constraint_exists('governance', 'import_batches', 'import_batches_source_bundle_sha256_check')
       and pg_temp.local_wellness_constraint_exists('governance', 'import_batches', 'import_batches_source_artifact_check'))
+  ),
+  (
+    46,
+    '20260718123000_relax_routing_evidence_precision.sql',
+    (pg_catalog.position('extensions.st_dwithin(' in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)'))) > 0),
+    (pg_catalog.position('extensions.st_dwithin(' in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)'))) > 0
+      and pg_catalog.position('COMPLAINT_ROUTING_ACCURACY_MISMATCH' in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)'))) > 0
+      and pg_catalog.position('COMPLAINT_ROUTING_CAPTURE_TIME_MISMATCH' in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('complaints.complaint_routing_evidence_mismatches(uuid,uuid,uuid)'))) > 0)
+  ),
+  (
+    47,
+    '20260720100000_v1_simple_ward_routing.sql',
+    (pg_temp.local_wellness_relation_exists('routing.ward_issue_contacts')),
+    (pg_temp.local_wellness_relation_exists('routing.ward_issue_contacts')
+      and pg_temp.local_wellness_relation_exists('complaints.ward_email_outbox')
+      and pg_temp.local_wellness_forced_rls('routing.ward_issue_contacts')
+      and pg_temp.local_wellness_forced_rls('complaints.ward_email_outbox')
+      and pg_temp.local_wellness_function_exists('public', 'resolve_v1_ward_route')
+      and pg_temp.local_wellness_function_exists('public', 'claim_v1_ward_emails')
+      and pg_temp.local_wellness_function_exists('public', 'complete_v1_ward_email')
+      and pg_temp.local_wellness_function_exists('public', 'fail_v1_ward_email')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_assignments', 'enqueue_v1_ward_email_after_assignment'))
+  ),
+  (
+    48,
+    '20260720103000_v1_ward_email_provenance.sql',
+    (pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_source_url')),
+    (pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_source_url')
+      and pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_source_as_of')
+      and pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_last_checked_on')
+      and pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_source_locator')
+      and pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_source_reported_status')
+      and pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_owner_approved_for_routing')
+      and pg_temp.local_wellness_constraint_exists('routing', 'ward_issue_contacts', 'ward_issue_contacts_active_email_provenance_check'))
   );
 
 do $detect_state$
@@ -699,7 +733,7 @@ begin
   from local_wellness_bundle_fingerprints as fingerprint
   where not fingerprint.is_complete;
 
-  detected_cutoff := coalesce(first_missing - 1, 45);
+  detected_cutoff := coalesce(first_missing - 1, 48);
 
   if first_missing is not null then
     select fingerprint.migration_name
@@ -757,7 +791,7 @@ begin
       hint = 'Execute master.part-1.sql successfully before Part 2.';
   end if;
 
-  raise notice 'Local Wellness detected migration cutoff: % of 45', detected_cutoff;
+  raise notice 'Local Wellness detected migration cutoff: % of 48', detected_cutoff;
 end;
 $detect_state$;
 

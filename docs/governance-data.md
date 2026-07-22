@@ -252,6 +252,37 @@ it with `pnpm governance:bmc:assets:validate`; immutable snapshots, bounded pars
 and ownership records, ward joins, entity matching, and human approval remain required before any
 candidate can become routable.
 
+### V1 BMC Ward-Contact Overlay
+
+`resources/local_wellness_bmc_pmc_routing_2026-07-18.zip` is retained as an immutable research and
+QA archive. Its source registry, conflict ledger, promotion recommendation, BMC/PMC contact matrix,
+and two evidence PDFs explicitly recommend zero automatic promotions. It is not an input to the V1
+generator and must not activate a route. The later operator-supplied contact archives below are the
+only machine inputs for the current simplified BMC overlay.
+
+The V1 overlay has two immutable, operator-supplied inputs; neither replaces the Phase 2 canonical
+CSV/workbook:
+
+- `resources/Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` is the machine input for category coverage,
+  primary/secondary phone, `1916`, WhatsApp, durable role and issue-source provenance; and
+- `resources/local_wellness_bmc_ward_directory_2026-07-20.zip` is the machine input for ward-email,
+  ward-office and email-source provenance.
+
+The first archive's three CSV members must reconcile to 26 unique wards, 12 categories and 312
+unique ward/category rows. The email source must resolve one mailbox for each operational ward:
+direct K/N and P/E entries win, K/S maps to the K/E parent-office record, and P/W maps to the P/N
+parent-office record. Only then may `supabase/seed/54_bmc_v1_ward_issue_contacts.generated.sql` be
+emitted. The generator preserves both archive SHA-256 values, source URLs/dates, deterministic
+record locators and raw source-reported verification status; it never rewrites either ZIP.
+
+The generated matrix is private operational staging configuration for the simplified facade. The
+owner's separate staging approval permits all 312 rows to route and queue email even where the raw
+source reports a conflict or a non-promoted state; it does not rewrite that raw status, update the
+review-gated governance synchronization history, prove recipient acceptance, or authorize
+production delivery. Email, phone and WhatsApp remain private, and phone/WhatsApp are reference-
+only in V1. Production replacement still uses versioned source snapshots, review, matching and
+publication.
+
 ## Refresh Process
 
 The following remains the required operator workflow for a replacement repository bundle; it is not

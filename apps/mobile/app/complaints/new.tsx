@@ -1,5 +1,5 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -54,6 +54,17 @@ export default function NewComplaintScreen() {
   const [confirmedVoiceRevision, setConfirmedVoiceRevision] = useState<string | null>(null);
   const voiceDescriptionConfirmed =
     reviewRevision !== null && confirmedVoiceRevision === reviewRevision;
+  const resultRedirected = useRef(false);
+
+  useEffect(() => {
+    const receipt = capture.state.receipt;
+    if (receipt === null || resultRedirected.current) return;
+    resultRedirected.current = true;
+    router.replace({
+      pathname: '/complaints/result',
+      params: { complaintId: receipt.id, number: receipt.complaintNumber, status: 'success' },
+    });
+  }, [capture.state.receipt, router]);
 
   if (auth.state.status === 'loading') return <LoadingScreen label="Restoring your session…" />;
   if (auth.state.status === 'configuration-error') {
@@ -112,6 +123,14 @@ export default function NewComplaintScreen() {
     upload: capture.state.upload,
     voiceDescriptionConfirmed,
   });
+  const reportProgress = [
+    { key: 'evidence', label: 'Evidence', complete: finalizedEvidenceCount >= minimumMediaCount },
+    { key: 'location', label: 'Location', complete: locationEligible },
+    { key: 'category', label: 'Category', complete: category !== null },
+    { key: 'description', label: 'Details', complete: description.trim().length > 0 },
+    { key: 'review', label: 'Review', complete: submissionBlockers.length === 0 },
+  ] as const;
+  const completedReportSteps = reportProgress.filter((step) => step.complete).length;
 
   const saveDetails = async (): Promise<void> => {
     try {
@@ -124,8 +143,9 @@ export default function NewComplaintScreen() {
   const submit = async (): Promise<void> => {
     try {
       await capture.submit();
-    } catch {
-      // Sanitized errors are rendered from provider state.
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'We could not submit this report.';
+      router.replace({ pathname: '/complaints/result', params: { status: 'failure', message } });
     }
   };
 
@@ -158,6 +178,23 @@ export default function NewComplaintScreen() {
             Complete one complaint form
           </Text>
           <Text style={styles.help}>Add the issue, location and evidence below.</Text>
+          <View
+            accessibilityLabel={`Report progress: ${completedReportSteps} of ${reportProgress.length} sections complete`}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ max: reportProgress.length, min: 0, now: completedReportSteps }}
+            style={styles.progressRail}
+          >
+            {reportProgress.map((step) => (
+              <View key={step.key} style={styles.progressItem}>
+                <View style={[styles.progressDot, step.complete && styles.progressDotComplete]}>
+                  <Text style={styles.progressDotText}>{step.complete ? '✓' : ''}</Text>
+                </View>
+                <Text style={[styles.progressLabel, step.complete && styles.progressLabelComplete]}>
+                  {step.label}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
         {!capture.state.isOnline ? (
           <Text accessibilityRole="alert" style={styles.warning}>
@@ -169,6 +206,15 @@ export default function NewComplaintScreen() {
             <Text accessibilityRole="alert" style={styles.error}>
               {capture.state.error}
             </Text>
+            {capture.state.error.includes('already submitted') ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.replace('/complaints')}
+                style={styles.settingsButton}
+              >
+                <Text style={styles.settingsButtonText}>Open Your complaints</Text>
+              </Pressable>
+            ) : null}
             {capture.state.locationSettingsRequired ? (
               <Pressable
                 accessibilityRole="button"
@@ -491,10 +537,12 @@ export default function NewComplaintScreen() {
             <View style={styles.formSection}>
               <Text style={styles.sectionLabel}>SIMILAR REPORTS</Text>
               <Text accessibilityRole="header" style={styles.title}>
-                Check before submitting
+                Check similar reports (optional)
               </Text>
               {capture.state.duplicateCheck === null ? (
-                <Text style={styles.muted}>Required before submission.</Text>
+                <Text style={styles.muted}>
+                  You can check for nearby reports or submit without checking.
+                </Text>
               ) : capture.state.duplicateCheck.suggestions.length > 0 ? (
                 <>
                   <Text style={styles.help}>Review these before creating another report.</Text>
@@ -834,13 +882,29 @@ const styles = StyleSheet.create({
   options: { gap: 9 },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#166534',
+    backgroundColor: '#16834a',
     borderRadius: 14,
     justifyContent: 'center',
     minHeight: 52,
     padding: 13,
   },
   primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
+  progressDot: {
+    alignItems: 'center',
+    backgroundColor: '#eef2f0',
+    borderColor: '#c9d8d0',
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
+  },
+  progressDotComplete: { backgroundColor: '#17683b', borderColor: '#17683b' },
+  progressDotText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
+  progressItem: { alignItems: 'center', flex: 1, gap: 4 },
+  progressLabel: { color: '#64756b', fontSize: 11, fontWeight: '700' },
+  progressLabelComplete: { color: '#17683b' },
+  progressRail: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10 },
   receiptNumber: { color: '#14532d', fontSize: 25, fontWeight: '900' },
   reviewLabel: { color: '#64748b', fontSize: 13, fontWeight: '700' },
   reviewRow: { backgroundColor: '#f8fafc', borderRadius: 9, gap: 4, padding: 12 },
@@ -858,7 +922,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   secondaryButtonText: { color: '#166534', fontWeight: '800' },
-  sectionLabel: { color: '#247047', fontSize: 11, fontWeight: '900', letterSpacing: 0.9 },
+  sectionLabel: { color: '#0b6fa4', fontSize: 11, fontWeight: '900', letterSpacing: 0.9 },
   settingsButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   settingsButtonText: { color: '#166534', fontWeight: '800' },
   subsection: { gap: 12, marginTop: 2 },
@@ -887,9 +951,9 @@ const styles = StyleSheet.create({
   },
   unavailableText: { color: '#64748b' },
   warning: {
-    backgroundColor: '#fffbeb',
+    backgroundColor: '#fff4e6',
     borderRadius: 10,
-    color: '#92400e',
+    color: '#b45309',
     lineHeight: 21,
     padding: 14,
   },

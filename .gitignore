@@ -31,6 +31,9 @@ yarn-error.log*
 # Local operator artifacts
 .local/
 
+# Generated inspection and rendering artifacts
+/tmp/
+
 # Editors and operating systems
 .DS_Store
 .idea/

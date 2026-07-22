@@ -12,7 +12,11 @@ import type {
   RoutingPolicy,
   RoutingResolutionInput,
 } from '@local-wellness/types';
-import type { JurisdictionResolutionQuery, RoutingContext } from '@local-wellness/routing-engine';
+import {
+  RoutingEngine,
+  type JurisdictionResolutionQuery,
+  type RoutingContext,
+} from '@local-wellness/routing-engine';
 import request from 'supertest';
 
 import { configureApiApplication } from '../application.js';
@@ -28,6 +32,7 @@ import {
   RoutingStore,
   type RecordRoutingDecisionInput,
   type RecordedRoutingDecision,
+  type ResolveWardComplaintRouteInput,
 } from '../data/routing.store.js';
 import { CategoriesController } from '../routing/categories.controller.js';
 import { CategoriesService } from '../routing/categories.service.js';
@@ -176,6 +181,7 @@ class FakeRoutingStore extends RoutingStore {
   public assets: RoutingAssetOption[] = [];
   public category: RoutingCategory | null = category;
   public categoryCatalog: RoutingCategoryCatalogItem[] | null = null;
+  public categoryCatalogCalls = 0;
   public context: RoutingContext = { policy, candidates: [candidate] };
   public decisionRecords: RecordRoutingDecisionInput[] = [];
   public jurisdictionResolution: JurisdictionResolution = jurisdiction;
@@ -183,6 +189,7 @@ class FakeRoutingStore extends RoutingStore {
   public failRecording = false;
   public failRecordingWithConflict = false;
   public replay: RecordedRoutingDecision | null = null;
+  public wardRouteInputs: ResolveWardComplaintRouteInput[] = [];
 
   public async findRoutingCategory(categoryId: string): Promise<RoutingCategory | null> {
     return this.category?.id === categoryId ? this.category : null;
@@ -196,6 +203,7 @@ class FakeRoutingStore extends RoutingStore {
   }
 
   public async listRoutingCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
+    this.categoryCatalogCalls += 1;
     if (this.failListing) {
       throw new RoutingDataAccessError('list routing category catalog');
     }
@@ -228,6 +236,33 @@ class FakeRoutingStore extends RoutingStore {
 
     this.decisionRecords.push(input);
     return 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  }
+
+  public async resolveWardComplaintRoute(
+    input: ResolveWardComplaintRouteInput,
+  ): Promise<RecordedRoutingDecision> {
+    this.wardRouteInputs.push(input);
+    const routingInput: RoutingResolutionInput = {
+      categoryId: input.categoryId,
+      location: {
+        latitude: input.locationEvidence.latitude,
+        longitude: input.locationEvidence.longitude,
+      },
+      accuracyMeters: input.locationEvidence.accuracyMeters,
+      assetId: input.assetId,
+      resolvedAt: input.resolvedAt,
+    };
+    const decision = await new RoutingEngine(this, this).resolve(routingInput);
+    const recordInput: RecordRoutingDecisionInput = {
+      actorUserId: input.actorUserId,
+      requestId: input.requestId,
+      locationEvidence: input.locationEvidence,
+      routingInput,
+      decision,
+    };
+    const id = await this.recordRoutingDecision(recordInput);
+
+    return { id, ...recordInput };
   }
 
   public async findRecordedRoutingDecision(
@@ -312,12 +347,34 @@ describe('API routing contract', () => {
       unavailableCategory,
     ];
 
-    const response = await request(application.getHttpServer())
+    const firstResponse = await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/catalog')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(200);
+    const secondResponse = await request(application.getHttpServer())
       .get('/api/v1/routing/categories/catalog')
       .set('authorization', 'Bearer valid-access-token')
       .expect(200);
 
-    assert.deepEqual(response.body.data, routingStore.categoryCatalog);
+    assert.deepEqual(firstResponse.body.data, routingStore.categoryCatalog);
+    assert.deepEqual(secondResponse.body.data, routingStore.categoryCatalog);
+    assert.equal(routingStore.categoryCatalogCalls, 1);
+  });
+
+  it('does not cache a failed category catalog request', async () => {
+    routingStore.failListing = true;
+    await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/catalog')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(503);
+
+    routingStore.failListing = false;
+    await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/catalog')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(200);
+
+    assert.equal(routingStore.categoryCatalogCalls, 2);
   });
 
   it('returns only the sanitized nearby-asset contract for an authenticated request', async () => {
@@ -418,6 +475,58 @@ describe('API routing contract', () => {
       routingStore.decisionRecords[0]?.actorUserId,
       '7cd50865-9ebd-4a79-abaa-f059a1632985',
     );
+    assert.deepEqual(routingStore.wardRouteInputs, [
+      {
+        actorUserId: '7cd50865-9ebd-4a79-abaa-f059a1632985',
+        requestId: routingIdempotencyKey,
+        categoryId: ids.category,
+        assetId: null,
+        locationEvidence: {
+          latitude: 18.5204,
+          longitude: 73.8567,
+          accuracyMeters: 8,
+          capturedAt: '2026-07-13T09:59:00+00:00',
+        },
+        resolvedAt: '2026-07-13T10:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('replays an idempotent route when Postgres normalizes the timestamp offset', async () => {
+    const body = {
+      categoryId: ids.category,
+      latitude: 18.5204,
+      longitude: 73.8567,
+      accuracyMeters: 8,
+      capturedAt: '2026-07-13T09:59:00+00:00',
+    };
+
+    await request(application.getHttpServer())
+      .post('/api/v1/routing/resolve')
+      .set('authorization', 'Bearer valid-access-token')
+      .set('idempotency-key', routingIdempotencyKey)
+      .send(body)
+      .expect(200);
+
+    const recorded = routingStore.decisionRecords[0];
+    assert.ok(recorded);
+    routingStore.replay = {
+      ...recorded,
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      locationEvidence: {
+        ...recorded.locationEvidence,
+        capturedAt: '2026-07-13T09:59:00.000Z',
+      },
+    };
+
+    await request(application.getHttpServer())
+      .post('/api/v1/routing/resolve')
+      .set('authorization', 'Bearer valid-access-token')
+      .set('idempotency-key', routingIdempotencyKey)
+      .send(body)
+      .expect(200);
+
+    assert.equal(routingStore.decisionRecords.length, 1);
   });
 
   it('preserves selected asset geometry evidence in the public target and audit input', async () => {

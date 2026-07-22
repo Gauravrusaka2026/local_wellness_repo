@@ -5,6 +5,22 @@ export class ConfigurationError extends Error {
   }
 }
 
+export const nextAdaptivePollingDelay = (
+  input: Readonly<{
+    baseDelayMilliseconds: number;
+    currentDelayMilliseconds: number;
+    maximumDelayMilliseconds: number;
+    workClaimed: boolean;
+  }>,
+): number => {
+  if (input.workClaimed) return input.baseDelayMilliseconds;
+
+  return Math.min(
+    input.maximumDelayMilliseconds,
+    Math.max(input.baseDelayMilliseconds, input.currentDelayMilliseconds) * 2,
+  );
+};
+
 export type PublicSupabaseConfiguration = Readonly<{
   anonKey: string;
   url: string;

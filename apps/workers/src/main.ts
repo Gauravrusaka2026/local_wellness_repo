@@ -8,6 +8,7 @@ import { SupabaseNotificationOutboxStore } from './supabase-notification-outbox.
 import { SupabaseSlaEscalationStore } from './supabase-sla-escalation.store.js';
 import { loadWorkerConfiguration } from './worker-configuration.js';
 import { JsonWorkerLogger } from './worker-logger.js';
+import { WardEmailSender } from './ward-email-sender.js';
 
 export const startWorkerProcess = async (): Promise<void> => {
   process.title = 'local-wellness-workers';
@@ -42,6 +43,13 @@ export const startWorkerProcess = async (): Promise<void> => {
     configuration.kpiCalculation,
   );
   const workers = [notificationWorker, slaEscalationWorker, kpiCalculationWorker] as const;
+  const emailSender =
+    process.env['EMAIL_SMTP_HOST'] &&
+    process.env['EMAIL_SMTP_USER'] &&
+    process.env['EMAIL_SMTP_PASSWORD']
+      ? new WardEmailSender(client, `${configuration.workerId}:ward-email`, logger)
+      : null;
+  let emailTimer: NodeJS.Timeout | null = null;
   let stopping = false;
 
   const stop = async (signal: string): Promise<void> => {
@@ -52,6 +60,7 @@ export const startWorkerProcess = async (): Promise<void> => {
     stopping = true;
     logger.info('worker_process_stopping', { signal });
     await Promise.all(workers.map(async (worker) => worker.stop()));
+    if (emailTimer) clearTimeout(emailTimer);
     logger.info('worker_process_stopped');
   };
 
@@ -74,6 +83,17 @@ export const startWorkerProcess = async (): Promise<void> => {
     slaPollIntervalMilliseconds: configuration.slaEscalation.pollIntervalMilliseconds,
     workerId: configuration.workerId,
   });
+
+  const pollEmail = async (): Promise<void> => {
+    if (!emailSender || stopping) return;
+    try {
+      await emailSender.runBatch();
+    } catch {
+      logger.error('ward_email_claim_failed');
+    }
+    if (!stopping) emailTimer = setTimeout(() => void pollEmail(), 60_000);
+  };
+  if (emailSender) void pollEmail();
 
   await Promise.all(workers.map(async (worker) => worker.start()));
 };

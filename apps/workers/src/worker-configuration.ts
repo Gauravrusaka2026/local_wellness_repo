@@ -105,7 +105,7 @@ const loadLoopConfiguration = (
     ),
     pollIntervalMilliseconds: parseInteger(
       environment[`${prefix}_POLL_INTERVAL_MS`],
-      1_000,
+      10_000,
       `${prefix} poll interval`,
       250,
       60_000,
@@ -139,7 +139,7 @@ export const loadWorkerConfiguration = (
     ),
     pollIntervalMilliseconds: parseInteger(
       environment['NOTIFICATION_POLL_INTERVAL_MS'],
-      1_000,
+      10_000,
       'Poll interval',
       250,
       60_000,

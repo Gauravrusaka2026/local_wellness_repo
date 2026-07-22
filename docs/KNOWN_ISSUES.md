@@ -2,6 +2,21 @@
 
 ## Open Issues
 
+### UI-001 — Benchmark surface completion and rendered accessibility QA remain open
+
+- Severity: Medium before presenting the full citizen experience as complete
+- Status: Foundation and mobile shell refinements implemented; migration and QA pending
+- Discovered: 2026-07-20
+
+The shared design-token/localisation foundation, responsive citizen landing/feed shell, mobile
+one-page report progress summary, authenticated profile/greeting Home, detached navigation capsule,
+and safe Nearby governance layout are implemented. The remaining benchmark inventory is not yet a
+claim of complete functionality: reusable web primitives/stories, full copy migration,
+authenticated web capture, public office-contact contracts, rendered keyboard/screen-reader tests,
+physical-device checks, and in-app browser screenshots remain open. Existing decisions continue to
+keep public comments, guest reporting, external map tiles, saved postal addresses, notification
+providers, and unverified government contacts unavailable or explicitly labelled as such.
+
 ### SLA-001 — Operational calendars, targets, and escalation rules are not approved
 
 - Severity: High before automatic SLA enforcement is activated
@@ -363,13 +378,13 @@ complete fallback paths. The 12 seeded categories are draft, unverified, and non
 Phase 2 placeholder records remain excluded. Until those inputs pass record-specific official-source
 review, a real Pune coordinate must not produce a production route.
 
-The current hosted BMC projection activates exactly three categories—garbage dump, missed sweeping,
-and mosquito breeding—across 22 exact one-to-one wards using 66 deterministic rules. A clean hosted
-smoke resolved K/W Ward and a mosquito-breeding route, so those data are no longer merely local.
-Split K/P child wards and external delivery remain disabled. Activating the remaining nine pilot
-categories requires reviewed feature snapshots, stable identifiers, geometry, authority ownership,
-department/role/fallback mappings, and operational evidence. The canonical BMC routing references
-require asset ownership for all nine, including illegal construction, encroachment, and fallen tree.
+The current V1 BMC overlay activates all 12 pilot categories through a private 26-ward ×
+12-category contact matrix. It uses the stored PostGIS boundary/crosswalk evidence, a durable
+municipal intake target and the existing auditable complaint assignment rather than requiring an
+asset owner for the citizen-submission critical path. This is owner-approved staging coverage, not
+a claim that every K/P child polygon or recipient is production-current. Exact child geometry,
+hosted deployment/smoke and an outbound email provider remain open. Pune and statewide routing are
+still unavailable.
 
 The network-free `bmc-routing-asset-sources.v1` manifest now pins candidate official MCGM GIS layers
 for roads, drains, sewer/manholes, water pipelines, streetlights, buildings, public right-of-way,
@@ -509,7 +524,9 @@ Hosted staging must still run the complete forward migration in **SQL Editor →
 claim the managed issue resolved until the runtime audit passes and submission returns a complaint
 receipt. If PostgREST alone reports `PGRST202` after the audit passes, use the guarded schema-cache
 reload file once. No tolerance, placeholder promotion, direct client grant, or external BMC delivery
-was introduced.
+was introduced. The mobile client now rotates its submission identity after an allow-listed
+pre-insert routing-evidence mismatch, so a stale reservation can be retried safely; ambiguous
+network/dependency outcomes still do not rotate automatically.
 
 ### ENV-003 — Rendered application smoke test needs an in-app browser session
 
@@ -728,6 +745,12 @@ remaining managed-enforcement or recovery work. Every synthetic staging identity
 still requires its own factor and an AAL2 validation smoke before privileged enforcement can be
 claimed operational.
 
+The 2026-07-18 staging enrollment failure was traced to Supabase's newline-terminated TOTP SVG data
+URL being passed through Next Image, which rejects a source ending in a control character. The
+local portals now trim the provider value, render it without image optimization, detect their own
+unfinished unverified factors, and offer an explicit bounded restart. This resolves the known
+rendering/retry defect; it does not complete the outstanding managed recovery or AAL2 browser smoke.
+
 Keep privileged enforcement in observe mode until current administrators and government users can
 enroll, a documented recovery procedure is rehearsed, exact hosted callbacks work, and both AAL1
 rejection and AAL2 success are verified against the managed project. Client redirects remain a UX
@@ -858,6 +881,26 @@ SecureStore behavior, browser cookie attributes, and hosted callback URLs still 
 environment smoke tests. Expo Go's temporary `exp://` callback is not a stable substitute for an
 installed-build test.
 
+### DELIVERY-001 — Ward complaint emails are queued but no sender provider is configured
+
+- Severity: High before representing external complaint delivery as operational
+- Status: Contact/routing/outbox engineering complete; provider activation pending
+- Discovered: 2026-07-20
+
+The V1 BMC facade stores 312 private ward/category contact rows and atomically queues one
+idempotent email job when a routed complaint receives its initial assignment. The immutable issue-
+contact archive supplies primary/secondary phones, `1916`, category coverage and official WhatsApp;
+the separate immutable 2026-07-20 ward-directory archive supplies email/office evidence. Direct
+K/N and P/E mailboxes and K/S→K/E plus P/W→P/N parent mappings are included. Raw source status and
+provenance remain stored separately from the owner's staging-routing approval. These values remain
+private and no automated phone or WhatsApp action exists.
+
+The trusted workers now include a bounded SMTP sender and a data-minimized JagrukSetu template.
+The provider still requires a hosted worker deployment and an end-to-end test that records the
+provider message ID. Until that smoke passes, `pending` means only that JagrukSetu queued the
+delivery; it must not be presented as accepted by BMC. Do not run a tight polling loop or introduce
+Redis/BullMQ to close this issue.
+
 ### NOTIFY-001 — Push and email notification providers and user preferences are not configured
 
 - Severity: High before offline notification channels are represented as operational
@@ -939,6 +982,36 @@ merge pages by stable notification ID, retain newest-page pull-to-refresh and So
 reconciliation, and cover duplicate/out-of-order/empty-page/read-state behavior. Do not replace
 durable history with an in-memory cache or introduce Redis.
 
+### PERF-001 — Hosted complaint flow creates excessive database and API fan-out
+
+- Severity: High for managed staging reliability
+- Status: Partially mitigated locally; hosted query evidence and end-to-end validation pending
+- Discovered: 2026-07-18
+
+Hosted Supabase has reported CPU above 80%, and a mobile report submission can remain loading while
+the project is under pressure. A read-only application audit found two concrete avoidable load
+sources: realtime plus three worker claim loops could issue about 345,600 empty PostgreSQL RPCs per
+day at their former one-second idle defaults, and a representative one-photo complaint path can
+perform roughly 122 Supabase SDK operations (about 141 for an asset-routed category) across its
+multi-stage draft, location, media, duplicate, routing, and submission lifecycle. Those SDK counts
+are a code-path estimate, not a hosted statement count.
+
+The local mitigation adds bounded adaptive idle backoff, removes a redundant Auth network
+verification, coalesces only identical concurrent actor-context reads, and caches only the
+non-user-specific category catalog for 30 seconds. Completed profile, role, membership, MFA,
+coordinate, jurisdiction, route, draft, complaint, and workflow decisions remain uncached. The
+read-only `supabase/deploy/diagnostics/database_performance_audit.sql` report has been locally
+validated, but it still must be run privately on hosted staging while pressure is present.
+
+Do not infer that 127 application tables require consolidation, add a speculative index, or mask
+the condition with a security/routing cache. Remaining engineering should use hosted
+`pg_stat_statements`, waits, table churn, `EXPLAIN`, and Index Advisor evidence to prioritize draft
+hydration, duplicate PostGIS jurisdiction resolution, public feed/hotspot aggregation, quota
+writes, and full-object media hashing. Repeat a representative one-photo submission while measuring
+CPU and latency before treating the incident as resolved. A temporary compute resize is an
+operational safety option if the instance remains saturated, not evidence that the query pattern is
+fixed.
+
 ### OPS-001 — Production container images are not pruned
 
 - Severity: Low
@@ -950,6 +1023,20 @@ The production images copy the verified workspace from the build stage. They run
 Evaluate pnpm deployment pruning or service-specific production dependency packaging after real runtime dependencies exist. Any optimization must preserve reproducible builds and non-root execution.
 
 ## Resolved Issues
+
+### MOB-004 — Auth refresh could leave the mobile Report button loading indefinitely
+
+- Severity: Previously high for mobile complaint entry
+- Status: Resolved locally on 2026-07-18; physical-device confirmation remains part of `COMPLAINT-002`
+- Discovered: 2026-07-18
+- Resolved: 2026-07-18
+
+The complaint provider incremented its busy-operation counter during saved-draft restoration but
+skipped the matching decrement when an Auth session refresh replaced the restoration effect. The
+counter could remain positive, leaving the Report button disabled with an ActivityIndicator even
+though the API was healthy. Restoration now releases its own increment in `finally` regardless of
+effect freshness. The current LAN Expo bundle and API both pass local health checks; a
+representative phone reload remains an environment validation step.
 
 ### MOB-003 — Mobile refresh, permanent-permission, and capture processing edge cases
 

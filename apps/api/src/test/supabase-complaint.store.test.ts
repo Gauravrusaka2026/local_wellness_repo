@@ -24,6 +24,7 @@ import {
   RoutingStore,
   type RecordRoutingDecisionInput,
   type RecordedRoutingDecision,
+  type ResolveWardComplaintRouteInput,
 } from '../data/routing.store.js';
 import { SupabaseClients } from '../supabase/supabase-clients.js';
 import { SupabaseComplaintStore } from '../supabase/supabase-complaint.store.js';
@@ -295,6 +296,13 @@ class FakeRoutingStore extends RoutingStore {
   public async recordRoutingDecision(input: RecordRoutingDecisionInput): Promise<string> {
     void input;
     throw new Error('Unexpected routing decision write.');
+  }
+
+  public async resolveWardComplaintRoute(
+    input: ResolveWardComplaintRouteInput,
+  ): Promise<RecordedRoutingDecision> {
+    void input;
+    throw new Error('Unexpected ward complaint route resolution.');
   }
 
   public async resolveJurisdiction(

@@ -210,7 +210,6 @@ export const complaintSubmissionBlockerCodes = [
   'media',
   'media_limit',
   'upload',
-  'duplicate_check',
   'duplicate_acknowledgement',
   'voice_confirmation',
   'emergency_acknowledgement',
@@ -227,7 +226,6 @@ export const complaintSubmissionBlockerMessages: Readonly<
   category_details: 'Complete and save the category details.',
   description: 'Add and save a description.',
   duplicate_acknowledgement: 'Review and confirm the similar reports.',
-  duplicate_check: 'Check for similar reports.',
   emergency_acknowledgement: 'Acknowledge the emergency warning.',
   location: 'Capture an accepted current location.',
   media: 'Add the required photo or video evidence.',
@@ -289,9 +287,7 @@ export const getComplaintSubmissionBlockers = ({
     blockers.add('asset');
   }
   if (upload !== null) blockers.add('upload');
-  if (duplicateCheck === null) {
-    blockers.add('duplicate_check');
-  } else if (duplicateCheck.suggestions.length > 0 && !duplicatesAcknowledged) {
+  if (duplicateCheck !== null && duplicateCheck.suggestions.length > 0 && !duplicatesAcknowledged) {
     blockers.add('duplicate_acknowledgement');
   }
   if (hasVoice && !voiceDescriptionConfirmed) blockers.add('voice_confirmation');
@@ -302,6 +298,10 @@ export const getComplaintSubmissionBlockers = ({
 
   return complaintSubmissionBlockerCodes.filter((code) => blockers.has(code));
 };
+
+export const getAcknowledgedDuplicateSuggestionIds = (
+  duplicateCheck: ComplaintDuplicateCheckResult | null,
+): string[] => duplicateCheck?.suggestions.map((suggestion) => suggestion.complaintId) ?? [];
 
 const normalizedAttributes = (
   attributes: Record<string, boolean | number | string>,

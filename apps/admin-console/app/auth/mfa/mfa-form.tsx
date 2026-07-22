@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import {
@@ -18,6 +17,7 @@ type MfaView =
   | Readonly<{ kind: 'loading' }>
   | Readonly<{ kind: 'error' }>
   | Readonly<{ kind: 'enrollment-required' }>
+  | Readonly<{ factorIds: readonly string[]; kind: 'enrollment-recovery' }>
   | Readonly<{ factorId: string; kind: 'challenge' }>
   | Readonly<{ enrollment: TotpEnrollment; kind: 'enrollment' }>;
 
@@ -49,9 +49,14 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
         return;
       }
 
+      if (state.status === 'challenge') {
+        setView({ factorId: state.factorId, kind: 'challenge' });
+        return;
+      }
+
       setView(
-        state.status === 'challenge'
-          ? { factorId: state.factorId, kind: 'challenge' }
+        state.status === 'enrollment-recovery'
+          ? { factorIds: state.factorIds, kind: 'enrollment-recovery' }
           : { kind: 'enrollment-required' },
       );
     } catch (loadError) {
@@ -82,6 +87,14 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
     setIsPending(true);
 
     try {
+      if (view.kind === 'enrollment-recovery') {
+        for (const factorId of view.factorIds) {
+          await cleanupTotpFactor(supabase, factorId);
+        }
+        if (!isMounted.current) return;
+        setView({ kind: 'enrollment-required' });
+      }
+
       const enrollment = await enrollTotpFactor(supabase);
       if (!isMounted.current) {
         await cleanupTotpFactor(supabase, enrollment.factorId).catch(() => undefined);
@@ -171,7 +184,9 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
   const heading =
     view.kind === 'challenge'
       ? 'Enter your authenticator code'
-      : view.kind === 'enrollment' || view.kind === 'enrollment-required'
+      : view.kind === 'enrollment' ||
+          view.kind === 'enrollment-required' ||
+          view.kind === 'enrollment-recovery'
         ? 'Set up your authenticator'
         : 'Authenticator verification';
 
@@ -231,6 +246,23 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
         </div>
       ) : null}
 
+      {view.kind === 'enrollment-recovery' ? (
+        <div className="stack">
+          <p>
+            An earlier authenticator setup was not completed. Restart setup to remove only that
+            unfinished Local Wellness factor and create a fresh QR code.
+          </p>
+          <button
+            className="primary-button"
+            disabled={isPending}
+            onClick={() => void startEnrollment()}
+            type="button"
+          >
+            {isPending ? 'Restarting…' : 'Restart authenticator setup'}
+          </button>
+        </div>
+      ) : null}
+
       {view.kind === 'enrollment' ? (
         <div className="mfa-setup stack">
           <strong>New authenticator setup</strong>
@@ -238,12 +270,13 @@ export const MfaForm = ({ nextPath }: Readonly<{ nextPath: string }>) => {
             Scan this QR code once for <strong>{accountEmail}</strong>. This is not a recurring
             sign-in step; future sign-ins will ask only for the six-digit code already in your app.
           </p>
-          <Image
+          {/* Ephemeral provider-generated data URLs must not pass through Next image optimization. */}
+          <img
             alt="Scan this QR code with your authenticator application"
             className="mfa-qr"
             height={240}
+            referrerPolicy="no-referrer"
             src={view.enrollment.qrCodeSource}
-            unoptimized
             width={240}
           />
           <p className="field-hint">

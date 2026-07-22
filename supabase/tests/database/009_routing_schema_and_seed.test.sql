@@ -38,7 +38,7 @@ select is(
       and relation.relkind = 'r'
       and relation.relrowsecurity
   ),
-  15,
+  16,
   'RLS is enabled on every routing table'
 );
 select is(
@@ -50,7 +50,7 @@ select is(
       and relation.relkind = 'r'
       and relation.relforcerowsecurity
   ),
-  15,
+  16,
   'RLS is forced on every routing table'
 );
 select is(
@@ -171,13 +171,14 @@ select is(
   (
     select count(*)::integer
     from routing.issue_categories
-    where status = 'draft'
-      and verification_status = 'unverified'
+    where status = 'active'
+      and verification_status = 'verified'
       and not is_placeholder
-      and not is_routing_eligible
+      and is_routing_eligible
+      and not requires_asset
   ),
-  9,
-  'nine asset-dependent or otherwise pending pilot categories remain unverified and non-routable'
+  12,
+  'all pilot categories are enabled for the owner-approved V1 ward route'
 );
 select is(
   (
@@ -202,8 +203,8 @@ select is(
 );
 select is(
   (select count(*)::integer from public.list_routing_categories(false)),
-  3,
-  'operational category lookup returns only the three reviewed BMC internal-demo categories'
+  12,
+  'operational category lookup returns all V1 ward-routable categories'
 );
 select ok(
   exists (

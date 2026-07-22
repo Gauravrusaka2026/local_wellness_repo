@@ -26,6 +26,15 @@ export interface RecordedRoutingDecision extends RecordRoutingDecisionInput {
   id: string;
 }
 
+export interface ResolveWardComplaintRouteInput {
+  actorUserId: string;
+  requestId: string;
+  categoryId: string;
+  assetId: string | null;
+  locationEvidence: LocationEvidence;
+  resolvedAt: string;
+}
+
 export interface RoutingAssetDiscoveryQuery {
   categoryId: string;
   location: Readonly<{ latitude: number; longitude: number }>;
@@ -67,6 +76,10 @@ export abstract class RoutingStore implements JurisdictionResolver, RoutingDataP
   ): Promise<RoutingContext>;
 
   public abstract recordRoutingDecision(input: RecordRoutingDecisionInput): Promise<string>;
+
+  public abstract resolveWardComplaintRoute(
+    input: ResolveWardComplaintRouteInput,
+  ): Promise<RecordedRoutingDecision>;
 
   public abstract findRecordedRoutingDecision(
     actorUserId: string,

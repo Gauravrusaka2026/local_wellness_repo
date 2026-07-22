@@ -26,6 +26,7 @@ import {
   type RoutingAssetDiscoveryQuery,
   type RecordRoutingDecisionInput,
   type RecordedRoutingDecision,
+  type ResolveWardComplaintRouteInput,
 } from '../data/routing.store.js';
 import { SupabaseClients } from './supabase-clients.js';
 
@@ -1065,6 +1066,55 @@ export class SupabaseRoutingStore extends RoutingStore {
     return decode(uuidSchema, data, 'record routing decision');
   }
 
+  public async resolveWardComplaintRoute(
+    input: ResolveWardComplaintRouteInput,
+  ): Promise<RecordedRoutingDecision> {
+    const operation = 'resolve ward complaint route';
+    const decisionId = decode(
+      uuidSchema,
+      await this.callRpc(operation, 'resolve_v1_ward_route', {
+        p_actor_user_id: input.actorUserId,
+        p_request_id: input.requestId,
+        p_category_id: input.categoryId,
+        p_longitude: input.locationEvidence.longitude,
+        p_latitude: input.locationEvidence.latitude,
+        p_accuracy_meters: input.locationEvidence.accuracyMeters,
+        p_captured_at: input.locationEvidence.capturedAt,
+        p_resolved_at: input.resolvedAt,
+        p_asset_id: input.assetId,
+      }),
+      operation,
+    );
+    const replayData = await this.callRpc(operation, 'get_routing_decision_replay', {
+      p_actor_user_id: input.actorUserId,
+      p_request_id: input.requestId,
+    });
+    const rows = decode(z.array(routingReplayRowSchema).max(1), replayData, operation);
+    const row = rows[0];
+
+    if (!row) {
+      throw new RoutingDataAccessError(operation);
+    }
+
+    const replay = decodeRecordedRoutingDecision(input.actorUserId, row);
+    if (
+      replay.id !== decisionId ||
+      replay.requestId !== input.requestId ||
+      replay.routingInput.categoryId !== input.categoryId ||
+      replay.routingInput.assetId !== input.assetId ||
+      replay.locationEvidence.latitude !== input.locationEvidence.latitude ||
+      replay.locationEvidence.longitude !== input.locationEvidence.longitude ||
+      replay.locationEvidence.accuracyMeters !== input.locationEvidence.accuracyMeters ||
+      Date.parse(replay.locationEvidence.capturedAt) !==
+        Date.parse(input.locationEvidence.capturedAt) ||
+      Date.parse(replay.routingInput.resolvedAt) !== Date.parse(input.resolvedAt)
+    ) {
+      throw new RoutingDataAccessError(operation);
+    }
+
+    return replay;
+  }
+
   public async findRecordedRoutingDecision(
     actorUserId: string,
     requestId: string,
@@ -1091,7 +1141,7 @@ export class SupabaseRoutingStore extends RoutingStore {
       const { data, error } = await rpc(functionName, arguments_);
 
       if (
-        functionName === 'record_routing_decision' &&
+        (functionName === 'record_routing_decision' || functionName === 'resolve_v1_ward_route') &&
         hasDatabaseErrorMarker(error, 'ROUTING_DECISION_IDEMPOTENCY_CONFLICT')
       ) {
         throw new RoutingDecisionIdempotencyConflictError();

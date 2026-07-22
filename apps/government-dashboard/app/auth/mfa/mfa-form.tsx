@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { signOutGovernmentSession } from '../../../lib/auth/service';
@@ -19,12 +18,13 @@ type MfaView =
   | Readonly<{ kind: 'loading' }>
   | Readonly<{ kind: 'error' }>
   | Readonly<{ kind: 'enrollment-required' }>
+  | Readonly<{ factorIds: readonly string[]; kind: 'enrollment-recovery' }>
   | Readonly<{ factorId: string; kind: 'challenge' }>
   | Readonly<{ enrollment: TotpEnrollment; kind: 'enrollment' }>;
 
 export const getMfaHeading = (view: MfaView['kind']): string => {
   if (view === 'challenge') return 'Enter your authenticator code';
-  if (view === 'enrollment' || view === 'enrollment-required') {
+  if (view === 'enrollment' || view === 'enrollment-required' || view === 'enrollment-recovery') {
     return 'Set up your authenticator';
   }
   return 'Verify your government account';
@@ -55,9 +55,14 @@ export const MfaForm = ({
         return;
       }
 
+      if (state.status === 'challenge') {
+        setView({ factorId: state.factorId, kind: 'challenge' });
+        return;
+      }
+
       setView(
-        state.status === 'challenge'
-          ? { factorId: state.factorId, kind: 'challenge' }
+        state.status === 'enrollment-recovery'
+          ? { factorIds: state.factorIds, kind: 'enrollment-recovery' }
           : { kind: 'enrollment-required' },
       );
     } catch (loadError) {
@@ -88,6 +93,14 @@ export const MfaForm = ({
     setIsPending(true);
 
     try {
+      if (view.kind === 'enrollment-recovery') {
+        for (const factorId of view.factorIds) {
+          await cleanupTotpFactor(supabase, factorId);
+        }
+        if (!isMounted.current) return;
+        setView({ kind: 'enrollment-required' });
+      }
+
       const enrollment = await enrollTotpFactor(supabase);
       if (!isMounted.current) {
         await cleanupTotpFactor(supabase, enrollment.factorId).catch(() => undefined);
@@ -226,6 +239,23 @@ export const MfaForm = ({
         </div>
       ) : null}
 
+      {view.kind === 'enrollment-recovery' ? (
+        <div className="stack">
+          <p>
+            An earlier authenticator setup was not completed. Restart setup to remove only that
+            unfinished Local Wellness factor and create a fresh QR code.
+          </p>
+          <button
+            className="primary-button"
+            disabled={isPending}
+            onClick={() => void startEnrollment()}
+            type="button"
+          >
+            {isPending ? 'Restarting…' : 'Restart authenticator setup'}
+          </button>
+        </div>
+      ) : null}
+
       {view.kind === 'enrollment' ? (
         <div className="mfa-setup stack">
           <div>
@@ -235,12 +265,13 @@ export const MfaForm = ({
               <strong>{accountLabel}</strong>.
             </p>
           </div>
-          <Image
+          {/* Ephemeral provider-generated data URLs must not pass through Next image optimization. */}
+          <img
             alt="Scan this QR code with your authenticator application"
             className="mfa-qr"
             height={240}
+            referrerPolicy="no-referrer"
             src={view.enrollment.qrCodeSource}
-            unoptimized
             width={240}
           />
           <p className="field-hint">If you cannot scan it, enter this one-time setup key:</p>

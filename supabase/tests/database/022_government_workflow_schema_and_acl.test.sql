@@ -38,7 +38,7 @@ select is(
       and relation.relrowsecurity
       and relation.relforcerowsecurity
   ),
-  67,
+  68,
   'all private complaint tables enable and force RLS'
 );
 

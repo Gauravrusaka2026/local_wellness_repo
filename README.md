@@ -254,6 +254,15 @@ anon/service-role JWTs; the verified Phase 1 stack rejects the
 legacy service-role JWT, so prefer the current keys. Never copy `SECRET_KEY`, a hosted secret key,
 or a service-role key into any `EXPO_PUBLIC_*` or `NEXT_PUBLIC_*` variable.
 
+`pnpm dev` starts every persistent workspace, including the workers and realtime server. For routine
+API or client development against hosted Supabase, start only the workspaces being exercised. Start
+the workers only for notification/SLA/KPI testing and the realtime server only for Socket.IO delivery
+testing, then stop them when that test is complete. Their PostgreSQL claim loops use adaptive idle
+polling. The repository environment template uses a 10-second base interval: realtime backs off to
+15 seconds, while each notification, SLA, and KPI worker backs off to 60 seconds. A successful claim
+resets only that loop to its configured base interval. This hardening does not add Redis, BullMQ, or
+Sentry.
+
 ### Repository Validation
 
 ```bash
@@ -306,6 +315,11 @@ membership and scoped role through the Admin Console/API. Managed MFA recovery s
 reviewed administrator process documented in `docs/authentication.md`. For now, invite a new
 official-controlled email; assigning government access to an email that already exists remains the
 audited lifecycle task tracked as `AUTH-001`.
+
+The portals normalize Supabase's short-lived TOTP SVG before rendering it and bypass Next image
+optimization for that private data URL. If a setup page was closed before verification, reload it
+and choose **Restart authenticator setup**; the portal removes only its own unfinished factor before
+creating a new QR code.
 
 All three web portals and the API must use the same root `.env` and the same migrated Supabase
 project. Their local scripts now load that file automatically and preserve explicitly injected
@@ -388,6 +402,11 @@ KPI_CALCULATION_WORKER_ID
 KPI_CALCULATION_BATCH_SIZE
 KPI_CALCULATION_LEASE_SECONDS
 KPI_CALCULATION_POLL_INTERVAL_MS
+EMAIL_SMTP_HOST
+EMAIL_SMTP_PORT
+EMAIL_SMTP_USER
+EMAIL_SMTP_PASSWORD
+EMAIL_FROM
 
 EXPO_PUBLIC_SUPABASE_URL
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -407,6 +426,11 @@ Only public client-safe variables may use `EXPO_PUBLIC_` or `NEXT_PUBLIC_`.
 Use publishable and secret keys for current Supabase projects; anon and service-role variables remain legacy fallbacks. Preferred variables may be left empty when a legacy value is intentionally used. Either server credential must exist only in trusted server or worker environments.
 `GOVERNANCE_SYNC_DISPATCH_SECRET` is a separate high-entropy server/Edge secret used only by the
 environment scheduler; never expose it to a browser/mobile bundle, source registry row, or log.
+The optional ward-email sender runs only in the trusted workers process. Configure `EMAIL_SMTP_HOST`,
+`EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, and `EMAIL_SMTP_PASSWORD` there; `EMAIL_FROM` may override the
+authenticated mailbox used in the From header. When those SMTP values are absent, the ward-email
+loop remains disabled while the other worker loops continue. Never use any `EXPO_PUBLIC_*` or
+`NEXT_PUBLIC_*` variable for SMTP credentials.
 
 ### First Platform Administrator
 
@@ -439,7 +463,7 @@ pnpm database:types:check
 
 For a clean database bootstrap that requires one SQL file, use `supabase/master.sql`. For an
 existing database created from an earlier Local Wellness master, run `supabase/master.part-1.sql`
-and then `supabase/master.part-2.sql`. Together they contain all 45 migrations, detect and skip a
+and then `supabase/master.part-2.sql`. Together they contain all 48 migrations, detect and skip a
 coherent completed prefix, and apply only missing migrations in two transaction-atomic parts. They
 deliberately exclude seed data and fail on partial or non-contiguous schema fingerprints.
 
@@ -514,6 +538,33 @@ demo. Split wards
 executable route. External/production complaint delivery remains false, so a Local Wellness queue
 record must not be represented as a complaint lodged in BMC's official system.
 
+The current V1 staging overlay supersedes that bounded demo path for citizen complaint capture. It
+merges two immutable, operator-supplied archives without rewriting either one:
+
+- `resources/Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` supplies the 12-category matrix, primary and
+  secondary telephone contacts, `1916` fallback, official WhatsApp, durable roles and their source
+  evidence; and
+- `resources/local_wellness_bmc_ward_directory_2026-07-20.zip` supplies ward-office email and
+  office provenance, including direct K/N and P/E mailboxes and the K/S→K/E and P/W→P/N parent-
+  office mappings.
+
+Their deterministic merge generates a private 26-ward × 12-category matrix (312 rows). Raw email-
+source status and record locators remain distinct from the owner's staging-routing approval; that
+approval does not promote the source record or prove production recipient acceptance. The server
+resolves the captured PostGIS point to a configured BMC ward, records the normal auditable routing
+decision and complaint assignment, and queues one idempotent email-delivery job for the ward
+mailbox. All email, telephone, WhatsApp and detailed provenance values remain private operational
+data and are never returned to citizen clients. Generate/check the seed with
+`pnpm governance:bmc:v1-contacts:generate` / `pnpm governance:bmc:v1-contacts:check`.
+
+For an existing staging project, run `supabase/deploy/v1-simple-ward-routing.sql` in **Supabase
+Dashboard → SQL Editor → New query** after the prior schema/BMC governance prerequisites are
+present. Check the generated file with `pnpm governance:bmc:v1-routing:deploy:check`. The bundle
+includes the base facade migration, forward email-provenance migration
+`20260720103000_v1_ward_email_provenance.sql`, and generated seed. It adds the private contact
+matrix and email outbox; it does not configure or run an email provider, so `pending` means queued
+locally, not delivered to BMC.
+
 For an existing Supabase project whose BMC data is absent, first bring its schema through migration 43. When migration 38 is confirmed complete, run the current-session upgrade above; otherwise stop
 and reconcile or use the adaptive master parts as appropriate. Then use the generated SQL Editor
 bundle under `supabase/deploy/bmc-mobile-demo/` and run
@@ -543,7 +594,7 @@ source, route, ward, complaint, or production deployment/activation is implied.
 The owner has since selected a replacement staging project and reports loading a generated master
 SQL artifact. Because that target's database connection and migration ledger were not available for
 this session, do not infer which master revision, seeds, Auth identities, or role assignments it
-contains. Reconcile it against all 45 current migrations through `20260718110000` before enabling
+contains. Reconcile it against all 48 current migrations through `20260720103000` before enabling
 managed features.
 
 A later clean hosted smoke superseded the earlier empty-data observation: staging now returns all 12
@@ -555,6 +606,13 @@ The current hosted execution order is therefore: confirm migration 38 → run th
 submission audit → require an authenticated complaint receipt. The focused migration is 19 KB and
 rerunnable in **SQL Editor → New query**; it does not reload BMC data or update the CLI migration
 ledger.
+
+For hosted database performance triage, run
+`supabase/deploy/diagnostics/database_performance_audit.sql` privately in **Supabase Dashboard → SQL
+Editor** while the slowdown is observable. The script is read-only, but its normalized query text is
+operationally sensitive and must not be pasted into a public issue. Inspect Dashboard
+**Observability** and **Query Performance** with the audit output before considering a compute resize;
+the repository does not claim that the polling hardening has already improved hosted metrics.
 
 Phase 4 adds the local mobile complaint-capture flow and authenticated complaint API. For local
 engineering, run the API and mobile workspaces after starting and resetting Supabase:
@@ -621,11 +679,13 @@ records. Exact coordinates are rendered as authorized text only because no exter
 coordinate-sharing policy has been selected.
 
 The authenticated report form now lists every non-placeholder category from the database catalog.
-Categories outside the active verified projection remain visibly disabled. The optional BMC
-non-production seed makes only three asset-independent categories selectable; the subsequent
-location-specific routing check resolves them only within its 22 one-to-one wards. Selection alone
-does not promise coverage at a coordinate. The other nine categories remain visible but disabled;
-six explicitly require verified asset ownership, and split K/P wards remain blocked. Speech
+After the V1 BMC ward-contact deployment, all 12 pilot categories are selectable and the
+location-specific routing check resolves them through the private ward/category matrix across the
+26 configured operational wards. The matrix uses the separate immutable phone/WhatsApp/category
+and ward-email/office archives described above; contact provenance remains server-only. Selection
+alone does not promise coverage outside those
+boundaries. K/P split mappings currently use the stored operational crosswalk deterministically
+and remain a staging limitation until exact child geometry is loaded. Speech
 transcription, media moderation, physical-device verification,
 hosted-environment verification, and provider-backed notification delivery remain pending. No
 hosted application deployment or external BMC complaint delivery is part of the current repository
@@ -650,6 +710,9 @@ uses PostgreSQL leases, bounded retries, stable event IDs, and retained delivery
 Redis or BullMQ. Push and email are recorded as explicitly unsupported until providers, user
 preferences/consent, verified destinations, and credentials are approved. Public comments remain
 disabled until public visibility, moderation, abuse controls, and privacy policy are reviewed.
+
+Use `/health/live` for frequent liveness checks. Probe `/health/ready` every 30–60 seconds so the API
+readiness dependency check does not become avoidable hosted database traffic.
 
 Phase 7 adds the private resolution-accountability loop. New government resolutions retain a
 server completion time, captured completion location, optional existing work reference, and
@@ -752,18 +815,22 @@ Current stage:
   routing contracts, accuracy-aware PostGIS candidate queries, append-only decision evidence, and
   review-gated governance-synchronization foundations are implemented and locally verified;
   verified pilot-data activation remains a separate pending milestone;
+- the current BMC V1 staging facade now activates all 12 pilot categories over 26 configured wards
+  from a generated private 312-row contact matrix. Phone/WhatsApp/category evidence and ward-email/
+  office evidence come from separate immutable archives; the merge retains raw source status and
+  owner-approved staging activation. It derives the ward from PostGIS, preserves the complaint
+  assignment/audit path, and queues exactly one ward email without exposing contacts or claiming
+  provider delivery;
 - governance synchronization retrieval engineering now includes PostgreSQL leases/retry state,
   service-only lifecycle RPCs, a bounded Edge fetch/snapshot function, immutable source evidence,
   versioned contacts, and normalization tests. Ten PMC/BMC endpoints remain draft, unverified, and
   inactive. Ten pilot ward scope targets (five per municipality) are also service-only, draft,
   unverified, placeholder-backed, and non-routable; no parser output, record, contact, route, or
   complaint-delivery target is automatically verified or published;
-- the optional BMC staging pack adds official-source internal queue data for 26 operational wards
-  and 20 departments with versioned role/assignment/contact/boundary evidence. Its separate routing
-  seed enables three asset-independent categories through 66 rules over the 22 one-to-one wards;
-  the other nine categories remain unavailable, six of them explicitly asset-dependent, and the
-  K/P split wards remain fail-closed. It is not applied to managed staging automatically and
-  external complaint delivery remains disabled;
+- the older optional BMC staging pack retains its 26 operational wards, 20 departments and 66
+  three-category legacy rules for compatibility. The current V1 facade supersedes that route family
+  for citizen submission; exact K/P child geometry, hosted activation and external provider
+  delivery remain pending;
 - Phase 4 mobile complaint capture, exact-location evidence, private signed media upload,
   duplicate suggestions, and idempotent server-orchestrated submission are implemented for local
   engineering. The canonical Maharashtra/Phase 3 baseline alone contains zero verified routable

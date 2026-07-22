@@ -14,6 +14,7 @@ export class MfaCodeInputError extends Error {
 export type MfaFlowState =
   | Readonly<{ status: 'verified' }>
   | Readonly<{ factorId: string; status: 'challenge' }>
+  | Readonly<{ factorIds: readonly string[]; status: 'enrollment-recovery' }>
   | Readonly<{ status: 'enrollment-required' }>;
 
 export type TotpEnrollment = Readonly<{
@@ -67,7 +68,11 @@ export const getMfaFlowState = async (supabase: SupabaseClient): Promise<MfaFlow
     throw factorsResult.error;
   }
 
-  if (!factorsResult.data || !Array.isArray(factorsResult.data.totp)) {
+  if (
+    !factorsResult.data ||
+    !Array.isArray(factorsResult.data.all) ||
+    !Array.isArray(factorsResult.data.totp)
+  ) {
     throw new Error('Authenticator factors are unavailable.');
   }
 
@@ -79,13 +84,40 @@ export const getMfaFlowState = async (supabase: SupabaseClient): Promise<MfaFlow
     );
   const factor = verifiedFactors[0];
 
-  return factor ? { factorId: factor.id, status: 'challenge' } : { status: 'enrollment-required' };
+  if (factor) {
+    return { factorId: factor.id, status: 'challenge' };
+  }
+
+  const recoverableFactorIds = factorsResult.data.all
+    .filter(
+      (candidate) =>
+        candidate.factor_type === 'totp' &&
+        candidate.status === 'unverified' &&
+        candidate.friendly_name === GOVERNMENT_TOTP_FRIENDLY_NAME &&
+        candidate.id.length > 0,
+    )
+    .sort(
+      (left, right) =>
+        left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id),
+    )
+    .map((candidate) => candidate.id);
+
+  return recoverableFactorIds.length > 0
+    ? { factorIds: recoverableFactorIds, status: 'enrollment-recovery' }
+    : { status: 'enrollment-required' };
 };
 
-const getQrCodeSource = (qrCode: string): string =>
-  qrCode.startsWith('data:image/')
-    ? qrCode
-    : `data:image/svg+xml;utf-8,${encodeURIComponent(qrCode)}`;
+const getQrCodeSource = (qrCode: string): string => {
+  const normalizedQrCode = qrCode.trim();
+
+  if (normalizedQrCode.length === 0) {
+    throw new Error('Authenticator QR code is unavailable.');
+  }
+
+  return normalizedQrCode.startsWith('data:image/')
+    ? normalizedQrCode
+    : `data:image/svg+xml;utf-8,${encodeURIComponent(normalizedQrCode)}`;
+};
 
 export const enrollTotpFactor = async (supabase: SupabaseClient): Promise<TotpEnrollment> => {
   const result = await supabase.auth.mfa.enroll({
@@ -167,6 +199,23 @@ export const getMfaError = (error: unknown): string => {
 
   if (error instanceof Error) {
     const normalizedMessage = error.message.toLowerCase();
+    const errorCode =
+      'code' in error && typeof error.code === 'string' ? error.code.toLowerCase() : '';
+
+    if (
+      errorCode === 'mfa_factor_name_conflict' ||
+      normalizedMessage.includes('factor name') ||
+      normalizedMessage.includes('already exists')
+    ) {
+      return 'An earlier authenticator setup is unfinished. Reload this page and restart setup.';
+    }
+
+    if (
+      errorCode === 'mfa_totp_enroll_not_enabled' ||
+      normalizedMessage.includes('totp enroll not enabled')
+    ) {
+      return 'Authenticator setup is not enabled for this environment. Contact the platform administrator.';
+    }
 
     if (
       normalizedMessage.includes('invalid') ||

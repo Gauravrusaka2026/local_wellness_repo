@@ -75,7 +75,7 @@ export const selectProfilePhoto = async (
     throw new ProfilePhotoSelectionError(
       permission.canAskAgain
         ? `${label} access is needed to ${source === 'camera' ? 'take' : 'choose'} a profile photo.`
-        : `Enable ${label.toLocaleLowerCase()} access for Local Wellness in device settings.`,
+        : `Enable ${label.toLocaleLowerCase()} access for JagrukSetu in device settings.`,
       source,
       { requiresAppSettings: !permission.canAskAgain },
     );

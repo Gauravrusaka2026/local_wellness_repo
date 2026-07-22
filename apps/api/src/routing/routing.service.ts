@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { RoutingEngine } from '@local-wellness/routing-engine';
 import type {
   AuthenticatedUser,
   LocationEvidence,
@@ -11,7 +10,11 @@ import type { ResolveRoutingRequestInput } from '@local-wellness/validation';
 
 import { ApiException } from '../common/api-exception.js';
 import { Clock } from '../common/clock.js';
-import { RoutingDecisionIdempotencyConflictError, RoutingStore } from '../data/routing.store.js';
+import {
+  RoutingDecisionIdempotencyConflictError,
+  RoutingStore,
+  type RecordedRoutingDecision,
+} from '../data/routing.store.js';
 
 export interface ResolveRoutingCommand {
   actor: AuthenticatedUser;
@@ -57,16 +60,13 @@ export const toPublicRoutingResult = (decision: RoutingDecision): RoutingResolut
 @Injectable()
 export class RoutingService {
   private readonly logger = new Logger(RoutingService.name);
-  private readonly engine: RoutingEngine;
 
   public constructor(
     @Inject(RoutingStore)
     private readonly routingStore: RoutingStore,
     @Inject(Clock)
     private readonly clock: Clock,
-  ) {
-    this.engine = new RoutingEngine(routingStore, routingStore);
-  }
+  ) {}
 
   public async resolveRouting(command: ResolveRoutingCommand): Promise<RoutingResolutionResult> {
     const resolution = await this.resolveStoredRouting(command);
@@ -110,34 +110,22 @@ export class RoutingService {
       );
     }
 
-    const routingInput: RoutingResolutionInput = {
-      categoryId: routingCategory.id,
-      location: {
-        latitude: input.latitude,
-        longitude: input.longitude,
-      },
-      accuracyMeters: input.accuracyMeters,
-      assetId: input.assetId ?? null,
-      resolvedAt: resolvedAt.toISOString(),
-    };
-    const decision = await this.engine.resolve(routingInput);
-
-    const recordInput = {
-      actorUserId: actor.id,
-      requestId: idempotencyKey,
-      locationEvidence: {
-        latitude: input.latitude,
-        longitude: input.longitude,
-        accuracyMeters: input.accuracyMeters,
-        capturedAt: input.capturedAt,
-      },
-      routingInput,
-      decision,
-    };
-    let decisionId: string;
+    let recorded: RecordedRoutingDecision;
 
     try {
-      decisionId = await this.routingStore.recordRoutingDecision(recordInput);
+      recorded = await this.routingStore.resolveWardComplaintRoute({
+        actorUserId: actor.id,
+        requestId: idempotencyKey,
+        categoryId: routingCategory.id,
+        assetId: input.assetId ?? null,
+        locationEvidence: {
+          latitude: input.latitude,
+          longitude: input.longitude,
+          accuracyMeters: input.accuracyMeters,
+          capturedAt: input.capturedAt,
+        },
+        resolvedAt: resolvedAt.toISOString(),
+      });
     } catch (error) {
       if (!(error instanceof RoutingDecisionIdempotencyConflictError)) {
         throw error;
@@ -162,16 +150,17 @@ export class RoutingService {
       };
     }
 
+    this.assertReplayMatches(input, recorded.locationEvidence, recorded.routingInput);
     this.logger.log({
       event: 'routing_decision_recorded',
-      routingDecisionId: decisionId,
+      routingDecisionId: recorded.id,
       routingRequestId: idempotencyKey,
-      status: decision.status,
+      status: recorded.decision.status,
       categoryId: routingCategory.id,
     });
     return {
-      decisionId,
-      result: toPublicRoutingResult(decision),
+      decisionId: recorded.id,
+      result: toPublicRoutingResult(recorded.decision),
     };
   }
 
@@ -186,7 +175,7 @@ export class RoutingService {
       evidence.latitude !== input.latitude ||
       evidence.longitude !== input.longitude ||
       evidence.accuracyMeters !== input.accuracyMeters ||
-      evidence.capturedAt !== input.capturedAt
+      Date.parse(evidence.capturedAt) !== Date.parse(input.capturedAt)
     ) {
       throw new RoutingDecisionIdempotencyConflictError();
     }

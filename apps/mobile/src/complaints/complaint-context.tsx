@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../auth/auth-context';
 import {
   complaintCaptureReducer,
+  getAcknowledgedDuplicateSuggestionIds,
   getDraftReadiness,
   getSelectedCategory,
   initialComplaintCaptureState,
@@ -244,7 +245,9 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         }
         if (isCurrent) dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
       } finally {
-        if (isCurrent) dispatch({ type: 'busy', value: false });
+        // The restore operation owns exactly one busy-count increment. It must release that
+        // increment even when an Auth refresh replaces this effect before the request settles.
+        dispatch({ type: 'busy', value: false });
       }
     };
 
@@ -728,10 +731,11 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
           ) {
             throw new Error('This category requires a verified asset selection before submission.');
           }
-          if (state.duplicateCheck === null) {
-            throw new Error('Check and review similar nearby reports before submitting.');
-          }
-          if (state.duplicateCheck.suggestions.length > 0 && !state.duplicatesAcknowledged) {
+          if (
+            state.duplicateCheck !== null &&
+            state.duplicateCheck.suggestions.length > 0 &&
+            !state.duplicatesAcknowledged
+          ) {
             throw new Error(
               'Review and acknowledge the similar-report suggestions before submitting.',
             );
@@ -742,8 +746,8 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
 
           try {
             const input: SubmitComplaintInput = {
-              acknowledgedDuplicateSuggestionIds: state.duplicateCheck.suggestions.map(
-                (suggestion) => suggestion.complaintId,
+              acknowledgedDuplicateSuggestionIds: getAcknowledgedDuplicateSuggestionIds(
+                state.duplicateCheck,
               ),
               ...(category?.isEmergency === true ? { emergencyDisclaimerAcknowledged: true } : {}),
             };

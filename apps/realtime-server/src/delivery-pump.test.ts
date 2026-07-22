@@ -39,7 +39,7 @@ describe('realtime delivery pump', () => {
       logger,
     );
 
-    await pump.pollOnce();
+    assert.equal(await pump.pollOnce(), 1);
 
     assert.equal(pump.isReady(), true);
     assert.deepEqual(store.completed, [{ deliveredSocketCount: 2, deliveryId: testIds.delivery }]);
@@ -63,7 +63,7 @@ describe('realtime delivery pump', () => {
       logger,
     );
 
-    await pump.pollOnce();
+    assert.equal(await pump.pollOnce(), 1);
 
     assert.deepEqual(store.failed, [testIds.delivery]);
     assert.deepEqual(store.failureCodes, ['DELIVERY_EMIT_FAILED']);
@@ -82,7 +82,7 @@ describe('realtime delivery pump', () => {
       logger,
     );
 
-    await pump.pollOnce();
+    assert.equal(await pump.pollOnce(), 1);
 
     assert.deepEqual(store.failureCodes, ['DELIVERY_DEPENDENCY_UNAVAILABLE']);
   });
@@ -98,7 +98,7 @@ describe('realtime delivery pump', () => {
       logger,
     );
 
-    await pump.pollOnce();
+    assert.equal(await pump.pollOnce(), 0);
 
     assert.equal(pump.isReady(), false);
     assert.equal(logger.entries.at(-1)?.event, 'realtime_delivery_claim_failed');

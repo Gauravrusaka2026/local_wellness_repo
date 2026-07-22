@@ -47,7 +47,7 @@ export default function MenuScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>LOCAL WELLNESS</Text>
+          <Text style={styles.eyebrow}>JAGRUKSETU</Text>
           <Text accessibilityRole="header" style={styles.title}>
             Menu
           </Text>
@@ -113,8 +113,8 @@ export default function MenuScreen() {
         </View>
 
         <View style={styles.trustCard}>
-          <Text style={styles.trustTitle}>Private by default</Text>
-          <Text style={styles.trustText}>Exact locations and original evidence stay private.</Text>
+          <Text style={styles.trustTitle}>Your report, your choice</Text>
+          <Text style={styles.trustText}>Choose what to share when you review a report.</Text>
         </View>
 
         <Pressable
@@ -136,7 +136,7 @@ export default function MenuScreen() {
           </Text>
         )}
 
-        <Text style={styles.versionText}>Local Wellness · Citizen application</Text>
+        <Text style={styles.versionText}>JagrukSetu · Citizen application</Text>
       </ScrollView>
       <AppBottomNavigation current="menu" />
     </Screen>

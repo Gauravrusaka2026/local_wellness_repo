@@ -22,6 +22,7 @@ import {
   type ComplaintLocationEvidence,
   type ComplaintMedia,
   type ComplaintReceipt,
+  type ComplaintRoutingSummary,
   type ComplaintTimeline,
   type CreateComplaintDraftInput,
   type CreateComplaintMediaUploadIntentInput,
@@ -47,6 +48,18 @@ import {
 import { RoutingStore } from '../data/routing.store.js';
 import { toPublicRoutingResult } from '../routing/routing.service.js';
 import { SupabaseClients } from './supabase-clients.js';
+
+const toComplaintRoutingSummary = (
+  decision: Parameters<typeof toPublicRoutingResult>[0],
+): ComplaintRoutingSummary => {
+  const result = toPublicRoutingResult(decision);
+  return {
+    confidence: result.confidence,
+    explanation: result.explanation,
+    status: result.status,
+    target: result.target,
+  };
+};
 
 interface RpcResult {
   data: unknown;
@@ -915,7 +928,7 @@ export class SupabaseComplaintStore extends ComplaintStore {
         visibility: 'private',
         categoryId: draft.categoryId,
         submittedAt: row.response_payload.submittedAt,
-        routing: toPublicRoutingResult(replay.decision),
+        routing: toComplaintRoutingSummary(replay.decision),
       };
     }
 
@@ -1032,7 +1045,7 @@ export class SupabaseComplaintStore extends ComplaintStore {
       visibility: row.visibility,
       categoryId: row.category_id,
       submittedAt: row.submitted_at,
-      routing: toPublicRoutingResult(replay.decision),
+      routing: toComplaintRoutingSummary(replay.decision),
       description: row.description,
       location: selectedLocation,
       media: mediaRows.map((media) => toMedia(media, locationById, row.complaint_id)),

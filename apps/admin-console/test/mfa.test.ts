@@ -61,6 +61,50 @@ test('requires enrollment when AAL1 has no verified TOTP factor', async () => {
   assert.deepEqual(await getMfaFlowState(supabase), { status: 'enrollment-required' });
 });
 
+test('offers recovery only for this console unfinished TOTP factors', async () => {
+  const factors = [
+    {
+      created_at: '2026-07-18T07:00:00.000Z',
+      factor_type: 'totp',
+      friendly_name: 'Local Wellness admin console',
+      id: 'recoverable-factor-old',
+      status: 'unverified',
+      updated_at: '2026-07-18T07:00:00.000Z',
+    },
+    {
+      created_at: '2026-07-18T08:00:00.000Z',
+      factor_type: 'totp',
+      friendly_name: 'Another application',
+      id: 'other-factor',
+      status: 'unverified',
+      updated_at: '2026-07-18T08:00:00.000Z',
+    },
+    {
+      created_at: '2026-07-18T09:00:00.000Z',
+      factor_type: 'totp',
+      friendly_name: 'Local Wellness admin console',
+      id: 'recoverable-factor',
+      status: 'unverified',
+      updated_at: '2026-07-18T09:00:00.000Z',
+    },
+  ];
+  const supabase = asSupabaseClient({
+    getAuthenticatorAssuranceLevel: async () => ({
+      data: { currentAuthenticationMethods: [], currentLevel: 'aal1', nextLevel: 'aal2' },
+      error: null,
+    }),
+    listFactors: async () => ({
+      data: { all: factors, phone: [], totp: [], webauthn: [] },
+      error: null,
+    }),
+  });
+
+  assert.deepEqual(await getMfaFlowState(supabase), {
+    factorIds: ['recoverable-factor-old', 'recoverable-factor'],
+    status: 'enrollment-recovery',
+  });
+});
+
 test('returns the oldest verified TOTP factor for an AAL1 challenge', async () => {
   const factors = [
     {
@@ -104,7 +148,7 @@ test('enrolls and can clean up only the exact TOTP factor created by this flow',
         data: {
           id: 'new-factor',
           totp: {
-            qr_code: '<svg><path /></svg>',
+            qr_code: 'data:image/svg+xml;utf-8,<svg><path /></svg>\n',
             secret: 'setup-key',
             uri: 'otpauth://totp/private',
           },
@@ -127,6 +171,7 @@ test('enrolls and can clean up only the exact TOTP factor created by this flow',
   assert.equal(enrollment.factorId, 'new-factor');
   assert.equal(enrollment.secret, 'setup-key');
   assert.match(enrollment.qrCodeSource, /^data:image\/svg\+xml;utf-8,/u);
+  assert.doesNotMatch(enrollment.qrCodeSource, /\s$/u);
   await cleanupTotpFactor(supabase, enrollment.factorId);
   assert.deepEqual(calls[1], { factorId: 'new-factor' });
 });
@@ -152,6 +197,22 @@ test('verifies a challenge only after valid input and confirmed AAL2', async () 
   assert.equal(
     getMfaError(new Error('Challenge expired for internal factor identifier')),
     'The authenticator code is invalid or expired.',
+  );
+  assert.equal(
+    getMfaError(
+      Object.assign(new Error('A factor with this name already exists'), {
+        code: 'mfa_factor_name_conflict',
+      }),
+    ),
+    'An earlier authenticator setup is unfinished. Reload this page and restart setup.',
+  );
+  assert.equal(
+    getMfaError(
+      Object.assign(new Error('TOTP enroll not enabled'), {
+        code: 'mfa_totp_enroll_not_enabled',
+      }),
+    ),
+    'Authenticator setup is not enabled for this environment. Contact the platform administrator.',
   );
 });
 

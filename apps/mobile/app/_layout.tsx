@@ -1,29 +1,10 @@
-import type { Href } from 'expo-router';
-import { Link, Stack } from 'expo-router';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from '../src/auth/auth-context';
 import { ComplaintProvider } from '../src/complaints/complaint-context';
 
-const HeaderMenuButton = () => (
-  <Link href={'/menu' as Href} asChild>
-    <Pressable
-      accessibilityLabel="Open menu"
-      accessibilityRole="button"
-      hitSlop={8}
-      style={({ pressed }) => [styles.menuButton, pressed && styles.menuButtonPressed]}
-    >
-      <Text accessibilityElementsHidden style={styles.menuGlyph}>
-        ≡
-      </Text>
-    </Pressable>
-  </Link>
-);
-
-const detailScreenOptions = {
-  headerRight: HeaderMenuButton,
-} as const;
+const detailScreenOptions = {} as const;
 
 export default function RootLayout() {
   return (
@@ -90,15 +71,3 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  menuButton: {
-    alignItems: 'center',
-    borderRadius: 12,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  menuButtonPressed: { backgroundColor: '#e7efe9' },
-  menuGlyph: { color: '#1d633b', fontSize: 25, fontWeight: '800' },
-});

@@ -351,7 +351,9 @@ const routingEvidenceMismatchCodes = new Set([
 ]);
 
 export const shouldRotateSubmitIdempotencyKeyAfterError = (error: unknown): boolean =>
-  error instanceof ApiClientError && terminalSubmissionRoutingErrorCodes.has(error.code);
+  error instanceof ApiClientError &&
+  (terminalSubmissionRoutingErrorCodes.has(error.code) ||
+    routingEvidenceMismatchCodes.has(error.code));
 
 export const getUserFacingComplaintError = (error: unknown): string => {
   if (error instanceof ApiClientError) {
@@ -367,7 +369,7 @@ export const getUserFacingComplaintError = (error: unknown): string => {
       return 'Verified routing is not available for this category and location yet.';
     }
     if (error.code === 'DEPENDENCY_UNAVAILABLE') {
-      return `Local Wellness is temporarily unavailable. Please try again shortly.${
+      return `JagrukSetu is temporarily unavailable. Please try again shortly.${
         error.requestId === null ? '' : ` Reference: ${error.requestId}.`
       }`;
     }
@@ -392,7 +394,7 @@ export const getUserFacingComplaintError = (error: unknown): string => {
       return 'This category is not currently verified for complaint routing.';
     }
     if (routingEvidenceMismatchCodes.has(error.code)) {
-      return 'Your saved report changed while routing was verified. Refresh the report and submit it again.';
+      return 'Your saved report changed while routing was verified. Submission was reset for a safe retry.';
     }
     if (
       error.code === 'COMPLAINT_DUPLICATE_POLICY_NOT_FOUND' ||

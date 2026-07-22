@@ -316,6 +316,61 @@ const routedDecision: RoutingDecision = {
   },
 };
 
+const routingReplayRow = (requestId: string) => ({
+  routing_decision_id: identifiers.decision,
+  request_id: requestId,
+  category_id: identifiers.category,
+  longitude: routingInput.location.longitude,
+  latitude: routingInput.location.latitude,
+  accuracy_meters: routingInput.accuracyMeters,
+  captured_at: capturedAt,
+  resolved_at: resolvedAt,
+  decision_status: 'routed',
+  confidence_score: 1,
+  state_id: identifiers.state,
+  district_id: identifiers.district,
+  taluka_id: identifiers.taluka,
+  local_body_id: identifiers.localBody,
+  ward_id: identifiers.ward,
+  state_boundary_version_id: identifiers.stateBoundary,
+  district_boundary_version_id: identifiers.districtBoundary,
+  taluka_boundary_version_id: identifiers.talukaBoundary,
+  local_body_boundary_version_id: identifiers.localBodyBoundary,
+  ward_boundary_version_id: identifiers.wardBoundary,
+  asset_type_id: null,
+  asset_id: null,
+  asset_version_id: null,
+  asset_match_distance_meters: null,
+  asset_ownership_version_id: null,
+  target_authority_id: identifiers.authority,
+  department_id: identifiers.department,
+  authority_department_id: identifiers.authorityDepartment,
+  officer_role_id: identifiers.officerRole,
+  officer_assignment_id: null,
+  route_rule_id: identifiers.rule,
+  route_rule_version_id: identifiers.ruleVersion,
+  confidence_policy_version_id: identifiers.policyVersion,
+  fallback_depth: 0,
+  explanation_codes: ['route_resolved'],
+  explanation_metadata: {
+    policyId: identifiers.policy,
+    policyVersionId: identifiers.policyVersion,
+    policyVersion: 1,
+    requestedAssetId: null,
+    confidenceBand: 'high',
+    confidenceFactors,
+    jurisdiction: routedDecision.explanation.jurisdiction,
+    selectedCandidateId: 'candidate:test',
+    selectedRoutingRuleId: identifiers.rule,
+    selectedRoutingRuleVersionId: identifiers.ruleVersion,
+    fallbackUsed: false,
+    fallbackPath: [],
+    ambiguousCandidateIds: [],
+    candidateEvaluations: routedDecision.explanation.candidateEvaluations,
+  },
+  ambiguity_count: 0,
+});
+
 describe('Supabase routing category catalog', () => {
   it('uses only the service-role RPC and maps verified routing categories', async () => {
     const calls: RpcCall[] = [];
@@ -918,67 +973,119 @@ describe('Supabase routing candidate context', () => {
 });
 
 describe('Supabase routing decision audit', () => {
+  it('resolves and replays a ward complaint route through service-role RPCs', async () => {
+    const requestId = 'request-routing-ward-facade';
+    const calls: RpcCall[] = [];
+    const store = createStore(async (functionName, arguments_) => {
+      calls.push({ functionName, arguments_ });
+      return functionName === 'resolve_v1_ward_route'
+        ? { data: identifiers.decision, error: null }
+        : {
+            data: [
+              {
+                ...routingReplayRow(requestId),
+                captured_at: '2026-07-13T10:59:55+00:00',
+                resolved_at: '2026-07-13T11:00:00+00:00',
+              },
+            ],
+            error: null,
+          };
+    });
+
+    const recorded = await store.resolveWardComplaintRoute({
+      actorUserId: identifiers.actor,
+      requestId,
+      categoryId: identifiers.category,
+      assetId: null,
+      locationEvidence: {
+        ...routingInput.location,
+        accuracyMeters: routingInput.accuracyMeters,
+        capturedAt,
+      },
+      resolvedAt,
+    });
+
+    assert.equal(recorded.id, identifiers.decision);
+    assert.deepEqual(recorded.decision, routedDecision);
+    assert.deepEqual(calls, [
+      {
+        functionName: 'resolve_v1_ward_route',
+        arguments_: {
+          p_actor_user_id: identifiers.actor,
+          p_request_id: requestId,
+          p_category_id: identifiers.category,
+          p_longitude: routingInput.location.longitude,
+          p_latitude: routingInput.location.latitude,
+          p_accuracy_meters: routingInput.accuracyMeters,
+          p_captured_at: capturedAt,
+          p_resolved_at: resolvedAt,
+          p_asset_id: null,
+        },
+      },
+      {
+        functionName: 'get_routing_decision_replay',
+        arguments_: {
+          p_actor_user_id: identifiers.actor,
+          p_request_id: requestId,
+        },
+      },
+    ]);
+  });
+
+  it('rejects a missing ward-route replay', async () => {
+    const store = createStore(async (functionName) =>
+      functionName === 'resolve_v1_ward_route'
+        ? { data: identifiers.decision, error: null }
+        : { data: [], error: null },
+    );
+
+    await assert.rejects(
+      store.resolveWardComplaintRoute({
+        actorUserId: identifiers.actor,
+        requestId: 'request-routing-missing-replay',
+        categoryId: identifiers.category,
+        assetId: null,
+        locationEvidence: {
+          ...routingInput.location,
+          accuracyMeters: routingInput.accuracyMeters,
+          capturedAt,
+        },
+        resolvedAt,
+      }),
+      RoutingDataAccessError,
+    );
+  });
+
+  it('rejects a ward-route replay that does not match the request', async () => {
+    const store = createStore(async (functionName) =>
+      functionName === 'resolve_v1_ward_route'
+        ? { data: identifiers.decision, error: null }
+        : { data: [routingReplayRow('different-request')], error: null },
+    );
+
+    await assert.rejects(
+      store.resolveWardComplaintRoute({
+        actorUserId: identifiers.actor,
+        requestId: 'request-routing-mismatched-replay',
+        categoryId: identifiers.category,
+        assetId: null,
+        locationEvidence: {
+          ...routingInput.location,
+          accuracyMeters: routingInput.accuracyMeters,
+          capturedAt,
+        },
+        resolvedAt,
+      }),
+      RoutingDataAccessError,
+    );
+  });
+
   it('replays a stored routing decision without recomputing current configuration', async () => {
     const calls: RpcCall[] = [];
     const store = createStore(async (functionName, arguments_) => {
       calls.push({ functionName, arguments_ });
       return {
-        data: [
-          {
-            routing_decision_id: identifiers.decision,
-            request_id: 'complaint-submit:10000000-0000-4000-8000-000000000099',
-            category_id: identifiers.category,
-            longitude: routingInput.location.longitude,
-            latitude: routingInput.location.latitude,
-            accuracy_meters: routingInput.accuracyMeters,
-            captured_at: capturedAt,
-            resolved_at: resolvedAt,
-            decision_status: 'routed',
-            confidence_score: 1,
-            state_id: identifiers.state,
-            district_id: identifiers.district,
-            taluka_id: identifiers.taluka,
-            local_body_id: identifiers.localBody,
-            ward_id: identifiers.ward,
-            state_boundary_version_id: identifiers.stateBoundary,
-            district_boundary_version_id: identifiers.districtBoundary,
-            taluka_boundary_version_id: identifiers.talukaBoundary,
-            local_body_boundary_version_id: identifiers.localBodyBoundary,
-            ward_boundary_version_id: identifiers.wardBoundary,
-            asset_type_id: null,
-            asset_id: null,
-            asset_version_id: null,
-            asset_match_distance_meters: null,
-            asset_ownership_version_id: null,
-            target_authority_id: identifiers.authority,
-            department_id: identifiers.department,
-            authority_department_id: identifiers.authorityDepartment,
-            officer_role_id: identifiers.officerRole,
-            officer_assignment_id: null,
-            route_rule_id: identifiers.rule,
-            route_rule_version_id: identifiers.ruleVersion,
-            confidence_policy_version_id: identifiers.policyVersion,
-            fallback_depth: 0,
-            explanation_codes: ['route_resolved'],
-            explanation_metadata: {
-              policyId: identifiers.policy,
-              policyVersionId: identifiers.policyVersion,
-              policyVersion: 1,
-              requestedAssetId: null,
-              confidenceBand: 'high',
-              confidenceFactors,
-              jurisdiction: routedDecision.explanation.jurisdiction,
-              selectedCandidateId: 'candidate:test',
-              selectedRoutingRuleId: identifiers.rule,
-              selectedRoutingRuleVersionId: identifiers.ruleVersion,
-              fallbackUsed: false,
-              fallbackPath: [],
-              ambiguousCandidateIds: [],
-              candidateEvaluations: routedDecision.explanation.candidateEvaluations,
-            },
-            ambiguity_count: 0,
-          },
-        ],
+        data: [routingReplayRow('complaint-submit:10000000-0000-4000-8000-000000000099')],
         error: null,
       };
     });

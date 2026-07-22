@@ -43,6 +43,16 @@ entry point: each session follows the same TOTP/AAL2 policy and every privileged
 reauthorized against current database membership, role, and scope. Password entry never signs up a
 user, assigns access, or changes the `MFA_REQUIRED` contract.
 
+For the managed project's asymmetric access tokens, the API authenticates a request with
+`supabase.auth.getClaims()` rather than the former redundant `getUser()` plus `getClaims()` path.
+It requires a valid signature and expiry, the authenticated audience and role, a UUID subject, and
+an `aal1` or `aal2` assurance claim. Email and phone are read only from those verified claims.
+Application authorization remains database-current: profile status, role/membership scope, and
+the applicable privileged or citizen MFA policy are read for the request. Only identical
+concurrent actor-context reads share the same unfinished promise; success and failure both remove
+it, and neither completed authorization state nor bearer tokens are cached. See
+[ADR-0026](adr/0026-use-verified-jwt-claims-for-api-authentication.md).
+
 ### Request ID
 
 Clients may send:
@@ -424,13 +434,18 @@ internally inconsistent results fail closed. Mobile uses this route to show the 
 taxonomy while disabling unavailable choices. `available` permits category selection and a later
 location-specific routing check; it does not promise that every coordinate has a verified route.
 
-When the separately reviewed BMC non-production seeds `50`–`53` are applied, the operational list
-returns only `garbage_dump`, `missed_sweeping`, and `mosquito_breeding`, while the catalog still
-shows the other nine categories as unavailable. Their 66 direct rules cover 22 one-to-one BMC
-wards. The other nine pilot categories remain unselectable; their canonical BMC routing references
-all require reviewed asset ownership that is not present, and split K/P wards also have no
-executable route. A current hosted smoke confirms the same 12/3 category projection and a K/W Ward
-route, but external BMC delivery is still disabled.
+Because this catalog contains no user, coordinate, complaint, or mutable workflow state, each API
+process caches a successful catalog projection for 30 seconds and coalesces concurrent cache
+misses. A rejected load is not retained. This optimization does not apply to the identifier/list
+routes or to exact-coordinate jurisdiction and routing resolution. Complaint submission always
+revalidates the category and resolves its current route from the database.
+
+The historical BMC seeds `50`–`53` expose the earlier three-category internal-demo route family.
+The current V1 contact seed `54` activates all 12 pilot categories and provides one private
+ward/category route for each of 26 configured BMC wards. The catalog therefore returns all 12 as
+available after the new deployment. Final submission still performs a fresh coordinate-specific
+PostGIS check; availability is not coverage outside BMC geometry. External delivery remains queued
+until a sender provider is configured.
 
 ### Nearby Routing Assets
 
@@ -552,10 +567,15 @@ Request:
 }
 ```
 
-`assetId` is optional unless the database category requires an identified asset. All other target
-fields are server-owned. The server resolves current jurisdiction and routing evidence, evaluates
-eligibility/confidence/fallbacks, appends the decision audit using the authenticated user and
-request ID, and returns one of `routed`, `manual_review`, `mapping_required`, or `unsupported_area`.
+`assetId` is optional. All other target fields are server-owned. For the current BMC V1 path the
+server calls the service-only ward-routing facade, resolves the PostGIS ward and category against
+private database records, and appends the normal decision audit. The private 312-row matrix merges
+category/phone/WhatsApp evidence from `Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` with ward-email and
+office evidence from `local_wellness_bmc_ward_directory_2026-07-20.zip`; the latter supplies direct
+K/N and P/E mailboxes plus K/S→K/E and P/W→P/N parent-office mappings. Raw source status and
+staging approval remain server-only. The endpoint returns `routed` or
+`unsupported_area`; the advanced candidate engine retains `manual_review` and `mapping_required`
+for later non-V1 configurations.
 
 Response data shape:
 
@@ -780,6 +800,11 @@ returns the original receipt; conflicting reuse returns
 `COMPLAINT_SUBMISSION_IDEMPOTENCY_CONFLICT`. The receipt includes the complaint number, status,
 category, submitted time, and sanitized routing summary, not exact coordinates, original media,
 duplicate internals, or officer contacts.
+
+For a `V1_WARD_*` route, the same transaction also queues one private ward-email job. The API does
+not return its recipient, phone, WhatsApp, source locator/status, description payload or delivery
+state and does not claim that BMC received an email. Delivery completion belongs to a later trusted
+SMTP worker; no outbound runtime or SMTP credential is part of the API process.
 
 The mobile client keeps the same submission key for an ambiguous network retry. It rotates that key
 after a successful draft/category/location/asset/media/duplicate mutation, or after an explicit
@@ -1274,6 +1299,12 @@ debounced invalidation hints and reload authenticated REST history. They do not 
 payload or a typing signal as durable state. A committed delivery can record zero sockets because
 in-app notification history is the offline fallback.
 
+The realtime delivery pump and notification, SLA-escalation, and KPI workers reduce empty
+PostgreSQL claims with adaptive idle backoff. Realtime polling doubles up to 15 seconds and worker
+polling doubles up to 60 seconds while no work is claimed; either resets to its configured base
+interval immediately after a non-empty claim. Leases and durable database state remain the source
+of truth, and no Redis queue or cache participates in delivery.
+
 There is no `comment:create`/`comment:created` contract in Phase 6. Public comments remain disabled
 until complaint visibility, moderation, abuse controls, and privacy policy are approved.
 
@@ -1282,6 +1313,13 @@ until complaint visibility, moderation, abuse controls, and privacy policy are a
 ## API Security
 
 Phase 1 implements bearer-token verification, application-account checks, identity input validation, current role/authority authorization, mass-assignment prevention, identity auditing, exact-origin CORS, request correlation, and server-secret isolation.
+
+Bearer authentication follows ADR-0026: verified asymmetric JWT claims replace the redundant
+per-request Auth user lookup, while database authorization remains current. The only security-read
+optimization is in-flight coalescing for identical concurrent actor-context reads. Profiles, MFA
+policy, roles, memberships, complaint ownership, workflow status, jurisdiction, and routing are
+not cached after a read completes. The separate 30-second category-catalog cache contains no user
+or coordinate state and cannot bypass submission-time route validation.
 
 Phase 4 complaint controllers apply the same bearer guard to every draft, media, duplicate,
 submission, list, detail, and timeline route. The API derives the actor from the verified token and
@@ -1369,6 +1407,12 @@ moderation remain separate activation requirements.
 ---
 
 ## API Versioning
+
+### UI benchmark contract boundary
+
+Benchmark surfaces may show progress, route-pending, confidence/provenance, reviewed-public empty
+states, and private status timelines only from existing response contracts. They must not invent
+contacts, comments, guest submission, notification preferences, exact coordinates, or SLA data.
 
 Breaking changes require:
 
