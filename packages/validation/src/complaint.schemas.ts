@@ -60,7 +60,7 @@ export const complaintLocationCaptureSchema: z.ZodType<ComplaintLocationCapture>
   })
   .strict();
 
-const complaintDraftShape = {
+const createComplaintDraftShape = {
   categoryId: z.uuid().optional(),
   assetId: z.uuid().nullable().optional(),
   description: z.string().trim().min(1).max(4_000).nullable().optional(),
@@ -69,11 +69,14 @@ const complaintDraftShape = {
 } as const;
 
 export const createComplaintDraftSchema: z.ZodType<CreateComplaintDraftInput> = z
-  .object(complaintDraftShape)
+  .object(createComplaintDraftShape)
   .strict();
 
 export const updateComplaintDraftSchema: z.ZodType<UpdateComplaintDraftInput> = z
-  .object(complaintDraftShape)
+  .object({
+    ...createComplaintDraftShape,
+    categoryId: z.uuid().nullable().optional(),
+  })
   .strict()
   .refine((input) => Object.values(input).some((value) => value !== undefined), {
     message: 'At least one draft field must be provided.',

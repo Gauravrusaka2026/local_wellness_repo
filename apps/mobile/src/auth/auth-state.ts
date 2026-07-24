@@ -1,15 +1,22 @@
-import type { Session } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
+
+import { getConfirmedPhoneFromUser } from './phone-verification';
 
 export type RestoredAuthState =
   Readonly<{ status: 'signed-in'; session: Session }> | Readonly<{ status: 'signed-out' }>;
 
-export type AssuredAuthState =
-  RestoredAuthState | Readonly<{ status: 'mfa-required'; session: Session }>;
+export type VerifiedAuthState =
+  RestoredAuthState | Readonly<{ status: 'phone-verification-required'; session: Session }>;
 
 type SessionResult = Readonly<{
   data: Readonly<{ session: Session | null }>;
   error: unknown;
 }>;
+
+export const scheduleAuthStateFollowUp = (operation: () => void): (() => void) => {
+  const timeoutId = setTimeout(operation, 0);
+  return () => clearTimeout(timeoutId);
+};
 
 export const restoreAuthSession = async (
   getSession: () => Promise<SessionResult>,
@@ -26,26 +33,25 @@ export const restoreAuthSession = async (
   }
 };
 
-export const resolveSessionAssurance = async (
+export const resolveSessionPhoneVerification = async (
   session: Session,
-  getAssuranceLevel: () => Promise<
-    Readonly<{ data: Readonly<{ currentLevel: string | null }> | null; error: unknown }>
-  >,
-  hasVerifiedPhoneFactor: () => Promise<boolean>,
-  requirePhoneMfa = true,
-): Promise<Exclude<AssuredAuthState, Readonly<{ status: 'signed-out' }>>> => {
-  if (!requirePhoneMfa) return { session, status: 'signed-in' };
+  getUser: () => Promise<Readonly<{ data: Readonly<{ user: User | null }>; error: unknown }>>,
+  requirePhoneVerification = true,
+): Promise<Exclude<VerifiedAuthState, Readonly<{ status: 'signed-out' }>>> => {
+  if (!requirePhoneVerification) return { session, status: 'signed-in' };
 
   try {
-    const [{ data, error }, hasPhoneFactor] = await Promise.all([
-      getAssuranceLevel(),
-      hasVerifiedPhoneFactor(),
-    ]);
-    if (error || data?.currentLevel !== 'aal2' || !hasPhoneFactor) {
-      return { session, status: 'mfa-required' };
+    const { data, error } = await getUser();
+    if (
+      error ||
+      data.user === null ||
+      data.user.id !== session.user.id ||
+      getConfirmedPhoneFromUser(data.user) === null
+    ) {
+      return { session, status: 'phone-verification-required' };
     }
     return { session, status: 'signed-in' };
   } catch {
-    return { session, status: 'mfa-required' };
+    return { session, status: 'phone-verification-required' };
   }
 };

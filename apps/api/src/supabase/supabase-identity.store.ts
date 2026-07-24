@@ -276,14 +276,16 @@ export class SupabaseIdentityStore extends IdentityStore {
     return data;
   }
 
-  public async userHasVerifiedPhoneMfa(userId: string): Promise<boolean> {
-    const { data, error } = await this.clients.serviceRoleClient.rpc(
-      'user_has_verified_phone_mfa',
-      { p_user_id: userId },
-    );
+  public async userHasVerifiedPhone(userId: string): Promise<boolean> {
+    const rpc = this.clients.serviceRoleClient.rpc.bind(
+      this.clients.serviceRoleClient,
+    ) as unknown as ServiceRoleRpc;
+    const { data, error } = await rpc('user_has_verified_phone', {
+      p_user_id: userId,
+    });
 
     if (error || typeof data !== 'boolean') {
-      throw new IdentityDataAccessError('determine verified phone MFA state');
+      throw new IdentityDataAccessError('determine verified phone state');
     }
 
     return data;

@@ -142,14 +142,21 @@ const resolutionContext = {
 } as const;
 
 const originalApiUrl = process.env['NEXT_PUBLIC_API_URL'];
+const originalAccessMode = process.env['NEXT_PUBLIC_CITIZEN_ACCESS_MODE'];
 const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
+  Reflect.set(process.env, 'NEXT_PUBLIC_CITIZEN_ACCESS_MODE', 'full');
   Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', 'http://127.0.0.1:3001');
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  if (originalAccessMode === undefined) {
+    Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_CITIZEN_ACCESS_MODE');
+  } else {
+    Reflect.set(process.env, 'NEXT_PUBLIC_CITIZEN_ACCESS_MODE', originalAccessMode);
+  }
   if (originalApiUrl === undefined) Reflect.deleteProperty(process.env, 'NEXT_PUBLIC_API_URL');
   else Reflect.set(process.env, 'NEXT_PUBLIC_API_URL', originalApiUrl);
 });

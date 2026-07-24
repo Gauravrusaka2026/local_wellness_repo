@@ -1,5 +1,7 @@
 import { Redirect, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MessageKey } from '@local-wellness/localization';
+import type { ComplaintHandoffAction, ComplaintLocationEvidence } from '@local-wellness/types';
 import {
   ActivityIndicator,
   Alert,
@@ -13,24 +15,88 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../../src/auth/auth-context';
-import { ComplaintCameraCapture } from '../../src/complaints/camera-capture';
 import {
-  complaintSubmissionBlockerMessages,
   getComplaintSubmissionBlockers,
   getDraftReadiness,
-  getLocationRecaptureGuidance,
   getSelectedCategory,
-  hasUnsavedComplaintDetails,
   isLocationEvidenceEligible,
+  type ComplaintSubmissionBlockerCode,
 } from '../../src/complaints/capture-state';
+import { ComplaintEvidenceEntry } from '../../src/complaints/complaint-evidence-entry';
 import { useComplaintCapture } from '../../src/complaints/complaint-context';
-import { ComplaintVoiceCapture } from '../../src/complaints/voice-capture';
+import {
+  createComplaintDuplicateCheckFingerprint,
+  getComplaintLocationRecoveryAction,
+} from '../../src/complaints/complaint-form-automation';
+import {
+  getUserFacingComplaintError,
+  isComplaintSubmissionOutcomeUnknown,
+} from '../../src/complaints/complaint-service';
+import { openOfficialHandoffAction } from '../../src/complaints/official-handoff';
+import { TaxonomyDropdown } from '../../src/complaints/taxonomy-dropdown';
+import {
+  buildComplaintTaxonomyAttributes,
+  formatComplaintWorkflowType,
+  getSelectedComplaintTaxonomyItem,
+  listComplaintTaxonomyPrimaryOptions,
+  listComplaintTaxonomySubcategories,
+} from '../../src/complaints/taxonomy-selection';
+import { useComplaintDetailsAutosave } from '../../src/complaints/use-complaint-details-autosave';
+import {
+  getUserFacingInAppBrowserError,
+  openSecureExternalPage,
+} from '../../src/device/in-app-browser';
+import { useAutomaticForegroundLocation } from '../../src/location/use-automatic-foreground-location';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
+import { mobileTheme } from '../../src/ui/theme';
+
+const submissionBlockerMessageKeys = {
+  asset: 'blockerAsset',
+  category: 'blockerCategory',
+  category_details: 'blockerCategoryDetails',
+  description: 'blockerDescription',
+  duplicate_acknowledgement: 'blockerDuplicateAcknowledgement',
+  emergency_acknowledgement: 'blockerEmergencyAcknowledgement',
+  location: 'blockerLocation',
+  media: 'blockerMedia',
+  media_limit: 'blockerMediaLimit',
+  offline: 'blockerOffline',
+  taxonomy: 'blockerTaxonomy',
+  unsaved_details: 'blockerUnsavedDetails',
+  upload: 'blockerUpload',
+  voice_confirmation: 'blockerVoiceConfirmation',
+} as const satisfies Record<ComplaintSubmissionBlockerCode, MessageKey>;
+
+const locationGuidanceMessageKey = (
+  location: ComplaintLocationEvidence | null,
+): MessageKey | null => {
+  if (location === null) return 'captureLocationAtIssue';
+  switch (location.verificationStatus) {
+    case 'verified':
+    case 'partially_verified':
+      return null;
+    case 'pending':
+      return 'locationVerificationPending';
+    case 'low_accuracy':
+      return 'locationLowAccuracy';
+    case 'location_mismatch':
+      return 'locationMismatch';
+    case 'suspected_spoofing':
+      return 'locationUnsafeSignal';
+    case 'unsupported_area':
+      return 'locationCoverageUnavailable';
+    case 'manual_review':
+      return 'locationManualReview';
+  }
+};
 
 export default function NewComplaintScreen() {
   const auth = useAuth();
   const capture = useComplaintCapture();
+  const { captureLocation, captureLocationAutomatically, checkDuplicates, updateDetails } = capture;
   const router = useRouter();
+  const { t } = useLocalization();
   const draft = capture.state.draft;
   const [descriptionEdit, setDescriptionEdit] = useState<
     Readonly<{ draftId: string | null; value: string }>
@@ -38,7 +104,13 @@ export default function NewComplaintScreen() {
   const [attributeEdit, setAttributeEdit] = useState<
     Readonly<{ draftId: string | null; values: Record<string, boolean | number | string> }>
   >({ draftId: draft?.id ?? null, values: draft?.customAttributes ?? {} });
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  const [primaryCategoryEdit, setPrimaryCategoryEdit] = useState<
+    Readonly<{ code: string | null; draftId: string | null }>
+  >({ code: null, draftId: draft?.id ?? null });
+  const [subcategoryEdit, setSubcategoryEdit] = useState<
+    Readonly<{ code: string | null; draftId: string | null }>
+  >({ code: null, draftId: draft?.id ?? null });
   const hasVoice =
     draft?.media.some(
       (media) => media.metadata.kind === 'voice' && media.uploadStatus === 'finalized',
@@ -47,6 +119,86 @@ export default function NewComplaintScreen() {
     descriptionEdit.draftId === draft?.id ? descriptionEdit.value : (draft?.description ?? '');
   const customAttributes =
     attributeEdit.draftId === draft?.id ? attributeEdit.values : (draft?.customAttributes ?? {});
+  const persistedTaxonomyItem = getSelectedComplaintTaxonomyItem(
+    capture.state.taxonomyItems,
+    draft,
+  );
+  const selectedPrimaryCode =
+    primaryCategoryEdit.draftId === draft?.id
+      ? primaryCategoryEdit.code
+      : (persistedTaxonomyItem?.primaryCode ?? null);
+  const selectedSubcategoryCode =
+    subcategoryEdit.draftId === draft?.id
+      ? subcategoryEdit.code
+      : (persistedTaxonomyItem?.subcategoryCode ?? null);
+  const taxonomyItem =
+    capture.state.taxonomyItems.find(
+      (candidate) =>
+        candidate.primaryCode === selectedPrimaryCode &&
+        candidate.subcategoryCode === selectedSubcategoryCode,
+    ) ?? null;
+  const desiredCustomAttributes =
+    taxonomyItem === null
+      ? {}
+      : {
+          ...customAttributes,
+          ...buildComplaintTaxonomyAttributes(taxonomyItem),
+        };
+  const desiredDetails = {
+    categoryId: taxonomyItem?.routingProfileCategoryId ?? null,
+    customAttributes: desiredCustomAttributes,
+    description,
+  };
+  const detailsAutosave = useComplaintDetailsAutosave({
+    draftId: draft?.id ?? null,
+    enabled:
+      draft !== null &&
+      capture.state.receipt === null &&
+      capture.state.isOnline &&
+      auth.state.status === 'signed-in',
+    input: desiredDetails,
+    persistedInput: {
+      categoryId: draft?.categoryId ?? null,
+      customAttributes: draft?.customAttributes ?? {},
+      description: draft?.description ?? '',
+    },
+    save: updateDetails,
+  });
+  const category = getSelectedCategory(capture.state);
+  const locationEligible = isLocationEvidenceEligible(draft?.location ?? null);
+  const hasUnsavedDetails = detailsAutosave.hasPendingChanges;
+  const selectedAsset =
+    capture.state.assetOptions.find((asset) => asset.id === draft?.assetId) ?? null;
+  const readiness = getDraftReadiness(draft, category);
+  const hasSelectedRequiredAsset = category?.requiresAsset !== true || selectedAsset !== null;
+  const tryAutomaticComplaintLocation = useCallback(
+    () => captureLocationAutomatically(),
+    [captureLocationAutomatically],
+  );
+  const requestComplaintLocation = useCallback(async (): Promise<boolean> => {
+    await captureLocation();
+    return true;
+  }, [captureLocation]);
+  const automaticLocation = useAutomaticForegroundLocation({
+    attemptKey: `${draft?.id ?? 'none'}:${draft?.categoryId ?? 'none'}:${draft?.location?.id ?? 'missing'}`,
+    automaticAcquire: tryAutomaticComplaintLocation,
+    enabled:
+      draft !== null &&
+      persistedTaxonomyItem?.submissionAvailability === 'available' &&
+      !locationEligible &&
+      !hasUnsavedDetails &&
+      capture.state.isOnline &&
+      !capture.state.isBusy,
+    explicitAcquire: requestComplaintLocation,
+  });
+  const automaticLocationStatus = automaticLocation.status;
+  const locationRecoveryAction = getComplaintLocationRecoveryAction({
+    automaticStatus: automaticLocationStatus,
+    hasLocation: draft?.location !== null && draft?.location !== undefined,
+    locationEligible,
+  });
+  const duplicateFingerprint = createComplaintDuplicateCheckFingerprint(draft);
+  const lastAutomaticDuplicateFingerprint = useRef<string | null>(null);
   const reviewRevision =
     draft === null
       ? null
@@ -55,6 +207,36 @@ export default function NewComplaintScreen() {
   const voiceDescriptionConfirmed =
     reviewRevision !== null && confirmedVoiceRevision === reviewRevision;
   const resultRedirected = useRef(false);
+
+  useEffect(() => {
+    if (
+      duplicateFingerprint === null ||
+      duplicateFingerprint === lastAutomaticDuplicateFingerprint.current ||
+      !readiness.isReady ||
+      hasUnsavedDetails ||
+      !hasSelectedRequiredAsset ||
+      capture.state.upload !== null ||
+      !capture.state.isOnline ||
+      capture.state.isBusy
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      lastAutomaticDuplicateFingerprint.current = duplicateFingerprint;
+      void checkDuplicates().catch(() => undefined);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [
+    capture.state.isBusy,
+    capture.state.isOnline,
+    capture.state.upload,
+    checkDuplicates,
+    duplicateFingerprint,
+    hasSelectedRequiredAsset,
+    hasUnsavedDetails,
+    readiness.isReady,
+  ]);
 
   useEffect(() => {
     const receipt = capture.state.receipt;
@@ -66,31 +248,35 @@ export default function NewComplaintScreen() {
     });
   }, [capture.state.receipt, router]);
 
-  if (auth.state.status === 'loading') return <LoadingScreen label="Restoring your session…" />;
+  if (auth.state.status === 'loading') return <LoadingScreen label={t('restoringSession')} />;
   if (auth.state.status === 'configuration-error') {
-    return <ErrorScreen message={auth.state.message} title="App configuration required" />;
+    return <ErrorScreen message={auth.state.message} title={t('appConfigurationRequired')} />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
-  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
-  if (capture.state.isBusy && draft === null) return <LoadingScreen label="Loading your draft…" />;
+  if (auth.state.status === 'phone-verification-required') {
+    return <Redirect href="/auth/phone-verification" />;
+  }
+  if (capture.state.isBusy && draft === null) return <LoadingScreen label={t('loadingDraft')} />;
   if (draft === null) {
     return (
       <ErrorScreen
-        action={{ label: 'Return home', onPress: () => router.replace('/home') }}
-        message="Start or resume a complaint from the home screen."
-        title="No active report"
+        action={{ label: t('returnHome'), onPress: () => router.replace('/home') }}
+        message={t('noActiveReportBody')}
+        title={t('noActiveReportTitle')}
       />
     );
   }
+  if (capture.state.receipt !== null) {
+    return <LoadingScreen label={t('openingSubmissionResult')} />;
+  }
 
-  const category = getSelectedCategory(capture.state);
-  const availableCategoryCount = capture.state.categories.filter(
-    (candidate) => candidate.submissionAvailability === 'available',
-  ).length;
-  const readiness = getDraftReadiness(draft, category);
-  const locationEligible = isLocationEvidenceEligible(draft.location);
-  const selectedAsset =
-    capture.state.assetOptions.find((asset) => asset.id === draft.assetId) ?? null;
+  const primaryCategoryOptions = listComplaintTaxonomyPrimaryOptions(capture.state.taxonomyItems);
+  const subcategoryOptions = listComplaintTaxonomySubcategories(
+    capture.state.taxonomyItems,
+    selectedPrimaryCode,
+  );
+  const isOfficialHandoff = taxonomyItem?.routingStatus === 'protected_handoff';
+  const isEmergencyIssue = taxonomyItem?.isEmergency === true || category?.isEmergency === true;
   const finalizedEvidenceCount = draft.media.filter(
     (media) =>
       media.uploadStatus === 'finalized' &&
@@ -98,107 +284,109 @@ export default function NewComplaintScreen() {
   ).length;
   const minimumMediaCount = category?.minimumMediaCount ?? 1;
   const maximumMediaCount = category?.maximumMediaCount ?? 20;
-  const hasUnsavedDetails = hasUnsavedComplaintDetails(draft, {
-    customAttributes,
-    description,
-  });
-  const hasSelectedRequiredAsset = category?.requiresAsset !== true || selectedAsset !== null;
-  const canCheckDuplicates =
-    readiness.isReady &&
-    !hasUnsavedDetails &&
-    hasSelectedRequiredAsset &&
-    capture.state.upload === null &&
-    capture.state.isOnline &&
-    !capture.state.isBusy;
   const submissionBlockers = getComplaintSubmissionBlockers({
     assetOptions: capture.state.assetOptions,
     category,
+    taxonomyItem,
     draft,
     duplicateCheck: capture.state.duplicateCheck,
     duplicatesAcknowledged: capture.state.duplicatesAcknowledged,
     emergencyAcknowledged: capture.state.emergencyAcknowledged,
     hasUnsavedDetails,
     hasVoice,
+    isEmergencyIssue,
     isOnline: capture.state.isOnline,
     upload: capture.state.upload,
     voiceDescriptionConfirmed,
   });
-  const reportProgress = [
-    { key: 'evidence', label: 'Evidence', complete: finalizedEvidenceCount >= minimumMediaCount },
-    { key: 'location', label: 'Location', complete: locationEligible },
-    { key: 'category', label: 'Category', complete: category !== null },
-    { key: 'description', label: 'Details', complete: description.trim().length > 0 },
-    { key: 'review', label: 'Review', complete: submissionBlockers.length === 0 },
-  ] as const;
-  const completedReportSteps = reportProgress.filter((step) => step.complete).length;
+  const locationGuidanceKey = locationGuidanceMessageKey(draft.location);
 
-  const saveDetails = async (): Promise<void> => {
-    try {
-      await capture.updateDetails({ customAttributes, description });
-    } catch {
-      // Sanitized errors are rendered from provider state.
-    }
+  const selectPrimaryCategory = (primaryCode: string): void => {
+    if (primaryCode === selectedPrimaryCode) return;
+
+    setAttributeEdit({ draftId: draft.id, values: {} });
+    setPrimaryCategoryEdit({ code: primaryCode, draftId: draft.id });
+    setSubcategoryEdit({ code: null, draftId: draft.id });
+  };
+
+  const selectComplaintType = (subcategoryCode: string): void => {
+    const item = capture.state.taxonomyItems.find(
+      (candidate) =>
+        candidate.primaryCode === selectedPrimaryCode &&
+        candidate.subcategoryCode === subcategoryCode,
+    );
+    if (!item) return;
+
+    const taxonomyAttributes = buildComplaintTaxonomyAttributes(item);
+    setHandoffError(null);
+    setAttributeEdit({ draftId: draft.id, values: taxonomyAttributes });
+    setPrimaryCategoryEdit({ code: item.primaryCode, draftId: draft.id });
+    setSubcategoryEdit({ code: item.subcategoryCode, draftId: draft.id });
   };
 
   const submit = async (): Promise<void> => {
     try {
       await capture.submit();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'We could not submit this report.';
-      router.replace({ pathname: '/complaints/result', params: { status: 'failure', message } });
+      if (isComplaintSubmissionOutcomeUnknown(error)) {
+        router.replace({ pathname: '/complaints/result', params: { status: 'unknown' } });
+        return;
+      }
+
+      router.replace({
+        pathname: '/complaints/result',
+        params: { status: 'failure', message: getUserFacingComplaintError(error) },
+      });
+    }
+  };
+
+  const openOfficialHelp = async (action: ComplaintHandoffAction): Promise<void> => {
+    setHandoffError(null);
+    try {
+      await openOfficialHandoffAction(action, {
+        openBrowser: openSecureExternalPage,
+        openCall: (url) => Linking.openURL(url),
+      });
+    } catch (error) {
+      setHandoffError(
+        action.kind === 'browser'
+          ? getUserFacingInAppBrowserError(error)
+          : t('officialPhoneOpenError'),
+      );
     }
   };
 
   const confirmDiscardDraft = (): void => {
-    Alert.alert(
-      'Discard this draft?',
-      'This permanently removes the saved report and its pending evidence.',
-      [
-        { style: 'cancel', text: 'Keep editing' },
-        {
-          onPress: () => {
-            void capture
-              .discardDraft()
-              .then(() => router.replace('/home'))
-              .catch(() => undefined);
-          },
-          style: 'destructive',
-          text: 'Discard draft',
+    Alert.alert(t('discardDraftTitle'), t('discardDraftBody'), [
+      { style: 'cancel', text: t('keepEditing') },
+      {
+        onPress: () => {
+          void capture
+            .discardDraft()
+            .then(() => router.replace('/home'))
+            .catch(() => undefined);
         },
-      ],
-    );
+        style: 'destructive',
+        text: t('discardDraft'),
+      },
+    ]);
   };
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.formHeader}>
-          <Text style={styles.eyebrow}>REPORT AN ISSUE</Text>
+          <Text style={styles.eyebrow}>{t('reportIssue').toUpperCase()}</Text>
           <Text accessibilityRole="header" style={styles.formTitle}>
-            Complete one complaint form
+            {t(isOfficialHandoff ? 'officialHelpIssue' : 'completeComplaintForm')}
           </Text>
-          <Text style={styles.help}>Add the issue, location and evidence below.</Text>
-          <View
-            accessibilityLabel={`Report progress: ${completedReportSteps} of ${reportProgress.length} sections complete`}
-            accessibilityRole="progressbar"
-            accessibilityValue={{ max: reportProgress.length, min: 0, now: completedReportSteps }}
-            style={styles.progressRail}
-          >
-            {reportProgress.map((step) => (
-              <View key={step.key} style={styles.progressItem}>
-                <View style={[styles.progressDot, step.complete && styles.progressDotComplete]}>
-                  <Text style={styles.progressDotText}>{step.complete ? '✓' : ''}</Text>
-                </View>
-                <Text style={[styles.progressLabel, step.complete && styles.progressLabelComplete]}>
-                  {step.label}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <Text style={styles.help}>
+            {t(isOfficialHandoff ? 'officialHelpFormHint' : 'onePageAutosaveHint')}
+          </Text>
         </View>
         {!capture.state.isOnline ? (
           <Text accessibilityRole="alert" style={styles.warning}>
-            You are offline. Reconnect to save or submit.
+            {t('offlineReportNotice')}
           </Text>
         ) : null}
         {capture.state.error === null ? null : (
@@ -212,7 +400,7 @@ export default function NewComplaintScreen() {
                 onPress={() => router.replace('/complaints')}
                 style={styles.settingsButton}
               >
-                <Text style={styles.settingsButtonText}>Open Your complaints</Text>
+                <Text style={styles.settingsButtonText}>{t('openComplaints')}</Text>
               </Pressable>
             ) : null}
             {capture.state.locationSettingsRequired ? (
@@ -221,7 +409,7 @@ export default function NewComplaintScreen() {
                 onPress={() => void Linking.openSettings()}
                 style={styles.settingsButton}
               >
-                <Text style={styles.settingsButtonText}>Open location settings</Text>
+                <Text style={styles.settingsButtonText}>{t('openLocationSettings')}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -229,122 +417,142 @@ export default function NewComplaintScreen() {
         {capture.state.isBusy && capture.state.upload === null ? (
           <View accessibilityLiveRegion="polite" style={styles.busyCard}>
             <ActivityIndicator accessibilityElementsHidden color="#17683b" size="small" />
-            <Text style={styles.busyText}>Updating report…</Text>
+            <Text style={styles.busyText}>{t('updatingReport')}</Text>
           </View>
         ) : null}
 
-        {capture.state.step === 'submitted' && capture.state.receipt ? (
-          <View style={styles.formSection}>
-            <Text accessibilityRole="header" style={styles.title}>
-              Complaint received
-            </Text>
-            <View style={styles.successCard}>
-              <Text style={styles.receiptNumber}>{capture.state.receipt.complaintNumber}</Text>
-              <Text style={styles.successText}>
-                Status: {capture.state.receipt.status.replaceAll('_', ' ')}
+        <View style={styles.formSection}>
+          <Text style={styles.sectionLabel}>{t('issue').toUpperCase()}</Text>
+          <Text accessibilityRole="header" style={styles.title}>
+            {t('categoryDetails')}
+          </Text>
+          <Text style={styles.help}>{t('categoryDetailsHint')}</Text>
+          {capture.state.taxonomyItems.length === 0 ? (
+            <View style={styles.options}>
+              <Text accessibilityRole="alert" style={styles.warning}>
+                {t('taxonomyUnavailable')}
               </Text>
-              <Text style={styles.successText}>
-                Routing: {capture.state.receipt.routing.status.replaceAll('_', ' ')}
+              <SecondaryAction
+                label={t('checkComplaintTypes')}
+                onPress={() => void capture.reloadCategories().catch(() => undefined)}
+              />
+            </View>
+          ) : (
+            <View style={styles.options}>
+              <TaxonomyDropdown
+                disabled={capture.state.isBusy}
+                label={t('primaryCategory')}
+                onSelect={selectPrimaryCategory}
+                options={primaryCategoryOptions.map((option) => ({
+                  label: option.name,
+                  value: option.code,
+                }))}
+                placeholder={t('selectPrimaryCategory')}
+                value={selectedPrimaryCode}
+              />
+              <TaxonomyDropdown
+                disabled={capture.state.isBusy || selectedPrimaryCode === null}
+                label={t('complaintType')}
+                onSelect={selectComplaintType}
+                options={subcategoryOptions.map((item) => ({
+                  description: item.subcategoryDescription ?? item.workflowType,
+                  label: item.subcategoryName,
+                  statusLabel:
+                    item.submissionAvailability === 'available'
+                      ? t('readyToSubmit')
+                      : item.routingStatus === 'protected_handoff'
+                        ? t('officialHelpAvailable')
+                        : item.routingStatus === 'protected_pending'
+                          ? t('protectedIntakePending')
+                          : t('routingSetupPending'),
+                  value: item.subcategoryCode,
+                }))}
+                placeholder={
+                  selectedPrimaryCode === null ? t('choosePrimaryFirst') : t('selectSpecificIssue')
+                }
+                value={taxonomyItem?.subcategoryCode ?? null}
+              />
+            </View>
+          )}
+          {taxonomyItem === null ? null : (
+            <View
+              style={[
+                styles.routingProfileCard,
+                taxonomyItem.submissionAvailability === 'available'
+                  ? styles.routingProfileReady
+                  : taxonomyItem.routingStatus === 'protected_handoff'
+                    ? styles.routingProfileHandoff
+                    : styles.routingProfilePending,
+              ]}
+            >
+              <View style={styles.routingProfileHeading}>
+                <Text style={styles.routingProfileTitle}>
+                  {formatComplaintWorkflowType(taxonomyItem.workflowType)}
+                </Text>
+                <Text
+                  style={[
+                    styles.routingProfileStatus,
+                    taxonomyItem.submissionAvailability === 'available'
+                      ? styles.routingProfileStatusReady
+                      : taxonomyItem.routingStatus === 'protected_handoff'
+                        ? styles.routingProfileStatusHandoff
+                        : styles.routingProfileStatusPending,
+                  ]}
+                >
+                  {taxonomyItem.submissionAvailability === 'available'
+                    ? t('routeReady')
+                    : taxonomyItem.routingStatus === 'protected_handoff'
+                      ? t('officialHelp')
+                      : taxonomyItem.routingStatus === 'protected_pending'
+                        ? t('protectedIntakePending')
+                        : t('routePending')}
+                </Text>
+              </View>
+              <Text style={styles.routingProfileText}>
+                {taxonomyItem.submissionAvailability === 'available'
+                  ? t('routeReadyBody')
+                  : taxonomyItem.routingStatus === 'protected_handoff'
+                    ? t('officialPrivateChannelHint')
+                    : taxonomyItem.routingStatus === 'protected_pending'
+                      ? t('protectedIntakePreparing')
+                      : t('inAppSubmissionUnavailable')}
               </Text>
             </View>
-            <PrimaryAction
-              label="View complaint"
-              onPress={() => router.replace(`/complaints/${capture.state.receipt?.id}`)}
-            />
-            <SecondaryAction label="Return home" onPress={() => router.replace('/home')} />
-          </View>
-        ) : (
-          <>
-            <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>ISSUE</Text>
-              <Text accessibilityRole="header" style={styles.title}>
-                Category and details
+          )}
+          {isOfficialHandoff && taxonomyItem ? (
+            <View style={styles.officialHelpCard}>
+              <Text accessibilityRole="header" style={styles.officialHelpTitle}>
+                {t('officialHelp')}
               </Text>
-              <Text style={styles.help}>Choose the closest category.</Text>
-              {capture.state.categories.length === 0 ? (
-                <View style={styles.options}>
-                  <Text accessibilityRole="alert" style={styles.warning}>
-                    Complaint categories are unavailable. Try again shortly.
-                  </Text>
-                  <SecondaryAction
-                    label="Check for available categories"
-                    onPress={() => void capture.reloadCategories().catch(() => undefined)}
-                  />
+              <Text style={styles.officialHelpText}>{t('officialHelpProtectedBody')}</Text>
+              {taxonomyItem.handoffActions.map((action) => (
+                <View key={action.key} style={styles.officialHelpAction}>
+                  <View style={styles.officialHelpActionCopy}>
+                    <Text style={styles.officialHelpActionTitle}>{action.label}</Text>
+                    <Text style={styles.officialHelpActionDescription}>{action.description}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityHint={
+                      action.kind === 'call' ? t('opensPhoneDialler') : t('opensOfficialPage')
+                    }
+                    accessibilityRole={action.kind === 'browser' ? 'link' : 'button'}
+                    onPress={() => void openOfficialHelp(action)}
+                    style={styles.officialHelpButton}
+                  >
+                    <Text style={styles.officialHelpButtonText}>
+                      {t(action.kind === 'call' ? 'call' : 'open')}
+                    </Text>
+                  </Pressable>
                 </View>
-              ) : (
-                <View style={styles.options}>
-                  {capture.state.categories.map((candidate) => {
-                    const isAvailable = candidate.submissionAvailability === 'available';
-                    return (
-                      <Pressable
-                        accessibilityHint={
-                          isAvailable
-                            ? `${candidate.description ?? candidate.name}. Select this category.`
-                            : `${candidate.description ?? candidate.name}. Verified routing is unavailable.`
-                        }
-                        accessibilityRole="radio"
-                        accessibilityState={{
-                          checked: draft.categoryId === candidate.id,
-                          disabled: !isAvailable || capture.state.isBusy,
-                        }}
-                        disabled={!isAvailable || capture.state.isBusy}
-                        key={candidate.id}
-                        onPress={() => {
-                          if (candidate.id === draft.categoryId) return;
-                          setAttributeEdit({ draftId: draft.id, values: {} });
-                          void capture
-                            .updateDetails({ categoryId: candidate.id, customAttributes: {} })
-                            .catch(() => undefined);
-                        }}
-                        style={[
-                          styles.option,
-                          !isAvailable && styles.optionUnavailable,
-                          draft.categoryId === candidate.id && styles.optionSelected,
-                        ]}
-                      >
-                        <View style={styles.optionHeading}>
-                          <Text
-                            style={[
-                              styles.optionTitle,
-                              styles.optionTitleFlexible,
-                              !isAvailable && styles.unavailableText,
-                            ]}
-                          >
-                            {candidate.name}
-                          </Text>
-                          <View style={styles.optionBadges}>
-                            {!isAvailable ? (
-                              <Text style={styles.unavailableTag}>Routing unavailable</Text>
-                            ) : null}
-                            {candidate.isEmergency ? (
-                              <Text style={styles.emergencyTag}>Urgent risk</Text>
-                            ) : null}
-                            {draft.categoryId === candidate.id ? (
-                              <Text accessibilityLabel="Selected" style={styles.selectedMark}>
-                                ✓
-                              </Text>
-                            ) : null}
-                          </View>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-              {capture.state.categories.length > 0 &&
-              availableCategoryCount < capture.state.categories.length ? (
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoTitle}>
-                    {availableCategoryCount} of {capture.state.categories.length} categories
-                    available
-                  </Text>
-                  <Text style={styles.infoText}>
-                    Ward lookup and category availability are separate. Disabled categories are not
-                    enabled for verified submission. The server checks the exact local route when
-                    you submit.
-                  </Text>
-                </View>
+              ))}
+              {handoffError ? (
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {handoffError}
+                </Text>
               ) : null}
+            </View>
+          ) : (
+            <>
               {category?.requiredAttributes.map((attribute) => (
                 <View key={attribute} style={styles.fieldGroup}>
                   <Text style={styles.label}>{attribute.replaceAll('_', ' ')}</Text>
@@ -355,79 +563,110 @@ export default function NewComplaintScreen() {
                     onChangeText={(value) =>
                       setAttributeEdit({
                         draftId: draft.id,
-                        values: { ...customAttributes, [attribute]: value },
+                        values: { ...desiredCustomAttributes, [attribute]: value },
                       })
                     }
-                    placeholder={`Enter ${attribute.replaceAll('_', ' ')}`}
+                    placeholder={t('enterField', { field: attribute.replaceAll('_', ' ') })}
                     style={styles.input}
                     value={String(customAttributes[attribute] ?? '')}
                   />
                 </View>
               ))}
-              <Text style={styles.label}>Description</Text>
+              <Text style={styles.label}>{t('description')}</Text>
               <TextInput
-                accessibilityLabel="Complaint description"
+                accessibilityLabel={t('complaintDescription')}
                 editable={!capture.state.isBusy}
                 maxLength={4_000}
                 multiline
                 onChangeText={(value) => setDescriptionEdit({ draftId: draft.id, value })}
-                placeholder="Describe what you can see and why it needs attention."
+                placeholder={t('descriptionPlaceholder')}
                 style={styles.descriptionInput}
                 textAlignVertical="top"
                 value={description}
               />
-              <Text style={styles.counter}>{description.trim().length} / 4,000</Text>
-              <PrimaryAction
-                disabled={
-                  capture.state.isBusy ||
-                  category?.submissionAvailability !== 'available' ||
-                  description.trim().length === 0 ||
-                  !hasUnsavedDetails
-                }
-                label={hasUnsavedDetails ? 'Save issue details' : 'Details saved'}
-                onPress={() => void saveDetails()}
-              />
-            </View>
+              <View style={styles.autosaveRow}>
+                <Text style={styles.counter}>{description.trim().length} / 4,000</Text>
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={[
+                    styles.autosaveText,
+                    detailsAutosave.status === 'error' && styles.autosaveError,
+                  ]}
+                >
+                  {detailsAutosave.status === 'pending'
+                    ? t('savingSoon')
+                    : detailsAutosave.status === 'saving'
+                      ? t('saving')
+                      : detailsAutosave.status === 'error'
+                        ? t('couldNotSave')
+                        : t('saved')}
+                </Text>
+              </View>
+              {detailsAutosave.status === 'error' ? (
+                <SecondaryAction label={t('trySavingAgain')} onPress={detailsAutosave.retry} />
+              ) : null}
+            </>
+          )}
+        </View>
 
+        {isOfficialHandoff ? null : (
+          <>
             <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>LOCATION</Text>
+              <Text style={styles.sectionLabel}>{t('locationQuestion').toUpperCase()}</Text>
               <Text accessibilityRole="header" style={styles.title}>
-                Issue location
+                {t('issueLocation')}
               </Text>
-              <Text style={styles.help}>Capture your location while standing near the issue.</Text>
+              <Text style={styles.help}>{t('issueLocationHint')}</Text>
               {draft.location === null ? (
-                <Text style={styles.muted}>Location not captured</Text>
+                automaticLocationStatus === 'checking' ? (
+                  <View accessibilityLiveRegion="polite" style={styles.locationStatusRow}>
+                    <ActivityIndicator color="#17683b" size="small" />
+                    <Text style={styles.muted}>{t('findingCurrentLocation')}</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.muted}>
+                    {automaticLocationStatus === 'permission-required'
+                      ? t('allowLocationContinue')
+                      : t('currentLocationNeeded')}
+                  </Text>
+                )
               ) : (
                 <View style={styles.successCard}>
                   <Text style={styles.successTitle}>
-                    {locationEligible ? 'Location evidence accepted' : 'Location needs recapture'}
+                    {locationEligible ? t('currentLocationConfirmed') : t('checkLocationAgain')}
                   </Text>
                   <Text style={styles.successText}>
-                    Accuracy: {Math.round(draft.location.accuracyMeters)} m · Server status:{' '}
-                    {draft.location.verificationStatus.replaceAll('_', ' ')}
+                    {locationEligible ? t('closeEnoughToSubmit') : t('moveCloser')}
                   </Text>
                 </View>
               )}
-              {getLocationRecaptureGuidance(draft.location) === null ? null : (
+              {locationGuidanceKey === null ? null : (
                 <Text accessibilityRole="alert" style={styles.warning}>
-                  {getLocationRecaptureGuidance(draft.location)}
+                  {t(locationGuidanceKey)}
                 </Text>
               )}
-              <PrimaryAction
-                disabled={
-                  capture.state.isBusy ||
-                  !capture.state.isOnline ||
-                  category?.submissionAvailability !== 'available'
-                }
-                label={draft.location === null ? 'Capture current location' : 'Capture again'}
-                onPress={() => void capture.captureLocation().catch(() => undefined)}
-              />
+              {locationRecoveryAction === null ? null : (
+                <PrimaryAction
+                  disabled={
+                    capture.state.isBusy ||
+                    !capture.state.isOnline ||
+                    hasUnsavedDetails ||
+                    category?.submissionAvailability !== 'available'
+                  }
+                  label={
+                    locationRecoveryAction === 'capture'
+                      ? t('tryCurrentLocationAgain')
+                      : t('refreshLocation')
+                  }
+                  onPress={() => void automaticLocation.refresh().catch(() => undefined)}
+                />
+              )}
               {category?.requiresAsset === true && locationEligible ? (
                 <View style={styles.subsection}>
-                  <Text style={styles.label}>Select the affected nearby asset</Text>
+                  <Text style={styles.label}>{t('affectedNearbyAsset')}</Text>
                   {capture.state.assetOptions.length === 0 ? (
                     <Text accessibilityRole="alert" style={styles.warning}>
-                      No verified nearby assets found. Refresh or capture the location again.
+                      {t('noNearbyAssets')}
                     </Text>
                   ) : (
                     <View style={styles.options}>
@@ -449,7 +688,10 @@ export default function NewComplaintScreen() {
                         >
                           <Text style={styles.optionTitle}>{asset.displayName}</Text>
                           <Text style={styles.optionDescription}>
-                            {asset.assetTypeName} · about {Math.round(asset.distanceMeters)} m away
+                            {asset.assetTypeName} ·{' '}
+                            {t('distanceMetersAway', {
+                              distance: Math.round(asset.distanceMeters),
+                            })}
                           </Text>
                         </Pressable>
                       ))}
@@ -457,7 +699,7 @@ export default function NewComplaintScreen() {
                   )}
                   <SecondaryAction
                     disabled={capture.state.isBusy}
-                    label="Refresh nearby assets"
+                    label={t('refreshNearbyAssets')}
                     onPress={() => void capture.loadNearbyAssets().catch(() => undefined)}
                   />
                 </View>
@@ -465,60 +707,47 @@ export default function NewComplaintScreen() {
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>EVIDENCE</Text>
+              <Text style={styles.sectionLabel}>{t('evidence').toUpperCase()}</Text>
               <Text accessibilityRole="header" style={styles.title}>
-                Photo, video or voice
+                {t('photoVideoVoice')}
               </Text>
-              <Text style={styles.help}>Capture evidence now. Originals stay private.</Text>
+              <Text style={styles.help}>{t('captureEvidencePrivate')}</Text>
               <View style={styles.requirementCard}>
-                <Text style={styles.requirementTitle}>Required evidence</Text>
+                <Text style={styles.requirementTitle}>{t('requiredEvidence')}</Text>
                 <Text style={styles.requirementText}>
                   {minimumMediaCount === 0
-                    ? `Photo or video optional · maximum ${maximumMediaCount}`
-                    : `${minimumMediaCount}–${maximumMediaCount} finalized photo/video ${minimumMediaCount === 1 ? 'item' : 'items'}`}
+                    ? t('optionalEvidenceRequirement', { maximum: maximumMediaCount })
+                    : t('requiredEvidenceRequirement', {
+                        maximum: maximumMediaCount,
+                        minimum: minimumMediaCount,
+                      })}
                 </Text>
                 {category?.recommendedMediaKinds.length ? (
                   <Text style={styles.requirementText}>
-                    Recommended: {category.recommendedMediaKinds.join(', ')}
+                    {t('recommended')}: {category.recommendedMediaKinds.join(', ')}
                   </Text>
                 ) : null}
               </View>
-              {isCameraOpen ? (
-                <ComplaintCameraCapture
-                  disabled={capture.state.isBusy}
-                  onCancel={() => setIsCameraOpen(false)}
-                  onCaptured={capture.uploadMedia}
-                />
-              ) : (
-                <PrimaryAction
-                  disabled={
-                    capture.state.isBusy ||
-                    capture.state.upload !== null ||
-                    !locationEligible ||
-                    finalizedEvidenceCount >= maximumMediaCount
-                  }
-                  label="Open camera"
-                  onPress={() => setIsCameraOpen(true)}
-                />
-              )}
-              <ComplaintVoiceCapture
+              <ComplaintEvidenceEntry
                 disabled={
-                  capture.state.isBusy || capture.state.upload !== null || !locationEligible
+                  capture.state.isBusy ||
+                  capture.state.upload !== null ||
+                  !locationEligible ||
+                  hasUnsavedDetails
                 }
                 onCaptured={capture.uploadMedia}
+                photoVideoDisabled={finalizedEvidenceCount >= maximumMediaCount}
               />
               {capture.state.upload === null ? null : (
                 <View style={styles.uploadCard}>
-                  <Text style={styles.optionTitle}>
-                    Private upload: {capture.state.upload.status}
-                  </Text>
+                  <Text style={styles.optionTitle}>{t('addingEvidence')}</Text>
                   <Text style={styles.help}>
                     {Math.round(capture.state.upload.progress * 100)}%
                   </Text>
                   {capture.state.upload.status === 'failed' ? (
                     <SecondaryAction
                       disabled={capture.state.isBusy}
-                      label="Retry upload"
+                      label={t('retryUpload')}
                       onPress={() => void capture.retryPendingUpload()}
                     />
                   ) : null}
@@ -526,34 +755,40 @@ export default function NewComplaintScreen() {
               )}
               {draft.media.map((media) => (
                 <View key={media.id} style={styles.mediaRow}>
-                  <Text style={styles.optionTitle}>{media.metadata.kind}</Text>
+                  <Text style={styles.optionTitle}>
+                    {media.metadata.kind === 'voice'
+                      ? t('voiceNote')
+                      : media.metadata.kind === 'photo'
+                        ? t('photo')
+                        : t('video')}
+                  </Text>
                   <Text style={styles.muted}>
-                    {media.uploadStatus} · {media.processingStatus}
+                    {t(media.uploadStatus === 'finalized' ? 'ready' : 'processing')}
                   </Text>
                 </View>
               ))}
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>SIMILAR REPORTS</Text>
+              <Text style={styles.sectionLabel}>{t('similarReports').toUpperCase()}</Text>
               <Text accessibilityRole="header" style={styles.title}>
-                Check similar reports (optional)
+                {t('similarReports')}
               </Text>
               {capture.state.duplicateCheck === null ? (
-                <Text style={styles.muted}>
-                  You can check for nearby reports or submit without checking.
-                </Text>
+                <Text style={styles.muted}>{t('similarReportsPendingHint')}</Text>
               ) : capture.state.duplicateCheck.suggestions.length > 0 ? (
                 <>
-                  <Text style={styles.help}>Review these before creating another report.</Text>
+                  <Text style={styles.help}>{t('duplicateReviewHint')}</Text>
                   {capture.state.duplicateCheck.suggestions.map((suggestion) => (
                     <View key={suggestion.complaintId} style={styles.option}>
                       <Text style={styles.optionTitle}>
                         {suggestion.categoryName} · {suggestion.complaintNumber}
                       </Text>
                       <Text style={styles.optionDescription}>
-                        About {Math.round(suggestion.approximateDistanceMeters)} m away ·{' '}
-                        {Math.round(suggestion.score * 100)}% similarity
+                        {t('distanceSimilarity', {
+                          distance: Math.round(suggestion.approximateDistanceMeters),
+                          similarity: Math.round(suggestion.score * 100),
+                        })}
                       </Text>
                     </View>
                   ))}
@@ -572,51 +807,59 @@ export default function NewComplaintScreen() {
                     <Text style={styles.checkbox}>
                       {capture.state.duplicatesAcknowledged ? '✓' : ''}
                     </Text>
-                    <Text style={styles.checkboxText}>
-                      I reviewed these suggestions and still want to submit a separate report.
-                    </Text>
+                    <Text style={styles.checkboxText}>{t('duplicateAcknowledgement')}</Text>
                   </Pressable>
                 </>
               ) : (
-                <Text style={styles.successText}>No similar reports were suggested.</Text>
+                <Text style={styles.successText}>{t('noSimilarReports')}</Text>
               )}
-              <PrimaryAction
-                disabled={!canCheckDuplicates}
-                label={
-                  capture.state.duplicateCheck === null ? 'Check similar reports' : 'Check again'
-                }
-                onPress={() => void capture.checkDuplicates().catch(() => undefined)}
-              />
-              {!canCheckDuplicates && capture.state.duplicateCheck === null ? (
-                <Text style={styles.compactHint}>
-                  Save the details, location and required evidence first.
-                </Text>
-              ) : null}
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.sectionLabel}>REVIEW</Text>
+              <Text style={styles.sectionLabel}>{t('reviewReport').toUpperCase()}</Text>
               <Text accessibilityRole="header" style={styles.title}>
-                Review and submit
+                {t('reviewAndSubmit')}
               </Text>
-              <ReviewRow label="Category" value={category?.name ?? 'Not selected'} />
-              <ReviewRow label="Description" value={description.trim() || 'Not provided'} />
               <ReviewRow
-                label="Location"
-                value={
-                  draft.location === null
-                    ? 'Missing'
-                    : `${Math.round(draft.location.accuracyMeters)} m accuracy`
-                }
+                label={t('primaryCategory')}
+                value={taxonomyItem?.primaryName ?? t('notSelected')}
               />
               <ReviewRow
-                label="Evidence"
-                value={`${finalizedEvidenceCount} photo/video ready${draft.media.some((media) => media.metadata.kind === 'voice' && media.uploadStatus === 'finalized') ? ' · voice note attached' : ''}`}
+                label={t('complaintType')}
+                value={taxonomyItem?.subcategoryName ?? t('notSelected')}
+              />
+              <ReviewRow label={t('description')} value={description.trim() || t('notProvided')} />
+              <ReviewRow
+                label={t('locationQuestion')}
+                value={t(locationEligible ? 'confirmed' : 'needed')}
+              />
+              <ReviewRow
+                label={t('evidence')}
+                value={`${t('evidenceReadySummary', { count: finalizedEvidenceCount })}${
+                  draft.media.some(
+                    (media) =>
+                      media.metadata.kind === 'voice' && media.uploadStatus === 'finalized',
+                  )
+                    ? ` · ${t('voiceAttached')}`
+                    : ''
+                }`}
               />
               {category?.requiresAsset === true ? (
-                <ReviewRow label="Asset" value={selectedAsset?.displayName ?? 'Not selected'} />
+                <ReviewRow
+                  label={t('asset')}
+                  value={selectedAsset?.displayName ?? t('notSelected')}
+                />
               ) : null}
-              <ReviewRow label="Routing" value="Verified by the server at submission" />
+              <ReviewRow
+                label={t('routing')}
+                value={
+                  taxonomyItem?.submissionAvailability === 'available'
+                    ? t('routingByWard')
+                    : taxonomyItem?.routingStatus === 'protected_pending'
+                      ? t('privateIntakeUnavailable')
+                      : t('notAvailableYet')
+                }
+              />
 
               {hasVoice ? (
                 <Pressable
@@ -632,19 +875,14 @@ export default function NewComplaintScreen() {
                   style={[styles.checkboxRow, capture.state.isBusy && styles.disabledButton]}
                 >
                   <Text style={styles.checkbox}>{voiceDescriptionConfirmed ? '✓' : ''}</Text>
-                  <Text style={styles.checkboxText}>
-                    I typed and reviewed the voice-note description.
-                  </Text>
+                  <Text style={styles.checkboxText}>{t('voiceDescriptionAcknowledgement')}</Text>
                 </Pressable>
               ) : null}
 
-              {category?.isEmergency === true ? (
+              {isEmergencyIssue ? (
                 <View style={styles.emergencyCard}>
-                  <Text style={styles.emergencyTitle}>This is not emergency dispatch</Text>
-                  <Text style={styles.emergencyText}>
-                    Call 112 immediately if anyone is in danger. A normal complaint does not
-                    guarantee emergency response.
-                  </Text>
+                  <Text style={styles.emergencyTitle}>{t('complaintsNotEmergency')}</Text>
+                  <Text style={styles.emergencyText}>{t('emergencyNormalComplaintWarning')}</Text>
                   <Pressable
                     accessibilityRole="checkbox"
                     accessibilityState={{
@@ -660,49 +898,55 @@ export default function NewComplaintScreen() {
                     <Text style={styles.checkbox}>
                       {capture.state.emergencyAcknowledged ? '✓' : ''}
                     </Text>
-                    <Text style={styles.checkboxText}>
-                      I understand and still want to submit a civic complaint.
-                    </Text>
+                    <Text style={styles.checkboxText}>{t('emergencyAcknowledgement')}</Text>
                   </Pressable>
                 </View>
               ) : null}
 
               {submissionBlockers.length > 0 ? (
                 <View accessibilityRole="alert" style={styles.blockerCard}>
-                  <Text style={styles.blockerTitle}>Before you submit</Text>
+                  <Text style={styles.blockerTitle}>{t('beforeSubmit')}</Text>
                   {submissionBlockers.map((blocker) => (
                     <Text key={blocker} style={styles.blockerText}>
-                      • {complaintSubmissionBlockerMessages[blocker]}
+                      • {t(submissionBlockerMessageKeys[blocker])}
                     </Text>
                   ))}
                 </View>
               ) : (
                 <View style={styles.successCard}>
-                  <Text style={styles.successTitle}>Ready to submit</Text>
-                  <Text style={styles.successText}>
-                    The server will verify routing one final time.
-                  </Text>
+                  <Text style={styles.successTitle}>{t('readyToSubmit')}</Text>
+                  <Text style={styles.successText}>{t('serverFinalRoutingCheck')}</Text>
                 </View>
               )}
-              <PrimaryAction
-                disabled={submissionBlockers.length > 0 || capture.state.isBusy}
-                label="Submit complaint"
-                onPress={() => void submit()}
-              />
             </View>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: capture.state.isBusy }}
-              disabled={capture.state.isBusy}
-              onPress={confirmDiscardDraft}
-              style={styles.discardButton}
-            >
-              <Text style={styles.discardText}>Discard this draft</Text>
-            </Pressable>
           </>
         )}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: capture.state.isBusy }}
+          disabled={capture.state.isBusy}
+          onPress={confirmDiscardDraft}
+          style={styles.discardButton}
+        >
+          <Text style={styles.discardText}>{t('discardDraftTitle')}</Text>
+        </Pressable>
       </ScrollView>
+      {isOfficialHandoff ? null : (
+        <View style={styles.stickySubmit}>
+          <Text accessibilityLiveRegion="polite" style={styles.stickyHint}>
+            {submissionBlockers.length === 0
+              ? t('readyToSend')
+              : t('itemsLeft', { count: submissionBlockers.length })}
+          </Text>
+          <PrimaryAction
+            disabled={submissionBlockers.length > 0 || capture.state.isBusy}
+            label={t('submitComplaint')}
+            loading={capture.state.isBusy && capture.state.upload === null}
+            onPress={() => void submit()}
+          />
+        </View>
+      )}
     </Screen>
   );
 }
@@ -713,11 +957,12 @@ const PrimaryAction = ({
   loading = false,
   onPress,
 }: Readonly<{ disabled?: boolean; label: string; loading?: boolean; onPress: () => void }>) => {
+  const { t } = useLocalization();
   const isDisabled = disabled || loading;
 
   return (
     <Pressable
-      accessibilityLabel={loading ? `${label} in progress` : label}
+      accessibilityLabel={loading ? t('actionInProgress', { action: label }) : label}
       accessibilityRole="button"
       accessibilityState={{ busy: loading, disabled: isDisabled }}
       disabled={isDisabled}
@@ -757,6 +1002,13 @@ const ReviewRow = ({ label, value }: Readonly<{ label: string; value: string }>)
 );
 
 const styles = StyleSheet.create({
+  autosaveError: { color: '#b45309' },
+  autosaveRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  autosaveText: { color: '#4f6b59', fontSize: 13, fontWeight: '800' },
   blockerCard: {
     backgroundColor: '#fff8e8',
     borderColor: '#f2d38a',
@@ -788,7 +1040,6 @@ const styles = StyleSheet.create({
   },
   checkboxRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 10, paddingVertical: 8 },
   checkboxText: { color: '#334155', flex: 1, lineHeight: 21 },
-  compactHint: { color: '#64748b', fontSize: 13, lineHeight: 18, textAlign: 'center' },
   content: { gap: 18, padding: 20, paddingBottom: 48 },
   counter: { color: '#64748b', fontSize: 13, textAlign: 'right' },
   descriptionInput: {
@@ -812,16 +1063,6 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 14,
   },
-  emergencyTag: {
-    backgroundColor: '#fff1e8',
-    borderRadius: 999,
-    color: '#b54716',
-    fontSize: 11,
-    fontWeight: '900',
-    overflow: 'hidden',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
   emergencyText: { color: '#7c2d12', lineHeight: 21 },
   emergencyTitle: { color: '#9a3412', fontSize: 18, fontWeight: '800' },
   error: {
@@ -840,11 +1081,8 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 17,
   },
-  formTitle: { color: '#14281d', fontSize: 29, fontWeight: '900' },
+  formTitle: { color: '#14281d', fontSize: 22, fontWeight: '900' },
   help: { color: '#475569', lineHeight: 22 },
-  infoCard: { backgroundColor: '#eef5ff', borderRadius: 13, gap: 5, padding: 13 },
-  infoText: { color: '#405a73', fontSize: 13, lineHeight: 19 },
-  infoTitle: { color: '#244e72', fontSize: 14, fontWeight: '900' },
   input: {
     backgroundColor: '#ffffff',
     borderColor: '#94a3b8',
@@ -856,6 +1094,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   label: { color: '#1e293b', fontSize: 15, fontWeight: '800' },
+  locationStatusRow: { alignItems: 'center', flexDirection: 'row', gap: 9 },
   mediaRow: {
     backgroundColor: '#f8fafc',
     borderRadius: 10,
@@ -872,14 +1111,43 @@ const styles = StyleSheet.create({
     gap: 4,
     padding: 15,
   },
-  optionBadges: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   optionDescription: { color: '#64748b', lineHeight: 20 },
-  optionHeading: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   optionSelected: { backgroundColor: '#eef9f1', borderColor: '#237345', borderWidth: 2 },
   optionTitle: { color: '#1e293b', fontSize: 16, fontWeight: '800' },
-  optionTitleFlexible: { flex: 1 },
-  optionUnavailable: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0', opacity: 0.8 },
   options: { gap: 9 },
+  officialHelpAction: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderColor: '#bfdbfe',
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12,
+  },
+  officialHelpActionCopy: { flex: 1, gap: 3 },
+  officialHelpActionDescription: { color: '#405a73', fontSize: 13, lineHeight: 18 },
+  officialHelpActionTitle: { color: '#123f66', fontSize: 15, fontWeight: '900' },
+  officialHelpButton: {
+    alignItems: 'center',
+    backgroundColor: '#0b6fa4',
+    borderRadius: 12,
+    justifyContent: 'center',
+    minHeight: 44,
+    minWidth: 68,
+    paddingHorizontal: 14,
+  },
+  officialHelpButtonText: { color: '#ffffff', fontWeight: '900' },
+  officialHelpCard: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#93c5fd',
+    borderRadius: 15,
+    borderWidth: 1,
+    gap: 12,
+    padding: 14,
+  },
+  officialHelpText: { color: '#294d69', lineHeight: 20 },
+  officialHelpTitle: { color: '#123f66', fontSize: 20, fontWeight: '900' },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: '#16834a',
@@ -889,29 +1157,40 @@ const styles = StyleSheet.create({
     padding: 13,
   },
   primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
-  progressDot: {
-    alignItems: 'center',
-    backgroundColor: '#eef2f0',
-    borderColor: '#c9d8d0',
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 24,
-    justifyContent: 'center',
-    width: 24,
-  },
-  progressDotComplete: { backgroundColor: '#17683b', borderColor: '#17683b' },
-  progressDotText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
-  progressItem: { alignItems: 'center', flex: 1, gap: 4 },
-  progressLabel: { color: '#64756b', fontSize: 11, fontWeight: '700' },
-  progressLabelComplete: { color: '#17683b' },
-  progressRail: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10 },
-  receiptNumber: { color: '#14532d', fontSize: 25, fontWeight: '900' },
   reviewLabel: { color: '#64748b', fontSize: 13, fontWeight: '700' },
   reviewRow: { backgroundColor: '#f8fafc', borderRadius: 9, gap: 4, padding: 12 },
   reviewValue: { color: '#1e293b', lineHeight: 21 },
   requirementCard: { backgroundColor: '#eef7f1', borderRadius: 12, gap: 5, padding: 14 },
   requirementText: { color: '#42614e', lineHeight: 20 },
   requirementTitle: { color: '#155d38', fontSize: 15, fontWeight: '800' },
+  routingProfileCard: {
+    borderRadius: 13,
+    borderWidth: 1,
+    gap: 5,
+    padding: 13,
+  },
+  routingProfileHeading: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  routingProfileHandoff: { backgroundColor: '#eff6ff', borderColor: '#93c5fd' },
+  routingProfilePending: { backgroundColor: '#fff8ed', borderColor: '#fdba74' },
+  routingProfileReady: { backgroundColor: '#effaf3', borderColor: '#86efac' },
+  routingProfileStatus: {
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: '900',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  routingProfileStatusHandoff: { backgroundColor: '#dbeafe', color: '#1d4ed8' },
+  routingProfileStatusPending: { backgroundColor: '#ffedd5', color: '#9a3412' },
+  routingProfileStatusReady: { backgroundColor: '#dcfce7', color: '#166534' },
+  routingProfileText: { color: '#405a73', lineHeight: 19 },
+  routingProfileTitle: { color: '#14281d', flex: 1, fontSize: 15, fontWeight: '900' },
   secondaryButton: {
     alignItems: 'center',
     borderColor: '#166534',
@@ -925,6 +1204,17 @@ const styles = StyleSheet.create({
   sectionLabel: { color: '#0b6fa4', fontSize: 11, fontWeight: '900', letterSpacing: 0.9 },
   settingsButton: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   settingsButtonText: { color: '#166534', fontWeight: '800' },
+  stickyHint: { color: '#5f7165', fontSize: 12, fontWeight: '800', textAlign: 'center' },
+  stickySubmit: {
+    ...mobileTheme.shadow.floating,
+    backgroundColor: '#ffffff',
+    borderTopColor: '#dfe8e1',
+    borderTopWidth: 1,
+    gap: 7,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
   subsection: { gap: 12, marginTop: 2 },
   successCard: {
     backgroundColor: '#ecfdf5',
@@ -936,20 +1226,8 @@ const styles = StyleSheet.create({
   },
   successText: { color: '#166534', lineHeight: 21 },
   successTitle: { color: '#14532d', fontSize: 17, fontWeight: '800' },
-  title: { color: '#14281d', fontSize: 27, fontWeight: '900' },
+  title: { color: '#14281d', fontSize: 18, fontWeight: '900' },
   uploadCard: { backgroundColor: '#eff6ff', borderRadius: 10, gap: 6, padding: 13 },
-  selectedMark: { color: '#17683b', fontSize: 18, fontWeight: '900' },
-  unavailableTag: {
-    backgroundColor: '#eef1ef',
-    borderRadius: 999,
-    color: '#6b766e',
-    fontSize: 11,
-    fontWeight: '900',
-    overflow: 'hidden',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  unavailableText: { color: '#64748b' },
   warning: {
     backgroundColor: '#fff4e6',
     borderRadius: 10,

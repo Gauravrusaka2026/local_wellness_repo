@@ -1,0 +1,341 @@
+taxonomy_code,primary_code,name,workflow_type,sensitivity_class,route_mode,routing_profile_code,routing_status,submission_available,handoff_action_keys
+SWM-001,SWM,Garbage dump,PUBLIC_HEALTH,PUBLIC,specialized_ward,garbage_dump,mapped,true,
+SWM-002,SWM,Overflowing public dustbin,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-003,SWM,Missed door-to-door waste collection,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-004,SWM,Missed road or street sweeping,SERVICE_FAILURE,PUBLIC,specialized_ward,missed_sweeping,mapped,true,
+SWM-005,SWM,"Littered street, lane, or public place",PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-006,SWM,Construction and demolition waste dumping,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-007,SWM,Illegal waste burning,ENVIRONMENTAL,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-008,SWM,Biomedical waste in a public area,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-009,SWM,Hazardous or chemical waste dumping,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-010,SWM,Dead animal carcass removal,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-011,SWM,Unclean public toilet,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-012,SWM,Public toilet without water,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-013,SWM,Public toilet without lighting or electricity,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-014,SWM,Market waste accumulation,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-015,SWM,Commercial establishment dumping waste,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-016,SWM,Garden or leaf waste not collected,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-017,SWM,Plastic-waste hotspot,ENVIRONMENTAL,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-018,SWM,E-waste dumped in a public place,ENVIRONMENTAL,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-019,SWM,Bulk waste not collected,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SWM-020,SWM,Waste collection vehicle leakage or spillage,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-001,RDS,Pothole or damaged municipal road,MAINTENANCE,PUBLIC,specialized_ward,pothole,mapped,true,
+RDS-002,RDS,Road cave-in or sinking road,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-003,RDS,Uneven or broken road surface,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-004,RDS,Damaged footpath or pavement,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-005,RDS,Missing or broken kerb,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-006,RDS,Incomplete road excavation or trench,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-007,RDS,"Loose gravel, rubble, or debris on the road",SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-008,RDS,Damaged road divider or median,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-009,RDS,Missing or broken street-name sign,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-010,RDS,Missing or damaged road-safety sign,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-011,RDS,Faded lane markings,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-012,RDS,Faded or unsafe pedestrian crossing,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-013,RDS,Damaged or unauthorized speed breaker,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-014,RDS,Damaged guardrail or crash barrier,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-015,RDS,Bridge or flyover surface damage,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-016,RDS,Subway or underpass structural damage,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-017,RDS,Damaged pedestrian railing or bollard,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-018,RDS,Accessibility ramp or tactile-paving problem,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-019,RDS,Damaged cycle-track surface,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+RDS-020,RDS,Road shoulder or roadside-edge erosion,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-001,DRN,Blocked storm-water drain,MAINTENANCE,PUBLIC,specialized_ward,blocked_drain,mapped,true,
+DRN-002,DRN,Sewage overflow,PUBLIC_HEALTH,PUBLIC,specialized_ward,sewage_overflow,mapped,true,
+DRN-003,DRN,Blocked sanitary sewer,PUBLIC_HEALTH,PUBLIC,specialized_ward,sewage_overflow,mapped,true,
+DRN-004,DRN,Open or unsafe manhole,SAFETY_HAZARD,PUBLIC,specialized_ward,open_manhole,mapped,true,
+DRN-005,DRN,Missing or broken manhole cover,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-006,DRN,Collapsed sewer or drain,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-007,DRN,Damaged drain cover or grating,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-008,DRN,Waterlogging on a road,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-009,DRN,Flooded subway or underpass,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-010,DRN,Sewer backflow into a property,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-011,DRN,Foul smell from a sewer,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-012,DRN,Illegal sewage discharge,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-013,DRN,Septic tank overflow,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-014,DRN,Public toilet sewer blockage,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-015,DRN,Construction debris inside a drain,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-016,DRN,Clogged nullah or open drainage channel,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-017,DRN,Damaged culvert,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-018,DRN,Blocked drain inlet or catch basin,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-019,DRN,Sewage-line leakage,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+DRN-020,DRN,Blocked storm-water outlet or outfall,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-001,WTR,Municipal water-line leakage,MAINTENANCE,PUBLIC,specialized_ward,water_leakage,mapped,true,
+WTR-002,WTR,Major pipeline burst,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-003,WTR,No water supply,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-004,WTR,Low water pressure,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-005,WTR,Irregular or intermittent water supply,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-006,WTR,Contaminated or discoloured water,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-007,WTR,Foul-smelling or bad-tasting water,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-008,WTR,Damaged public tap,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-009,WTR,Public tap continuously running,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-010,WTR,Municipal water tanker not delivered,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-011,WTR,Suspected illegal water connection,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-012,WTR,Damaged or leaking water meter,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-013,WTR,Open or damaged valve chamber,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-014,WTR,Overhead tank or reservoir overflow,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-015,WTR,Water pumping-station failure,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-016,WTR,Fire hydrant damaged or inaccessible,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-017,WTR,Public drinking-water fountain failure,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-018,WTR,Pipeline damaged by roadwork or construction,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-019,WTR,Water theft or unauthorized extraction,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+WTR-020,WTR,Water-supply schedule or zone disruption,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-001,ELE,Broken municipal streetlight,MAINTENANCE,PUBLIC,specialized_ward,broken_streetlight,mapped,true,
+ELE-002,ELE,Flickering streetlight,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-003,ELE,Streetlight remains on during daytime,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-004,ELE,Multiple streetlights out on one road,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-005,ELE,Broken or damaged streetlight pole,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-006,ELE,Leaning or unstable electrical pole,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-007,ELE,Exposed electrical wire,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,ele_exposed_wire_112|ele_exposed_wire_1916
+ELE-008,ELE,Sparking or electrical short circuit,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,ele_short_circuit_112|ele_short_circuit_1916
+ELE-009,ELE,Open electrical junction box,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-010,ELE,Hanging or low electrical cable,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-011,ELE,Damaged transformer or feeder pillar,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-012,ELE,Stolen or damaged streetlight cable,CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,ele_cable_theft_112|ele_cable_theft_police
+ELE-013,ELE,High-mast light failure,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-014,ELE,Park lighting failure,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-015,ELE,Subway or underpass lighting failure,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-016,ELE,Bus-stop or public-shelter lighting failure,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-017,ELE,Solar streetlight failure,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-018,ELE,Traffic-signal power failure,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-019,ELE,Municipal CCTV camera malfunction,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ELE-020,ELE,Public Wi-Fi or civic digital-kiosk failure,INFORMATION_ACCESS,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-001,HLT,Mosquito breeding or stagnant water,PUBLIC_HEALTH,PUBLIC,specialized_ward,mosquito_breeding,mapped,true,
+HLT-002,HLT,Excessive mosquito nuisance or fogging request,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-003,HLT,Rodent infestation,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-004,HLT,Cockroach or fly infestation,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-005,HLT,Unhygienic food premises,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-006,HLT,Suspected unsafe or adulterated food,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-007,HLT,Open-defecation hotspot,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-008,HLT,Public-urination hotspot,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-009,HLT,Spitting or tobacco-stain hotspot,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-010,HLT,Persistent foul odour in a public area,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-011,HLT,Improperly discarded infectious waste,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-012,HLT,Unhygienic school or anganwadi premises,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-013,HLT,Unhygienic hospital or health-centre surroundings,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-014,HLT,Mosquito breeding at a construction site,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-015,HLT,Suspected waterborne-illness cluster,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-016,HLT,Contaminated public drinking-water source,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-017,HLT,Area not disinfected after flooding or sewage,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-018,HLT,Unhygienic market or slaughter area,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-019,HLT,Inadequate community sanitation,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+HLT-020,HLT,Unhygienic public shelter or community facility,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-001,ENV,Fallen or dangerous tree,SAFETY_HAZARD,PUBLIC,specialized_ward,fallen_tree,mapped,true,
+ENV-002,ENV,Broken or hanging tree branch,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-003,ENV,Tree pruning required,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-004,ENV,Suspected illegal tree cutting,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-005,ENV,Tree roots damaging a road or building,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-006,ENV,Dead or diseased tree,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-007,ENV,Municipal park not maintained,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-008,ENV,Broken playground equipment,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-009,ENV,"Damaged park bench, gate, or fence",MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-010,ENV,Park irrigation leakage,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-011,ENV,Garbage or unhygienic condition inside a park,PUBLIC_HEALTH,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-012,ENV,Stray-dog nuisance,ANIMAL_WELFARE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-013,ENV,Aggressive dog or dog-bite risk,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-014,ENV,Injured stray animal,ANIMAL_WELFARE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-015,ENV,Stray cattle obstructing a public road,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-016,ENV,Animal-feeding activity causing public nuisance,ENVIRONMENTAL,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-017,ENV,Snake or wildlife conflict in an urban area,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-018,ENV,"Air pollution, smoke, or toxic fumes",ENVIRONMENTAL,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-019,ENV,Excessive noise pollution,ENVIRONMENTAL,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+ENV-020,ENV,"Polluted lake, river, pond, or water body",ENVIRONMENTAL,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+BLD-001,BLD,Suspected illegal construction,ENFORCEMENT,RESTRICTED,specialized_ward,illegal_construction,mapped,true,
+BLD-002,BLD,"Encroachment on road, footpath, or municipal land",ENFORCEMENT,RESTRICTED,specialized_ward,encroachment,mapped,true,
+BLD-003,BLD,Unsafe or dilapidated building,SAFETY_HAZARD,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-004,BLD,Imminent building-collapse risk,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,bld_collapse_risk_112|bld_collapse_risk_1916
+BLD-005,BLD,"Unauthorized floor, extension, or structure",ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-006,BLD,Construction without visible permission,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-007,BLD,Construction site without safety barricading,SAFETY_HAZARD,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-008,BLD,Construction debris obstructing public space,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-009,BLD,Construction noise outside permitted hours,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-010,BLD,Uncontrolled construction dust,ENVIRONMENTAL,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-011,BLD,Unauthorized or unsafe excavation,SAFETY_HAZARD,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-012,BLD,Illegal hoarding or signboard,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-013,BLD,Unauthorized vending stall or temporary structure,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-014,BLD,Shop extension blocking a footpath,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-015,BLD,Encroachment on a drain or water body,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-016,BLD,Illegal land filling or reclamation,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-017,BLD,Basement misuse or illegal conversion,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-018,BLD,Building fire-safety violation,SAFETY_HAZARD,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-019,BLD,Blocked emergency exit or staircase,SAFETY_HAZARD,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+BLD-020,BLD,Unsafe or unauthorized demolition,SAFETY_HAZARD,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+TRF-001,TRF,Traffic-signal malfunction,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-002,TRF,Damaged traffic-signal pole,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-003,TRF,Missing traffic sign,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-004,TRF,Incorrect or contradictory traffic sign,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-005,TRF,Illegal parking,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-006,TRF,Abandoned vehicle,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-007,TRF,Vehicle blocking a footpath,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-008,TRF,Vehicle blocking emergency access,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-009,TRF,Bus-stop obstruction,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-010,TRF,Damaged bus shelter,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-011,TRF,Pedestrian-signal failure,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-012,TRF,Unsafe pedestrian crossing or junction,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-013,TRF,Speeding hotspot or speed-calming request,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-014,TRF,Unauthorized speed breaker,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-015,TRF,Parking-meter malfunction,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-016,TRF,Auto-rickshaw or taxi-stand obstruction,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-017,TRF,School-zone traffic-safety issue,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-018,TRF,Cycle-lane obstruction,ENFORCEMENT,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-019,TRF,Chronic congestion caused by civic obstruction,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+TRF-020,TRF,Non-functioning traffic display or message sign,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-001,FAC,Damaged municipal-school facility,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-002,FAC,Damaged anganwadi facility,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-003,FAC,Primary health-centre service or facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-004,FAC,Municipal hospital service or facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-005,FAC,Community hall facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-006,FAC,Crematorium or cemetery facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-007,FAC,Municipal market facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-008,FAC,Public library facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-009,FAC,Night shelter or homeless-shelter facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-010,FAC,Public lift or escalator failure,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-011,FAC,Foot-overbridge facility issue,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-012,FAC,Municipal building access or service issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-013,FAC,"Broken public bench, bollard, or shelter",MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-014,FAC,Missing or damaged civic-information board,MAINTENANCE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-015,FAC,Damaged public boundary wall or fence,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-016,FAC,Open excavation or missing safety barricade,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-017,FAC,Public drinking-water facility unavailable,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-018,FAC,Accessibility barrier at a public facility,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-019,FAC,Missing fire extinguisher or safety equipment in a public facility,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+FAC-020,FAC,Public facility unexpectedly closed or operating outside published hours,SERVICE_FAILURE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+LAW-001,LAW,"Crime, assault, or violence in progress",EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-002,LAW,Assault reported after the incident,CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-003,LAW,"Robbery, snatching, or theft",CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-004,LAW,"Burglary, housebreaking, or criminal trespass",CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-005,LAW,"Harassment, intimidation, or stalking",LAW_AND_ORDER,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-006,LAW,Domestic violence or intimate-partner abuse,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_domestic_violence_181|law_non_emergency_police
+LAW-007,LAW,Sexual harassment or sexual assault,CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_sexual_violence_181|law_non_emergency_police
+LAW-008,LAW,Women-safety concern in a public place,LAW_AND_ORDER,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_women_safety_181|law_non_emergency_police
+LAW-009,LAW,"Child abuse, exploitation, or unsafe custody concern",WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_child_protection_1098|law_non_emergency_police
+LAW-010,LAW,Missing person,CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-011,LAW,"Suspicious person, vehicle, or repeated suspicious activity",LAW_AND_ORDER,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-012,LAW,Suspicious object or possible explosive,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-013,LAW,Weapon or armed-threat sighting,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-014,LAW,Drug dealing or public drug activity,CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-015,LAW,"Vandalism, graffiti, or damage to public property",CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-016,LAW,"Public fighting, riot, or violent unlawful assembly",EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-017,LAW,Public intoxication or disorderly conduct,LAW_AND_ORDER,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-018,LAW,Severe public nuisance requiring police intervention,LAW_AND_ORDER,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+LAW-019,LAW,"Cybercrime, online fraud, identity theft, or digital financial fraud",CYBER_INCIDENT,PRIVATE,protected_handoff,,protected_handoff,false,law_cybercrime_1930|law_immediate_danger_112|law_cybercrime_portal|law_non_emergency_police
+LAW-020,LAW,"Lost or stolen property, documents, or non-emergency police assistance",CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,law_immediate_danger_112|law_non_emergency_police
+EMR-001,EMR,Active fire or visible smoke,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-002,EMR,Gas leak or strong gas smell,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-003,EMR,"Explosion, blast, or suspected explosive event",EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-004,EMR,Building collapse,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-005,EMR,Immediate structural-collapse risk,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-006,EMR,Flood rescue or person trapped by water,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-007,EMR,Severe waterlogging creating immediate danger,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-008,EMR,"Landslide, slope failure, or retaining-wall collapse",EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-009,EMR,"Tree fallen on road, building, or power line",EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-010,EMR,Live high-voltage wire or major electrical danger,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-011,EMR,"Chemical, fuel, or hazardous-material spill",EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-012,EMR,Industrial accident or factory emergency,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-013,EMR,Road accident with injury or trapped person,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-014,EMR,Lift or elevator entrapment,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-015,EMR,Drowning risk or water rescue,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-016,EMR,"Person trapped in excavation, confined space, or debris",EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-017,EMR,Earthquake damage or post-earthquake hazard,DISASTER_RESPONSE,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-018,EMR,Extreme-weather emergency or urgent shelter need,DISASTER_RESPONSE,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-019,EMR,"Evacuation, temporary shelter, or rescue assistance",DISASTER_RESPONSE,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+EMR-020,EMR,Emergency relief supplies or post-disaster assistance,DISASTER_RESPONSE,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,emergency_112|emergency_bmc_1916
+PTM-001,PTM,Scheduled bus route not operating,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-002,PTM,"Excessive delay, cancellation, or irregular frequency",TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-003,PTM,Dangerous overcrowding in public transport,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-004,PTM,Unsafe or reckless public-transport driving,SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-005,PTM,Driver or conductor misconduct,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-006,PTM,"Incorrect fare, ticket, pass, or refund issue",TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-007,PTM,"Bus stop missing, shifted, or incorrectly marked",TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-008,PTM,Damaged or unhygienic bus shelter,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-009,PTM,Accessibility problem on a bus or at a stop,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-010,PTM,Metro or railway station facility issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-011,PTM,Metro service disruption or passenger-information failure,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-012,PTM,"Local-train station access, safety, or cleanliness issue",FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-013,PTM,Auto-rickshaw or taxi refusal,CONSUMER_REGULATORY,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-014,PTM,Taxi or auto fare overcharge,CONSUMER_REGULATORY,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-015,PTM,"Unsafe taxi, auto, or app-cab conduct",SAFETY_HAZARD,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-016,PTM,Ferry or water-transport service issue,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-017,PTM,Last-mile shuttle or shared-mobility service issue,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-018,PTM,Public bicycle-sharing service issue,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-019,PTM,Public parking facility service issue,FACILITY_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+PTM-020,PTM,Paratransit or special-mobility assistance issue,TRANSPORT_SERVICE,PUBLIC,generic_ward,general_ward_complaint,mapped,true,
+SOC-001,SOC,Homeless person requesting shelter or outreach,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-002,SOC,"Elderly person at risk, abandoned, or needing assistance",WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-003,SOC,Person with disability requiring urgent support,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-004,SOC,Child begging or child living on the street,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,soc_child_begging_1098|social_support_grievance
+SOC-005,SOC,Suspected child labour,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,soc_child_labour_1098|social_support_grievance
+SOC-006,SOC,Domestic violence support or safe-shelter request,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,soc_domestic_violence_181|social_support_grievance
+SOC-007,SOC,"Women shelter, protection, or crisis-support request",WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,soc_women_shelter_181|social_support_grievance
+SOC-008,SOC,"Missing, abandoned, or unaccompanied child",WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,soc_unaccompanied_child_1098|social_support_grievance
+SOC-009,SOC,Suspected human trafficking,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,soc_trafficking_112|social_support_grievance
+SOC-010,SOC,Person experiencing a mental-health crisis,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-011,SOC,Person at immediate risk of self-harm,EMERGENCY,EMERGENCY_PRIVATE,protected_handoff,,protected_handoff,false,soc_self_harm_112|social_support_grievance
+SOC-012,SOC,Substance-use treatment or rehabilitation referral,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-013,SOC,Food insecurity or emergency community-meal request,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-014,SOC,"Migrant worker shelter, transport, or support request",WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-015,SOC,Public-distribution or ration-service denial,ADMINISTRATIVE_GRIEVANCE,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-016,SOC,"Pension, scholarship, or welfare-benefit delay",ADMINISTRATIVE_GRIEVANCE,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-017,SOC,Unsafe or unhygienic shelter-home conditions,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-018,SOC,"Rehabilitation support after eviction, demolition, or disaster",WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+SOC-019,SOC,"Suspected bonded labour, forced labour, or exploitation",CRIME_REPORT,PRIVATE,protected_handoff,,protected_handoff,false,soc_forced_labour_112|social_support_grievance
+SOC-020,SOC,Accessibility discrimination or denial of public service,WELFARE_PROTECTION,PRIVATE,protected_handoff,,protected_handoff,false,social_support_grievance
+ADM-001,ADM,Birth certificate delay or non-issuance,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-002,ADM,Death certificate delay or non-issuance,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-003,ADM,Marriage registration or certificate issue,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-004,ADM,Correction in a civil or municipal record,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-005,ADM,Property-tax assessment or mutation issue,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-006,ADM,"Property-tax payment, receipt, rebate, or refund issue",ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-007,ADM,"Water, sewer, or municipal service-bill dispute",ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-008,ADM,Building-permission application status or delay,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-009,ADM,"Occupancy, completion, or municipal NOC application delay",ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-010,ADM,Grievance not acknowledged or reference number not generated,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-011,ADM,Complaint closed without action or with incorrect reason,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-012,ADM,"RTI filing, transfer, fee, or response issue",INFORMATION_ACCESS,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-013,ADM,Public record or government-information request,INFORMATION_ACCESS,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-014,ADM,Land or revenue-record correction,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-015,ADM,"Domicile, income, caste, or residence-certificate service issue",ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-016,ADM,Voter-service or electoral-record query,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-017,ADM,Ration-card or household-record service issue,ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-018,ADM,"Online portal, payment, login, or application-tracking failure",INFORMATION_ACCESS,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-019,ADM,"Language, accessibility, or assisted-service problem",INFORMATION_ACCESS,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+ADM-020,ADM,"Government office delay, refusal, misconduct, or unexplained service denial",ADMINISTRATIVE_GRIEVANCE,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-001,REG,Unlicensed commercial establishment,CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-002,REG,"Expired, missing, or misused trade licence",CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-003,REG,Unhygienic municipal or private market premises,PUBLIC_HEALTH,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-004,REG,Unfair pricing or overcharging,CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-005,REG,Incorrect weights or measures,CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-006,REG,Misleading public advertisement or consumer claim,CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-007,REG,"Illegal hoarding, banner, billboard, or outdoor advertisement",ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-008,REG,"Street-vendor licence, zone, or harassment issue",CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-009,REG,"Market stall allocation, obstruction, or unauthorized occupation",ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-010,REG,Restaurant hygiene or municipal licensing complaint,PUBLIC_HEALTH,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-011,REG,Food adulteration or unsafe packaged food,PUBLIC_HEALTH,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-012,REG,"Meat shop, slaughterhouse, or animal-product hygiene complaint",PUBLIC_HEALTH,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-013,REG,Commercial fire-NOC or fire-safety violation,SAFETY_HAZARD,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-014,REG,Liquor-sale nuisance or suspected licensing violation,CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-015,REG,"Sale of prohibited, counterfeit, or hazardous goods",CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-016,REG,Pharmacy or medical-shop regulatory complaint,CONSUMER_REGULATORY,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-017,REG,Commercial material or goods blocking public space,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-018,REG,Telecom or cable operator damaging a road or public asset,ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-019,REG,"Event, procession, public-gathering, or temporary-permit violation",ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+REG-020,REG,"Commercial noise, nuisance, or operating-hours violation",ENFORCEMENT,RESTRICTED,generic_ward,general_ward_complaint,mapped,true,
+COR-001,COR,Bribe demanded for a public service or official action,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-002,COR,Bribe demanded through an intermediary or agent,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-003,COR,Extortion or coercive payment demanded by a public official,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-004,COR,Payment demanded to expedite or avoid delaying an application,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-005,COR,Kickback or commission in public procurement or a government contract,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-006,COR,"Tender manipulation, bid rigging or collusive procurement",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-007,COR,Procurement favouritism or undisclosed preferential treatment,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-008,COR,Misappropriation or embezzlement of public funds,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-009,COR,"Diversion or theft of public materials, supplies or assets",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-010,COR,"Fraudulent billing, false invoices or inflated measurements",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-011,COR,"Public work falsely certified, incompletely delivered or not performed",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-012,COR,Conflict of interest or undisclosed related-party decision,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-013,COR,"Nepotism or favouritism in public recruitment, appointment or allocation",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-014,COR,Abuse of official position or discretion for private gain,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-015,COR,"Corruption involving a licence, permit, certificate, NOC or approval",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-016,COR,"Corruption involving tax, fee, fine, assessment or enforcement action",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-017,COR,"Tampering, suppression or destruction of official records or evidence",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-018,COR,"Welfare-benefit leakage, illegal deduction or demanded commission",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-019,COR,"Threat, retaliation or intimidation after reporting corruption",ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal
+COR-020,COR,Other suspected public-sector corruption or integrity violation,ANTI_CORRUPTION,PRIVATE,protected_handoff,,protected_handoff,false,corruption_acb_1064|corruption_acb_portal

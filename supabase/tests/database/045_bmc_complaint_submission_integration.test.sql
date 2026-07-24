@@ -749,28 +749,28 @@ select ok(
   (
     select
       readiness ->> 'governmentQueueStatus' = 'verified_scope'
-      and readiness ->> 'externalContactStatus' = 'not_available'
+      and readiness ->> 'externalContactStatus' = 'verified_governing_body_contact'
+      and readiness ->> 'contactScope' = 'ward'
+      and readiness -> 'approvedChannelTypes' = '["email","phone","whatsapp"]'::jsonb
       and not (readiness ->> 'automaticOutboundDelivery')::boolean
     from complaints.assignment_delivery_readiness(
       (select assignment_id from bmc_submission_fixture)
     ) as readiness
   ),
-  'the BMC internal queue is verified without claiming external complaint delivery'
+  'the BMC assignment resolves its compact ward contact without claiming automatic delivery'
 );
 
 select ok(
-  not exists (
+  exists (
     select 1
-    from governance.contact_channel_versions as version
-    inner join governance.contact_channels as channel
-      on channel.id = version.contact_channel_id
-    where version.is_complaint_delivery_approved
-      and (
-        channel.authority_id = '3fabe3b8-47cf-58fe-a59c-bb34bd02322a'
-        or channel.local_body_id = 'fa1e71b4-01e3-5e72-92e8-1476eec1adcd'
-      )
+    from routing.ward_issue_contacts as contact
+    inner join bmc_submission_fixture as fixture
+      on fixture.ward_id = contact.ward_id
+     and fixture.category_id = contact.category_id
+    where contact.is_active
+      and contact.recipient_email = 'ac.a@mcgm.gov.in'
   ),
-  'the successful internal submission does not promote any BMC contact for external delivery'
+  'the successful A Ward submission retains its active category-specific email recipient'
 );
 
 select * from finish();

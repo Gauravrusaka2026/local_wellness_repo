@@ -238,47 +238,6 @@ export type Database = {
           },
         ];
       };
-      complaint_comments: {
-        Row: {
-          author_user_id: string;
-          body: string;
-          client_message_id: string;
-          complaint_id: string;
-          created_at: string;
-          id: string;
-          moderation_status: string;
-          visibility: string;
-        };
-        Insert: {
-          author_user_id: string;
-          body: string;
-          client_message_id: string;
-          complaint_id: string;
-          created_at?: string;
-          id?: string;
-          moderation_status?: string;
-          visibility?: string;
-        };
-        Update: {
-          author_user_id?: string;
-          body?: string;
-          client_message_id?: string;
-          complaint_id?: string;
-          created_at?: string;
-          id?: string;
-          moderation_status?: string;
-          visibility?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'complaint_comments_complaint_id_fkey';
-            columns: ['complaint_id'];
-            isOneToOne: false;
-            referencedRelation: 'complaints';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       complaint_drafts: {
         Row: {
           asset_id: string | null;
@@ -4089,6 +4048,10 @@ export type Database = {
         };
         Returns: string;
       };
+      assert_taxonomy_selection: {
+        Args: { p_category_id: string; p_custom_attributes: Json };
+        Returns: undefined;
+      };
       assignment_delivery_readiness: {
         Args: { p_assignment_id: string };
         Returns: Json;
@@ -4098,6 +4061,10 @@ export type Database = {
         Returns: boolean;
       };
       assignment_summary: { Args: { p_assignment_id: string }; Returns: Json };
+      complaint_category_display_name: {
+        Args: { p_category_id: string; p_custom_attributes: Json };
+        Returns: string;
+      };
       complaint_matches_kpi_scope: {
         Args: {
           p_authority_id: string;
@@ -4688,264 +4655,6 @@ export type Database = {
             columns: ['reference_source_id'];
             isOneToOne: false;
             referencedRelation: 'reference_sources';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      contact_channel_versions: {
-        Row: {
-          contact_channel_id: string;
-          contact_value: string;
-          created_at: string;
-          effective_from: string;
-          effective_to: string | null;
-          id: string;
-          is_complaint_delivery_approved: boolean;
-          is_placeholder: boolean;
-          last_verified: string | null;
-          normalized_value: string;
-          reviewed_at: string | null;
-          reviewed_by: string | null;
-          source_endpoint_id: string;
-          source_evidence_id: string | null;
-          source_record_locator: string;
-          source_snapshot_id: string;
-          source_url: string;
-          status: string;
-          sync_review_item_id: string | null;
-          updated_at: string;
-          verification_status: string;
-          version: number;
-        };
-        Insert: {
-          contact_channel_id: string;
-          contact_value: string;
-          created_at?: string;
-          effective_from: string;
-          effective_to?: string | null;
-          id?: string;
-          is_complaint_delivery_approved?: boolean;
-          is_placeholder?: boolean;
-          last_verified?: string | null;
-          normalized_value: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          source_endpoint_id: string;
-          source_evidence_id?: string | null;
-          source_record_locator: string;
-          source_snapshot_id: string;
-          source_url: string;
-          status?: string;
-          sync_review_item_id?: string | null;
-          updated_at?: string;
-          verification_status?: string;
-          version: number;
-        };
-        Update: {
-          contact_channel_id?: string;
-          contact_value?: string;
-          created_at?: string;
-          effective_from?: string;
-          effective_to?: string | null;
-          id?: string;
-          is_complaint_delivery_approved?: boolean;
-          is_placeholder?: boolean;
-          last_verified?: string | null;
-          normalized_value?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          source_endpoint_id?: string;
-          source_evidence_id?: string | null;
-          source_record_locator?: string;
-          source_snapshot_id?: string;
-          source_url?: string;
-          status?: string;
-          sync_review_item_id?: string | null;
-          updated_at?: string;
-          verification_status?: string;
-          version?: number;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'contact_channel_versions_contact_channel_id_fkey';
-            columns: ['contact_channel_id'];
-            isOneToOne: false;
-            referencedRelation: 'contact_channels';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channel_versions_contact_channel_id_fkey';
-            columns: ['contact_channel_id'];
-            isOneToOne: false;
-            referencedRelation: 'current_verified_contacts';
-            referencedColumns: ['contact_channel_id'];
-          },
-          {
-            foreignKeyName: 'contact_channel_versions_source_endpoint_id_fkey';
-            columns: ['source_endpoint_id'];
-            isOneToOne: false;
-            referencedRelation: 'source_endpoints';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channel_versions_source_evidence_id_fkey';
-            columns: ['source_evidence_id'];
-            isOneToOne: false;
-            referencedRelation: 'source_evidence';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channel_versions_source_snapshot_id_fkey';
-            columns: ['source_snapshot_id'];
-            isOneToOne: false;
-            referencedRelation: 'raw_snapshots';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channel_versions_sync_review_item_id_fkey';
-            columns: ['sync_review_item_id'];
-            isOneToOne: false;
-            referencedRelation: 'sync_review_items';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      contact_channels: {
-        Row: {
-          authority_department_id: string | null;
-          authority_id: string | null;
-          channel_key: string;
-          channel_type: string;
-          created_at: string;
-          emergency_contact_id: string | null;
-          id: string;
-          intended_use: string;
-          is_placeholder: boolean;
-          local_body_id: string | null;
-          office_id: string | null;
-          officer_assignment_id: string | null;
-          officer_id: string | null;
-          officer_role_id: string | null;
-          purpose: string | null;
-          status: string;
-          updated_at: string;
-          utility_id: string | null;
-          visibility: string;
-          ward_id: string | null;
-        };
-        Insert: {
-          authority_department_id?: string | null;
-          authority_id?: string | null;
-          channel_key: string;
-          channel_type: string;
-          created_at?: string;
-          emergency_contact_id?: string | null;
-          id?: string;
-          intended_use?: string;
-          is_placeholder?: boolean;
-          local_body_id?: string | null;
-          office_id?: string | null;
-          officer_assignment_id?: string | null;
-          officer_id?: string | null;
-          officer_role_id?: string | null;
-          purpose?: string | null;
-          status?: string;
-          updated_at?: string;
-          utility_id?: string | null;
-          visibility?: string;
-          ward_id?: string | null;
-        };
-        Update: {
-          authority_department_id?: string | null;
-          authority_id?: string | null;
-          channel_key?: string;
-          channel_type?: string;
-          created_at?: string;
-          emergency_contact_id?: string | null;
-          id?: string;
-          intended_use?: string;
-          is_placeholder?: boolean;
-          local_body_id?: string | null;
-          office_id?: string | null;
-          officer_assignment_id?: string | null;
-          officer_id?: string | null;
-          officer_role_id?: string | null;
-          purpose?: string | null;
-          status?: string;
-          updated_at?: string;
-          utility_id?: string | null;
-          visibility?: string;
-          ward_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'contact_channels_authority_department_id_fkey';
-            columns: ['authority_department_id'];
-            isOneToOne: false;
-            referencedRelation: 'authority_departments';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_authority_id_fkey';
-            columns: ['authority_id'];
-            isOneToOne: false;
-            referencedRelation: 'authorities';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_emergency_contact_id_fkey';
-            columns: ['emergency_contact_id'];
-            isOneToOne: false;
-            referencedRelation: 'emergency_contacts';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_local_body_id_fkey';
-            columns: ['local_body_id'];
-            isOneToOne: false;
-            referencedRelation: 'local_bodies';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_office_id_fkey';
-            columns: ['office_id'];
-            isOneToOne: false;
-            referencedRelation: 'offices';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_officer_assignment_id_fkey';
-            columns: ['officer_assignment_id'];
-            isOneToOne: false;
-            referencedRelation: 'officer_assignments';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_officer_id_fkey';
-            columns: ['officer_id'];
-            isOneToOne: false;
-            referencedRelation: 'officers';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_officer_role_id_fkey';
-            columns: ['officer_role_id'];
-            isOneToOne: false;
-            referencedRelation: 'officer_roles';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_utility_id_fkey';
-            columns: ['utility_id'];
-            isOneToOne: false;
-            referencedRelation: 'utilities';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_ward_id_fkey';
-            columns: ['ward_id'];
-            isOneToOne: false;
-            referencedRelation: 'wards';
             referencedColumns: ['id'];
           },
         ];
@@ -6098,82 +5807,6 @@ export type Database = {
           },
         ];
       };
-      raw_snapshots: {
-        Row: {
-          byte_size: number;
-          created_at: string;
-          etag: string | null;
-          first_sync_run_id: string;
-          http_status: number | null;
-          id: string;
-          media_type: string;
-          previous_snapshot_id: string | null;
-          retrieval_metadata: Json;
-          retrieved_at: string;
-          sha256: string;
-          source_endpoint_id: string;
-          source_last_modified_at: string | null;
-          storage_bucket: string;
-          storage_object_path: string;
-        };
-        Insert: {
-          byte_size: number;
-          created_at?: string;
-          etag?: string | null;
-          first_sync_run_id: string;
-          http_status?: number | null;
-          id?: string;
-          media_type: string;
-          previous_snapshot_id?: string | null;
-          retrieval_metadata?: Json;
-          retrieved_at: string;
-          sha256: string;
-          source_endpoint_id: string;
-          source_last_modified_at?: string | null;
-          storage_bucket?: string;
-          storage_object_path: string;
-        };
-        Update: {
-          byte_size?: number;
-          created_at?: string;
-          etag?: string | null;
-          first_sync_run_id?: string;
-          http_status?: number | null;
-          id?: string;
-          media_type?: string;
-          previous_snapshot_id?: string | null;
-          retrieval_metadata?: Json;
-          retrieved_at?: string;
-          sha256?: string;
-          source_endpoint_id?: string;
-          source_last_modified_at?: string | null;
-          storage_bucket?: string;
-          storage_object_path?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'raw_snapshots_first_sync_run_id_fkey';
-            columns: ['first_sync_run_id'];
-            isOneToOne: true;
-            referencedRelation: 'sync_runs';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'raw_snapshots_previous_snapshot_id_fkey';
-            columns: ['previous_snapshot_id'];
-            isOneToOne: false;
-            referencedRelation: 'raw_snapshots';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'raw_snapshots_source_endpoint_id_fkey';
-            columns: ['source_endpoint_id'];
-            isOneToOne: false;
-            referencedRelation: 'source_endpoints';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       reference_sources: {
         Row: {
           created_at: string;
@@ -6209,209 +5842,6 @@ export type Database = {
           url?: string;
         };
         Relationships: [];
-      };
-      source_endpoints: {
-        Row: {
-          allowed_hosts: string[];
-          approved_at: string | null;
-          approved_by: string | null;
-          approved_contract_sha256: string | null;
-          authority_id: string | null;
-          consecutive_failure_count: number;
-          created_at: string;
-          dataset_kind: string;
-          disabled_until: string | null;
-          endpoint_url: string | null;
-          expected_media_types: string[];
-          fetch_timeout_seconds: number;
-          id: string;
-          import_batch_id: string | null;
-          is_placeholder: boolean;
-          last_attempted_at: string | null;
-          last_failed_at: string | null;
-          last_failure_code: string | null;
-          last_succeeded_at: string | null;
-          last_verified_on: string | null;
-          max_response_bytes: number;
-          next_sync_at: string | null;
-          parser_contract_version: string;
-          parser_key: string;
-          reference_source_id: string | null;
-          refresh_interval: string | null;
-          repository_path: string | null;
-          retrieval_format: string;
-          retrieval_method: string;
-          secret_reference: string | null;
-          source_contract_sha256: string;
-          source_key: string;
-          source_kind: string;
-          status: string;
-          updated_at: string;
-          verification_notes: string | null;
-          verification_status: string;
-        };
-        Insert: {
-          allowed_hosts?: string[];
-          approved_at?: string | null;
-          approved_by?: string | null;
-          approved_contract_sha256?: string | null;
-          authority_id?: string | null;
-          consecutive_failure_count?: number;
-          created_at?: string;
-          dataset_kind: string;
-          disabled_until?: string | null;
-          endpoint_url?: string | null;
-          expected_media_types?: string[];
-          fetch_timeout_seconds?: number;
-          id?: string;
-          import_batch_id?: string | null;
-          is_placeholder?: boolean;
-          last_attempted_at?: string | null;
-          last_failed_at?: string | null;
-          last_failure_code?: string | null;
-          last_succeeded_at?: string | null;
-          last_verified_on?: string | null;
-          max_response_bytes?: number;
-          next_sync_at?: string | null;
-          parser_contract_version: string;
-          parser_key: string;
-          reference_source_id?: string | null;
-          refresh_interval?: string | null;
-          repository_path?: string | null;
-          retrieval_format: string;
-          retrieval_method: string;
-          secret_reference?: string | null;
-          source_contract_sha256: string;
-          source_key: string;
-          source_kind: string;
-          status?: string;
-          updated_at?: string;
-          verification_notes?: string | null;
-          verification_status?: string;
-        };
-        Update: {
-          allowed_hosts?: string[];
-          approved_at?: string | null;
-          approved_by?: string | null;
-          approved_contract_sha256?: string | null;
-          authority_id?: string | null;
-          consecutive_failure_count?: number;
-          created_at?: string;
-          dataset_kind?: string;
-          disabled_until?: string | null;
-          endpoint_url?: string | null;
-          expected_media_types?: string[];
-          fetch_timeout_seconds?: number;
-          id?: string;
-          import_batch_id?: string | null;
-          is_placeholder?: boolean;
-          last_attempted_at?: string | null;
-          last_failed_at?: string | null;
-          last_failure_code?: string | null;
-          last_succeeded_at?: string | null;
-          last_verified_on?: string | null;
-          max_response_bytes?: number;
-          next_sync_at?: string | null;
-          parser_contract_version?: string;
-          parser_key?: string;
-          reference_source_id?: string | null;
-          refresh_interval?: string | null;
-          repository_path?: string | null;
-          retrieval_format?: string;
-          retrieval_method?: string;
-          secret_reference?: string | null;
-          source_contract_sha256?: string;
-          source_key?: string;
-          source_kind?: string;
-          status?: string;
-          updated_at?: string;
-          verification_notes?: string | null;
-          verification_status?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'source_endpoints_authority_id_fkey';
-            columns: ['authority_id'];
-            isOneToOne: false;
-            referencedRelation: 'authorities';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'source_endpoints_import_batch_id_fkey';
-            columns: ['import_batch_id'];
-            isOneToOne: false;
-            referencedRelation: 'import_batches';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'source_endpoints_reference_source_id_fkey';
-            columns: ['reference_source_id'];
-            isOneToOne: false;
-            referencedRelation: 'reference_sources';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      source_evidence: {
-        Row: {
-          created_at: string;
-          evidence_kind: string;
-          evidence_metadata: Json;
-          extracted_value_sha256: string | null;
-          id: string;
-          raw_snapshot_id: string;
-          source_endpoint_id: string;
-          source_field_path: string | null;
-          source_record_locator: string;
-          sync_candidate_id: string | null;
-        };
-        Insert: {
-          created_at?: string;
-          evidence_kind: string;
-          evidence_metadata?: Json;
-          extracted_value_sha256?: string | null;
-          id?: string;
-          raw_snapshot_id: string;
-          source_endpoint_id: string;
-          source_field_path?: string | null;
-          source_record_locator: string;
-          sync_candidate_id?: string | null;
-        };
-        Update: {
-          created_at?: string;
-          evidence_kind?: string;
-          evidence_metadata?: Json;
-          extracted_value_sha256?: string | null;
-          id?: string;
-          raw_snapshot_id?: string;
-          source_endpoint_id?: string;
-          source_field_path?: string | null;
-          source_record_locator?: string;
-          sync_candidate_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'source_evidence_raw_snapshot_id_fkey';
-            columns: ['raw_snapshot_id'];
-            isOneToOne: false;
-            referencedRelation: 'raw_snapshots';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'source_evidence_source_endpoint_id_fkey';
-            columns: ['source_endpoint_id'];
-            isOneToOne: false;
-            referencedRelation: 'source_endpoints';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'source_evidence_sync_candidate_id_fkey';
-            columns: ['sync_candidate_id'];
-            isOneToOne: false;
-            referencedRelation: 'sync_candidates';
-            referencedColumns: ['id'];
-          },
-        ];
       };
       states: {
         Row: {
@@ -6488,545 +5918,6 @@ export type Database = {
             columns: ['reference_source_id'];
             isOneToOne: false;
             referencedRelation: 'reference_sources';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_candidates: {
-        Row: {
-          alternative_target_record_ids: string[];
-          created_at: string;
-          entity_type: string;
-          id: string;
-          is_placeholder: boolean;
-          match_confidence: number;
-          match_evidence: Json;
-          match_method: string;
-          match_status: string;
-          matched_record_id: string | null;
-          matched_table: string | null;
-          normalized_payload: Json | null;
-          raw_payload: Json;
-          raw_snapshot_id: string;
-          source_record_key: string;
-          source_record_locator: string;
-          source_record_sha256: string;
-          sync_run_id: string;
-          updated_at: string;
-          validation_messages: Json;
-          validation_status: string;
-        };
-        Insert: {
-          alternative_target_record_ids?: string[];
-          created_at?: string;
-          entity_type: string;
-          id?: string;
-          is_placeholder?: boolean;
-          match_confidence?: number;
-          match_evidence?: Json;
-          match_method?: string;
-          match_status?: string;
-          matched_record_id?: string | null;
-          matched_table?: string | null;
-          normalized_payload?: Json | null;
-          raw_payload: Json;
-          raw_snapshot_id: string;
-          source_record_key: string;
-          source_record_locator: string;
-          source_record_sha256: string;
-          sync_run_id: string;
-          updated_at?: string;
-          validation_messages?: Json;
-          validation_status?: string;
-        };
-        Update: {
-          alternative_target_record_ids?: string[];
-          created_at?: string;
-          entity_type?: string;
-          id?: string;
-          is_placeholder?: boolean;
-          match_confidence?: number;
-          match_evidence?: Json;
-          match_method?: string;
-          match_status?: string;
-          matched_record_id?: string | null;
-          matched_table?: string | null;
-          normalized_payload?: Json | null;
-          raw_payload?: Json;
-          raw_snapshot_id?: string;
-          source_record_key?: string;
-          source_record_locator?: string;
-          source_record_sha256?: string;
-          sync_run_id?: string;
-          updated_at?: string;
-          validation_messages?: Json;
-          validation_status?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_candidates_raw_snapshot_id_fkey';
-            columns: ['raw_snapshot_id'];
-            isOneToOne: false;
-            referencedRelation: 'raw_snapshots';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'sync_candidates_sync_run_id_fkey';
-            columns: ['sync_run_id'];
-            isOneToOne: false;
-            referencedRelation: 'sync_runs';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_change_items: {
-        Row: {
-          applied_at: string | null;
-          applied_by: string | null;
-          change_kind: string;
-          created_at: string;
-          detection_status: string;
-          disposition: string;
-          failure_code: string | null;
-          failure_detail: string | null;
-          id: string;
-          proposed_changes: Json;
-          requested_routing_eligibility: boolean;
-          requested_verification_status: string;
-          status: string;
-          sync_candidate_id: string;
-          target_record_id: string | null;
-          target_table: string | null;
-          updated_at: string;
-        };
-        Insert: {
-          applied_at?: string | null;
-          applied_by?: string | null;
-          change_kind: string;
-          created_at?: string;
-          detection_status: string;
-          disposition?: string;
-          failure_code?: string | null;
-          failure_detail?: string | null;
-          id?: string;
-          proposed_changes?: Json;
-          requested_routing_eligibility?: boolean;
-          requested_verification_status?: string;
-          status?: string;
-          sync_candidate_id: string;
-          target_record_id?: string | null;
-          target_table?: string | null;
-          updated_at?: string;
-        };
-        Update: {
-          applied_at?: string | null;
-          applied_by?: string | null;
-          change_kind?: string;
-          created_at?: string;
-          detection_status?: string;
-          disposition?: string;
-          failure_code?: string | null;
-          failure_detail?: string | null;
-          id?: string;
-          proposed_changes?: Json;
-          requested_routing_eligibility?: boolean;
-          requested_verification_status?: string;
-          status?: string;
-          sync_candidate_id?: string;
-          target_record_id?: string | null;
-          target_table?: string | null;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_change_items_sync_candidate_id_fkey';
-            columns: ['sync_candidate_id'];
-            isOneToOne: true;
-            referencedRelation: 'sync_candidates';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_events: {
-        Row: {
-          created_at: string;
-          event_detail: Json;
-          event_type: string;
-          id: string;
-          occurred_at: string;
-          severity: string;
-          source_endpoint_id: string;
-          sync_run_id: string;
-        };
-        Insert: {
-          created_at?: string;
-          event_detail?: Json;
-          event_type: string;
-          id?: string;
-          occurred_at?: string;
-          severity?: string;
-          source_endpoint_id: string;
-          sync_run_id: string;
-        };
-        Update: {
-          created_at?: string;
-          event_detail?: Json;
-          event_type?: string;
-          id?: string;
-          occurred_at?: string;
-          severity?: string;
-          source_endpoint_id?: string;
-          sync_run_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_events_source_endpoint_id_fkey';
-            columns: ['source_endpoint_id'];
-            isOneToOne: false;
-            referencedRelation: 'source_endpoints';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'sync_events_sync_run_id_fkey';
-            columns: ['sync_run_id'];
-            isOneToOne: false;
-            referencedRelation: 'sync_runs';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_review_events: {
-        Row: {
-          action: string;
-          actor_user_id: string;
-          created_at: string;
-          id: string;
-          notes: string | null;
-          occurred_at: string;
-          routing_eligibility_decision: string | null;
-          sync_review_item_id: string;
-          verification_decision: string | null;
-        };
-        Insert: {
-          action: string;
-          actor_user_id: string;
-          created_at?: string;
-          id?: string;
-          notes?: string | null;
-          occurred_at?: string;
-          routing_eligibility_decision?: string | null;
-          sync_review_item_id: string;
-          verification_decision?: string | null;
-        };
-        Update: {
-          action?: string;
-          actor_user_id?: string;
-          created_at?: string;
-          id?: string;
-          notes?: string | null;
-          occurred_at?: string;
-          routing_eligibility_decision?: string | null;
-          sync_review_item_id?: string;
-          verification_decision?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_review_events_sync_review_item_id_fkey';
-            columns: ['sync_review_item_id'];
-            isOneToOne: false;
-            referencedRelation: 'sync_review_items';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_review_items: {
-        Row: {
-          created_at: string;
-          id: string;
-          requested_at: string;
-          review_reason: string;
-          review_status: string;
-          reviewed_at: string | null;
-          reviewed_by: string | null;
-          reviewer_notes: string | null;
-          sync_change_item_id: string;
-          updated_at: string;
-        };
-        Insert: {
-          created_at?: string;
-          id?: string;
-          requested_at?: string;
-          review_reason: string;
-          review_status?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          reviewer_notes?: string | null;
-          sync_change_item_id: string;
-          updated_at?: string;
-        };
-        Update: {
-          created_at?: string;
-          id?: string;
-          requested_at?: string;
-          review_reason?: string;
-          review_status?: string;
-          reviewed_at?: string | null;
-          reviewed_by?: string | null;
-          reviewer_notes?: string | null;
-          sync_change_item_id?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_review_items_sync_change_item_id_fkey';
-            columns: ['sync_change_item_id'];
-            isOneToOne: true;
-            referencedRelation: 'sync_change_items';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_run_snapshots: {
-        Row: {
-          is_duplicate_content: boolean;
-          linked_at: string;
-          raw_snapshot_id: string;
-          sync_run_id: string;
-        };
-        Insert: {
-          is_duplicate_content?: boolean;
-          linked_at?: string;
-          raw_snapshot_id: string;
-          sync_run_id: string;
-        };
-        Update: {
-          is_duplicate_content?: boolean;
-          linked_at?: string;
-          raw_snapshot_id?: string;
-          sync_run_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_run_snapshots_raw_snapshot_id_fkey';
-            columns: ['raw_snapshot_id'];
-            isOneToOne: false;
-            referencedRelation: 'raw_snapshots';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'sync_run_snapshots_sync_run_id_fkey';
-            columns: ['sync_run_id'];
-            isOneToOne: true;
-            referencedRelation: 'sync_runs';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_runs: {
-        Row: {
-          changes_detected: number;
-          completed_at: string | null;
-          created_at: string;
-          error_code: string | null;
-          error_detail: string | null;
-          id: string;
-          records_discovered: number;
-          records_rejected: number;
-          records_valid: number;
-          reviews_required: number;
-          source_contract_snapshot: Json;
-          source_endpoint_id: string;
-          started_at: string | null;
-          status: string;
-          trigger_kind: string;
-          updated_at: string;
-        };
-        Insert: {
-          changes_detected?: number;
-          completed_at?: string | null;
-          created_at?: string;
-          error_code?: string | null;
-          error_detail?: string | null;
-          id?: string;
-          records_discovered?: number;
-          records_rejected?: number;
-          records_valid?: number;
-          reviews_required?: number;
-          source_contract_snapshot: Json;
-          source_endpoint_id: string;
-          started_at?: string | null;
-          status?: string;
-          trigger_kind: string;
-          updated_at?: string;
-        };
-        Update: {
-          changes_detected?: number;
-          completed_at?: string | null;
-          created_at?: string;
-          error_code?: string | null;
-          error_detail?: string | null;
-          id?: string;
-          records_discovered?: number;
-          records_rejected?: number;
-          records_valid?: number;
-          reviews_required?: number;
-          source_contract_snapshot?: Json;
-          source_endpoint_id?: string;
-          started_at?: string | null;
-          status?: string;
-          trigger_kind?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_runs_source_endpoint_id_fkey';
-            columns: ['source_endpoint_id'];
-            isOneToOne: false;
-            referencedRelation: 'source_endpoints';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      sync_scope_targets: {
-        Row: {
-          approved_at: string | null;
-          approved_by: string | null;
-          authority_id: string;
-          created_at: string;
-          id: string;
-          is_routing_eligible: boolean;
-          last_verified_on: string | null;
-          local_body_id: string | null;
-          scope_group_key: string;
-          scope_key: string;
-          selection_notes: string | null;
-          selection_rank: number | null;
-          status: string;
-          target_kind: string;
-          updated_at: string;
-          verification_status: string;
-          ward_id: string | null;
-        };
-        Insert: {
-          approved_at?: string | null;
-          approved_by?: string | null;
-          authority_id: string;
-          created_at?: string;
-          id?: string;
-          is_routing_eligible?: boolean;
-          last_verified_on?: string | null;
-          local_body_id?: string | null;
-          scope_group_key: string;
-          scope_key: string;
-          selection_notes?: string | null;
-          selection_rank?: number | null;
-          status?: string;
-          target_kind: string;
-          updated_at?: string;
-          verification_status?: string;
-          ward_id?: string | null;
-        };
-        Update: {
-          approved_at?: string | null;
-          approved_by?: string | null;
-          authority_id?: string;
-          created_at?: string;
-          id?: string;
-          is_routing_eligible?: boolean;
-          last_verified_on?: string | null;
-          local_body_id?: string | null;
-          scope_group_key?: string;
-          scope_key?: string;
-          selection_notes?: string | null;
-          selection_rank?: number | null;
-          status?: string;
-          target_kind?: string;
-          updated_at?: string;
-          verification_status?: string;
-          ward_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_scope_targets_authority_id_fkey';
-            columns: ['authority_id'];
-            isOneToOne: false;
-            referencedRelation: 'authorities';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'sync_scope_targets_local_body_authority_fkey';
-            columns: ['local_body_id', 'authority_id'];
-            isOneToOne: false;
-            referencedRelation: 'local_bodies';
-            referencedColumns: ['id', 'authority_id'];
-          },
-          {
-            foreignKeyName: 'sync_scope_targets_local_body_id_fkey';
-            columns: ['local_body_id'];
-            isOneToOne: false;
-            referencedRelation: 'local_bodies';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'sync_scope_targets_ward_id_fkey';
-            columns: ['ward_id'];
-            isOneToOne: false;
-            referencedRelation: 'wards';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'sync_scope_targets_ward_local_body_fkey';
-            columns: ['ward_id', 'local_body_id'];
-            isOneToOne: false;
-            referencedRelation: 'wards';
-            referencedColumns: ['id', 'local_body_id'];
-          },
-        ];
-      };
-      sync_source_leases: {
-        Row: {
-          acquired_at: string;
-          created_at: string;
-          expires_at: string;
-          heartbeat_at: string;
-          lease_token: string;
-          source_endpoint_id: string;
-          sync_run_id: string;
-          worker_id: string;
-        };
-        Insert: {
-          acquired_at: string;
-          created_at?: string;
-          expires_at: string;
-          heartbeat_at: string;
-          lease_token: string;
-          source_endpoint_id: string;
-          sync_run_id: string;
-          worker_id: string;
-        };
-        Update: {
-          acquired_at?: string;
-          created_at?: string;
-          expires_at?: string;
-          heartbeat_at?: string;
-          lease_token?: string;
-          source_endpoint_id?: string;
-          sync_run_id?: string;
-          worker_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'sync_source_leases_source_endpoint_id_fkey';
-            columns: ['source_endpoint_id'];
-            isOneToOne: true;
-            referencedRelation: 'source_endpoints';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'sync_source_leases_sync_run_id_fkey';
-            columns: ['sync_run_id'];
-            isOneToOne: true;
-            referencedRelation: 'sync_runs';
             referencedColumns: ['id'];
           },
         ];
@@ -7470,115 +6361,7 @@ export type Database = {
       };
     };
     Views: {
-      current_verified_contacts: {
-        Row: {
-          authority_department_id: string | null;
-          authority_id: string | null;
-          channel_key: string | null;
-          channel_type: string | null;
-          contact_channel_id: string | null;
-          contact_channel_version_id: string | null;
-          contact_value: string | null;
-          effective_from: string | null;
-          effective_to: string | null;
-          emergency_contact_id: string | null;
-          intended_use: string | null;
-          is_complaint_delivery_approved: boolean | null;
-          last_verified: string | null;
-          local_body_id: string | null;
-          normalized_value: string | null;
-          office_id: string | null;
-          officer_assignment_id: string | null;
-          officer_id: string | null;
-          officer_role_id: string | null;
-          purpose: string | null;
-          source_snapshot_id: string | null;
-          source_url: string | null;
-          utility_id: string | null;
-          version: number | null;
-          visibility: string | null;
-          ward_id: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'contact_channel_versions_source_snapshot_id_fkey';
-            columns: ['source_snapshot_id'];
-            isOneToOne: false;
-            referencedRelation: 'raw_snapshots';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_authority_department_id_fkey';
-            columns: ['authority_department_id'];
-            isOneToOne: false;
-            referencedRelation: 'authority_departments';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_authority_id_fkey';
-            columns: ['authority_id'];
-            isOneToOne: false;
-            referencedRelation: 'authorities';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_emergency_contact_id_fkey';
-            columns: ['emergency_contact_id'];
-            isOneToOne: false;
-            referencedRelation: 'emergency_contacts';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_local_body_id_fkey';
-            columns: ['local_body_id'];
-            isOneToOne: false;
-            referencedRelation: 'local_bodies';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_office_id_fkey';
-            columns: ['office_id'];
-            isOneToOne: false;
-            referencedRelation: 'offices';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_officer_assignment_id_fkey';
-            columns: ['officer_assignment_id'];
-            isOneToOne: false;
-            referencedRelation: 'officer_assignments';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_officer_id_fkey';
-            columns: ['officer_id'];
-            isOneToOne: false;
-            referencedRelation: 'officers';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_officer_role_id_fkey';
-            columns: ['officer_role_id'];
-            isOneToOne: false;
-            referencedRelation: 'officer_roles';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_utility_id_fkey';
-            columns: ['utility_id'];
-            isOneToOne: false;
-            referencedRelation: 'utilities';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'contact_channels_ward_id_fkey';
-            columns: ['ward_id'];
-            isOneToOne: false;
-            referencedRelation: 'wards';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
+      [_ in never]: never;
     };
     Functions: {
       resolve_complaint_contact_readiness: {
@@ -7951,26 +6734,6 @@ export type Database = {
           submission_request_id: string;
         }[];
       };
-      claim_due_governance_sync_sources: {
-        Args: {
-          p_lease_seconds?: number;
-          p_limit?: number;
-          p_worker_id: string;
-        };
-        Returns: {
-          allowed_hosts: string[];
-          endpoint_url: string;
-          etag: string;
-          expected_media_types: string[];
-          fetch_timeout_seconds: number;
-          last_modified: string;
-          lease_token: string;
-          max_response_bytes: number;
-          run_id: string;
-          source_endpoint_id: string;
-          source_key: string;
-        }[];
-      };
       claim_kpi_calculation_runs: {
         Args: {
           p_lease_seconds?: number;
@@ -8161,16 +6924,6 @@ export type Database = {
           failure_code: string;
           upload_status: string;
         }[];
-      };
-      fail_governance_sync_run: {
-        Args: {
-          p_error_code: string;
-          p_error_detail: string;
-          p_lease_token: string;
-          p_run_id: string;
-          p_source_endpoint_id: string;
-        };
-        Returns: undefined;
       };
       fail_government_resolution_evidence: {
         Args: { p_evidence_id: string; p_failure_code: string };
@@ -8651,14 +7404,7 @@ export type Database = {
           ward_id: string;
         }[];
       };
-      heartbeat_governance_sync_lease: {
-        Args: {
-          p_extend_seconds?: number;
-          p_lease_token: string;
-          p_run_id: string;
-        };
-        Returns: string;
-      };
+      hook_require_email_identity: { Args: { event: Json }; Returns: Json };
       list_complaint_location_evidence: {
         Args: { p_actor_user_id: string; p_draft_id: string };
         Returns: {
@@ -8717,6 +7463,33 @@ export type Database = {
         };
         Returns: {
           response_payload: Json;
+        }[];
+      };
+      list_complaint_taxonomy: {
+        Args: never;
+        Returns: {
+          handoff_actions: Json;
+          is_emergency: boolean;
+          maximum_media_count: number;
+          minimum_media_count: number;
+          primary_category_id: string;
+          primary_code: string;
+          primary_name: string;
+          recommended_media_kinds: string[];
+          required_attributes: string[];
+          requires_asset: boolean;
+          requires_location: boolean;
+          routing_profile_category_id: string;
+          routing_profile_code: string;
+          routing_profile_name: string;
+          routing_status: string;
+          sensitivity_class: string;
+          subcategory_code: string;
+          subcategory_description: string;
+          subcategory_name: string;
+          submission_available: boolean;
+          taxonomy_id: string;
+          workflow_type: string;
         }[];
       };
       list_government_assignment_options: {
@@ -9013,27 +7786,6 @@ export type Database = {
           p_result_fingerprint: string;
         };
         Returns: string;
-      };
-      record_governance_sync_snapshot: {
-        Args: {
-          p_byte_size: number;
-          p_etag: string;
-          p_http_status: number;
-          p_last_modified: string;
-          p_lease_token: string;
-          p_media_type: string;
-          p_retrieved_at: string;
-          p_run_id: string;
-          p_sha256: string;
-          p_source_endpoint_id: string;
-          p_storage_bucket: string;
-          p_storage_object_path: string;
-        };
-        Returns: {
-          duplicate_content: boolean;
-          raw_snapshot_id: string;
-          unchanged_response: boolean;
-        }[];
       };
       record_routing_decision: {
         Args: {
@@ -9522,6 +8274,7 @@ export type Database = {
           updated_at: string;
         }[];
       };
+      user_has_verified_phone: { Args: { p_user_id: string }; Returns: boolean };
       user_has_verified_phone_mfa: {
         Args: { p_user_id: string };
         Returns: boolean;
@@ -9943,6 +8696,80 @@ export type Database = {
           },
         ];
       };
+      complaint_handoff_actions: {
+        Row: {
+          action_key: string;
+          action_kind: string;
+          created_at: string;
+          description: string;
+          effective_from: string;
+          effective_to: string | null;
+          id: string;
+          is_active: boolean;
+          label: string;
+          last_checked_on: string;
+          owner_approved_for_display: boolean;
+          priority: number;
+          source_as_of: string;
+          source_locator: string;
+          source_status: string;
+          source_url: string;
+          target_value: string;
+          taxonomy_category_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          action_key: string;
+          action_kind: string;
+          created_at?: string;
+          description: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          is_active?: boolean;
+          label: string;
+          last_checked_on: string;
+          owner_approved_for_display?: boolean;
+          priority?: number;
+          source_as_of: string;
+          source_locator: string;
+          source_status: string;
+          source_url: string;
+          target_value: string;
+          taxonomy_category_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          action_key?: string;
+          action_kind?: string;
+          created_at?: string;
+          description?: string;
+          effective_from?: string;
+          effective_to?: string | null;
+          id?: string;
+          is_active?: boolean;
+          label?: string;
+          last_checked_on?: string;
+          owner_approved_for_display?: boolean;
+          priority?: number;
+          source_as_of?: string;
+          source_locator?: string;
+          source_status?: string;
+          source_url?: string;
+          target_value?: string;
+          taxonomy_category_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'complaint_handoff_actions_taxonomy_category_id_fkey';
+            columns: ['taxonomy_category_id'];
+            isOneToOne: false;
+            referencedRelation: 'issue_categories';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       confidence_policies: {
         Row: {
           code: string;
@@ -10203,8 +9030,12 @@ export type Database = {
       };
       issue_categories: {
         Row: {
+          category_purpose: string;
           classification_level: string;
           code: string;
+          comments_allowed: boolean | null;
+          community_support_allowed: boolean | null;
+          configuration_status: string;
           created_at: string;
           default_severity: string;
           description: string | null;
@@ -10221,19 +9052,29 @@ export type Database = {
           minimum_media_count: number;
           name: string;
           parent_category_id: string | null;
+          public_visibility_default: boolean | null;
           reference_source_id: string | null;
           required_attributes: string[];
           requires_asset: boolean;
           requires_location: boolean;
+          routing_profile_category_id: string | null;
+          routing_status: string;
+          sensitivity_class: string | null;
           source_routing_reference_id: string | null;
           status: string;
+          taxonomy_code: string | null;
           updated_at: string;
           verification_notes: string | null;
           verification_status: string;
+          workflow_type: string | null;
         };
         Insert: {
+          category_purpose?: string;
           classification_level?: string;
           code: string;
+          comments_allowed?: boolean | null;
+          community_support_allowed?: boolean | null;
+          configuration_status?: string;
           created_at?: string;
           default_severity?: string;
           description?: string | null;
@@ -10250,19 +9091,29 @@ export type Database = {
           minimum_media_count?: number;
           name: string;
           parent_category_id?: string | null;
+          public_visibility_default?: boolean | null;
           reference_source_id?: string | null;
           required_attributes?: string[];
           requires_asset?: boolean;
           requires_location?: boolean;
+          routing_profile_category_id?: string | null;
+          routing_status?: string;
+          sensitivity_class?: string | null;
           source_routing_reference_id?: string | null;
           status?: string;
+          taxonomy_code?: string | null;
           updated_at?: string;
           verification_notes?: string | null;
           verification_status?: string;
+          workflow_type?: string | null;
         };
         Update: {
+          category_purpose?: string;
           classification_level?: string;
           code?: string;
+          comments_allowed?: boolean | null;
+          community_support_allowed?: boolean | null;
+          configuration_status?: string;
           created_at?: string;
           default_severity?: string;
           description?: string | null;
@@ -10279,15 +9130,21 @@ export type Database = {
           minimum_media_count?: number;
           name?: string;
           parent_category_id?: string | null;
+          public_visibility_default?: boolean | null;
           reference_source_id?: string | null;
           required_attributes?: string[];
           requires_asset?: boolean;
           requires_location?: boolean;
+          routing_profile_category_id?: string | null;
+          routing_status?: string;
+          sensitivity_class?: string | null;
           source_routing_reference_id?: string | null;
           status?: string;
+          taxonomy_code?: string | null;
           updated_at?: string;
           verification_notes?: string | null;
           verification_status?: string;
+          workflow_type?: string | null;
         };
         Relationships: [
           {
@@ -10300,6 +9157,13 @@ export type Database = {
           {
             foreignKeyName: 'issue_categories_parent_category_id_fkey';
             columns: ['parent_category_id'];
+            isOneToOne: false;
+            referencedRelation: 'issue_categories';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'issue_categories_routing_profile_category_id_fkey';
+            columns: ['routing_profile_category_id'];
             isOneToOne: false;
             referencedRelation: 'issue_categories';
             referencedColumns: ['id'];

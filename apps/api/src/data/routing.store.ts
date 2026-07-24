@@ -1,4 +1,5 @@
 import type {
+  ComplaintTaxonomyCatalogItem,
   JurisdictionResolution,
   LocationEvidence,
   RoutingCategory,
@@ -65,6 +66,8 @@ export abstract class RoutingStore implements JurisdictionResolver, RoutingDataP
   public abstract listRoutingCategories(): Promise<RoutingCategory[]>;
 
   public abstract listRoutingCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]>;
+
+  public abstract listComplaintTaxonomy(): Promise<ComplaintTaxonomyCatalogItem[]>;
 
   public abstract discoverRoutingAssets(
     query: RoutingAssetDiscoveryQuery,

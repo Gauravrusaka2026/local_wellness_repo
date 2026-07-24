@@ -1,8 +1,11 @@
 import { ConfigurationError } from '@local-wellness/config';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ClientAuthAuditEventType } from '@local-wellness/types';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 
-import { recordAuthAuditEventSafely } from '../api/auth-audit';
-import { AuthInputError, normalizeEmail, normalizePassword } from './input';
+import { recordAuthAuditEventSafely, recordAuthAuditEventWithin } from '../api/auth-audit';
+import { createIsolatedBrowserSupabaseClient } from '../supabase/isolated-client';
+import { AuthInputError, normalizeEmail, normalizeOtp, normalizePassword } from './input';
+import { hasConfirmedPhoneTimestamp, normalizeStoredPhone } from './phone-verification-state';
 
 type SignOutAuditRecorder = (
   accessToken: string,
@@ -14,9 +17,52 @@ type SignInAuditRecorder = (
   eventType: 'sign_in_succeeded',
 ) => Promise<boolean>;
 
+type AuthAuditRecorder = (
+  accessToken: string,
+  eventType: ClientAuthAuditEventType,
+) => Promise<boolean>;
+
+type IsolatedSupabaseClientFactory = () => SupabaseClient;
+
 export type CitizenPasswordAccountCreationResult =
   | Readonly<{ status: 'authenticated' }>
   | Readonly<{ email: string; status: 'email-confirmation-required' }>;
+
+export type CitizenPasswordRecoveryIdentity = Readonly<{
+  email: string | null;
+  phone: string;
+  userId: string;
+}>;
+
+export type CitizenPasswordPhoneOtpRequest = Readonly<{
+  phone: string;
+  userId: string;
+}>;
+
+export class CitizenPasswordRecoveryPhoneRequiredError extends Error {
+  public constructor() {
+    super(
+      'A phone number confirmed before recovery started is required. Contact project support if you no longer control that phone.',
+    );
+    this.name = 'CitizenPasswordRecoveryPhoneRequiredError';
+  }
+}
+
+export class CitizenPasswordRecoverySecurityError extends Error {
+  public constructor() {
+    super('The recovery account changed unexpectedly. Sign in again before continuing.');
+    this.name = 'CitizenPasswordRecoverySecurityError';
+  }
+}
+
+export class CitizenPasswordSessionRevocationError extends Error {
+  public constructor() {
+    super(
+      'The password changed, but session revocation could not be confirmed. Close this browser and contact project support before signing in again.',
+    );
+    this.name = 'CitizenPasswordSessionRevocationError';
+  }
+}
 
 const requireSessionAccessToken = (
   accessToken: string | null | undefined,
@@ -90,28 +136,184 @@ export const requestCitizenPasswordReset = async (
   return email;
 };
 
-export const updateCitizenPassword = async (
-  supabase: SupabaseClient,
-  passwordInput: string,
-): Promise<void> => {
-  const { error } = await supabase.auth.updateUser({
-    password: normalizePassword(passwordInput),
-  });
+const signOutLocally = async (supabase: SupabaseClient): Promise<boolean> => {
+  try {
+    const result = await supabase.auth.signOut({ scope: 'local' });
+    return result.error === null;
+  } catch {
+    return false;
+  }
+};
 
-  if (error) {
-    throw error;
+const getConfirmedPhoneFromUser = (
+  user: Pick<User, 'id' | 'phone' | 'phone_confirmed_at'>,
+): CitizenPasswordPhoneOtpRequest | null => {
+  const phone = normalizeStoredPhone(user.phone);
+
+  return phone !== null && hasConfirmedPhoneTimestamp(user.phone_confirmed_at)
+    ? { phone, userId: user.id }
+    : null;
+};
+
+const failClosedRecovery = async (
+  persistentClient: SupabaseClient,
+  isolatedClient?: SupabaseClient,
+): Promise<never> => {
+  await Promise.all([
+    signOutLocally(persistentClient),
+    ...(isolatedClient === undefined ? [] : [signOutLocally(isolatedClient)]),
+  ]);
+  throw new CitizenPasswordRecoverySecurityError();
+};
+
+const requireMatchingRecoveryIdentity = async (
+  persistentClient: SupabaseClient,
+  expected: CitizenPasswordPhoneOtpRequest,
+): Promise<CitizenPasswordPhoneOtpRequest> => {
+  const authoritativeResult = await persistentClient.auth.getUser();
+  const authoritativeUser = authoritativeResult.data.user;
+  const confirmedPhone =
+    authoritativeUser === null ? null : getConfirmedPhoneFromUser(authoritativeUser);
+
+  if (
+    authoritativeResult.error ||
+    authoritativeUser === null ||
+    confirmedPhone === null ||
+    confirmedPhone.userId !== expected.userId ||
+    confirmedPhone.phone !== expected.phone
+  ) {
+    return failClosedRecovery(persistentClient);
   }
 
-  const signOutResult = await supabase.auth.signOut({ scope: 'global' });
-  if (signOutResult.error) {
-    throw signOutResult.error;
+  return confirmedPhone;
+};
+
+export const requestCitizenPasswordPhoneOtp = async (
+  persistentClient: SupabaseClient,
+  identity: CitizenPasswordRecoveryIdentity,
+  createIsolatedClient: IsolatedSupabaseClientFactory = createIsolatedBrowserSupabaseClient,
+): Promise<CitizenPasswordPhoneOtpRequest> => {
+  const request = await requireMatchingRecoveryIdentity(persistentClient, identity);
+  const isolatedClient = createIsolatedClient();
+  const result = await isolatedClient.auth.signInWithOtp({
+    phone: request.phone,
+    options: { shouldCreateUser: false },
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  return request;
+};
+
+export const updateCitizenPasswordWithPhoneOtp = async (
+  persistentClient: SupabaseClient,
+  passwordInput: string,
+  codeInput: string,
+  request: CitizenPasswordPhoneOtpRequest,
+  createIsolatedClient: IsolatedSupabaseClientFactory = createIsolatedBrowserSupabaseClient,
+  recordOtpVerified: AuthAuditRecorder = recordAuthAuditEventSafely,
+  recordPasswordChanged: AuthAuditRecorder = recordAuthAuditEventSafely,
+): Promise<void> => {
+  const password = normalizePassword(passwordInput);
+  const token = normalizeOtp(codeInput);
+  await requireMatchingRecoveryIdentity(persistentClient, request);
+
+  const isolatedClient = createIsolatedClient();
+  let sessionsCleared = false;
+  const failClosedAfterOtp = (): Promise<never> => {
+    sessionsCleared = true;
+    return failClosedRecovery(persistentClient, isolatedClient);
+  };
+
+  try {
+    const verification = await isolatedClient.auth.verifyOtp({
+      phone: request.phone,
+      token,
+      type: 'sms',
+    });
+
+    if (verification.error) {
+      throw verification.error;
+    }
+
+    const verificationUser = verification.data.user;
+    const verificationSession = verification.data.session;
+    const verifiedPhone =
+      verificationUser === null ? null : getConfirmedPhoneFromUser(verificationUser);
+
+    if (
+      verificationUser === null ||
+      verificationSession === null ||
+      verifiedPhone === null ||
+      verifiedPhone.userId !== request.userId ||
+      verifiedPhone.phone !== request.phone
+    ) {
+      return failClosedAfterOtp();
+    }
+
+    const isolatedUserResult = await isolatedClient.auth.getUser();
+    const isolatedUser = isolatedUserResult.data.user;
+    const authoritativePhone =
+      isolatedUser === null ? null : getConfirmedPhoneFromUser(isolatedUser);
+
+    if (
+      isolatedUserResult.error ||
+      isolatedUser === null ||
+      authoritativePhone === null ||
+      authoritativePhone.userId !== request.userId ||
+      authoritativePhone.phone !== request.phone
+    ) {
+      return failClosedAfterOtp();
+    }
+
+    await recordAuthAuditEventWithin(
+      verificationSession.access_token,
+      'otp_verified',
+      recordOtpVerified,
+    );
+
+    const updateResult = await isolatedClient.auth.updateUser({ password });
+    if (updateResult.error) {
+      throw updateResult.error;
+    }
+
+    if (updateResult.data.user.id !== request.userId) {
+      return failClosedAfterOtp();
+    }
+
+    await recordAuthAuditEventWithin(
+      verificationSession.access_token,
+      'password_changed',
+      recordPasswordChanged,
+    );
+
+    const globalSignOutSucceeded = await Promise.resolve()
+      .then(() => isolatedClient.auth.signOut({ scope: 'global' }))
+      .then((result) => result.error === null)
+      .catch(() => false);
+    if (!globalSignOutSucceeded) {
+      await signOutLocally(isolatedClient);
+    }
+
+    const localSignOutSucceeded = await signOutLocally(persistentClient);
+    sessionsCleared = true;
+
+    if (!globalSignOutSucceeded || !localSignOutSucceeded) {
+      throw new CitizenPasswordSessionRevocationError();
+    }
+  } finally {
+    if (!sessionsCleared) {
+      await signOutLocally(isolatedClient);
+    }
   }
 };
 
 export const establishCitizenPasswordRecoverySession = async (
   supabase: SupabaseClient,
   callbackUrl: string,
-): Promise<string | null> => {
+): Promise<CitizenPasswordRecoveryIdentity> => {
   let url: URL;
   try {
     url = new URL(callbackUrl);
@@ -159,7 +361,31 @@ export const establishCitizenPasswordRecoverySession = async (
     throw result?.error ?? new Error('The password reset request is invalid or expired.');
   }
 
-  return result.data.user?.email ?? result.data.session.user?.email ?? null;
+  const sessionUser = result.data.session.user;
+  const authoritativeResult = await supabase.auth.getUser();
+  const authoritativeUser = authoritativeResult.data.user;
+
+  if (
+    authoritativeResult.error ||
+    authoritativeUser === null ||
+    authoritativeUser.id !== sessionUser.id ||
+    (result.data.user !== null &&
+      result.data.user !== undefined &&
+      result.data.user.id !== sessionUser.id)
+  ) {
+    return failClosedRecovery(supabase);
+  }
+
+  const confirmedPhone = getConfirmedPhoneFromUser(authoritativeUser);
+  if (confirmedPhone === null) {
+    await signOutLocally(supabase);
+    throw new CitizenPasswordRecoveryPhoneRequiredError();
+  }
+
+  return {
+    email: authoritativeUser.email ?? sessionUser.email ?? null,
+    ...confirmedPhone,
+  };
 };
 
 export const getCitizenPasswordRecoveryUrl = (origin: string): string =>
@@ -184,6 +410,14 @@ export const signOutCitizenSession = async (
 
 export const getUserFacingAuthError = (error: unknown): string => {
   if (error instanceof AuthInputError || error instanceof ConfigurationError) {
+    return error.message;
+  }
+
+  if (
+    error instanceof CitizenPasswordRecoveryPhoneRequiredError ||
+    error instanceof CitizenPasswordRecoverySecurityError ||
+    error instanceof CitizenPasswordSessionRevocationError
+  ) {
     return error.message;
   }
 
@@ -217,11 +451,12 @@ export const getUserFacingAuthError = (error: unknown): string => {
     }
 
     if (
-      normalizedMessage.includes('mfa_phone') ||
-      normalizedMessage.includes('phone factor') ||
+      normalizedMessage.includes('phone provider') ||
+      normalizedMessage.includes('phone verification') ||
+      normalizedMessage.includes('phone_change') ||
       normalizedMessage.includes('sms')
     ) {
-      return 'Phone verification is unavailable. Ask the administrator to check Supabase Phone MFA and the SMS provider.';
+      return 'Phone verification is unavailable. Ask the administrator to check Supabase phone authentication and the SMS provider.';
     }
 
     if (

@@ -7,7 +7,7 @@ import type {
 } from 'expo-image-picker';
 import type { GoverningBodyResolution } from '@local-wellness/types';
 
-import { getPhoneMfaSignInCopy } from '../src/auth/phone-mfa-copy';
+import { getPhoneVerificationSignInCopy } from '../src/auth/phone-verification-copy';
 import { createProfileCivicArea } from '../src/profile/profile-civic-area';
 import {
   ProfilePhotoSelectionError,
@@ -206,9 +206,9 @@ test('does not invent a civic area for unsupported or ambiguous boundaries', () 
   );
 });
 
-test('presents staged phone verification accurately in observe and enforce modes', () => {
-  assert.match(getPhoneMfaSignInCopy('observe').trustText, /not required in this environment/u);
-  assert.match(getPhoneMfaSignInCopy('observe').description, /optional/u);
-  assert.match(getPhoneMfaSignInCopy('enforce').trustText, /OTP is required/u);
-  assert.match(getPhoneMfaSignInCopy('enforce').description, /one-time code/u);
+test('presents staged phone confirmation accurately in observe and enforce modes', () => {
+  assert.match(getPhoneVerificationSignInCopy('observe').trustText, /confirm a phone/u);
+  assert.match(getPhoneVerificationSignInCopy('observe').description, /optional/u);
+  assert.match(getPhoneVerificationSignInCopy('enforce').trustText, /confirmed phone is required/u);
+  assert.match(getPhoneVerificationSignInCopy('enforce').description, /one-time SMS code/u);
 });

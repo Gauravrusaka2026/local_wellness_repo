@@ -42,7 +42,7 @@ Recommended pilot size:
 
 - one municipality;
 - five to ten wards;
-- eight to twelve complaint categories;
+- eight to thirteen operational routing profiles selected from the broader citizen taxonomy;
 - verified ward polygons;
 - verified department ownership;
 - verified officer-role and escalation mapping.
@@ -93,33 +93,43 @@ View non-sensitive public complaints, maps, locality trends and aggregate perfor
 ### Authentication
 
 - email/password account creation and sign-in;
-- password recovery;
-- staged phone OTP verification through a verified Supabase Phone MFA factor;
+- phone-gated password recovery and signed-in password change;
+- mandatory phone OTP confirmation through ordinary Supabase Phone Auth;
 - profile and owner-private profile image;
-- language preference;
+- English, Marathi, and Hindi language preference across the core mobile experience;
 - device registration;
 - secure session management.
 
-Citizen phone verification remains in observe mode until a real SMS provider, recovery path,
-abuse controls, and representative-device validation are operational. Government and platform
-administrators retain invitation-controlled entry and require TOTP/AAL2 when privileged MFA is
-enforced.
+Citizen mobile, Citizen Web full mode and API access fail closed until the email/password account
+has a confirmed phone in Supabase Auth. Citizen sessions remain `aal1`; every supported password
+change requires a fresh ordinary phone OTP on an isolated, non-persistent Supabase client. Email
+recovery begins with the provider link and also requires the account's already confirmed phone.
+Accounts without that phone use reviewed support recovery rather than an email-only password
+fallback. Government and platform administrators retain invitation-controlled entry and their
+independent TOTP/AAL2 policy. Supabase Phone Auth signup capability remains enabled because it
+also gates OTP for an existing linked phone; a Before User Created Auth Hook rejects actual
+phone-only account creation by requiring every new Auth user to carry an email.
 
 ### Complaint capture
 
 - live photo;
 - live video;
-- supplementary gallery media;
+- live voice note;
 - automatic GPS capture;
 - current-location verification;
-- map confirmation;
 - typed description;
-- voice recording;
-- speech-to-text;
-- category and subcategory;
+- primary-category and subcategory/issue-type dropdowns;
+- derived workflow type and routing-readiness summary;
 - urgency screening;
 - nearby duplicate check;
-- final review.
+- final review and submission on the same autosaving page.
+
+Contextual civic-area screens reuse one bounded, memory-only foreground location for up to five
+minutes when it is non-mocked and accurate to 100 metres. Complaint issue and media evidence never
+use that cache: each evidence action obtains a fresh high-accuracy fix and retains the 50-metre
+policy. The app may request foreground permission automatically once per process session when the
+first relevant feature is entered; after denial, only an explicit retry or settings action can
+request recovery.
 
 ### Tracking
 
@@ -132,7 +142,8 @@ enforced.
 - acknowledgement deadline;
 - target resolution deadline;
 - transfer and escalation history;
-- resolution evidence.
+- resolution evidence;
+- verified current ward/local-body context and a bounded directory of official public offices.
 
 ### Citizen actions
 
@@ -155,6 +166,10 @@ enforced.
 - clustering;
 - Reddit-like reviewed locality feed;
 - privacy-preserving reviewed hotspot heatmap.
+
+The current mobile implementation uses a first-party schematic area surface rather than external
+map tiles. Community keeps the owner's recent private complaints separate from reviewed-public
+Local/Trending feeds and loads aggregate Heat data only when that mode is opened.
 
 ## V1 government features
 
@@ -211,7 +226,30 @@ enforced.
 - department performance;
 - issue hotspots.
 
-## Initial categories
+## Citizen complaint taxonomy
+
+JagrukSetu V1 provides a discoverable classification system with 17 primary categories, 340
+subcategories and 19 derived workflow types. The mobile form uses two dropdowns: primary category
+and subcategory/issue type. The source contains no concrete issue-variant rows, so workflow type is
+read-only and a third selector is deferred.
+
+Classification is separate from operational routing. For the generated BMC V1 intake, 13
+specialised leaves retain the 12 stable specialised profiles and 243 additional ordinary leaves
+reuse one `general_ward_complaint` profile. This makes 256 leaves internally submittable through 13
+operational profiles. Mobile never chooses an authority, department, office, officer, recipient or
+routing rule.
+
+The other 84 private or emergency-private leaves use `protected_handoff` and remain unavailable to
+normal complaint submission. They expose only reviewed official `call` actions or credential-free
+HTTPS pages. Opening one of those actions does not create a complaint number, assignment, ward
+email, or Community post. `COR` — Corruption, Bribery & Public Integrity — contributes 20 of these
+protected leaves and retains its independent-oversight and whistleblower/privacy boundary.
+
+## Initial operational routing profiles
+
+The current BMC V1 intake retains 12 specialised profiles and adds one general ward-intake profile.
+The citizen-facing issue label remains the selected taxonomy label even when the general profile is
+used internally.
 
 ### Sanitation
 
@@ -272,7 +310,8 @@ enforced.
 - damaged signal;
 - unsafe junction.
 
-Only categories with verified ownership should be activated in the pilot.
+Only profiles with verified ownership should be activated in the pilot. A taxonomy entry being
+visible does not make it operational.
 
 ## Emergency policy
 
@@ -417,19 +456,14 @@ This provides rapid delivery while preserving future service boundaries.
 - officers;
 - officer assignments;
 - utilities and emergency contacts;
-- official source registry and immutable snapshots;
-- staged synchronization candidates, changes, evidence and reviews;
-- versioned official contact channels.
+- canonical import provenance;
+- private BMC ward/category contact routes.
 
-Governance synchronization is a permanent backend capability, distinct from the hash-pinned CSV
-bootstrap. The implemented operational slice can claim due reviewed sources with PostgreSQL leases,
-fetch bounded official HTTPS evidence through an Edge Function, preserve exact raw snapshots,
-normalize contact candidates, and retain effective-dated contact history. PMC and BMC are the first
-source-registry targets, but their ten seeded endpoints remain draft, unverified, and inactive.
-Source-specific parsers, entity matching, review surfaces, transactional publication, hosted Cron,
-and production data verification remain pending. An official response can establish provenance but
-never automatically establish manual verification, routing eligibility, or complaint-delivery
-approval.
+The undeployed governance synchronization and versioned-contact subsystem is retired for V1 under
+ADR-0031. Its 14 tables, Edge fetch boundary, lifecycle RPCs and pilot seeds are physically removed.
+Canonical imported governance rows, effective-dated boundaries and officer assignments remain. A
+future synchronization product requires a new architectural decision and migration rather than
+restoring the retired pipeline implicitly.
 
 ### Complaints
 
@@ -461,9 +495,15 @@ bounded Trending view; support and stars never change routing, assignment, statu
 SLA, or KPI evidence. Local and Trending lists plus the aggregate Heat view contain no citizen
 identity, exact location, original media, or unreviewed report. Public comments remain disabled.
 
+The mobile Community screen also provides a deliberately separate signed-in **Your reports**
+preview. It reads the same actor-scoped private history used by Complaints, refreshes on focus, and
+does not require a locality lookup. It gives the owner immediate access to a successful submission
+without converting that complaint into a public projection, exposing it to other citizens, placing
+it on Heat/Local/Trending, or enabling public support/star actions.
+
 ### Routing
 
-- taxonomy;
+- citizen classification taxonomy and explicit operational-profile mappings;
 - routing rules;
 - asset ownership;
 - routing decisions;
@@ -475,17 +515,28 @@ eligibility, deterministic ranking, confidence, ambiguity, and fallback behavior
 API exposes only authenticated, sanitized results. Placeholder or unverified records can support
 engineering fixtures but cannot become an operational route.
 
+The citizen taxonomy reuses the existing routing-category registry without replacing the 12
+specialised operational identifiers. It adds one general ward-intake profile, for 13 operational
+profiles in total. An explicit database-owned mapping is the only bridge from a taxonomy
+subcategory to an operational profile. The selected primary code, subcategory code and derived
+workflow type are retained as validated draft attributes; submission revalidates that tuple and
+the current mapping.
+
 For the current V1 BMC staging scope, the runtime uses a deliberately smaller database facade:
 captured location → PostGIS ward → category → durable municipal intake role → ward recipient.
 The existing append-only decision, complaint, assignment, history, and RLS boundaries remain
-authoritative. A private ward/category matrix contains 26 wards × 12 categories and queues a ward
-email after complaint assignment; no municipality or contact is hardcoded in application source.
+authoritative. A private ward/profile matrix contains 338 contacts: the existing 26 wards × 12
+specialised profiles plus one general profile per ward. The 256 ordinary leaves can queue a ward
+email after complaint assignment; the 84 protected handoffs cannot. No municipality or contact is
+hardcoded in application source.
 The immutable issue-contact archive supplies category, phone and WhatsApp evidence, while the
 immutable 2026-07-20 ward-directory archive supplies ward-office email and office evidence. Direct
 K/N and P/E mailboxes and the K/S→K/E and P/W→P/N operational mappings are resolved during
 generation. Raw source status/provenance remains separate from the owner's staging approval.
 Phone, WhatsApp, email and exact location remain server-only. Provider delivery is a separate
-operational step and a queued job is not represented as sent.
+operational step and a queued job is not represented as sent. Owner complaint views, Government
+Dashboard views, and ward email use the taxonomy-aware issue label rather than replacing it with
+the internal general-profile name.
 
 ### Communication
 
@@ -539,6 +590,13 @@ reviewed categories, but it is not on the BMC V1 complaint-submission critical p
 ## Location verification
 
 V1 permits complaint submission only near the user's current location.
+
+Mobile location acquisition is purpose-scoped. Community, Profile, and Nearby governance may share
+a non-mocked, memory-only current-area fix for at most five minutes when its accuracy is 100 metres
+or better; explicit refresh bypasses that cache. Complaint issue and live-media evidence never use
+the current-area or operating-system last-known cache and continue to require a fresh high-accuracy
+foreground fix. The app has no periodic/background location task and persists no ambient coordinate
+history.
 
 Store:
 

@@ -73,7 +73,10 @@ export class SupabaseGovernanceDirectoryStore extends GovernanceDirectoryStore {
         throw new GovernanceDirectoryDataAccessError(operation);
       }
 
-      return decoded.data.map((row) => row.match);
+      return decoded.data.map((row) => ({
+        ...row.match,
+        offices: row.match.offices ?? [],
+      }));
     } catch (error) {
       if (error instanceof GovernanceDirectoryDataAccessError) {
         throw error;

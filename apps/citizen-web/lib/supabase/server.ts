@@ -1,9 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+import { assertCitizenProtectedAccessAvailable } from '../access-policy';
 import { getPublicSupabaseConfiguration } from '../environment';
 
 export const createServerSupabaseClient = async () => {
+  assertCitizenProtectedAccessAvailable();
   const configuration = getPublicSupabaseConfiguration();
   const cookieStore = await cookies();
 

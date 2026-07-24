@@ -3,28 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import {
-  challengeCitizenPhoneFactor,
-  enrollCitizenPhoneFactor,
-  getCitizenPhoneMfaState,
-  removePendingCitizenPhoneFactor,
-  verifyCitizenPhoneFactor,
-} from '../../../lib/auth/phone-mfa';
+  beginCitizenPhoneVerification,
+  getCitizenPhoneVerificationState,
+  resendCitizenPhoneVerificationCode,
+  verifyCitizenPhoneVerification,
+  type CitizenPhoneVerificationAttempt,
+} from '../../../lib/auth/phone-verification';
 import { getUserFacingAuthError, signOutCitizenSession } from '../../../lib/auth/service';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
 type PhoneVerificationView =
   | Readonly<{ kind: 'loading' }>
   | Readonly<{ kind: 'error' }>
-  | Readonly<{ kind: 'enrollment-required' }>
+  | Readonly<{ kind: 'phone-required' }>
   | Readonly<{
-      factorId: string;
-      factorStatus: 'unverified' | 'verified';
-      kind: 'challenge-required';
-    }>
-  | Readonly<{
-      challengeId: string;
-      factorId: string;
-      factorStatus: 'unverified' | 'verified';
+      attempt: CitizenPhoneVerificationAttempt;
+      codeWasSent: boolean;
       kind: 'verify-code';
     }>;
 
@@ -46,7 +40,7 @@ export const PhoneVerificationForm = ({
     setView({ kind: 'loading' });
 
     try {
-      const state = await getCitizenPhoneMfaState(supabase);
+      const state = await getCitizenPhoneVerificationState(supabase);
       if (!isMounted.current) return;
 
       if (state.status === 'verified') {
@@ -55,13 +49,13 @@ export const PhoneVerificationForm = ({
       }
 
       setView(
-        state.status === 'challenge-required'
+        state.status === 'verification-required'
           ? {
-              factorId: state.factorId,
-              factorStatus: state.factorStatus,
-              kind: 'challenge-required',
+              attempt: { phone: state.phone, userId: state.userId },
+              codeWasSent: false,
+              kind: 'verify-code',
             }
-          : { kind: 'enrollment-required' },
+          : { kind: 'phone-required' },
       );
     } catch (loadError) {
       if (!isMounted.current) return;
@@ -80,41 +74,39 @@ export const PhoneVerificationForm = ({
     };
   }, [loadPhoneVerificationState]);
 
-  const sendCode = async (
-    factorId: string,
-    factorStatus: 'unverified' | 'verified',
-  ): Promise<void> => {
+  const beginVerification = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
     setError(null);
     setIsPending(true);
 
     try {
-      const challengeId = await challengeCitizenPhoneFactor(supabase, factorId);
+      const attempt = await beginCitizenPhoneVerification(supabase, phone);
       if (!isMounted.current) return;
       setCode('');
-      setView({ challengeId, factorId, factorStatus, kind: 'verify-code' });
-    } catch (challengeError) {
+      setView({ attempt, codeWasSent: true, kind: 'verify-code' });
+    } catch (beginError) {
       if (isMounted.current) {
-        setError(getUserFacingAuthError(challengeError));
+        setError(getUserFacingAuthError(beginError));
       }
     } finally {
       if (isMounted.current) setIsPending(false);
     }
   };
 
-  const enrollAndSendCode = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault();
+  const resendCode = async (): Promise<void> => {
+    if (view.kind !== 'verify-code') return;
+
     setError(null);
     setIsPending(true);
 
     try {
-      const factorId = await enrollCitizenPhoneFactor(supabase, phone);
-      const challengeId = await challengeCitizenPhoneFactor(supabase, factorId);
+      await resendCitizenPhoneVerificationCode(supabase, view.attempt.userId, view.attempt.phone);
       if (!isMounted.current) return;
       setCode('');
-      setView({ challengeId, factorId, factorStatus: 'unverified', kind: 'verify-code' });
-    } catch (enrollmentError) {
+      setView({ ...view, codeWasSent: true });
+    } catch (resendError) {
       if (isMounted.current) {
-        setError(getUserFacingAuthError(enrollmentError));
+        setError(getUserFacingAuthError(resendError));
       }
     } finally {
       if (isMounted.current) setIsPending(false);
@@ -129,7 +121,7 @@ export const PhoneVerificationForm = ({
     setIsPending(true);
 
     try {
-      await verifyCitizenPhoneFactor(supabase, view.factorId, view.challengeId, code);
+      await verifyCitizenPhoneVerification(supabase, view.attempt.userId, view.attempt.phone, code);
       window.location.replace(nextPath);
     } catch (verificationError) {
       if (isMounted.current) {
@@ -139,26 +131,11 @@ export const PhoneVerificationForm = ({
     }
   };
 
-  const chooseDifferentPhone = async (): Promise<void> => {
-    if (
-      (view.kind !== 'challenge-required' && view.kind !== 'verify-code') ||
-      view.factorStatus !== 'unverified'
-    ) {
-      return;
-    }
-
+  const chooseDifferentPhone = (): void => {
+    setCode('');
     setError(null);
-    setIsPending(true);
-    try {
-      await removePendingCitizenPhoneFactor(supabase, view.factorId);
-      setCode('');
-      setPhone('');
-      setView({ kind: 'enrollment-required' });
-    } catch (removalError) {
-      setError(getUserFacingAuthError(removalError));
-    } finally {
-      setIsPending(false);
-    }
+    setPhone('');
+    setView({ kind: 'phone-required' });
   };
 
   const signOut = async (): Promise<void> => {
@@ -182,20 +159,20 @@ export const PhoneVerificationForm = ({
       </h1>
       <p className="lede">
         {isRequired
-          ? 'Enter the one-time SMS code to finish secure sign-in.'
-          : 'Add phone verification now for stronger citizen-account protection, or continue during the staged rollout.'}
+          ? 'Confirm a mobile number with a one-time SMS code to continue.'
+          : 'Add a confirmed mobile number now, or continue during the staged rollout.'}
       </p>
 
       <div className="auth-context compact">
         <span>Signed in as</span>
         <strong>{accountContact}</strong>
-        <p>This phone factor belongs to this email-and-password account.</p>
+        <p>The confirmed phone number will belong to this email-and-password account.</p>
       </div>
 
       {!isRequired ? (
         <p className="setup-notice" role="status">
-          Phone MFA is optional in observe mode. Continuing without it keeps email-and-password
-          access active; it does not mark this account as phone verified.
+          Phone verification is optional in observe mode. Continuing keeps email-and-password access
+          active but does not mark this account as phone verified.
         </p>
       ) : null}
 
@@ -216,11 +193,11 @@ export const PhoneVerificationForm = ({
         </button>
       ) : null}
 
-      {view.kind === 'enrollment-required' ? (
+      {view.kind === 'phone-required' ? (
         <form
           aria-busy={isPending}
           className="stack"
-          onSubmit={(event) => void enrollAndSendCode(event)}
+          onSubmit={(event) => void beginVerification(event)}
         >
           <label htmlFor="verification-phone">Mobile number</label>
           <input
@@ -246,38 +223,16 @@ export const PhoneVerificationForm = ({
         </form>
       ) : null}
 
-      {view.kind === 'challenge-required' ? (
-        <div className="stack">
-          <p>
-            {view.factorStatus === 'verified'
-              ? 'Send a new code to your verified phone to continue.'
-              : 'Finish verifying the phone number you added to this account.'}
-          </p>
-          <button
-            className="primary-button"
-            disabled={isPending}
-            onClick={() => void sendCode(view.factorId, view.factorStatus)}
-            type="button"
-          >
-            {isPending ? 'Sending…' : 'Send verification code'}
-          </button>
-          {view.factorStatus === 'unverified' ? (
-            <button
-              className="text-button"
-              disabled={isPending}
-              onClick={() => void chooseDifferentPhone()}
-              type="button"
-            >
-              Use a different phone number
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
       {view.kind === 'verify-code' ? (
         <form aria-busy={isPending} className="stack" onSubmit={(event) => void verifyCode(event)}>
-          <p aria-live="polite" className="success-notice" role="status">
-            A verification code was sent by SMS.
+          <p
+            aria-live="polite"
+            className={view.codeWasSent ? 'success-notice' : 'setup-notice'}
+            role="status"
+          >
+            {view.codeWasSent
+              ? `A verification code was sent to ${view.attempt.phone}.`
+              : `Enter the latest code sent to ${view.attempt.phone}, or request a new one.`}
           </p>
           <label htmlFor="phone-code">Verification code</label>
           <input
@@ -301,21 +256,19 @@ export const PhoneVerificationForm = ({
           <button
             className="secondary-button"
             disabled={isPending}
-            onClick={() => void sendCode(view.factorId, view.factorStatus)}
+            onClick={() => void resendCode()}
             type="button"
           >
             Send a new code
           </button>
-          {view.factorStatus === 'unverified' ? (
-            <button
-              className="text-button"
-              disabled={isPending}
-              onClick={() => void chooseDifferentPhone()}
-              type="button"
-            >
-              Use a different phone number
-            </button>
-          ) : null}
+          <button
+            className="text-button"
+            disabled={isPending}
+            onClick={chooseDifferentPhone}
+            type="button"
+          >
+            Use a different phone number
+          </button>
         </form>
       ) : null}
 

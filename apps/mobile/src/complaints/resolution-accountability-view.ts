@@ -1,3 +1,5 @@
+import type { MessageKey, MessageValues } from '@local-wellness/localization';
+import { translate } from '@local-wellness/localization';
 import type {
   ComplaintEscalationEvent,
   ComplaintResolutionFeedback,
@@ -26,15 +28,20 @@ interface CitizenAccountabilityHistorySource {
 
 const readableCode = (value: string): string => value.replaceAll('_', ' ');
 
-const ratingDetails = (ratings: ComplaintResolutionRatings | null): string | null =>
+type HistoryTranslate = (key: MessageKey, values?: MessageValues) => string;
+
+const ratingDetails = (
+  ratings: ComplaintResolutionRatings | null,
+  t: HistoryTranslate,
+): string | null =>
   ratings === null
     ? null
-    : [
-        `satisfaction ${ratings.satisfaction}`,
-        `speed ${ratings.speed}`,
-        `quality ${ratings.quality}`,
-        `communication ${ratings.communication}`,
-      ].join(' · ');
+    : t('historyRatingDetails', {
+        communication: ratings.communication,
+        quality: ratings.quality,
+        satisfaction: ratings.satisfaction,
+        speed: ratings.speed,
+      });
 
 export const shouldRefreshResolutionAccountability = (
   previous: ResolutionAccountabilityRefreshCursor,
@@ -43,38 +50,42 @@ export const shouldRefreshResolutionAccountability = (
 
 export const buildCitizenAccountabilityHistory = (
   source: CitizenAccountabilityHistorySource,
+  t: HistoryTranslate = (key, values) => translate('en', key, values),
 ): CitizenAccountabilityHistoryItem[] => {
   const feedback = source.feedback.map((entry): CitizenAccountabilityHistoryItem => {
-    const ratings = ratingDetails(entry.ratings);
+    const ratings = ratingDetails(entry.ratings, t);
     return {
       details: [
-        `Outcome: ${readableCode(entry.outcome)}`,
-        ...(ratings === null ? [] : [`Ratings: ${ratings}`]),
-        ...(entry.comment === null ? [] : [`Comment: ${entry.comment}`]),
+        t('historyOutcome', { outcome: readableCode(entry.outcome) }),
+        ...(ratings === null ? [] : [t('historyRatings', { ratings })]),
+        ...(entry.comment === null ? [] : [t('historyComment', { comment: entry.comment })]),
       ],
       id: `feedback:${entry.id}`,
       occurredAt: entry.submittedAt,
-      title: 'Feedback receipt',
+      title: t('feedbackReceipt'),
       type: 'feedback',
     };
   });
   const reopenRequests = source.reopenRequests.map((entry): CitizenAccountabilityHistoryItem => ({
     details: [
-      `Result: ${readableCode(entry.resultingStatus)}`,
-      `Reason: ${readableCode(entry.reasonCode)}`,
-      `Explanation: ${entry.explanation}`,
-      `${entry.evidenceIds.length} evidence item(s) attached`,
+      t('historyResult', { result: readableCode(entry.resultingStatus) }),
+      t('historyReason', { reason: readableCode(entry.reasonCode) }),
+      t('historyExplanation', { explanation: entry.explanation }),
+      t('historyEvidenceAttached', { count: entry.evidenceIds.length }),
     ],
     id: `reopen:${entry.id}`,
     occurredAt: entry.requestedAt,
-    title: `Reopen request ${entry.attemptNumber}`,
+    title: t('reopenRequestNumber', { number: entry.attemptNumber }),
     type: 'reopen',
   }));
   const escalations = source.escalations.map((entry): CitizenAccountabilityHistoryItem => ({
-    details: [`Level: ${entry.level}`, `Reason: ${readableCode(entry.reasonCode)}`],
+    details: [
+      t('historyLevel', { level: entry.level }),
+      t('historyReason', { reason: readableCode(entry.reasonCode) }),
+    ],
     id: `escalation:${entry.id}`,
     occurredAt: entry.occurredAt,
-    title: 'Escalation receipt',
+    title: t('escalationReceipt'),
     type: 'escalation',
   }));
 

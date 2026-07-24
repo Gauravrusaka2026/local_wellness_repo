@@ -1,4 +1,5 @@
 import {
+  ConfigurationError,
   firstConfiguredValue,
   parseApiConfiguration,
   type ApiConfiguration,
@@ -8,10 +9,24 @@ export const API_CONFIGURATION = Symbol('API_CONFIGURATION');
 
 export const loadApiConfiguration = (
   environment: NodeJS.ProcessEnv = process.env,
-): ApiConfiguration =>
-  parseApiConfiguration({
+): ApiConfiguration => {
+  const citizenPhoneVerificationMode = firstConfiguredValue(
+    environment['API_CITIZEN_PHONE_VERIFICATION_MODE'],
+    environment['API_CITIZEN_PHONE_MFA_MODE'],
+  );
+
+  if (
+    environment['NODE_ENV'] === 'production' &&
+    citizenPhoneVerificationMode?.trim() !== 'enforce'
+  ) {
+    throw new ConfigurationError(
+      'API_CITIZEN_PHONE_VERIFICATION_MODE must be explicitly set to enforce in production.',
+    );
+  }
+
+  return parseApiConfiguration({
     allowedOrigins: environment['API_ALLOWED_ORIGINS'],
-    citizenPhoneMfaMode: environment['API_CITIZEN_PHONE_MFA_MODE'],
+    citizenPhoneVerificationMode,
     governmentInviteRedirectUrl: environment['GOVERNMENT_INVITE_REDIRECT_URL'],
     port: environment['PORT'],
     privilegedMfaMode: environment['API_PRIVILEGED_MFA_MODE'],
@@ -25,3 +40,4 @@ export const loadApiConfiguration = (
     ),
     supabaseUrl: environment['SUPABASE_URL'],
   });
+};

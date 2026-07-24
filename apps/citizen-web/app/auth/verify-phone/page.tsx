@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation';
 
-import { getVerifiedCitizenSession } from '../../../lib/api/client';
 import { getCitizenAccountLabel } from '../../../lib/auth/presentation';
 import { getSafeReturnPath } from '../../../lib/auth/return-path';
-import { getCitizenPhoneMfaMode } from '../../../lib/environment';
+import { getCitizenPhoneVerificationMode } from '../../../lib/environment';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 import { PhoneVerificationForm } from './phone-verification-form';
 
@@ -17,8 +16,13 @@ const firstValue = (value: string | string[] | undefined): string | undefined =>
 const getCurrentAccount = async (): Promise<string | null> => {
   try {
     const supabase = await createServerSupabaseClient();
-    const session = await getVerifiedCitizenSession(supabase);
-    return getCitizenAccountLabel(session.identity);
+    const result = await supabase.auth.getUser();
+
+    if (result.error || !result.data.user) {
+      return null;
+    }
+
+    return getCitizenAccountLabel(result.data.user);
   } catch {
     return null;
   }
@@ -39,7 +43,7 @@ export default async function PhoneVerificationPage({
     <main className="centered-page">
       <PhoneVerificationForm
         accountContact={currentAccount}
-        isRequired={getCitizenPhoneMfaMode() === 'enforce'}
+        isRequired={getCitizenPhoneVerificationMode() === 'enforce'}
         nextPath={nextPath}
       />
     </main>

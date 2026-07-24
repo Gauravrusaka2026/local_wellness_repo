@@ -75,6 +75,7 @@ test('public HTTP URL configuration normalizes a trailing slash', () => {
 test('API configuration validates server-only values without including them in errors', () => {
   const configuration = parseApiConfiguration({
     allowedOrigins: 'http://localhost:3000,http://localhost:3003,http://localhost:3000',
+    citizenPhoneVerificationMode: 'enforce',
     governmentInviteRedirectUrl: 'http://localhost:3003/auth/callback',
     port: '3001',
     supabaseAnonKey: 'anon-value',
@@ -83,6 +84,7 @@ test('API configuration validates server-only values without including them in e
   });
 
   assert.equal(configuration.port, 3001);
+  assert.equal(configuration.citizenPhoneVerificationMode, 'enforce');
   assert.deepEqual(configuration.allowedOrigins, [
     'http://localhost:3000',
     'http://localhost:3003',
@@ -93,6 +95,7 @@ test('API configuration validates server-only values without including them in e
     () =>
       parseApiConfiguration({
         allowedOrigins: 'http://localhost:3000',
+        citizenPhoneVerificationMode: undefined,
         governmentInviteRedirectUrl: 'http://localhost:3003/auth/callback',
         port: '70000',
         supabaseAnonKey: 'anon-value',

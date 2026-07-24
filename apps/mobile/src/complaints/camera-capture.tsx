@@ -11,12 +11,16 @@ import {
 } from 'react-native';
 import type { ComplaintLocationCapture } from '@local-wellness/types';
 
-import { captureCurrentLocation, requiresLocationPermissionSettings } from './location-service';
+import {
+  captureComplaintEvidenceLocation,
+  requiresLocationPermissionSettings,
+} from '../location/device-location';
 import {
   prepareCapturedPhoto,
   prepareCapturedVideo,
   type PreparedComplaintMedia,
 } from './media-service';
+import { useLocalization } from '../ui/localization';
 
 type CameraMode = 'photo' | 'video';
 
@@ -29,6 +33,7 @@ export const ComplaintCameraCapture = ({
   onCancel: () => void;
   onCaptured: (media: PreparedComplaintMedia, location: ComplaintLocationCapture) => Promise<void>;
 }>) => {
+  const { t } = useLocalization();
   const camera = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission, getCameraPermission] = useCameraPermissions();
   const [microphonePermission, requestMicrophonePermission] = useMicrophonePermissions();
@@ -59,7 +64,7 @@ export const ComplaintCameraCapture = ({
     try {
       const capturedAt = new Date().toISOString();
       const picture = await camera.current.takePictureAsync({ quality: 0.9, shutterSound: true });
-      const location = await captureCurrentLocation();
+      const location = await captureComplaintEvidenceLocation();
       const media = await prepareCapturedPhoto({
         capturedAt,
         height: picture.height,
@@ -70,7 +75,7 @@ export const ComplaintCameraCapture = ({
       onCancel();
     } catch (captureError) {
       setLocationSettingsRequired(requiresLocationPermissionSettings(captureError));
-      setError(captureError instanceof Error ? captureError.message : 'Photo capture failed.');
+      setError(captureError instanceof Error ? captureError.message : t('photoCaptureFailed'));
     } finally {
       setIsProcessing(false);
     }
@@ -87,7 +92,7 @@ export const ComplaintCameraCapture = ({
         : await requestMicrophonePermission();
     if (!microphone.granted) {
       setMicrophoneSettingsRequired(microphone.canAskAgain === false);
-      setError('Microphone permission is required for a complaint video.');
+      setError(t('microphoneVideoRequired'));
       return;
     }
 
@@ -102,7 +107,7 @@ export const ComplaintCameraCapture = ({
       if (!recording) return;
       setIsProcessing(true);
       const durationMilliseconds = Math.max(1, Date.now() - (videoStartedAt.current ?? Date.now()));
-      const location = await captureCurrentLocation();
+      const location = await captureComplaintEvidenceLocation();
       const media = await prepareCapturedVideo({
         capturedAt,
         durationMilliseconds,
@@ -112,7 +117,7 @@ export const ComplaintCameraCapture = ({
       onCancel();
     } catch (captureError) {
       setLocationSettingsRequired(requiresLocationPermissionSettings(captureError));
-      setError(captureError instanceof Error ? captureError.message : 'Video capture failed.');
+      setError(captureError instanceof Error ? captureError.message : t('videoCaptureFailed'));
     } finally {
       videoStartedAt.current = null;
       setIsProcessing(false);
@@ -121,15 +126,13 @@ export const ComplaintCameraCapture = ({
   };
 
   if (cameraPermission === null) {
-    return <ActivityIndicator accessibilityLabel="Checking camera permission" color="#166534" />;
+    return <ActivityIndicator accessibilityLabel={t('checkingCameraPermission')} color="#166534" />;
   }
 
   if (!cameraPermission.granted) {
     return (
       <View style={styles.permissionPanel}>
-        <Text style={styles.help}>
-          Camera access is used only for evidence you choose to submit.
-        </Text>
+        <Text style={styles.help}>{t('cameraEvidencePrivacy')}</Text>
         <Pressable
           accessibilityRole="button"
           onPress={() =>
@@ -138,11 +141,11 @@ export const ComplaintCameraCapture = ({
           style={styles.primaryButton}
         >
           <Text style={styles.primaryButtonText}>
-            {cameraPermission.canAskAgain ? 'Allow camera' : 'Open camera settings'}
+            {t(cameraPermission.canAskAgain ? 'allowCamera' : 'openCameraSettings')}
           </Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={onCancel} style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>Cancel</Text>
+          <Text style={styles.secondaryButtonText}>{t('cancel')}</Text>
         </Pressable>
       </View>
     );
@@ -173,7 +176,7 @@ export const ComplaintCameraCapture = ({
             style={[styles.modeButton, mode === candidate && styles.modeButtonSelected]}
           >
             <Text style={styles.modeButtonText}>
-              {candidate === 'photo' ? 'Photo' : 'Video (15s)'}
+              {t(candidate === 'photo' ? 'photoMode' : 'videoMode')}
             </Text>
           </Pressable>
         ))}
@@ -190,7 +193,7 @@ export const ComplaintCameraCapture = ({
           style={styles.settingsButton}
         >
           <Text style={styles.settingsButtonText}>
-            Open {locationSettingsRequired ? 'location' : 'microphone'} settings
+            {t(locationSettingsRequired ? 'openLocationSettings' : 'openMicrophoneSettings')}
           </Text>
         </Pressable>
       ) : null}
@@ -201,7 +204,7 @@ export const ComplaintCameraCapture = ({
           onPress={onCancel}
           style={styles.secondaryButton}
         >
-          <Text style={styles.secondaryButtonText}>Cancel</Text>
+          <Text style={styles.secondaryButtonText}>{t('cancel')}</Text>
         </Pressable>
         {mode === 'photo' ? (
           <Pressable
@@ -213,7 +216,7 @@ export const ComplaintCameraCapture = ({
             {isProcessing ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.primaryButtonText}>Capture photo</Text>
+              <Text style={styles.primaryButtonText}>{t('capturePhoto')}</Text>
             )}
           </Pressable>
         ) : isRecording ? (
@@ -222,7 +225,7 @@ export const ComplaintCameraCapture = ({
             onPress={() => camera.current?.stopRecording()}
             style={styles.stopButton}
           >
-            <Text style={styles.primaryButtonText}>Stop video</Text>
+            <Text style={styles.primaryButtonText}>{t('stopVideo')}</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -234,7 +237,7 @@ export const ComplaintCameraCapture = ({
             {isProcessing ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.primaryButtonText}>Record video</Text>
+              <Text style={styles.primaryButtonText}>{t('recordVideo')}</Text>
             )}
           </Pressable>
         )}

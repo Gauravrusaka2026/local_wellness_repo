@@ -38,7 +38,7 @@
     "path": "supabase/seed/52_bmc_demo_routing.generated.sql",
     "sha256": "9792a4dea71ffda6d46722db0ff94e49a612bd3bd1b5e4494c45e46374cf7f4c",
     "verificationPath": "supabase/seed/53_bmc_demo_routing_verification.generated.sql",
-    "verificationSha256": "23bbc629e97983ef05ad0a69cba2c2f434a67ee79aebca003e77a84c9c34ec72",
+    "verificationSha256": "7d72f677f6779a2962411119940f0c6f00968c5ed6df8aa6acc27f7b2183890b",
     "operationalCategoryCount": 3,
     "operationalWardCount": 22,
     "routeRuleCount": 66,

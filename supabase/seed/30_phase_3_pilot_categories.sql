@@ -1,42 +1,6 @@
--- Owner-approved Phase 3 engineering categories. These records are deliberately
--- draft, unverified, and non-routable until municipality-specific mappings are
--- reviewed against official sources.
-insert into governance.source_endpoints (
-  id,
-  import_batch_id,
-  source_key,
-  source_kind,
-  dataset_kind,
-  retrieval_method,
-  retrieval_format,
-  repository_path,
-  parser_key,
-  parser_contract_version,
-  expected_media_types,
-  status,
-  verification_status,
-  verification_notes,
-  is_placeholder
-)
-values (
-  '93000000-0000-4000-8000-000000000010',
-  '1340c42e-d0f0-5864-b886-5634136276a9',
-  'mh_governance_csv_bootstrap_v1',
-  'repository_bootstrap',
-  'bootstrap_bundle',
-  'manual_upload',
-  'csv',
-  'resources/governance/csv/',
-  'mh_governance.bootstrap_bundle',
-  '1.0.0',
-  array['text/csv']::text[],
-  'draft',
-  'unverified',
-  'Registry entry for immutable canonical bootstrap CSVs; review is required before any publication.',
-  false
-)
-on conflict (id) do nothing;
-
+-- Owner-approved Phase 3 engineering categories. Source provenance remains in
+-- the Phase 2 import ledger; the deferred synchronization source registry was
+-- physically removed from the V1 schema.
 insert into routing.issue_domains (
   id,
   code,

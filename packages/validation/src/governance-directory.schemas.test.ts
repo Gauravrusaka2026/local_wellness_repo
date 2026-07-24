@@ -22,6 +22,17 @@ const match = {
   authority: entity('authority'),
   localBody: entity('local_body'),
   ward: null,
+  offices: [
+    {
+      name: 'Verified Ward Office',
+      type: 'ward_office',
+      address: '1 Civic Street',
+      phone: '12345678',
+      email: 'ward@example.gov.test',
+      lastVerifiedOn: '2026-07-16',
+      sourceUrl: 'https://example.gov.test/ward-office',
+    },
+  ],
 };
 
 describe('governing-body validation schemas', () => {
@@ -63,6 +74,39 @@ describe('governing-body validation schemas', () => {
               verificationStatus: 'unverified',
               phone: '+910000000000',
             },
+          },
+        ],
+      }).success,
+      false,
+    );
+  });
+
+  it('accepts absent offices for rolling upgrades and rejects private office fields', () => {
+    const legacyMatch: Record<string, unknown> = { ...match };
+    delete legacyMatch['offices'];
+    assert.equal(
+      governingBodyResolutionSchema.safeParse({
+        status: 'resolved',
+        reason: 'verified_governing_body_match',
+        maximumAccuracyMeters: 100,
+        matches: [legacyMatch],
+      }).success,
+      true,
+    );
+    assert.equal(
+      governingBodyResolutionSchema.safeParse({
+        status: 'resolved',
+        reason: 'verified_governing_body_match',
+        maximumAccuracyMeters: 100,
+        matches: [
+          {
+            ...match,
+            offices: [
+              {
+                ...match.offices[0],
+                wardId: '10000000-0000-4000-8000-000000000001',
+              },
+            ],
           },
         ],
       }).success,

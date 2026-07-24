@@ -6,9 +6,12 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
-    "dev": "tsx watch src/main.ts",
+    "dev": "node ../../scripts/run-with-root-env.mjs node node_modules/tsx/dist/cli.mjs watch src/main.ts",
+    "dev:ward-email": "node ../../scripts/run-with-root-env.mjs node node_modules/tsx/dist/cli.mjs watch src/ward-email-main.ts",
     "lint": "eslint .",
-    "start": "node dist/main.js",
+    "start": "node ../../scripts/run-with-root-env.mjs node dist/main.js",
+    "start:ward-email": "node ../../scripts/run-with-root-env.mjs node dist/ward-email-main.js",
+    "ward-email:send-once": "node ../../scripts/run-with-root-env.mjs node node_modules/tsx/dist/cli.mjs src/ward-email-main.ts --once",
     "test": "node --test --import tsx src/*.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },

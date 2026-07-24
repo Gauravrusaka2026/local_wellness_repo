@@ -25,9 +25,12 @@ non-contiguous-state error, stop and reconcile that drift. Use
 when their coherent-prefix checks are appropriate. Never edit the guards or add
 broad `IF NOT EXISTS` clauses.
 
-This file installs schema changes only. Run the separate BMC mobile demo bundle
-under `supabase/deploy/bmc-mobile-demo/` afterward when the target also needs
-the reviewed BMC category, ward, geometry, and routing seed data.
+This file installs schema changes only. A pre-V1 target that still lacks reviewed BMC category,
+ward and geometry seed data may next use the legacy BMC bootstrap under
+`supabase/deploy/bmc-mobile-demo/`. That bundle must run before the V1 ward-routing facade and
+migration 50. After the legacy bootstrap, apply exact migrations 44–46, the V1 ward-routing
+artifact for 47/48 plus seed 54, and then migrations 49–50. Never replay the bootstrap into an
+already-pruned project.
 
 ## Complaint-submission forward repair
 

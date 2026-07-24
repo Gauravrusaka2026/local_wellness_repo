@@ -75,6 +75,10 @@ describe('complaint request validation', () => {
   it('allows an empty new draft but requires at least one field in a patch', () => {
     assert.deepEqual(createComplaintDraftSchema.parse({}), {});
     assert.equal(updateComplaintDraftSchema.safeParse({}).success, false);
+    assert.deepEqual(updateComplaintDraftSchema.parse({ categoryId: null }), {
+      categoryId: null,
+    });
+    assert.equal(createComplaintDraftSchema.safeParse({ categoryId: null }).success, false);
     assert.deepEqual(updateComplaintDraftSchema.parse({ description: '  Broken light  ' }), {
       description: 'Broken light',
     });

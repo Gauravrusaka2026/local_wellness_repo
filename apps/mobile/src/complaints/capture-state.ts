@@ -4,6 +4,7 @@ import type {
   ComplaintLocationEvidence,
   ComplaintLocationVerificationStatus,
   ComplaintReceipt,
+  ComplaintTaxonomyCatalogItem,
   RoutingAssetOption,
   RoutingCategoryCatalogItem,
 } from '@local-wellness/types';
@@ -28,6 +29,7 @@ export type UploadState = Readonly<{
 export type ComplaintCaptureState = Readonly<{
   assetOptions: readonly RoutingAssetOption[];
   categories: readonly RoutingCategoryCatalogItem[];
+  taxonomyItems: readonly ComplaintTaxonomyCatalogItem[];
   draft: ComplaintDraft | null;
   duplicateCheck: ComplaintDuplicateCheckResult | null;
   duplicatesAcknowledged: boolean;
@@ -45,6 +47,7 @@ export type ComplaintCaptureState = Readonly<{
 export const initialComplaintCaptureState: ComplaintCaptureState = {
   assetOptions: [],
   categories: [],
+  taxonomyItems: [],
   draft: null,
   duplicateCheck: null,
   duplicatesAcknowledged: false,
@@ -64,6 +67,10 @@ export type ComplaintCaptureAction =
   | Readonly<{ type: 'assets_loaded'; assets: readonly RoutingAssetOption[] }>
   | Readonly<{ type: 'busy'; value: boolean }>
   | Readonly<{ type: 'categories_loaded'; categories: readonly RoutingCategoryCatalogItem[] }>
+  | Readonly<{
+      type: 'taxonomy_loaded';
+      taxonomyItems: readonly ComplaintTaxonomyCatalogItem[];
+    }>
   | Readonly<{ type: 'draft_loaded'; draft: ComplaintDraft; step?: ComplaintCaptureStep }>
   | Readonly<{ type: 'draft_cleared' }>
   | Readonly<{ type: 'duplicates_loaded'; duplicateCheck: ComplaintDuplicateCheckResult }>
@@ -102,6 +109,8 @@ export const complaintCaptureReducer = (
     }
     case 'categories_loaded':
       return { ...state, categories: action.categories };
+    case 'taxonomy_loaded':
+      return { ...state, taxonomyItems: action.taxonomyItems };
     case 'draft_loaded':
       return {
         ...state,
@@ -118,6 +127,7 @@ export const complaintCaptureReducer = (
       return {
         ...initialComplaintCaptureState,
         categories: state.categories,
+        taxonomyItems: state.taxonomyItems,
         isBusy: state.isBusy,
         isOnline: state.isOnline,
         pendingOperationCount: state.pendingOperationCount,
@@ -202,6 +212,7 @@ export type DraftReadiness = Readonly<{
 
 export const complaintSubmissionBlockerCodes = [
   'category',
+  'taxonomy',
   'category_details',
   'description',
   'unsaved_details',
@@ -223,6 +234,7 @@ export const complaintSubmissionBlockerMessages: Readonly<
 > = {
   asset: 'Choose a verified nearby asset.',
   category: 'Choose a category with verified routing.',
+  taxonomy: 'Choose a primary category and complaint type.',
   category_details: 'Complete and save the category details.',
   description: 'Add and save a description.',
   duplicate_acknowledgement: 'Review and confirm the similar reports.',
@@ -239,12 +251,14 @@ export const complaintSubmissionBlockerMessages: Readonly<
 type ComplaintSubmissionBlockerInput = Readonly<{
   assetOptions: ComplaintCaptureState['assetOptions'];
   category: RoutingCategoryCatalogItem | null;
+  taxonomyItem?: ComplaintTaxonomyCatalogItem | null;
   draft: ComplaintDraft;
   duplicateCheck: ComplaintCaptureState['duplicateCheck'];
   duplicatesAcknowledged: boolean;
   emergencyAcknowledged: boolean;
   hasUnsavedDetails: boolean;
   hasVoice: boolean;
+  isEmergencyIssue?: boolean;
   isOnline: boolean;
   upload: ComplaintCaptureState['upload'];
   voiceDescriptionConfirmed: boolean;
@@ -264,12 +278,14 @@ const readinessBlockerByMissingField: Readonly<
 export const getComplaintSubmissionBlockers = ({
   assetOptions,
   category,
+  taxonomyItem,
   draft,
   duplicateCheck,
   duplicatesAcknowledged,
   emergencyAcknowledged,
   hasUnsavedDetails,
   hasVoice,
+  isEmergencyIssue,
   isOnline,
   upload,
   voiceDescriptionConfirmed,
@@ -279,6 +295,7 @@ export const getComplaintSubmissionBlockers = ({
   for (const missingField of getDraftReadiness(draft, category).missing) {
     blockers.add(readinessBlockerByMissingField[missingField]);
   }
+  if (taxonomyItem === null) blockers.add('taxonomy');
   if (hasUnsavedDetails) blockers.add('unsaved_details');
   if (
     category?.requiresAsset === true &&
@@ -291,7 +308,7 @@ export const getComplaintSubmissionBlockers = ({
     blockers.add('duplicate_acknowledgement');
   }
   if (hasVoice && !voiceDescriptionConfirmed) blockers.add('voice_confirmation');
-  if (category?.isEmergency === true && !emergencyAcknowledged) {
+  if ((isEmergencyIssue ?? category?.isEmergency) === true && !emergencyAcknowledged) {
     blockers.add('emergency_acknowledgement');
   }
   if (!isOnline) blockers.add('offline');

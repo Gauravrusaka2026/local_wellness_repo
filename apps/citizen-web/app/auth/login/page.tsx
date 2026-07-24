@@ -1,7 +1,7 @@
 import { getVerifiedCitizenSession } from '../../../lib/api/client';
 import { getCitizenAccountLabel } from '../../../lib/auth/presentation';
 import { getSafeReturnPath } from '../../../lib/auth/return-path';
-import { getCitizenPhoneMfaMode } from '../../../lib/environment';
+import { getCitizenPhoneVerificationMode } from '../../../lib/environment';
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 import { PasswordAuthForm } from './password-auth-form';
 
@@ -43,7 +43,7 @@ export default async function LoginPage({ searchParams }: LoginPageProperties) {
         initialEmail={initialEmail}
         nextPath={nextPath}
         passwordReset={firstValue(parameters.reset) === 'success'}
-        phoneMfaMode={getCitizenPhoneMfaMode()}
+        phoneVerificationMode={getCitizenPhoneVerificationMode()}
       />
     </main>
   );

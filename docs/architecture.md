@@ -76,30 +76,47 @@ Responsibilities:
 The authenticated Expo shell exposes five stable destinations: Home, Complaints, the central Report
 action, Community, and More. Home aggregates the owner's complaint history and provides honest
 empty, loading, refresh, and API-error states; Complaints adds filter, pagination, detail, and
-timeline navigation; Community provides Local, Trending, and Heat views; More groups profile,
-verified governing-body lookup, language, notification, device-help, and sign-out actions. Primary
-cards and actions use short labels and state badges while accessibility hints retain fuller context
-outside the visible hierarchy. Authentication has explicit email/password sign-in, create-account,
-and password-recovery
-modes plus staged Phone MFA. Observe mode keeps access usable before SMS activation; enforce mode
-requires a verified phone factor and `aal2` at both client and API boundaries.
+timeline navigation; Community provides an owner-only recent-report preview alongside the
+separately reviewed Local, Trending, and Heat views; More groups profile, verified governing-body
+lookup, language, notification, device-help, and sign-out actions. Primary cards and actions use
+short labels and state badges while accessibility hints retain fuller context outside the visible
+hierarchy. Authentication has explicit email/password sign-in, create-account, and password-recovery
+modes plus mandatory confirmed-phone verification through ordinary Supabase Phone Auth. Citizen
+sessions remain `aal1`; the API independently verifies current `auth.users.phone_confirmed_at`
+state. Every supported password change creates a fresh ordinary phone OTP session on an isolated,
+non-persistent client. Recovery establishes the provider email-recovery session first and then
+requires the account's already confirmed phone; accounts without one fail closed into reviewed
+support recovery. The mobile reset screen owns that isolated session and locally signs it out when
+navigation unmounts during recovery exchange or phone inspection.
 
 Phase 4 implements resumable drafts, current-location evidence through Expo Location, live
 photo/video/voice capture through Expo Camera and Audio, private upload, duplicate review,
 submission receipt, and owned complaint history. Category-required attributes and media counts are
 database-driven end to end; they are not duplicated as municipality/category constants in the
-client. A protected category-catalog projection exposes every non-placeholder category with an
-explicit selection-availability flag derived from the verified operational projection. Mobile
-renders unavailable categories as disabled and both client and server continue to reject their IDs;
-an available category still undergoes location-specific routing before submission. Asset-dependent
+client. The detailed citizen catalog exposes 17 primary categories and 340 subcategories through
+two dropdowns. Workflow type is derived and read-only because V1 defines no concrete issue-variant
+rows. A database-owned crosswalk maps 13 specialised leaves to 12 specialised profiles and 243
+ordinary leaves to one general ward profile. Those 256 leaves are internally submittable through
+13 operational profiles and still undergo location-specific routing before submission. The other
+84 leaves use protected official handoff rather than a normal complaint.
+Asset-dependent
 categories use an authenticated database-driven nearby-asset picker and
 remain unavailable unless the category, jurisdiction, asset/version, ownership, and owner scope are
 current, verified, non-placeholder, and routable. The client advances only when server-derived
 location evidence is `verified` or `partially_verified`. V1 requires at most 50 metre accuracy and
 keeps captured media within 50 metres of the selected issue point in both client and PostgreSQL.
+Complaint issue and media capture use the purpose-scoped coordinator's evidence path, which always
+requests a fresh high-accuracy foreground fix and never reads a last-known or current-area cache.
 
 The Expo presentation renders category/details, location/asset, evidence, duplicate review, and
-final confirmation as sections of one scrollable form. The reducer's persisted stage, resumable
+final confirmation as sections of one scrollable form. Category, description, and custom
+attributes use a bounded debounced autosave queue; a stable draft fingerprint starts duplicate
+checking only after the required state is persisted. Location acquisition begins automatically
+after an ordinary routable taxonomy selection is persisted, while the explicit location action is
+reserved for denial/error recovery or an ineligible fix. Photo/video and voice share one
+**Add evidence** launcher. Submission always leaves the form for one dedicated success, failure, or
+unknown-outcome result route, preventing an inline receipt from racing the persisted complaint.
+The reducer's persisted stage, resumable
 draft, idempotency keys, signed upload, duplicate evidence, and server routing transaction remain
 unchanged internal lifecycle controls. A pure client projection lists every unmet submission gate,
 including unsaved details, required asset, pending upload, duplicate/emergency/voice acknowledgement,
@@ -109,14 +126,47 @@ complaint-wide exclusive mutation guard also serializes category, details, locat
 duplicate, discard, and submit work below the presentation layer; repeated submit taps share the
 same in-flight promise.
 
+For `protected_handoff`, mobile replaces those ordinary report sections with an official-help
+panel. A `call` action opens the native dialler; a `browser` action opens its credential-free HTTPS
+target through the Expo in-app browser. This path creates no normal complaint, assignment, ward
+email, or Community post.
+
 The profile surface reuses the same Expo permission discipline for avatar capture. A citizen may
 take a photo with Expo Camera or select one from the media library; the resulting image still passes
 the existing private profile-image validation, owner-scoped Storage upload, and short-lived signed
-preview boundary. A separate current-area action requests one high-accuracy foreground location and
-calls the verified governance-body resolver. Only derived ward/local-body/authority labels,
-verification date, and official source URL are held in component memory. The slice persists neither
-the exact profile coordinate nor a street address, and ambiguous, inaccurate, or unsupported
-results fail closed.
+preview boundary. Community, Profile, and Nearby share a non-evidentiary current-area boundary: a
+non-mocked fix no more than five minutes old and accurate to 100 metres can be reused from process
+memory or Expo's bounded last-known result, while explicit Refresh obtains a new balanced
+foreground fix. Identical concurrent requests share one promise, and Auth identity transitions
+invalidate the cache and any late write-back generation. Only derived ward/local-body/authority
+labels, verification date, and official source URL are held in component state. The slice persists
+neither the exact context coordinate nor a street address, and ambiguous, inaccurate, or
+unsupported results fail closed. No watcher, timer, or background location permission is present.
+The first relevant foreground feature may request location permission automatically once during a
+process session. A denial closes that automatic gate for Community, Profile, Nearby, and complaint
+capture; later attempts require an explicit retry or settings action and cannot create focus-based
+permission loops.
+
+The authenticated civic-area projection may additionally return at most 25 active, verified public
+offices from the exact ward and wardless offices explicitly scoped to the resolved local body.
+Only name, type, optional public address/phone/email, verification date, and official HTTPS source
+are admitted. The mobile client hides absent fields, validates a dial target before opening the
+native dialler, uses the mail composer for a validated address, and opens source provenance in
+Expo's in-app browser. Operational ward-email recipients, WhatsApp contacts, officers, internal IDs,
+and routing evidence remain outside this contract.
+
+Community intentionally composes two independent read paths rather than joining their data:
+
+- the signed-in **Your reports** preview calls the existing actor-scoped complaint-list endpoint,
+  displays at most the three newest items, and routes only to authenticated owner detail;
+- Local, Trending, and Heat call the anonymous reviewed-public projection endpoints and may expose
+  only their sanitized public contracts.
+
+The owner path refreshes on screen focus, needs no location permission, and retains its own
+loading/error state. Private owner items are not converted to public DTOs, mapped, aggregated,
+ranked, supported, or starred. This preserves the reviewed-public publication boundary while making
+a newly submitted report discoverable to its owner. Public Local/Trending rows use virtualized,
+paginated lists, and the aggregate Heat request is deferred until the citizen selects that mode.
 
 Phase 6 adds durable in-app notification history/read state and private complaint messages. Its
 optional Socket.IO connection refreshes REST-backed state and does not replace durable history.
@@ -142,17 +192,20 @@ Responsibilities:
 - locality map;
 - public transparency pages.
 
-The current account slice treats Supabase Auth and the application profile as separate boundaries.
-The SSR callback establishes the session; the page then loads the validated profile through the
-NestJS API. It renders explicit onboarding, missing-profile, and API-unavailable states rather than
-showing a blank account or trusting Auth metadata as application state. Web, API, and Auth must use
-the same Supabase environment. Citizen access uses email/password sign-up and sign-in plus
-provider-managed password recovery. Phone verification is staged through Supabase Phone MFA with
-the same observe/enforce policy used by the API, so the web app does not create or store OTPs.
-Profile images use an owner-private Storage bucket, API-owned metadata, and short-lived signed
-display URLs; they never enter public transparency projections.
+Citizen Web currently runs in fail-closed `public-only` mode. The home, reviewed transparency, and
+public directory placeholder remain available without a Supabase session. Authentication,
+callback, account, reporting, owned-complaint, and unknown future routes redirect to a query-free
+mobile-app notice before Supabase session mutation or protected API work. Protected API and
+Supabase helpers independently reject use in this mode, while the anonymous transparency client is
+unchanged.
 
-Protected Citizen Web complaint pages use the existing owner-scoped list, detail, timeline, and
+The former account implementation remains latent behind explicit `full` mode for future parity. It
+treats Supabase Auth and the application profile as separate boundaries, but must not be activated
+for citizens until web password change and recovery use the same fresh phone-factor policy as
+mobile. Profile images remain owner-private and never enter public transparency projections.
+
+When explicit `full` mode is eventually approved, protected Citizen Web complaint pages use the
+existing owner-scoped list, detail, timeline, and
 resolution-accountability APIs. The list is paginated; detail shows current status, immutable
 timeline, safe routing/location summaries, and the public portion of government action/resolution
 evidence. Feedback and reopen actions bind the server-returned current resolution/workflow context
@@ -258,8 +311,9 @@ Identical concurrent reads for one actor share only the unfinished request and a
 settles, so no completed security context or bearer token is cached. This boundary is recorded in
 [ADR-0026](adr/0026-use-verified-jwt-claims-for-api-authentication.md).
 
-The non-user-specific routing-category catalog is the sole process-local application-data cache in
-this path. A NestJS instance retains it for 30 seconds and coalesces an identical in-flight load.
+The non-user-specific operational and detailed taxonomy catalogs are the sole process-local
+application-data caches in this path. A NestJS instance retains each successful projection for 30
+seconds and coalesces an identical in-flight load.
 Exact-coordinate jurisdiction results, routing decisions, profiles, MFA state, roles, memberships,
 drafts, complaints, and status are never retained in that cache. Complaint submission performs a
 fresh location-specific route resolution even when the form used a cached catalog entry.
@@ -318,83 +372,62 @@ empty or failed claim doubles the delay up to 60 seconds, while any claimed batc
 delay to the configured base interval. Work remains database-leased and immediately discoverable
 at the base cadence after activity; no Redis scheduler or completed-work cache is introduced.
 
-The V1 BMC overlay adds one optional SMTP ward-email loop to this trusted process. It claims the
-private ward-email outbox through lease-checked RPCs, maps each database row into a data-minimized
-message containing complaint number, ward, category, submission time, and description, and records
-the provider message ID before marking delivery `sent`. The loop is disabled when server-only SMTP
-configuration is absent. Its credentials and recipient values never enter a client contract or
-structured log, and a provider send result does not imply government acknowledgement.
+The V1 BMC overlay adds one optional SMTP ward-email loop. It can run inside the combined workers
+process or through the dedicated ward-email-only executable defined by ADR-0035, so mobile/API
+testing does not require notification, SLA, or KPI polling. It claims the private ward-email outbox
+through lease-checked RPCs, maps each database row into a data-minimized message containing
+complaint number, ward, category, submission time, and description, and records the provider
+message ID before marking delivery `sent`. The isolated loop polls no more often than every 60
+seconds and is disabled when server-only SMTP configuration is absent. Its credentials and
+recipient values never enter a client contract or structured log, and a provider send result does
+not imply government acknowledgement.
 
 Phase 4 duplicate evaluation still runs synchronously through PostgreSQL plus the pure routing
 package. Transcription, media processing/moderation, and private-object cleanup remain
-unimplemented. Governance retrieval runs separately through a Supabase Scheduled Edge Function;
-its source schedule is inactive by default. No Redis, BullMQ, or Sentry dependency backs any of
-these boundaries.
+unimplemented. The undeployed governance retrieval Edge boundary is retired from V1. No Redis,
+BullMQ, or Sentry dependency backs any of these boundaries.
 
 ### Immutable Governance Source-Bundle Intake
 
-Repository-supplied research bundles enter through a deterministic intake adapter before the
-permanent synchronization lifecycle. The adapter verifies the outer archive hash, safe member
+Repository-supplied research bundles enter through a deterministic offline intake adapter. The
+adapter verifies the outer archive hash, safe member
 paths and expansion limit, exact inventory, internal member hashes, CSV headers/counts/keys, and
 canonical identity reconciliation. It records immutable raw file/row evidence and emits additive
-SQL; it never changes the canonical Phase 2 CSV/workbook or directly publishes a sync candidate.
+SQL; it never changes the canonical Phase 2 CSV/workbook or publishes directly into a client
+runtime.
 
 The Maharashtra Batch 0 adapter applies only null-to-value LGD enrichment for Maharashtra and 35
 exact existing district matches. It preserves all current verification, provenance, and routing
 state. Ambiguous aliases, conflicts, stale documents, and header-only operational datasets remain
 review evidence. Sensitive transient URL query parameters are excluded from generated artifacts
 while the original row hash and immutable archive retain auditability. This is a bootstrap-intake
-path, not a municipality-specific application branch or an alternative to human-reviewed
-synchronization publication.
+path, not a municipality-specific application branch. Any future automated synchronization and
+publication lifecycle requires a new ADR and migration after ADR-0031.
 
-### Governance Synchronization
+### V1 physical database reduction
 
-The permanent synchronization subsystem uses this review-gated topology:
+ADR-0031 retires the undeployed governance synchronization/contact pipeline for V1. A forward
+migration drops its 14 tables, Edge Function/RPC surface and legacy contact guards, plus the unused
+public-comments table. The custom schema is therefore 114 tables rather than 129.
+
+The active contact path is now:
 
 ```text
-official government source
-  -> Supabase Cron
-  -> custom-secret governance-sync-fetch Edge Function
-  -> PostgreSQL FOR UPDATE SKIP LOCKED claim + short lease
-  -> exact-host allowlisted HTTPS retrieval
-  -> immutable content-addressed private Storage snapshot
-  -> source-specific parser
-  -> pure normalizer and validator
-  -> entity matching and change detection
-  -> attributed human review
-  -> versioned production record
+captured complaint location
+  -> PostGIS ward boundary/crosswalk
+  -> private routing.ward_issue_contacts row
+  -> complaint assignment and immutable routing decision
+  -> private complaints.ward_email_outbox row
+  -> optional SMTP worker
 ```
 
-The implemented Edge function owns only claim, fetch, and snapshot preservation. PostgreSQL is the
-coordination and audit source of truth: it permits exactly one source claim per dispatch, prevents
-concurrent claims, fails and backs off expired leases without immediately reclaiming them, links
-conditional `304` responses to prior evidence, and records bounded retry backoff. Edge leases are
-300–900 seconds (300 by default), the trusted database boundary permits 180–900 seconds, and the
-function heartbeats before and after Storage persistence.
+Government Dashboard delivery-readiness responses keep their existing contract but query the same
+private ward/category matrix. Contact values remain service-only. Canonical import provenance,
+governance identities, versioned ward boundaries and officer assignments remain installed.
 
-Each source contract has a deterministic SHA-256. Activation requires exact approval of the current
-hash by an active global platform administrator; supported MIME types, HTTPS port 443, no fragments,
-and exact hosts are database invariants. Snapshot finalization verifies the corresponding
-`storage.objects` size/MIME metadata, referenced objects become immutable, and the Edge adapter
-retains content-addressed bytes after a failed or ambiguous finalization. Grace-period reconciliation
-checks for a late database commit before removing a true orphan, avoiding an eager-delete race. The
-source-contract hash is introduced with nullable/backfill/`NOT NULL` migration sequencing so
-populated databases upgrade safely. The environment-specific Cron job and dispatch secret are
-deployment configuration. No pilot source is active in the repository seed, and DNS/private
-resolved-address enforcement, reconciliation, parsers, matching, review API/UI, and publication
-remain production gates.
-
-Pilot synchronization coverage is database data, not an application branch. The service-only,
-forced-RLS `governance.sync_scope_targets` registry selects canonical authority, local-body, or ward
-targets with immutable hierarchy. Activation requires an active global platform-administrator
-review. Routing eligibility remains a separate gate and can become true only when the referenced
-canonical entity is independently active, verified, non-placeholder, and routable. The bootstrap
-selects five Pune and five Brihanmumbai ward targets only as draft/unverified/non-routable
-engineering scope. Their canonical ward rows and V1 scope rows remain placeholder audit history.
-The next reviewed pilot scope must use official BMC administrative wards `A`–`E` and Pune's current
-official numeric wards `1`–`5`, each backed by authoritative identity and geometry evidence. The
-system must never ordinal-map `BRIH-W01`–`BRIH-W05` to BMC's lettered wards; reviewed records and a
-new scope version are required.
+The historical synchronization design remains in `docs/governance-synchronization.md`, but no
+source registry, lease, snapshot, candidate, review or versioned-contact relation remains in the V1
+runtime. Reintroducing scheduled source retrieval requires a new ADR and migration.
 
 ---
 
@@ -495,17 +528,27 @@ Business logic should not be implemented directly inside React components.
 
 Supabase Auth proves identity. Current database state determines authorization so revoked or expired access does not remain valid until a JWT refresh. Client applications receive only the public project URL and publishable key (or legacy anonymous key); the secret/service-role key exists only in the trusted API runtime. The API verifies each bearer token with Supabase Auth, reauthorizes ownership and scope, and performs identity writes through audited database operations. RLS and column privileges remain a second boundary for direct data-API access.
 
-Citizens use Supabase email/password and provider-managed recovery; phone verification is a
-Supabase Phone MFA factor rather than application metadata or a custom OTP table. Government and
-administrator email delivery remains template-compatible. Their callback pages consume one
+Citizens use Supabase email/password and provider-managed recovery; private access requires a
+current confirmed phone in Supabase Auth rather than application metadata, an MFA factor or a
+custom OTP table. Citizen sessions remain `aal1`. A supported password update sends and verifies a
+fresh phone OTP on an isolated, non-persistent Supabase client, verifies the returned user and
+phone, immediately performs the provider mutation, and revokes sessions. The append-only
+`password_changed` record is client-reported telemetry; no citizen AAL2 or legacy zero-factor audit
+exception is used. Phone Auth signup capability remains on because it also gates an existing
+linked-phone OTP; the service-owned Before User Created hook rejects any new Auth user without a
+non-empty email. Client `shouldCreateUser: false` is defense in depth, not the only signup boundary.
+Government and administrator email delivery remains template-compatible. Their callback pages
+consume one
 reviewed method and reload through current authorization. Citizen/admin callbacks reject implicit
 fragments; only the government invitation callback accepts a complete default fragment typed
-`invite`, and authentication still cannot create membership or role. Mobile stores sessions only
-in SecureStore. Privileged TOTP and citizen phone-factor policies are independently verified by the
-API and use observe/enforce rollout modes.
+`invite`, and authentication still cannot create membership or role. Mobile stores its primary
+session only in SecureStore. Privileged TOTP and citizen confirmed-phone policies are independently
+verified by the API. Citizen mobile/API default fail closed to enforcement; privileged policy
+retains its separate observe/enforce rollout.
 
 The three web portals expose the verified account context instead of leaving identity implicit.
-Citizen Web shows the current citizen email or phone label and an explicit switch-account path.
+Citizen Web currently shows only public pages plus a mobile handoff; its latent full mode retains
+the current citizen label and switch-account path for future security parity.
 The Government Dashboard and Admin Console show the exact signed-in email on MFA, authorized,
 denied, and dependency-error states. Privileged screens describe Auth identity, per-user TOTP/AAL2,
 and current database membership/scoped role as separate gates. A QR code appears only while
@@ -552,39 +595,23 @@ State, state-agency, district, local-body, and utility identities reference the 
 
 Boundary, assignment, and routing-reference versions retain UTC effective periods and append history instead of replacing it. PostgreSQL temporal exclusion constraints prevent overlapping non-draft versions, and PostGIS `MultiPolygon` geometry uses SRID 4326, valid longitude/latitude bounds and GiST indexing. Because the supplied data has no usable polygons, the baseline seed creates no boundary version and therefore cannot claim real jurisdiction routing.
 
-Phase 3 establishes the permanent governance-synchronization foundation without turning source
-retrieval into automatic publication. The current operational slice adds reviewed-source claims,
-short PostgreSQL leases, safe generic HTTPS retrieval through a custom-secret Supabase Edge
-Function, immutable raw Storage snapshots, conditional `304` reuse, bounded retry scheduling, and
-append-only events/evidence. Source definitions, runs, normalized candidates, detected changes,
-review items, contact versions, and review events remain inside the private governance boundary.
-The typed `@local-wellness/database/governance-sync` contracts keep retrieval, preservation,
-normalization, matching, change detection, review, and transactional publication as separate ports.
+Phase 3 originally established a review-gated governance-synchronization foundation. It was never
+activated by a deployed application path and is retired for V1 by ADR-0031. Migration 50 removes
+its source, lease, snapshot, candidate, review, evidence and versioned-contact tables together with
+the Edge fetcher/RPC surface and the unused package export.
 
-Synchronization follows a mandatory review gate:
+The historical design used this review gate:
 
 ```text
 queued -> retrieving -> snapshot_preserved -> normalizing -> matching
        -> detecting_changes -> awaiting_review -> approved -> publishing -> published
 ```
 
-Rejected and failed runs are terminal; a retry creates a new run. Source claims and matching scores
-cannot verify data automatically. Placeholder evidence may only remain quarantined and
-non-routable. The repository CSV bootstrap stays immutable and separate from official-source
-snapshots.
-
-Official contact identity is separated from changing values. `contact_channels` binds one durable
-authority, local body, ward, department, office, role, officer, assignment, utility, or emergency
-contact to a channel type, visibility, and intended use. `contact_channel_versions` append values
-with effective periods and exact snapshot/record provenance. Source verification only stages a
-value. Public visibility requires an active, non-placeholder, manually reviewed published version;
-complaint delivery additionally requires a separately approved public-official complaint-intake
-channel. Existing contact columns are migration-only and cannot be overwritten.
-
-The seed registers ten PMC/BMC pilot endpoints as draft/unverified contracts. No source is
-scheduled or claimable. The Edge function stops after `snapshot_preserved`; source-specific
-HTML/PDF parsers, candidate orchestration, matching, publisher, review API/UI, and Storage-orphan
-reconciliation are pending.
+Those rules remain historical context, not a runtime contract. Canonical CSV/workbook and immutable
+operator archives remain read-only inputs to the retained offline import/generation tools. Current
+V1 contact selection uses the private `routing.ward_issue_contacts` matrix and keeps source
+provenance on each generated row. Reintroducing scheduled retrieval or versioned contact
+publication requires a new ADR and forward migration.
 
 The optional BMC staging/demo pack is a separate reviewed bootstrap path, not automatic
 synchronization output. It creates official-source BMC operational wards, zones, offices,
@@ -603,7 +630,7 @@ or publication source by itself. Immutable snapshot preservation, bounded parsin
 geometry validation, ownership/entity matching, human review, versioned publication, and routing
 activation remain separate gates.
 
-As of 2026-07-14, the dedicated staging database contains all 23 migrations through
+As of 2026-07-14, the then-current dedicated staging database contained all 23 migrations through
 `20260714124000` and all six reviewed non-production seeds. Its fail-closed state is 12 categories
 with zero operational and 11 synchronization endpoints with zero active. This validates only the
 managed database baseline: applications, the Edge Function, Cron, source/scope activation,
@@ -611,16 +638,18 @@ official ward records or geometry, routes, complaints, and production remain und
 inactive.
 
 That paragraph records a historical managed-environment observation, not the current repository
-cutoff. The incremental schema now contains 43 migrations through
-`20260717100000_public_complaint_engagements.sql`; each managed target must reconcile its own
-migration ledger before activation. The preceding BMC relationship-version migration and generated
-demo seed provide source-backed internal queue data while keeping external complaint delivery
-explicitly disabled.
+cutoff. The incremental schema now contains 50 migrations through
+`20260723110000_prune_deferred_v1_subsystems.sql`; each managed target must reconcile its own
+migration ledger before activation. The V1 ward/contact overlay provides source-backed routing and
+an email outbox while keeping recipient data private.
 
 The citizen-facing governance directory is a separate narrow projection over this private domain:
 
 ```text
 Expo foreground location
+        |
+        v
+purpose-scoped memory/last-known coordinator
         |
         v
 authenticated NestJS endpoint
@@ -641,6 +670,10 @@ matches remain explicit `unsupported` and `ambiguous` outcomes. Mobile clients n
 governance tables/functions directly and no Pune/Mumbai fallback is hardcoded. The additive
 projection migration and reviewed official geometry are still required in staging before the
 directory can resolve a real location.
+
+The client-side current-area cache changes only acquisition frequency. It does not cache governance
+responses, choose a scope, alter the strict four-field request, or weaken the server-side
+100-metre/verified-boundary decision.
 
 ### Complaint Domain
 
@@ -776,16 +809,32 @@ worker/scheduling deployment, and environment verification are complete.
 - Phase 9 SLA and escalation configuration in the private complaint domain.
 
 Phase 3 stores these records in a private, forced-RLS `routing` schema. The 12 pilot taxonomy rows
-are engineering records only: draft, unverified, and non-routable. Pune Municipal Corporation is a
-reference municipality for architecture and tests, not an application branch or verified routing
-dataset.
+remain stable specialised operational routing profiles, and BMC V1 adds one general ward profile
+for 13 operational profiles in total. The same registry now also holds 17 citizen-facing
+primary nodes and 340 subcategory nodes without adding a parallel table. Taxonomy purpose, stable
+code, derived workflow, sensitivity, configuration state, routing state and optional operational
+profile mapping are explicit columns. Classification never grants routing eligibility. Pune
+Municipal Corporation is a reference municipality for architecture and tests, not an application
+branch or verified routing dataset.
 
-The generated BMC non-production activation is a deliberately narrower data layer over this generic
-engine, not municipality-specific code. It enables one confidence policy, three category-specific
-duplicate policies, and 66 direct, non-fallback rules for three asset-independent categories across
-22 unambiguous wards. Nine ownership-gated categories, split K/P wards, and external delivery
-remain fail-closed. The activation and verification seeds are separate from migrations and must
-not be assumed present in any managed environment without an environment-specific verification.
+The selected taxonomy tuple is stored only as
+`taxonomy_primary_code`/`taxonomy_subcategory_code`/`taxonomy_workflow_type` draft attributes.
+PostgreSQL accepts those keys only as a complete canonical tuple, verifies the mapped operational
+category, and repeats the check when a complaint is inserted. Clients never send authority,
+department, office, role, recipient or rule IDs.
+
+Eighty-four private or emergency-private leaves, including all 20 `COR` leaves, use
+`protected_handoff`. Their forced-RLS action registry permits only official telephone targets or
+credential-free HTTPS pages. The sanitized taxonomy projection exposes these actions as camel-case
+`handoffActions` and never exposes email recipients or source metadata. A handoff has no ordinary
+ward-email mapping, normal complaint, public visibility, comments, or Community support. Future
+internal activation requires separately reviewed routing, delivery, and privacy controls.
+
+The earlier BMC internal-demo seeds remain a deliberately narrower data layer over this generic
+engine. They enable one confidence policy, three category-specific duplicate policies, and 66
+direct, non-fallback rules for three asset-independent categories across 22 unambiguous wards.
+They do not represent the generated 340-leaf BMC V1 intake bundle. All activation and verification
+seeds remain separate from hosted state and require environment-specific verification.
 
 ### Communication Domain
 
@@ -803,9 +852,16 @@ not be assumed present in any managed environment without an environment-specifi
 ## Core Workflow
 
 ```text
-Citizen selects a database-driven category and describes the issue
+Citizen selects a primary category and subcategory/issue type
         |
         v
+Server classifies the taxonomy leaf:
+        |
+        +-- protected --> approved official call/browser handoff --> stop
+        |
+        +-- ordinary --> one of 13 operational profiles
+                              |
+                              v
 Current GPS evidence verified against PostGIS/category thresholds
         |
         v
@@ -939,7 +995,8 @@ captured GPS evidence
 The contact matrix is generated by joining two immutable operator inputs: the Mumbai ward issue-
 contact archive supplies category, phone, WhatsApp, role and issue-source evidence, while the
 2026-07-20 ward-directory archive supplies recipient email and office-source evidence. Generation
-requires 26 operational wards × 12 categories (312 rows), uses direct K/N and P/E email evidence,
+retains the 26 operational wards × 12 specialised profiles (312 rows), adds one general profile per
+ward, and therefore produces 338 private contact rows. It uses direct K/N and P/E email evidence
 and maps K/S to its K/E parent office and P/W to its P/N parent office. Raw source-reported status,
 record locator and dates are retained separately from explicit owner approval for staging routing.
 
@@ -950,12 +1007,16 @@ discovery and duplicate review as mandatory gates for these V1 categories; dupli
 remain available and advisory.
 
 The assignment trigger snapshots only the recipient email into a private idempotent outbox. Phone,
-secondary contact, `1916`, WhatsApp, source provenance, description and exact location are service-
-only. A future sender may claim jobs through bounded PostgreSQL leases and record sent/retry/dead
-outcomes; no polling process, Cron job, provider or automatic WhatsApp/phone action is enabled by
-this change.
-The older candidate engine and normalized governance/synchronization tables remain available for
-future expansion but are no longer the BMC V1 citizen-submission critical path.
+secondary contact, `1916`, WhatsApp, source provenance and exact location are service-only. When
+SMTP is configured, the trusted worker claims jobs through bounded PostgreSQL leases and records
+sent/retry/dead outcomes; no automatic WhatsApp or phone action is enabled. The older candidate
+routing engine and normalized governance registry remain available for future expansion, while the
+unused governance-synchronization/versioned-contact relations are physically absent after
+migration 50.
+
+Owner complaint views, Government Dashboard views, and ward-email rendering resolve the detailed
+taxonomy label from the stored canonical tuple. A complaint routed through
+`general_ward_complaint` therefore keeps its citizen-selected issue name.
 
 The duplicate-detection package scores configurable category, distance, time, text-similarity,
 media-hash, and asset evidence. Phase 4 connects it to capped, versioned-policy candidate loading,
@@ -1041,15 +1102,15 @@ and connected.
 
 The canonical Maharashtra/Phase 3 baseline exposes zero operational categories because verified
 Pune polygons, routes, duplicate policies, and related governance evidence are unavailable. The
-catalog may display its non-placeholder taxonomy, but every entry remains disabled. A full local
-reset additionally applies the generated BMC non-production seeds and therefore makes only the
-three reviewed internal-demo categories selectable through their 66 rules. It does not enable the nine
-asset-dependent categories, split K/P wards, production routing, or external BMC delivery. Hosted
-staging now exposes the same 12-category catalog, three operational categories, finalized private
-media, and K/W internal routing. A clean local end-to-end API smoke returns a complaint receipt;
-hosted completion still requires migration `20260718100000` and a post-migration submission smoke.
-Physical-device capture, provider-backed processing, and final operational policy validation remain
-pending.
+detailed catalog still exposes its classification hierarchy, but submission remains disabled
+without a mapped operational profile and current route. The generated local BMC V1 bundle maps 13
+specialised leaves to 12 specialised profiles and 243 ordinary leaves to one general profile; 84
+leaves use protected handoff. The older internal-demo rules by themselves enable only three
+profiles through 66 rules. Repository generation, tests, and SQL artifacts do not prove that any
+hosted Supabase project has the current BMC V1 bundle installed. Hosted activation requires the
+reviewed SQL deployment and post-deployment catalog, routing, submission, protected-action, and
+email-outbox smokes. Physical-device capture, provider-backed processing, and final operational
+policy validation remain pending.
 
 ---
 
@@ -1271,13 +1332,14 @@ atomic policy supersession, scope-authorized accountability reads, and transacti
 notification evidence.
 Phase 10 adds shared PostgreSQL-backed API quotas with hashed subjects, security headers, graceful
 shutdown, a narrow database/private-Storage readiness probe, dependency-free smoke/load tooling,
-secret scanning, owner-private profile images, and staged MFA assurance enforcement. It also makes
+secret scanning, owner-private profile images, mandatory citizen confirmed-phone enforcement, and
+staged privileged MFA assurance enforcement. It also makes
 the 50-metre complaint-location/media-proximity limit a client-and-database invariant, gives mobile
 reviewed Local/Trending/Heat views, adds account-bound support and private star state behind the
 reviewed-public projection boundary, and separates verified government-queue routing from approved
 external-contact readiness without performing automatic outbound delivery.
-Provider edge controls, managed alerting, full profile-image processing, SMS-provider activation,
-and device-to-provider-session revocation remain rollout work.
+Provider edge controls, managed alerting, full profile-image processing, hosted Twilio/device
+validation, and device-to-provider-session revocation remain rollout work.
 
 - Supabase Auth for identity;
 - JWT verification at API;
@@ -1317,6 +1379,12 @@ different Supabase project from the API. Turbo build inputs include the root env
 relevant public client variables, preventing a project switch from reusing an incompatible cached
 bundle. Managed deployments continue to inject their own variables rather than shipping the local
 file.
+
+User-initiated external HTTPS references in Expo use a shared `expo-web-browser` adapter. The
+adapter rejects non-HTTPS and credential-bearing URLs before launch, disables the default sharing
+menu, and maps failures to URL-free messages so signed evidence URLs cannot leak through UI or
+logs. OS settings, emergency `tel:112`, authentication/deep links, and internal Expo Router
+navigation stay on their native handlers.
 
 ---
 

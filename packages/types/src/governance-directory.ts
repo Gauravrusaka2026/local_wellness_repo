@@ -29,6 +29,16 @@ export interface VerifiedGovernanceEntitySummary {
   sourceUrl: string;
 }
 
+export interface VerifiedCivicAreaOffice {
+  name: string;
+  type: string;
+  address?: string | undefined;
+  phone?: string | undefined;
+  email?: string | undefined;
+  lastVerifiedOn: string;
+  sourceUrl: string;
+}
+
 export interface VerifiedGoverningBodyMatch {
   state: VerifiedGovernanceEntitySummary;
   district: VerifiedGovernanceEntitySummary | null;
@@ -36,6 +46,11 @@ export interface VerifiedGoverningBodyMatch {
   authority: VerifiedGovernanceEntitySummary;
   localBody: VerifiedGovernanceEntitySummary;
   ward: VerifiedGovernanceEntitySummary | null;
+  /**
+   * Older API/database deployments omit this field. Consumers must treat an
+   * absent value as an empty directory until both sides are upgraded.
+   */
+  offices?: VerifiedCivicAreaOffice[] | undefined;
 }
 
 export interface GoverningBodyResolution {

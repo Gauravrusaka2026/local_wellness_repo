@@ -57,6 +57,8 @@ This keeps Phase 0 buildable without introducing later-phase behavior.
 
 - Framework output, TypeScript build information, and dependency directories are ignored.
 - Next.js owns `next-env.d.ts`, so Prettier does not rewrite it.
+- Deterministic governance generator outputs remain byte-owned by their generators and are excluded
+  from Prettier; generator drift checks, schemas, and tests validate those artifacts instead.
 - Expo, Next.js, and Turborepo telemetry are disabled in CI and explicitly passed through Turborepo's environment boundary.
 
 ### Containers
@@ -275,7 +277,10 @@ These conventions implement ADR-0011 and do not activate unverified Pune routing
 
 ## 2026-07-14 — Governance Synchronization Retrieval and Contact Conventions
 
-These conventions implement ADR-0012 while retaining ADR-0010's human-review publication gate.
+Historical/superseded for V1: these conventions implemented ADR-0012 while retaining ADR-0010's
+human-review publication gate. ADR-0031 removes this undeployed runtime, its tables and its package/
+Edge boundary. The details below remain design history only; reintroduction requires a new ADR and
+forward migration.
 
 ### Source Activation and Scheduling
 
@@ -875,3 +880,237 @@ These conventions implement ADR-0012 while retaining ADR-0010's human-review pub
 - Nearby may use a clearly schematic, first-party spatial panel for orientation, but its result
   cards remain backed by the safe governance projection and must not fabricate contacts,
   distances, opening hours, directions, or external-map data.
+
+## 2026-07-23 — Citizen Password, Recovery, and External-Link Conventions
+
+- The Phone-MFA/AAL2, five-minute proof, zero-factor fallback, and audit-exception decisions in this
+  section are superseded by ADR-0033 and retained only as the ADR-0028 implementation record. The
+  external-link convention remains current.
+- ADR-0028 owns the architecture: mobile/API citizen access is Phone-MFA enforced and Citizen Web
+  stays public-only until protected-flow parity is implemented.
+- Every signed-in password change starts a new Phone MFA challenge. A successful verification
+  produces only a user/factor-bound in-memory proof with a five-minute lifetime; it is never
+  persisted or restored.
+- A recovery callback accepts exactly one reviewed PKCE code or recovery token. Verified-phone
+  accounts must complete a fresh SMS challenge. Email-only fallback is limited to an account with
+  zero verified phone factors, and factor state is checked again immediately before update.
+- Passwords go directly from the mobile client to Supabase Auth. Successful updates immediately
+  attempt global sign-out, fall back to local sign-out when required, and only then wait for at
+  most two seconds for the non-sensitive `password_changed` audit; passwords, OTPs, challenges,
+  recovery material, factor secrets and access tokens never enter audit metadata.
+- The only AAL1 citizen audit exception is the exact JSON body
+  `{ "eventType": "password_changed" }` on the decorated audit method, after normal bearer,
+  profile, non-privileged-role and server-side zero-phone-factor checks. Existing PostgreSQL rate
+  limits still apply. The event remains client-reported telemetry rather than proof of a provider
+  password mutation.
+- OTP sends use a visible 30-second client cooldown and repeated submit actions use an in-memory
+  exclusive guard. Successful OTP verification does not wait for best-effort audit delivery.
+  Provider expiry, retry and abuse limits remain authoritative.
+- User-initiated external HTTP references use the shared Expo in-app-browser adapter. Only HTTPS
+  URLs without embedded credentials are accepted. Error copy never echoes the URL. Settings,
+  `tel:112`, Auth/deep links and internal Expo Router navigation retain native handlers.
+
+## 2026-07-23 — Purpose-Scoped Mobile Location Coordination
+
+- Community, Profile, and Nearby share one current-area policy with a five-minute in-memory TTL,
+  a 100-metre accuracy ceiling, non-mocked input, operating-system last-known reuse, and
+  single-flight acquisition.
+- Explicit Refresh bypasses memory and last-known results. Passive navigation never starts a
+  watcher, polling loop, background task, or scheduled location read.
+- Complaint issue, photo, video, and voice evidence use a separate fresh high-accuracy path. A
+  current-area, in-flight evidence, or completed evidence result is never reused across complaint
+  capture actions.
+- Existing permission state is checked before prompting. Permanent denial directs the user to
+  settings without repeatedly presenting the OS request dialog.
+- Current-area coordinates remain memory-only and are cleared across Auth sign-out/account
+  replacement. Generation invalidation prevents a late native result from crossing that identity
+  boundary.
+- ADR-0029 owns the architecture and complements the existing complaint-location security policy
+  in ADR-0017.
+
+## 2026-07-23 — Community Owner-Report Visibility
+
+- Community may compose a signed-in owner preview and reviewed-public locality views, but the two
+  result sets remain separate throughout state, rendering, navigation, and engagement handling.
+- The owner preview reuses the existing authenticated complaint list, shows the three newest
+  reports, refreshes on screen focus, and works without location or a successful transparency
+  request.
+- Owner cards link only to authenticated complaint detail and do not expose public support/star
+  controls. They are never adapted into public map items, heat aggregates, or trending inputs.
+- Public visibility still requires the existing reviewed publication workflow. Showing a report to
+  its owner does not publish it.
+- ADR-0030 records this privacy-preserving presentation decision.
+
+## 2026-07-23 — Physical V1 Database Pruning Convention
+
+- ADR-0031 owns physical database reduction. Applied migration history remains immutable; removals
+  use the forward-only `20260723110000_prune_deferred_v1_subsystems.sql` migration.
+- A subsystem may be physically removed from V1 only when it is undeployed or unused and repository
+  dependency analysis plus clean-reset regression coverage proves that current complaint,
+  Community, government workflow and ward-email behavior does not depend on it.
+- V1 removes fourteen governance synchronization/versioned-contact tables and the unused
+  `complaints.complaint_comments` table. The private 312-row
+  `routing.ward_issue_contacts` matrix remains the contact source used by current routing and
+  readiness behavior.
+- The unused `@local-wellness/database` governance-sync export, source and tests are removed with
+  the database prototype because they have zero runtime consumers. The governance-import pipeline
+  remains supported and is not part of this retirement.
+- The application-owned table count moves from 129 to 114. This is a maintainability and
+  operational-surface reduction, not a diagnosis or claimed fix for the earlier high-CPU
+  PostgREST request storm.
+- Another reduction may begin only after each affected capability has an approved replacement,
+  required data backfill, compatibility window, cutover/rollback plan and complete regression
+  evidence. Complaint history, security evidence and active delivery state are never deleted to
+  satisfy a table-count target.
+- Hosted application remains an explicit operator action after backup and preflight; local
+  migration verification does not imply that hosted Supabase was modified.
+
+## 2026-07-23 — JagrukSetu Taxonomy and Phone-MFA Diagnostics
+
+- ADR-0032 owns the taxonomy architecture. The 12 operational routing-profile IDs remain stable;
+  the existing `routing.issue_categories` relation also stores taxonomy primaries/subcategories so
+  V1 does not add a parallel table family.
+- Mobile uses two selectors: primary category and **Subcategory / issue type**. Workflow is derived
+  from the selected subcategory. A third issue-variant selector is deferred until reference data
+  defines actual variant rows.
+- The client persists only `taxonomy_primary_code`, `taxonomy_subcategory_code` and
+  `taxonomy_workflow_type`. PostgreSQL owns the mapping to an operational profile and validates it
+  again at complaint insertion. Clients never choose an authority, office, department, officer,
+  recipient or route rule.
+- The 340-leaf authenticated taxonomy projection is public-safe and may be cached in one API
+  process for 30 seconds. Exact-coordinate routing, security state, drafts and submissions remain
+  uncached and freshly validated.
+- Thirteen leaves map to the twelve stable operational profiles; 327 remain visible/resumable but
+  unavailable. All 20 `COR` leaves are private, protected and excluded from ward-email/public/
+  Community fallback until independent oversight safeguards are approved.
+- Phone-MFA error handling uses Supabase Auth error codes before legacy message matching.
+  `mfa_phone_enroll_not_enabled` and `mfa_phone_verify_not_enabled` are managed Advanced MFA setup
+  failures; `sms_send_failed` is provider delivery failure.
+- Ordinary Phone/Twilio provider configuration does not activate the Advanced MFA Phone add-on or
+  its Enrollment/Verification switches. Those are hosted administrator settings and cannot be
+  fixed with an application SQL migration.
+
+## 2026-07-23 — Confirmed-Phone OTP Without Citizen MFA
+
+- ADR-0033 supersedes ADR-0028 for citizen authentication. Email/password remains the primary
+  JagrukSetu sign-in credential, while ordinary Supabase Phone Auth links and confirms the same
+  citizen's phone through `phone_change` OTP. Citizen access does not require an Advanced Phone MFA
+  factor or an AAL2 session. Government Dashboard and Admin Console TOTP/AAL2 policy is unchanged.
+- Phone confirmation must fail closed unless Supabase returns the initiating user, the normalized
+  requested phone, and a non-null `phone_confirmed_at`. The trusted API independently checks current
+  `auth.users.phone` and `phone_confirmed_at` through the service-role-only
+  `public.user_has_verified_phone` function introduced by migration
+  `20260723130000_citizen_phone_verification_without_mfa.sql`; clients cannot assert confirmation.
+- Every supported phone-gated password change/recovery creates an isolated, non-persistent
+  Supabase client, sends an ordinary SMS OTP with `shouldCreateUser: false`, verifies the returned
+  identity and phone, updates the password immediately in that same isolated session, then attempts
+  global sign-out and clears the persistent application session. No proof access token, refresh
+  token, OTP, challenge or password is stored in React state, SecureStore, application tables or
+  logs.
+- The mobile reset-password screen owns the isolated recovery-client lifetime. If navigation
+  unmounts after email recovery creates a session but before phone inspection/password completion,
+  cleanup locally signs that isolated session out so a late exchange cannot leave it alive.
+- Email recovery only establishes the initiating account. If that account has no already-confirmed
+  phone, the application fails closed to attributed support instead of silently adding an email-
+  only password-reset bypass. Stale or duplicate `phone_change` state and lost-phone recovery remain
+  managed operational cases, not client-side identity rewriting.
+- The ordinary Phone provider is intentionally accepted for V1 even though linking a phone creates
+  an alternate Supabase AAL1 sign-in identity that a custom client can exercise. JagrukSetu does
+  not expose phone-only sign-in in its UI, but it cannot claim that email/password is the only
+  provider-level login path.
+- Supabase's Phone Auth signup capability remains enabled because the provider rejects
+  `signInWithOtp({ phone, shouldCreateUser: false })` for an existing linked user when that gate is
+  off. Migration `20260724100000_require_email_identity_for_auth_signup.sql` provides
+  `public.hook_require_email_identity`, and every managed project activates it as the Before User
+  Created Auth Hook. The hook accepts new users only when the Auth event contains a non-empty email,
+  so phone-only account creation fails closed. `shouldCreateUser: false` remains mandatory in the
+  supported password flow as defense in depth, not as the server-side signup boundary.
+- Preferred configuration names are `API_CITIZEN_PHONE_VERIFICATION_MODE`,
+  `EXPO_PUBLIC_PHONE_VERIFICATION_MODE`, and
+  `NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE`. The prior `*_PHONE_MFA_MODE` names are read only as
+  temporary backward-compatible fallbacks; new deployments use the preferred names.
+- Phone-verification screens claim their initial authoritative inspection by stable authenticated
+  user ID. They do not depend on the complete Auth context for one-time flow initialization because
+  provider `USER_UPDATED` events are expected during `updateUser({ phone })` and must not reset an
+  in-progress OTP challenge for the same user.
+- The mobile Supabase client uses the pinned Auth SDK's lockless default. Do not restore the
+  deprecated custom `processLock`; the SDK coordinates refresh concurrency internally and the
+  legacy auto-refresh branch can emit zero-millisecond acquisition warnings. The mobile provider
+  keeps Auth callbacks short by scheduling authoritative follow-up after they return, invalidates
+  superseded resolutions, and cancels scheduled work on sign-out or unmount.
+- ADR-0034 defines a narrow compatibility rule for an existing citizen account that already has a
+  verified TOTP factor. If Supabase reports that AAL2 is available but the current session is AAL1,
+  the mobile phone-confirmation flow challenges that factor and requires same-user AAL2 before
+  calling `updateUser({ phone })`. Citizens without a verified factor continue directly to SMS.
+  Never delete a factor automatically or use administrator authority to bypass this assurance
+  check.
+- Supabase Storage, PostgreSQL tables and Edge Functions remain outside OTP generation/verification.
+  Twilio Verify is configured through the ordinary Supabase Phone provider, phone confirmations are
+  enabled, Phone Auth signup capability plus the email-required creation hook are enabled, and
+  Advanced Phone MFA may remain disabled.
+
+## 2026-07-24 — Canonical complaint receipts and isolated ward-email operation
+
+- `ComplaintReceipt.categoryId` is authoritative. The nested `ComplaintRoutingSummary` does not
+  duplicate it. Mobile may decode the earlier first-submit shape only when the duplicate value
+  exactly matches, then normalizes it away; unknown/private fields remain rejected.
+- A committed complaint must not be represented as failed because of an application response-shape
+  mismatch. API contract tests and mobile decoder tests cover the first-submit and replay shapes.
+- Mobile treats only submission `NETWORK_ERROR` and `INVALID_RESPONSE` failures as an unknown
+  outcome. The recovery screen directs the citizen to owned complaints before retrying; attributed
+  routing, validation and dependency failures remain explicit failures.
+- Ward email is asynchronous and remains independent from complaint transaction success. SMTP
+  configuration is inert unless a trusted sender process is running.
+- ADR-0035 owns the isolated ward-email executable. It uses the existing leased outbox, a 60-second
+  cadence, a ten-row continuous batch, and a one-row explicit smoke mode without activating
+  notification, SLA, or KPI loops.
+- SMTP provider acceptance plus a persisted message ID means `sent`; it does not mean the recipient
+  mailbox accepted, read, or acted on the complaint.
+
+## 2026-07-24 — Complete BMC V1 intake classification
+
+- ADR-0036 owns the full-intake split. Preserve the 13 specialised taxonomy mappings, route the
+  other 243 public/restricted leaves through one `general_ward_complaint` profile, and expose
+  official handoffs for all 84 private/emergency-private leaves.
+- General ward intake deliberately reuses the current ward mailbox and approved provenance. It is
+  a coarse V1 intake route, not evidence of a precise department, officer, asset owner or filing in
+  an external government case-management system.
+- Do not create one ward/contact row per taxonomy leaf. One generic profile adds 26 rows to the
+  existing 312-row matrix, producing 338 rows across 13 operational profiles.
+- Protected handoff actions support digits-only telephone numbers and credential-free HTTPS
+  browser targets only. They do not submit a JagrukSetu complaint or create ward email, Community,
+  duplicate-check, location, media or result records.
+- Public taxonomy action objects use the camel-case keys `key`, `kind`, `label`, `description`,
+  `target` and `priority`. Source URLs, verification evidence and recipient email remain private.
+- Complaint owner, government and email surfaces resolve the validated detailed taxonomy label
+  before falling back to the operational profile name.
+
+## 2026-07-24 — Compact mobile interaction conventions
+
+- Use the citizen-facing name **JagrukSetu** in visible mobile copy. Keep the legacy URI scheme and
+  internal package identifiers stable until a separately planned deep-link migration.
+- Use one detached five-item navigation capsule: Home, Complaints, central Report, Community, and
+  More. Civic Area belongs under More and selects that tab; individual screens must not add a
+  duplicate menu affordance.
+- Use the shared compact React Native token adapter: restrained civic green/saffron/white/blue,
+  22–24 px page titles, 18 px section headings, 14 px body copy, 12 px helper text, and 10 px
+  navigation labels. Interactive targets remain at least 44 px even when icons and text shrink.
+- Use code-native `CivicIcon` shapes consistently instead of decorative emoji or text glyphs for
+  primary navigation and menu actions. Colour supplements an icon and text label; it never conveys
+  state alone.
+- Render complaint capture as one autosaving page ordered category, description, location,
+  evidence, duplicate/review, then one sticky Submit action. Preserve reducer stages only as
+  internal resume/idempotency state.
+- Start contextual location automatically when a relevant screen or persisted routable complaint
+  category needs it. Hide manual controls during an automatic attempt and after valid success;
+  show Retry/Settings only for recovery and Refresh only for an ineligible fix.
+- Keep owner-private complaints in a distinct Community section. Never merge them into reviewed
+  public DTOs, ranks, support/star state, or hotspot aggregates.
+- Fetch Community Heat only when its mode is opened and virtualize paginated public rows. Do not
+  poll location or public data merely because a tab exists.
+- All core mobile navigation, authentication, complaint, Community, civic-area, notification, and
+  profile copy must use the complete English/Marathi/Hindi catalogue. Dynamic official names and
+  server-sanitized error messages remain data, not translation keys.
+- Show optional civic-office fields only when present. Public office contact actions use a
+  validated dial/mail target and in-app HTTPS source browser; private routing recipients remain
+  invisible.

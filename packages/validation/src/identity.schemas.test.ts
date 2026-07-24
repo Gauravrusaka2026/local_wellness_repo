@@ -95,6 +95,16 @@ describe('identity validation schemas', () => {
   it('rejects server-owned audit events and client-provided outcomes', () => {
     assert.equal(
       recordAuthAuditEventSchema.safeParse({
+        eventType: 'password_changed',
+        metadata: {
+          authMethod: 'phone_otp',
+          clientSurface: 'mobile',
+        },
+      }).success,
+      true,
+    );
+    assert.equal(
+      recordAuthAuditEventSchema.safeParse({
         eventType: 'government_invitation_created',
       }).success,
       false,

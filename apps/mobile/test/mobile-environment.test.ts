@@ -5,7 +5,7 @@ import { ConfigurationError } from '@local-wellness/config';
 import {
   assertNativeUrlIsReachable,
   assertSupabaseProjectAlignment,
-  getPublicPhoneMfaMode,
+  getPublicPhoneVerificationMode,
   isLoopbackUrl,
 } from '../src/config/environment';
 
@@ -73,8 +73,9 @@ test('blocks loopback service URLs for native mobile runtimes', () => {
   );
 });
 
-test('keeps phone MFA staged in observe mode until the SMS provider is configured', () => {
-  assert.equal(getPublicPhoneMfaMode(undefined), 'observe');
-  assert.equal(getPublicPhoneMfaMode(' enforce '), 'enforce');
-  assert.throws(() => getPublicPhoneMfaMode('disabled'), ConfigurationError);
+test('fails safe to enforced phone verification unless observe mode is explicit', () => {
+  assert.equal(getPublicPhoneVerificationMode(undefined), 'enforce');
+  assert.equal(getPublicPhoneVerificationMode(' observe '), 'observe');
+  assert.equal(getPublicPhoneVerificationMode(' enforce '), 'enforce');
+  assert.throws(() => getPublicPhoneVerificationMode('disabled'), ConfigurationError);
 });

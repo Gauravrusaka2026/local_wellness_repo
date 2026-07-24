@@ -121,7 +121,10 @@ test('BMC routing seed activates only reviewed asset-independent internal routes
   assert.match(routingSeed, /external BMC delivery/u);
   assert.doesNotMatch(routingSeed, /is_complaint_delivery_approved\s*=\s*true/iu);
   assert.match(verificationSeed, /candidate_count <> 66 or covered_case_count <> 66/u);
-  assert.match(verificationSeed, /BMC_EXTERNAL_DELIVERY_APPROVAL_DETECTED/u);
+  assert.doesNotMatch(
+    verificationSeed,
+    /governance\.(?:contact_channels|contact_channel_versions)/u,
+  );
 });
 
 test('committed BMC governance artifacts are current', async () => {

@@ -6,7 +6,7 @@ import {
 } from '@local-wellness/config';
 
 type MobileRuntimeEnvironment = Readonly<{ isNativeRuntime: boolean }>;
-export type PhoneMfaMode = 'enforce' | 'observe';
+export type PhoneVerificationMode = 'enforce' | 'observe';
 
 const readJwtPayload = (key: string): Record<string, unknown> | null => {
   const encodedPayload = key.split('.')[1];
@@ -116,18 +116,21 @@ export const getPublicRealtimeUrl = (): string | null => {
   return value ? parsePublicHttpUrl(value, 'EXPO_PUBLIC_REALTIME_URL') : null;
 };
 
-export const getPublicPhoneMfaMode = (
-  value: string | undefined = process.env.EXPO_PUBLIC_PHONE_MFA_MODE,
-): PhoneMfaMode => {
-  const mode = value?.trim().toLowerCase() || 'observe';
+export const getPublicPhoneVerificationMode = (
+  value: string | undefined = firstConfiguredValue(
+    process.env.EXPO_PUBLIC_PHONE_VERIFICATION_MODE,
+    process.env.EXPO_PUBLIC_PHONE_MFA_MODE,
+  ),
+): PhoneVerificationMode => {
+  const mode = value?.trim().toLowerCase() || 'enforce';
   if (mode !== 'observe' && mode !== 'enforce') {
-    throw new ConfigurationError('EXPO_PUBLIC_PHONE_MFA_MODE must be observe or enforce.');
+    throw new ConfigurationError('EXPO_PUBLIC_PHONE_VERIFICATION_MODE must be observe or enforce.');
   }
   return mode;
 };
 
 export const validateMobileRuntimeEnvironment = (runtime: MobileRuntimeEnvironment): void => {
-  getPublicPhoneMfaMode();
+  getPublicPhoneVerificationMode();
   const supabase = getPublicSupabaseConfiguration();
   assertNativeUrlIsReachable(supabase.url, 'EXPO_PUBLIC_SUPABASE_URL', runtime);
   assertNativeUrlIsReachable(getPublicApiUrl(), 'EXPO_PUBLIC_API_URL', runtime);

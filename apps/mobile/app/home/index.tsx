@@ -27,8 +27,10 @@ import {
 import { AppBottomNavigation } from '../../src/ui/app-bottom-navigation';
 import { CivicIcon, type CivicIconName } from '../../src/ui/civic-icon';
 import { ComplaintCard } from '../../src/ui/complaint-card';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
-import { getTimeGreeting } from '../../src/ui/time-greeting';
+import { mobileTheme } from '../../src/ui/theme';
+import { getTimeGreetingKey } from '../../src/ui/time-greeting';
 import { createProfileImageSignedUrl } from '../../src/profile/profile-image';
 import { getProfile, type Profile } from '../../src/profile/profile-service';
 
@@ -45,6 +47,7 @@ export default function HomeScreen() {
   const auth = useAuth();
   const complaintCapture = useComplaintCapture();
   const router = useRouter();
+  const { locale, setLocale, t } = useLocalization();
   const [dashboardState, setDashboardState] = useState<DashboardState>({ status: 'loading' });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -79,6 +82,9 @@ export default function HomeScreen() {
           const loadedProfile = await getProfile(accessToken);
           if (!isCurrent) return;
           setProfile(loadedProfile);
+          if (loadedProfile.preferredLanguage !== locale) {
+            await setLocale(loadedProfile.preferredLanguage);
+          }
           if (loadedProfile.avatarObjectPath) {
             const url = await createProfileImageSignedUrl(
               getSupabaseClient(),
@@ -99,15 +105,17 @@ export default function HomeScreen() {
       return () => {
         isCurrent = false;
       };
-    }, [accessToken]),
+    }, [accessToken, locale, setLocale]),
   );
 
-  if (auth.state.status === 'loading') return <LoadingScreen label="Restoring your session…" />;
+  if (auth.state.status === 'loading') return <LoadingScreen label={t('restoringSession')} />;
   if (auth.state.status === 'configuration-error') {
-    return <ErrorScreen message={auth.state.message} title="App configuration required" />;
+    return <ErrorScreen message={auth.state.message} title={t('appConfigurationRequired')} />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
-  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
+  if (auth.state.status === 'phone-verification-required') {
+    return <Redirect href="/auth/phone-verification" />;
+  }
 
   const openDraft = async (): Promise<void> => {
     try {
@@ -145,8 +153,8 @@ export default function HomeScreen() {
     (category) => category.submissionAvailability === 'available',
   ).length;
   const displayName =
-    profile?.displayName ?? auth.state.session.user.email?.split('@')[0] ?? 'Citizen';
-  const greeting = getTimeGreeting(new Date());
+    profile?.displayName ?? auth.state.session.user.email?.split('@')[0] ?? t('citizen');
+  const greeting = t(getTimeGreetingKey(new Date()));
   const initial = displayName.trim().charAt(0).toUpperCase() || 'C';
 
   return (
@@ -164,7 +172,7 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <Pressable
-            accessibilityLabel="Open profile"
+            accessibilityLabel={t('openProfile')}
             accessibilityRole="button"
             onPress={() => router.push('/profile')}
             style={styles.avatar}
@@ -187,7 +195,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.headerActions}>
             <HeaderAction
-              accessibilityLabel="Open notifications"
+              accessibilityLabel={t('openNotifications')}
               icon="bell"
               onPress={() => router.push('/notifications')}
             />
@@ -195,58 +203,57 @@ export default function HomeScreen() {
         </View>
 
         <Pressable
-          accessibilityHint="Opens all services and app destinations"
-          accessibilityLabel="Browse services, reports and offices"
+          accessibilityHint={t('browseServicesHint')}
+          accessibilityLabel={t('searchServices')}
           accessibilityRole="button"
           onPress={() => router.push('/menu')}
           style={({ pressed }) => [styles.searchBar, pressed && styles.buttonPressed]}
         >
-          <CivicIcon color="#84908a" name="search" />
-          <Text style={styles.searchText}>Search services, reports or offices</Text>
+          <CivicIcon color={mobileTheme.colors.muted} name="search" />
+          <Text style={styles.searchText}>{t('searchServices')}</Text>
           <View style={styles.searchFilter}>
-            <CivicIcon color="#ffffff" name="filter" />
+            <CivicIcon color={mobileTheme.colors.white} name="filter" />
           </View>
         </Pressable>
 
         <View style={styles.sectionHeader}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>
-            Quick actions
+            {t('quickActions')}
           </Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push('/menu')}
             style={styles.textButton}
           >
-            <Text style={styles.textButtonLabel}>View all</Text>
+            <Text style={styles.textButtonLabel}>{t('viewAll')}</Text>
           </Pressable>
         </View>
         <View style={styles.quickActions}>
           <QuickAction
-            color="#16834a"
+            color={mobileTheme.colors.success}
             disabled={complaintCapture.state.isBusy || !complaintCapture.state.isOnline}
             icon="complaint"
             isLoading={complaintCapture.state.isBusy}
-            label={complaintCapture.state.draft ? 'Resume report' : 'Raise complaint'}
+            label={complaintCapture.state.draft ? t('resumeReport') : t('raiseComplaint')}
             onPress={() => void openDraft()}
           />
           <QuickAction
-            color="#1769aa"
+            color={mobileTheme.colors.info}
             icon="status"
-            label="Track status"
+            label={t('trackStatus')}
             onPress={() => router.push('/complaints')}
           />
           <QuickAction
-            color="#e77817"
+            color={mobileTheme.colors.accent}
             icon="location"
-            label="Nearby offices"
+            label={t('nearbyOffices')}
             onPress={() => router.push('/governance' as Href)}
           />
         </View>
 
         {!complaintCapture.state.isOnline ? (
           <Text accessibilityRole="alert" style={styles.warning}>
-            You are offline. Saved reports remain on this device, but server actions need a
-            connection.
+            {t('offlineNotice')}
           </Text>
         ) : null}
         {complaintCapture.state.error === null ? null : (
@@ -260,14 +267,14 @@ export default function HomeScreen() {
             onPress={() => void complaintCapture.retryPendingUpload()}
             style={styles.retryButton}
           >
-            <Text style={styles.retryText}>Retry pending private upload</Text>
+            <Text style={styles.retryText}>{t('retryPendingUpload')}</Text>
           </Pressable>
         ) : null}
 
         <View style={styles.sectionHeader}>
           <View>
             <Text accessibilityRole="header" style={styles.sectionTitle}>
-              Complaint overview
+              {t('complaintOverview')}
             </Text>
           </View>
           <Pressable
@@ -275,14 +282,17 @@ export default function HomeScreen() {
             onPress={() => router.push('/complaints')}
             style={styles.textButton}
           >
-            <Text style={styles.textButtonLabel}>View all</Text>
+            <Text style={styles.textButtonLabel}>{t('viewAll')}</Text>
           </Pressable>
         </View>
 
         {dashboardState.status === 'loading' ? (
           <View accessibilityLiveRegion="polite" style={styles.loadingCard}>
-            <ActivityIndicator accessibilityLabel="Loading complaint summary" color="#216b42" />
-            <Text style={styles.loadingText}>Loading your activity…</Text>
+            <ActivityIndicator
+              accessibilityLabel={t('loadingActivity')}
+              color={mobileTheme.colors.primary}
+            />
+            <Text style={styles.loadingText}>{t('loadingActivity')}</Text>
           </View>
         ) : dashboardState.status === 'error' ? (
           <View style={styles.inlineErrorCard}>
@@ -294,31 +304,35 @@ export default function HomeScreen() {
               onPress={() => void refreshDashboard()}
               style={styles.inlineRetry}
             >
-              <Text style={styles.inlineRetryText}>Try again</Text>
+              <Text style={styles.inlineRetryText}>{t('tryAgain')}</Text>
             </Pressable>
           </View>
         ) : (
           <View style={styles.metricsRow}>
             <MetricCard
-              label={dashboardState.hasMore ? 'Recent' : 'Total'}
+              label={dashboardState.hasMore ? t('recent') : t('total')}
               tone="neutral"
               value={dashboardSummary?.total ?? 0}
             />
-            <MetricCard label="Active" tone="active" value={dashboardSummary?.active ?? 0} />
+            <MetricCard label={t('active')} tone="active" value={dashboardSummary?.active ?? 0} />
             <MetricCard
-              label="Needs you"
+              label={t('needsYou')}
               tone="attention"
               value={dashboardSummary?.attention ?? 0}
             />
-            <MetricCard label="Resolved" tone="resolved" value={dashboardSummary?.resolved ?? 0} />
+            <MetricCard
+              label={t('resolved')}
+              tone="resolved"
+              value={dashboardSummary?.resolved ?? 0}
+            />
           </View>
         )}
 
         {dashboardState.status === 'ready' ? (
           recentComplaints.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No complaints submitted yet</Text>
-              <Text style={styles.emptyText}>New reports and updates will appear here.</Text>
+              <Text style={styles.emptyTitle}>{t('noComplaintsSubmitted')}</Text>
+              <Text style={styles.emptyText}>{t('newReportsHere')}</Text>
             </View>
           ) : (
             <View style={styles.cardList}>
@@ -334,43 +348,39 @@ export default function HomeScreen() {
         ) : null}
 
         <Pressable
-          accessibilityHint="Uses your location to find verified public governing bodies"
+          accessibilityHint={t('governingBodiesHint')}
           accessibilityRole="button"
           onPress={() => router.push('/governance' as Href)}
           style={({ pressed }) => [styles.nearbyCard, pressed && styles.buttonPressed]}
         >
           <View style={styles.nearbyIcon}>
-            <Text accessibilityElementsHidden style={styles.nearbyIconText}>
-              ◎
-            </Text>
+            <CivicIcon color={mobileTheme.colors.primary} name="office" />
           </View>
           <View style={styles.nearbyCopy}>
-            <Text style={styles.nearbyTitle}>Your governing bodies</Text>
+            <Text style={styles.nearbyTitle}>{t('yourGoverningBodies')}</Text>
           </View>
-          <Text accessibilityElementsHidden style={styles.nearbyChevron}>
-            ›
-          </Text>
+          <CivicIcon color={mobileTheme.colors.primary} name="chevron-right" />
         </Pressable>
 
         {availableCategoryCount === 0 && !complaintCapture.state.isBusy ? (
           <View style={styles.coverageCard}>
-            <Text style={styles.coverageTitle}>Routing coverage</Text>
+            <Text style={styles.coverageTitle}>{t('routingCoverage')}</Text>
             <Text accessibilityRole="alert" style={styles.coverageText}>
-              Verified routing is not available in this environment yet.
+              {t('routingUnavailable')}
             </Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => void complaintCapture.reloadCategories().catch(() => undefined)}
               style={({ pressed }) => [styles.coverageButton, pressed && styles.buttonPressed]}
             >
-              <Text style={styles.coverageButtonText}>Refresh categories</Text>
+              <Text style={styles.coverageButtonText}>{t('refreshCategories')}</Text>
             </Pressable>
           </View>
         ) : null}
 
         <View style={styles.emergencyCard}>
-          <Text style={styles.emergencyTitle}>Immediate danger? Call 112.</Text>
-          <Text style={styles.emergencyText}>Complaints are not emergency dispatch.</Text>
+          <Text style={styles.emergencyTitle}>{t('immediateDanger')}</Text>
+          <Text style={styles.emergencyText}>{t('complaintsNotEmergency')}</Text>
         </View>
       </ScrollView>
       <AppBottomNavigation current="home" />
@@ -411,29 +421,36 @@ const QuickAction = ({
   isLoading?: boolean;
   label: string;
   onPress: () => void;
-}>) => (
-  <Pressable
-    accessibilityLabel={label}
-    accessibilityRole="button"
-    accessibilityState={{ busy: isLoading, disabled }}
-    disabled={disabled}
-    onPress={onPress}
-    style={({ pressed }) => [
-      styles.quickAction,
-      pressed && styles.buttonPressed,
-      disabled && styles.quickActionDisabled,
-    ]}
-  >
-    <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
-      {isLoading ? (
-        <ActivityIndicator accessibilityLabel="Preparing report" color="#ffffff" size="small" />
-      ) : (
-        <CivicIcon color="#ffffff" name={icon} />
-      )}
-    </View>
-    <Text style={styles.quickActionLabel}>{label}</Text>
-  </Pressable>
-);
+}>) => {
+  const { t } = useLocalization();
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ busy: isLoading, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.quickAction,
+        pressed && styles.buttonPressed,
+        disabled && styles.quickActionDisabled,
+      ]}
+    >
+      <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
+        {isLoading ? (
+          <ActivityIndicator
+            accessibilityLabel={t('preparingReport')}
+            color={mobileTheme.colors.white}
+            size="small"
+          />
+        ) : (
+          <CivicIcon color={mobileTheme.colors.white} name={icon} />
+        )}
+      </View>
+      <Text style={styles.quickActionLabel}>{label}</Text>
+    </Pressable>
+  );
+};
 
 const MetricCard = ({
   label,
@@ -466,8 +483,8 @@ const MetricCard = ({
 const styles = StyleSheet.create({
   avatar: {
     alignItems: 'center',
-    backgroundColor: '#e7f7ed',
-    borderColor: '#fff',
+    backgroundColor: mobileTheme.colors.primarySoft,
+    borderColor: mobileTheme.colors.white,
     borderRadius: 27,
     borderWidth: 2,
     height: 54,
@@ -476,12 +493,17 @@ const styles = StyleSheet.create({
     width: 54,
   },
   avatarImage: { height: '100%', width: '100%' },
-  avatarInitial: { color: '#17683b', fontSize: 21, fontWeight: '900' },
+  avatarInitial: { color: mobileTheme.colors.primary, fontSize: 20, fontWeight: '900' },
   brandBlock: { flex: 1, gap: 3 },
   buttonPressed: { opacity: 0.76 },
   cardList: { gap: 11 },
-  content: { gap: 18, padding: 20, paddingBottom: 26 },
-  coverageCard: { backgroundColor: '#fff9e9', borderRadius: 16, gap: 6, padding: 16 },
+  content: { gap: 14, padding: 16, paddingBottom: 22 },
+  coverageCard: {
+    backgroundColor: mobileTheme.colors.warningSoft,
+    borderRadius: mobileTheme.radius.large,
+    gap: 6,
+    padding: 14,
+  },
   coverageButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -489,30 +511,55 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingTop: 5,
   },
-  coverageButtonText: { color: '#17683b', fontWeight: '900' },
-  coverageText: { color: '#785516', lineHeight: 21 },
-  coverageTitle: { color: '#63430e', fontSize: 16, fontWeight: '800' },
+  coverageButtonText: { color: mobileTheme.colors.primary, fontWeight: '900' },
+  coverageText: {
+    color: mobileTheme.colors.warning,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+  },
+  coverageTitle: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '800',
+  },
   emergencyCard: {
-    backgroundColor: '#fff3ed',
+    backgroundColor: mobileTheme.colors.accentSoft,
     borderColor: '#ffd0ba',
-    borderRadius: 16,
+    borderRadius: mobileTheme.radius.large,
     borderWidth: 1,
     gap: 6,
     padding: 16,
   },
-  emergencyText: { color: '#7c3518', lineHeight: 21 },
-  emergencyTitle: { color: '#8f3412', fontSize: 17, fontWeight: '800' },
+  emergencyText: {
+    color: '#7c3518',
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+  },
+  emergencyTitle: {
+    color: '#8f3412',
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '800',
+  },
   emptyCard: {
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#e1e8e3',
-    borderRadius: 18,
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
+    borderRadius: mobileTheme.radius.large,
     borderWidth: 1,
     gap: 7,
     padding: 24,
   },
-  emptyText: { color: '#65776b', lineHeight: 21, textAlign: 'center' },
-  emptyTitle: { color: '#193b29', fontSize: 18, fontWeight: '800' },
+  emptyText: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+    textAlign: 'center',
+  },
+  emptyTitle: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '800',
+  },
   error: {
     backgroundColor: '#fff0f0',
     borderRadius: 12,
@@ -520,12 +567,16 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     padding: 14,
   },
-  greeting: { color: '#64748b', fontSize: 13, fontWeight: '600' },
+  greeting: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.helper,
+    fontWeight: '600',
+  },
   header: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 8 },
   headerAction: {
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#dde7e0',
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
     borderRadius: 14,
     borderWidth: 1,
     height: 44,
@@ -545,23 +596,19 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 18,
   },
-  loadingText: { color: '#5a6f61' },
+  loadingText: { color: mobileTheme.colors.muted, fontSize: mobileTheme.type.body },
   quickActions: { flexDirection: 'row', gap: 10 },
   quickAction: {
+    ...mobileTheme.shadow.surface,
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderColor: '#e0e7e2',
-    borderRadius: 18,
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
+    borderRadius: mobileTheme.radius.large,
     borderWidth: 1,
-    elevation: 2,
     flex: 1,
-    gap: 9,
-    minHeight: 122,
-    padding: 12,
-    shadowColor: '#173c28',
-    shadowOffset: { height: 3, width: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 7,
+    gap: 8,
+    minHeight: 106,
+    padding: 10,
   },
   quickActionDisabled: { opacity: 0.55 },
   quickActionIcon: {
@@ -573,31 +620,31 @@ const styles = StyleSheet.create({
   },
   quickActionLabel: {
     color: '#263241',
-    fontSize: 13,
+    fontSize: mobileTheme.type.helper,
     fontWeight: '800',
     lineHeight: 17,
     textAlign: 'center',
   },
   searchBar: {
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderColor: '#dce5df',
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
     borderRadius: 16,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 10,
-    minHeight: 54,
+    minHeight: 50,
     paddingHorizontal: 13,
   },
   searchFilter: {
     alignItems: 'center',
-    backgroundColor: '#16834a',
+    backgroundColor: mobileTheme.colors.success,
     borderRadius: 11,
     height: 36,
     justifyContent: 'center',
     width: 36,
   },
-  searchText: { color: '#8a9490', flex: 1, fontSize: 14 },
+  searchText: { color: mobileTheme.colors.muted, flex: 1, fontSize: mobileTheme.type.body },
   metricActive: { backgroundColor: '#e9f1ff' },
   metricAttention: { backgroundColor: '#fff4df' },
   metricCard: { borderRadius: 16, flex: 1, gap: 3, minWidth: '46%', padding: 14 },
@@ -605,7 +652,7 @@ const styles = StyleSheet.create({
   metricNeutral: { backgroundColor: '#edf3ef' },
   metricResolved: { backgroundColor: '#e8f7ed' },
   metricsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metricValue: { color: '#173c28', fontSize: 25, fontWeight: '900' },
+  metricValue: { color: mobileTheme.colors.text, fontSize: 22, fontWeight: '900' },
   nearbyCard: {
     alignItems: 'center',
     backgroundColor: '#eef8f1',
@@ -616,7 +663,6 @@ const styles = StyleSheet.create({
     gap: 13,
     padding: 16,
   },
-  nearbyChevron: { color: '#286443', fontSize: 28 },
   nearbyCopy: { flex: 1 },
   nearbyIcon: {
     alignItems: 'center',
@@ -626,8 +672,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 46,
   },
-  nearbyIconText: { color: '#17683b', fontSize: 24 },
-  nearbyTitle: { color: '#17492c', fontSize: 16, fontWeight: '800' },
+  nearbyTitle: {
+    color: mobileTheme.colors.primaryDark,
+    fontSize: mobileTheme.type.body,
+    fontWeight: '800',
+  },
   retryButton: {
     alignItems: 'center',
     borderColor: '#b57817',
@@ -639,10 +688,14 @@ const styles = StyleSheet.create({
   },
   retryText: { color: '#89590d', fontWeight: '800' },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  sectionTitle: { color: '#173b27', fontSize: 20, fontWeight: '900' },
+  sectionTitle: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '900',
+  },
   textButton: { justifyContent: 'center', minHeight: 44, paddingHorizontal: 4 },
   textButtonLabel: { color: '#217044', fontSize: 14, fontWeight: '800' },
-  title: { color: '#153b27', fontSize: 26, fontWeight: '900' },
+  title: { color: mobileTheme.colors.text, fontSize: mobileTheme.type.title, fontWeight: '900' },
   warning: {
     backgroundColor: '#fff8e8',
     borderRadius: 12,

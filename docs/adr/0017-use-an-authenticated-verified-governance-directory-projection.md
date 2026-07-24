@@ -29,8 +29,14 @@ Expose one bearer-authenticated NestJS endpoint backed by a service-role-only Po
   function; reject accuracy worse than 100 metres before database resolution.
 - Return only active, verified, routing-eligible, non-placeholder governance entities whose entity
   and boundary provenance use active official sources.
-- Return citizen-safe entity kind, name, type, verification date, and official source URL. Do not
-  return internal UUIDs, geometry, officers, phone numbers, emails, or private office contacts.
+- Return citizen-safe entity kind, name, type, verification date, and official source URL. The
+  separately approved ADR-0037 extension may also return an optional bounded `offices` collection
+  from active, verified, non-placeholder `governance.offices` rows with active official HTTPS
+  provenance. Each office contains only name, type, optional public address/phone/email,
+  verification date, and source URL.
+- Do not return internal UUIDs, geometry, officers, officer mobile numbers, WhatsApp contacts,
+  private complaint recipients, routing evidence, or any value from
+  `routing.ward_issue_contacts`.
 - Represent zero, one, or multiple valid matches explicitly as `unsupported`, `resolved`, or
   `ambiguous`; never choose an arbitrary match. Represent insufficient accuracy as `low_accuracy`.
 - Keep the database function executable only by `service_role`; `anon` and `authenticated` clients
@@ -61,15 +67,19 @@ and could misdirect a citizen when boundaries or assignments change.
 - Mobile can provide a useful, provenance-linked directory when verified records exist.
 - Staging remains honestly empty until the additive migration and reviewed official geometry are
   applied.
-- Contacts and officer assignments remain unavailable on this endpoint until their publication and
-  verification rules are separately approved.
+- Sanitized public office contacts are available only under ADR-0037's publication and scope
+  rules. Officer assignments and private routing recipients remain unavailable.
 - Every lookup reaches the trusted API/database boundary; no Redis cache is introduced.
 
 ## Implementation Notes
 
 - Migration `20260716104000_verified_governing_body_projection.sql` creates the narrow function.
+- Migration `20260724120000_verified_civic_area_office_contacts.sql` extends the JSON projection
+  without changing its SQL signature. The byte-identical, rerunnable SQL Editor artifact is
+  `supabase/deploy/civic-area-office-contacts.sql`.
 - `POST /api/v1/governance/bodies/resolve` accepts only bounded location evidence.
-- Strict shared Zod schemas reject undeclared, unverified, or private response fields.
+- Strict shared Zod schemas accept the optional sanitized office collection for rolling deployment
+  compatibility and reject undeclared, unverified, or private response fields.
 - pgTAP and API/store/mobile tests cover grants, placeholder exclusion, official provenance,
   ambiguity, accuracy, private-field rejection, and no-ID mobile responses.
 - Redis, BullMQ, Redis adapters/caching, Sentry, and direct client governance reads remain absent.
@@ -78,6 +88,7 @@ and could misdirect a citizen when boundaries or assignments change.
 
 - `docs/adr/0008-use-a-normalized-provenance-aware-governance-registry.md`
 - `docs/adr/0009-use-database-evidence-for-deterministic-routing.md`
+- `docs/adr/0037-expose-sanitized-civic-area-office-contacts.md`
 - `docs/architecture.md`
 - `docs/database.md`
 - `docs/api.md`

@@ -80,13 +80,23 @@ content_path = "./supabase/templates/invite.html"
 
 [auth.sms]
 enable_signup = true
-enable_confirmations = false
+enable_confirmations = true
 template = "Your Local Wellness verification code is {{ .Code }}"
 max_frequency = "1m"
 
 # Local-only deterministic OTP. Never copy this mapping to a managed environment.
 [auth.sms.test_otp]
 12025550123 = "123456"
+12025550124 = "654321"
+12025550125 = "111222"
+
+# The local Auth container requires a provider to expose ordinary Phone Auth.
+# These non-secret placeholders are never contacted for the mapped test numbers above.
+[auth.sms.twilio_verify]
+enabled = true
+account_sid = "AC00000000000000000000000000000000"
+message_service_sid = "VA00000000000000000000000000000000"
+auth_token = "local-test-auth-token"
 
 [auth.mfa]
 max_enrolled_factors = 10
@@ -96,10 +106,11 @@ enroll_enabled = true
 verify_enabled = true
 
 [auth.mfa.phone]
-enroll_enabled = true
-verify_enabled = true
+enroll_enabled = false
+verify_enabled = false
 otp_length = 6
 max_frequency = "1m"
 
-[functions.governance-sync-fetch]
-verify_jwt = false
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_require_email_identity"

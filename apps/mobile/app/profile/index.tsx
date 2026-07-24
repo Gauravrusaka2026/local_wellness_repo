@@ -1,7 +1,7 @@
 import type { Href } from 'expo-router';
 import { Link, Redirect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,12 +18,18 @@ import {
 import { getUserFacingApiError } from '../../src/api/client';
 import { useAuth } from '../../src/auth/auth-context';
 import { getUserFacingAuthError } from '../../src/auth/auth-service';
-import { getPublicPhoneMfaMode } from '../../src/config/environment';
+import { getPublicPhoneVerificationMode } from '../../src/config/environment';
+import {
+  getUserFacingInAppBrowserError,
+  openSecureExternalPage,
+} from '../../src/device/in-app-browser';
 import { useDeviceRegistration } from '../../src/device/use-device-registration';
 import {
-  captureCurrentLocation,
+  getCurrentAreaLocation,
+  getCurrentAreaLocationAutomatically,
   requiresLocationPermissionSettings,
-} from '../../src/complaints/location-service';
+} from '../../src/location/device-location';
+import { useAutomaticForegroundLocation } from '../../src/location/use-automatic-foreground-location';
 import {
   getUserFacingGovernanceError,
   resolveGoverningBodies,
@@ -51,7 +57,9 @@ import {
   type ProfilePhotoSource,
 } from '../../src/profile/profile-photo-picker';
 import { getSupabaseClient } from '../../src/auth/supabase';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
+import { mobileTheme } from '../../src/ui/theme';
 
 type ProfileLoadState =
   | Readonly<{ status: 'error'; message: string }>
@@ -73,6 +81,7 @@ const SignedInProfile = ({
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const deviceRegistration = useDeviceRegistration(accessToken);
+  const { t } = useLocalization();
 
   useEffect(() => {
     let isCurrent = true;
@@ -113,7 +122,7 @@ const SignedInProfile = ({
   };
 
   if (profileState.status === 'loading') {
-    return <LoadingScreen label="Loading your profile…" />;
+    return <LoadingScreen label={t('loadingProfile')} />;
   }
 
   if (profileState.status === 'error') {
@@ -121,7 +130,7 @@ const SignedInProfile = ({
       <Screen>
         <View style={styles.centeredPanel}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>
-            Your profile is unavailable
+            {t('profileUnavailable')}
           </Text>
           <Text accessibilityRole="alert" style={styles.errorText}>
             {profileState.message}
@@ -133,7 +142,7 @@ const SignedInProfile = ({
             }}
             style={styles.primaryButton}
           >
-            <Text style={styles.primaryButtonText}>Try again</Text>
+            <Text style={styles.primaryButtonText}>{t('tryAgain')}</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -143,7 +152,7 @@ const SignedInProfile = ({
             }}
             style={styles.secondaryButton}
           >
-            <Text style={styles.secondaryButtonText}>Sign out</Text>
+            <Text style={styles.secondaryButtonText}>{t('signOut')}</Text>
           </Pressable>
         </View>
       </Screen>
@@ -178,6 +187,7 @@ const ProfileImageCard = ({
   onProfileUpdated,
   profile,
 }: Readonly<{ onProfileUpdated: (profile: Profile) => void; profile: Profile }>) => {
+  const { t } = useLocalization();
   const [avatarLoadError, setAvatarLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -229,7 +239,7 @@ const ProfileImageCard = ({
 
   const upload = async (): Promise<void> => {
     if (!selectedAsset) {
-      setError('Choose a JPEG, PNG, or WebP image first.');
+      setError(t('chooseImageFirst'));
       return;
     }
     setError(null);
@@ -243,8 +253,8 @@ const ProfileImageCard = ({
       onProfileUpdated(result.profile);
       setSuccess(
         result.previousObjectCleanupFailed
-          ? 'Your photo was saved. An older private image is awaiting cleanup.'
-          : 'Your private profile photo was saved.',
+          ? t('profilePhotoCleanupPending')
+          : t('profilePhotoSaved'),
       );
     } catch (uploadError) {
       setError(getProfileImageError(uploadError));
@@ -254,8 +264,8 @@ const ProfileImageCard = ({
   };
 
   const confirmRemoval = (): void => {
-    Alert.alert('Remove profile photo?', 'The private image will be permanently removed.', [
-      { style: 'cancel', text: 'Keep photo' },
+    Alert.alert(t('removeProfilePhotoQuestion'), t('removeProfilePhotoBody'), [
+      { style: 'cancel', text: t('keepPhoto') },
       {
         onPress: () => {
           setError(null);
@@ -267,7 +277,7 @@ const ProfileImageCard = ({
               setSignedUrl(null);
               setAvatarLoadError(null);
               onProfileUpdated(updatedProfile);
-              setSuccess('Your private profile photo was removed.');
+              setSuccess(t('profilePhotoRemoved'));
             })
             .catch((removalError: unknown) => {
               setError(getProfileImageError(removalError));
@@ -275,7 +285,7 @@ const ProfileImageCard = ({
             .finally(() => setIsPending(false));
         },
         style: 'destructive',
-        text: 'Remove',
+        text: t('remove'),
       },
     ]);
   };
@@ -286,18 +296,18 @@ const ProfileImageCard = ({
       <View style={styles.avatarHeading}>
         <View style={styles.avatarCopy}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>
-            Profile photo
+            {t('profilePhoto')}
           </Text>
-          <Text style={styles.mutedText}>Visible only to your account.</Text>
+          <Text style={styles.mutedText}>{t('profilePhotoPrivate')}</Text>
         </View>
-        <View accessibilityLabel="Current profile photo" style={styles.avatarPreview}>
+        <View accessibilityLabel={t('currentProfilePhoto')} style={styles.avatarPreview}>
           {previewUrl ? (
             <Image
-              accessibilityLabel="Citizen profile photo"
+              accessibilityLabel={t('profilePhotoCurrentAccessibility')}
               onError={() => {
                 if (!selectedAsset) {
                   setSignedUrl(null);
-                  setAvatarLoadError('The profile photo is temporarily unavailable.');
+                  setAvatarLoadError(t('profilePhotoUnavailable'));
                 }
               }}
               source={{ uri: previewUrl }}
@@ -310,7 +320,7 @@ const ProfileImageCard = ({
           )}
         </View>
       </View>
-      <Text style={styles.mutedText}>JPEG, PNG or WebP · max 5 MiB</Text>
+      <Text style={styles.mutedText}>{t('profilePhotoFormatHint')}</Text>
       <View style={styles.avatarActions}>
         <Pressable
           accessibilityRole="button"
@@ -318,7 +328,7 @@ const ProfileImageCard = ({
           onPress={() => void choose('camera')}
           style={styles.secondaryButton}
         >
-          <Text style={styles.secondaryButtonText}>Take photo</Text>
+          <Text style={styles.secondaryButtonText}>{t('takePhoto')}</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -326,7 +336,7 @@ const ProfileImageCard = ({
           onPress={() => void choose('library')}
           style={styles.secondaryButton}
         >
-          <Text style={styles.secondaryButtonText}>Choose from library</Text>
+          <Text style={styles.secondaryButtonText}>{t('chooseLibrary')}</Text>
         </Pressable>
         {selectedAsset ? (
           <Pressable
@@ -336,10 +346,10 @@ const ProfileImageCard = ({
             style={styles.primaryButton}
           >
             {isPending ? (
-              <ActivityIndicator accessibilityLabel="Uploading profile photo" color="#fff" />
+              <ActivityIndicator accessibilityLabel={t('uploadingProfilePhoto')} color="#fff" />
             ) : (
               <Text style={styles.primaryButtonText}>
-                {profile.avatarObjectPath ? 'Replace photo' : 'Upload photo'}
+                {t(profile.avatarObjectPath ? 'replacePhoto' : 'uploadPhoto')}
               </Text>
             )}
           </Pressable>
@@ -352,7 +362,7 @@ const ProfileImageCard = ({
           onPress={confirmRemoval}
           style={styles.removeAvatarButton}
         >
-          <Text style={styles.removeAvatarText}>Remove photo</Text>
+          <Text style={styles.removeAvatarText}>{t('removeProfilePhoto')}</Text>
         </Pressable>
       ) : null}
       {settingsSource ? (
@@ -362,7 +372,9 @@ const ProfileImageCard = ({
           style={styles.secondaryButton}
         >
           <Text style={styles.secondaryButtonText}>
-            Open {settingsSource === 'camera' ? 'camera' : 'photo'} settings
+            {settingsSource === 'camera'
+              ? t('openCameraSettings')
+              : t('openProfilePhotoSettings', { source: t('photo') })}
           </Text>
         </Pressable>
       ) : null}
@@ -392,46 +404,86 @@ type CivicAreaLookupState =
   | Readonly<{ area: ProfileCivicArea; status: 'ready' }>;
 
 const CurrentCivicAreaCard = ({ accessToken }: Readonly<{ accessToken: string }>) => {
+  const { formatDate, t } = useLocalization();
   const [state, setState] = useState<CivicAreaLookupState>({ status: 'idle' });
+  const [isOpeningSource, setIsOpeningSource] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
   const resolvedArea =
     state.status === 'ready' && state.area.status === 'resolved' ? state.area : null;
   const unresolvedArea =
     state.status === 'ready' && state.area.status !== 'resolved' ? state.area : null;
 
-  const locate = async (): Promise<void> => {
-    setState({ status: 'loading' });
+  const locate = useCallback(
+    async (mode: 'automatic' | 'explicit'): Promise<boolean> => {
+      setState({ status: 'loading' });
+      setSourceError(null);
+      try {
+        const location =
+          mode === 'automatic'
+            ? await getCurrentAreaLocationAutomatically()
+            : await getCurrentAreaLocation({ forceRefresh: true });
+        if (location === null) {
+          setState({ status: 'idle' });
+          return false;
+        }
+        const resolution = await resolveGoverningBodies(accessToken, location);
+        setState({ area: createProfileCivicArea(resolution), status: 'ready' });
+        return true;
+      } catch (lookupError) {
+        setState({
+          locationSettingsRequired: requiresLocationPermissionSettings(lookupError),
+          message: getUserFacingGovernanceError(lookupError),
+          status: 'error',
+        });
+        throw lookupError;
+      }
+    },
+    [accessToken],
+  );
+
+  const locationController = useAutomaticForegroundLocation({
+    attemptKey: 'profile-civic-area',
+    automaticAcquire: () => locate('automatic'),
+    enabled: true,
+    explicitAcquire: () => locate('explicit'),
+  });
+  const isLocating = locationController.status === 'checking' || state.status === 'loading';
+
+  const openOfficialSource = async (sourceUrl: string): Promise<void> => {
+    if (isOpeningSource) return;
+    setIsOpeningSource(true);
+    setSourceError(null);
     try {
-      const location = await captureCurrentLocation();
-      const resolution = await resolveGoverningBodies(accessToken, location);
-      setState({ area: createProfileCivicArea(resolution), status: 'ready' });
-    } catch (lookupError) {
-      setState({
-        locationSettingsRequired: requiresLocationPermissionSettings(lookupError),
-        message: getUserFacingGovernanceError(lookupError),
-        status: 'error',
-      });
+      await openSecureExternalPage(sourceUrl);
+    } catch (openError) {
+      setSourceError(getUserFacingInAppBrowserError(openError));
+    } finally {
+      setIsOpeningSource(false);
     }
   };
 
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.sectionTitle}>
-        Current civic area
+        {t('currentCivicArea')}
       </Text>
-      <Text style={styles.mutedText}>Find your verified ward and local body.</Text>
+      <Text style={styles.mutedText}>{t('governingBodiesHint')}</Text>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ disabled: state.status === 'loading' }}
-        disabled={state.status === 'loading'}
-        onPress={() => void locate()}
+        accessibilityState={{ disabled: isLocating }}
+        disabled={isLocating}
+        onPress={() => void locationController.refresh().catch(() => undefined)}
         style={styles.secondaryButton}
       >
-        {state.status === 'loading' ? (
-          <ActivityIndicator accessibilityLabel="Finding current civic area" color="#166534" />
+        {isLocating ? (
+          <ActivityIndicator
+            accessibilityLabel={t('findingCivicArea')}
+            color={mobileTheme.colors.primary}
+          />
         ) : (
           <Text style={styles.secondaryButtonText}>
-            {state.status === 'ready' ? 'Refresh current area' : 'Use my current location'}
+            {t(state.status === 'ready' ? 'refreshCurrentArea' : 'useCurrentLocation')}
           </Text>
         )}
       </Pressable>
@@ -443,7 +495,7 @@ const CurrentCivicAreaCard = ({ accessToken }: Readonly<{ accessToken: string }>
           </Text>
           {state.locationSettingsRequired ? (
             <Pressable accessibilityRole="button" onPress={() => void Linking.openSettings()}>
-              <Text style={styles.secondaryButtonText}>Open location settings</Text>
+              <Text style={styles.secondaryButtonText}>{t('openLocationSettings')}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -451,30 +503,41 @@ const CurrentCivicAreaCard = ({ accessToken }: Readonly<{ accessToken: string }>
 
       {resolvedArea ? (
         <View accessibilityLiveRegion="polite" style={styles.civicAreaResult}>
-          <Text style={styles.verifiedText}>Official-source verified</Text>
+          <Text style={styles.verifiedText}>{t('officialSourceVerified')}</Text>
           <View style={styles.civicAreaRow}>
-            <Text style={styles.civicAreaLabel}>Ward</Text>
-            <Text style={styles.civicAreaValue}>{resolvedArea.wardName ?? 'No ward returned'}</Text>
+            <Text style={styles.civicAreaLabel}>{t('ward')}</Text>
+            <Text style={styles.civicAreaValue}>
+              {resolvedArea.wardName ?? t('noWardReturned')}
+            </Text>
           </View>
           <View style={styles.civicAreaRow}>
-            <Text style={styles.civicAreaLabel}>Local body</Text>
+            <Text style={styles.civicAreaLabel}>{t('localBody')}</Text>
             <Text style={styles.civicAreaValue}>{resolvedArea.localBodyName}</Text>
           </View>
           <View style={styles.civicAreaRow}>
-            <Text style={styles.civicAreaLabel}>Authority</Text>
+            <Text style={styles.civicAreaLabel}>{t('authority')}</Text>
             <Text style={styles.civicAreaValue}>{resolvedArea.authorityName}</Text>
           </View>
           <Text style={styles.mutedText}>
-            Last verified {new Date(resolvedArea.lastVerifiedOn).toLocaleDateString()}
+            {t('lastVerified', { date: formatDate(resolvedArea.lastVerifiedOn) })}
           </Text>
           <Pressable
-            accessibilityHint="Opens the official verification source"
+            accessibilityHint={t('officialSourceHint')}
             accessibilityRole="link"
-            onPress={() => void Linking.openURL(resolvedArea.sourceUrl)}
+            accessibilityState={{ disabled: isOpeningSource }}
+            disabled={isOpeningSource}
+            onPress={() => void openOfficialSource(resolvedArea.sourceUrl)}
             style={styles.sourceLink}
           >
-            <Text style={styles.secondaryButtonText}>View official source</Text>
+            <Text style={styles.secondaryButtonText}>
+              {t(isOpeningSource ? 'openingOfficialSource' : 'viewOfficialSource')}
+            </Text>
           </Pressable>
+          {sourceError === null ? null : (
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              {sourceError}
+            </Text>
+          )}
         </View>
       ) : null}
 
@@ -482,17 +545,19 @@ const CurrentCivicAreaCard = ({ accessToken }: Readonly<{ accessToken: string }>
         <View accessibilityLiveRegion="polite" style={styles.inlineResult}>
           <Text style={styles.civicAreaValue}>
             {unresolvedArea.status === 'ambiguous'
-              ? 'Boundary review is needed'
+              ? t('boundaryReviewNeeded')
               : unresolvedArea.status === 'low_accuracy'
-                ? 'A more precise location is needed'
-                : 'Verified coverage is not available here yet'}
+                ? t('preciseLocationNeeded')
+                : t('coverageUnavailable')}
           </Text>
           <Text style={styles.mutedText}>
             {unresolvedArea.status === 'ambiguous'
-              ? 'More than one verified boundary matched. JagrukSetu will not guess your civic area.'
+              ? t('boundaryAmbiguousBody')
               : unresolvedArea.status === 'low_accuracy'
-                ? `Move into an open area and try again. Accuracy must be within ${unresolvedArea.maximumAccuracyMeters} metres.`
-                : 'No placeholder or unverified governing body has been added to your profile.'}
+                ? t('lowAccuracyGuidance', {
+                    accuracy: unresolvedArea.maximumAccuracyMeters,
+                  })
+                : t('noPlaceholderProfile')}
           </Text>
         </View>
       ) : null}
@@ -517,6 +582,7 @@ const ProfileEditor = ({
   profile: Profile;
   signOutError: string | null;
 }>) => {
+  const { setLocale, t } = useLocalization();
   const [displayName, setDisplayName] = useState(profile.displayName ?? '');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -536,7 +602,8 @@ const ProfileEditor = ({
       onProfileUpdated(updatedProfile);
       setDisplayName(updatedProfile.displayName ?? '');
       setPreferredLanguage(updatedProfile.preferredLanguage);
-      setSuccessMessage('Your profile and language preference have been saved.');
+      await setLocale(updatedProfile.preferredLanguage);
+      setSuccessMessage(t('profileSaved'));
     } catch (saveError) {
       setError(getUserFacingApiError(saveError));
     } finally {
@@ -548,7 +615,7 @@ const ProfileEditor = ({
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text accessibilityRole="header" style={styles.title}>
-          Your profile
+          {t('profileTitle')}
         </Text>
 
         <ProfileImageCard onProfileUpdated={onProfileUpdated} profile={profile} />
@@ -556,19 +623,19 @@ const ProfileEditor = ({
         <CurrentCivicAreaCard accessToken={accessToken} />
 
         <View style={styles.card}>
-          <Text style={styles.label}>Name</Text>
+          <Text style={styles.label}>{t('name')}</Text>
           <TextInput
-            accessibilityLabel="Your name"
+            accessibilityLabel={t('yourName')}
             autoComplete="name"
             editable={!isSaving}
             maxLength={100}
             onChangeText={setDisplayName}
-            placeholder="Your name"
+            placeholder={t('yourName')}
             style={styles.input}
             value={displayName}
           />
 
-          <Text style={styles.label}>Preferred language</Text>
+          <Text style={styles.label}>{t('preferredLanguage')}</Text>
           <View accessibilityRole="radiogroup" style={styles.languageGroup}>
             {preferredLanguages.map((language) => {
               const isSelected = preferredLanguage === language;
@@ -607,9 +674,12 @@ const ProfileEditor = ({
             style={styles.primaryButton}
           >
             {isSaving ? (
-              <ActivityIndicator accessibilityLabel="Saving profile" color="#ffffff" />
+              <ActivityIndicator
+                accessibilityLabel={t('savingProfile')}
+                color={mobileTheme.colors.white}
+              />
             ) : (
-              <Text style={styles.primaryButtonText}>Save profile</Text>
+              <Text style={styles.primaryButtonText}>{t('saveProfile')}</Text>
             )}
           </Pressable>
 
@@ -629,15 +699,15 @@ const ProfileEditor = ({
           )}
         </View>
 
-        {getPublicPhoneMfaMode() === 'observe' ? (
+        {getPublicPhoneVerificationMode() === 'observe' ? (
           <View style={styles.card}>
             <Text accessibilityRole="header" style={styles.sectionTitle}>
-              Phone verification
+              {t('phoneConfirmation')}
             </Text>
-            <Text style={styles.mutedText}>Optional in this environment.</Text>
+            <Text style={styles.mutedText}>{t('optionalEnvironment')}</Text>
             <Link href={'/auth/phone-verification?optional=1' as Href} asChild>
               <Pressable accessibilityRole="button" style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>Set up phone verification</Text>
+                <Text style={styles.secondaryButtonText}>{t('confirmPhoneNumber')}</Text>
               </Pressable>
             </Link>
           </View>
@@ -645,17 +715,32 @@ const ProfileEditor = ({
 
         <View style={styles.card}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>
-            Device security
+            {t('passwordSecurity')}
+          </Text>
+          <Text style={styles.mutedText}>{t('passwordSecurityHint')}</Text>
+          <Link href={'/auth/change-password' as Href} asChild>
+            <Pressable accessibilityRole="button" style={styles.secondaryButton}>
+              <Text style={styles.secondaryButtonText}>{t('changePassword')}</Text>
+            </Pressable>
+          </Link>
+        </View>
+
+        <View style={styles.card}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>
+            {t('deviceSecurity')}
           </Text>
           {deviceRegistration.state.status === 'registering' ? (
             <View accessibilityLiveRegion="polite" style={styles.inlineStatus}>
-              <ActivityIndicator accessibilityLabel="Registering this device" color="#166534" />
-              <Text style={styles.mutedText}>Registering this device securely…</Text>
+              <ActivityIndicator
+                accessibilityLabel={t('registeringDevice')}
+                color={mobileTheme.colors.primary}
+              />
+              <Text style={styles.mutedText}>{t('registeringDevice')}</Text>
             </View>
           ) : null}
           {deviceRegistration.state.status === 'registered' ? (
             <Text accessibilityLiveRegion="polite" style={styles.successText}>
-              This device is securely registered.
+              {t('deviceRegistered')}
             </Text>
           ) : null}
           {deviceRegistration.state.status === 'error' ? (
@@ -668,7 +753,7 @@ const ProfileEditor = ({
                 onPress={deviceRegistration.retry}
                 style={styles.secondaryButton}
               >
-                <Text style={styles.secondaryButtonText}>Retry device registration</Text>
+                <Text style={styles.secondaryButtonText}>{t('retryDeviceRegistration')}</Text>
               </Pressable>
             </>
           ) : null}
@@ -682,9 +767,12 @@ const ProfileEditor = ({
           style={styles.signOutButton}
         >
           {isSigningOut ? (
-            <ActivityIndicator accessibilityLabel="Signing out" color="#991b1b" />
+            <ActivityIndicator
+              accessibilityLabel={t('signingOut')}
+              color={mobileTheme.colors.danger}
+            />
           ) : (
-            <Text style={styles.signOutButtonText}>Sign out</Text>
+            <Text style={styles.signOutButtonText}>{t('signOut')}</Text>
           )}
         </Pressable>
         {signOutError === null ? null : (
@@ -699,20 +787,21 @@ const ProfileEditor = ({
 
 export default function ProfileScreen() {
   const { signOut, state } = useAuth();
+  const { t } = useLocalization();
 
   if (state.status === 'loading') {
-    return <LoadingScreen label="Restoring your secure session…" />;
+    return <LoadingScreen label={t('restoringSession')} />;
   }
 
   if (state.status === 'configuration-error') {
-    return <ErrorScreen message={state.message} title="App configuration required" />;
+    return <ErrorScreen message={state.message} title={t('appConfigurationRequired')} />;
   }
 
   if (state.status === 'signed-out') {
     return <Redirect href="/auth" />;
   }
 
-  if (state.status === 'mfa-required') {
+  if (state.status === 'phone-verification-required') {
     return <Redirect href="/auth/phone-verification" />;
   }
 
@@ -724,10 +813,10 @@ const styles = StyleSheet.create({
   avatarCopy: { flex: 1, gap: 6 },
   avatarHeading: { alignItems: 'center', flexDirection: 'row', gap: 16 },
   avatarImage: { height: 92, width: 92 },
-  avatarInitial: { color: '#166534', fontSize: 34, fontWeight: '900' },
+  avatarInitial: { color: mobileTheme.colors.primary, fontSize: 28, fontWeight: '900' },
   avatarPreview: {
     alignItems: 'center',
-    backgroundColor: '#dcfce7',
+    backgroundColor: mobileTheme.colors.primarySoft,
     borderColor: '#86efac',
     borderRadius: 46,
     borderWidth: 1,
@@ -737,28 +826,37 @@ const styles = StyleSheet.create({
     width: 92,
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e2e8f0',
-    borderRadius: 14,
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
+    borderRadius: mobileTheme.radius.large,
     borderWidth: 1,
-    gap: 12,
-    padding: 18,
+    gap: 10,
+    padding: 14,
   },
   centeredPanel: { flex: 1, gap: 18, justifyContent: 'center', padding: 24 },
-  content: { gap: 18, padding: 20, paddingBottom: 40 },
-  errorText: { color: '#991b1b', fontSize: 15, lineHeight: 22 },
+  content: { gap: 14, padding: 16, paddingBottom: 32 },
+  errorText: {
+    color: mobileTheme.colors.danger,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+  },
   inlineStatus: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   inlineResult: { backgroundColor: '#f8fafc', borderRadius: 10, gap: 8, padding: 12 },
   input: {
     borderColor: '#94a3b8',
     borderRadius: 10,
     borderWidth: 1,
-    color: '#0f172a',
-    fontSize: 17,
-    minHeight: 52,
-    paddingHorizontal: 14,
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.body,
+    minHeight: 48,
+    paddingHorizontal: 12,
   },
-  label: { color: '#1e293b', fontSize: 15, fontWeight: '700', marginTop: 4 },
+  label: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.body,
+    fontWeight: '700',
+    marginTop: 4,
+  },
   languageButton: {
     alignItems: 'center',
     borderColor: '#cbd5e1',
@@ -769,28 +867,38 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   languageButtonSelected: { backgroundColor: '#dcfce7', borderColor: '#166534' },
-  languageButtonText: { color: '#475569', fontSize: 15, fontWeight: '600' },
+  languageButtonText: { color: mobileTheme.colors.muted, fontSize: 14, fontWeight: '600' },
   languageButtonTextSelected: { color: '#14532d' },
   languageGroup: { flexDirection: 'row', gap: 8 },
-  mutedText: { color: '#64748b', flex: 1, lineHeight: 21 },
-  civicAreaLabel: { color: '#64748b', fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
+  mutedText: {
+    color: mobileTheme.colors.muted,
+    flex: 1,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+  },
+  civicAreaLabel: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.helper,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
   civicAreaResult: { backgroundColor: '#f0fdf4', borderRadius: 12, gap: 10, padding: 14 },
   civicAreaRow: { gap: 2 },
-  civicAreaValue: { color: '#1e293b', fontSize: 16, fontWeight: '700' },
+  civicAreaValue: { color: mobileTheme.colors.text, fontSize: 14, fontWeight: '700' },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#166534',
-    borderRadius: 10,
+    backgroundColor: mobileTheme.colors.primary,
+    borderRadius: mobileTheme.radius.small,
     justifyContent: 'center',
     minHeight: 50,
     paddingHorizontal: 18,
   },
-  primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  primaryButtonText: { color: mobileTheme.colors.white, fontSize: 14, fontWeight: '700' },
   removeAvatarButton: { alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, padding: 10 },
   removeAvatarText: { color: '#991b1b', fontSize: 15, fontWeight: '700' },
   secondaryButton: { alignItems: 'center', minHeight: 46, padding: 10 },
-  secondaryButtonText: { color: '#166534', fontSize: 15, fontWeight: '700' },
-  sectionTitle: { color: '#1e293b', fontSize: 20, fontWeight: '700' },
+  secondaryButtonText: { color: mobileTheme.colors.primary, fontSize: 14, fontWeight: '700' },
+  sectionTitle: { color: mobileTheme.colors.text, fontSize: 18, fontWeight: '800' },
   sourceLink: { alignSelf: 'flex-start', minHeight: 44, paddingVertical: 10 },
   signOutButton: {
     alignItems: 'center',
@@ -801,8 +909,12 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: 18,
   },
-  signOutButtonText: { color: '#991b1b', fontSize: 16, fontWeight: '700' },
-  successText: { color: '#166534', fontSize: 15, lineHeight: 22 },
-  title: { color: '#14281d', fontSize: 30, fontWeight: '800' },
-  verifiedText: { color: '#166534', fontSize: 13, fontWeight: '800' },
+  signOutButtonText: { color: mobileTheme.colors.danger, fontSize: 14, fontWeight: '700' },
+  successText: {
+    color: mobileTheme.colors.primary,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+  },
+  title: { color: mobileTheme.colors.text, fontSize: mobileTheme.type.title, fontWeight: '900' },
+  verifiedText: { color: mobileTheme.colors.primary, fontSize: 12, fontWeight: '800' },
 });

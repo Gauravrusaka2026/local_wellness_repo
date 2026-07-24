@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "datasetKey": "jagruksetu_bmc_intake_v1",
+  "datasetVersion": "2026-07-24.v1",
+  "valid": true,
+  "manifestSha256": "405ad02edc60e96b8505cd8a79b0944e72d304791319d212aef5eaf79ae0418a",
+  "sourceFileCount": 4,
+  "generatedFileCount": 5,
+  "taxonomyLeafCount": 340,
+  "internallyMappedLeafCount": 256,
+  "protectedHandoffLeafCount": 84,
+  "pendingLeafCount": 0
+}

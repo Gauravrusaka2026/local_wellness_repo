@@ -46,6 +46,17 @@ const match = {
     lastVerifiedOn: '2026-07-16',
     sourceUrl: 'https://municipality.gov.test/wards',
   },
+  offices: [
+    {
+      name: 'Ward One Civic Office',
+      type: 'ward_office',
+      address: '1 Civic Street',
+      phone: '12345678',
+      email: 'ward-one@municipality.gov.test',
+      lastVerifiedOn: '2026-07-16',
+      sourceUrl: 'https://municipality.gov.test/wards/one',
+    },
+  ],
 } as const;
 
 interface RpcCall {
@@ -105,6 +116,19 @@ describe('SupabaseGovernanceDirectoryStore', () => {
     ]);
   });
 
+  it('normalizes an absent office collection during a rolling database upgrade', async () => {
+    const legacyMatch: Record<string, unknown> = { ...match };
+    delete legacyMatch['offices'];
+    const store = createStore(async () => ({
+      data: [{ ...wrapper, match: legacyMatch }],
+      error: null,
+    }));
+
+    assert.deepEqual(await store.resolveVerifiedGoverningBodies(query), [
+      { ...legacyMatch, offices: [] },
+    ]);
+  });
+
   it('fails closed for database errors, private fields, and unverified records', async () => {
     const databaseFailure = createStore(async () => ({
       data: null,
@@ -121,6 +145,23 @@ describe('SupabaseGovernanceDirectoryStore', () => {
     }));
     await assert.rejects(
       privateField.resolveVerifiedGoverningBodies(query),
+      GovernanceDirectoryDataAccessError,
+    );
+
+    const privateOfficeField = createStore(async () => ({
+      data: [
+        {
+          ...wrapper,
+          match: {
+            ...match,
+            offices: [{ ...match.offices[0], officerMobile: '+910000000000' }],
+          },
+        },
+      ],
+      error: null,
+    }));
+    await assert.rejects(
+      privateOfficeField.resolveVerifiedGoverningBodies(query),
       GovernanceDirectoryDataAccessError,
     );
 

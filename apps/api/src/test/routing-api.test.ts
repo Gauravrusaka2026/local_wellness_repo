@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type {
+  ComplaintTaxonomyCatalogItem,
   JurisdictionResolution,
   RoutingCandidate,
   RoutingAssetOption,
@@ -81,6 +82,31 @@ const category: RoutingCategory = {
   isEmergency: false,
   requiredAttributes: [],
   recommendedMediaKinds: ['photo'],
+};
+
+const taxonomyItem: ComplaintTaxonomyCatalogItem = {
+  handoffActions: [],
+  id: '44444444-4444-4444-8444-444444444446',
+  primaryCategoryId: '44444444-4444-4444-8444-444444444447',
+  primaryCode: 'SWM',
+  primaryName: 'Solid Waste Management',
+  subcategoryCode: 'SWM-001',
+  subcategoryName: 'Garbage dump',
+  subcategoryDescription: 'Garbage accumulated in a public place.',
+  workflowType: 'PUBLIC_HEALTH',
+  sensitivityClass: 'PUBLIC',
+  routingStatus: 'mapped',
+  routingProfileCategoryId: ids.category,
+  routingProfileCode: category.code,
+  routingProfileName: category.name,
+  submissionAvailability: 'available',
+  requiresAsset: category.requiresAsset,
+  requiresLocation: category.requiresLocation,
+  isEmergency: category.isEmergency,
+  minimumMediaCount: category.minimumMediaCount,
+  maximumMediaCount: category.maximumMediaCount,
+  requiredAttributes: category.requiredAttributes,
+  recommendedMediaKinds: category.recommendedMediaKinds,
 };
 
 const verifiedEvidence = (
@@ -182,6 +208,8 @@ class FakeRoutingStore extends RoutingStore {
   public category: RoutingCategory | null = category;
   public categoryCatalog: RoutingCategoryCatalogItem[] | null = null;
   public categoryCatalogCalls = 0;
+  public complaintTaxonomy: ComplaintTaxonomyCatalogItem[] = [taxonomyItem];
+  public complaintTaxonomyCalls = 0;
   public context: RoutingContext = { policy, candidates: [candidate] };
   public decisionRecords: RecordRoutingDecisionInput[] = [];
   public jurisdictionResolution: JurisdictionResolution = jurisdiction;
@@ -211,6 +239,14 @@ class FakeRoutingStore extends RoutingStore {
       this.categoryCatalog ??
       (this.category ? [{ ...this.category, submissionAvailability: 'available' }] : [])
     );
+  }
+
+  public async listComplaintTaxonomy(): Promise<ComplaintTaxonomyCatalogItem[]> {
+    this.complaintTaxonomyCalls += 1;
+    if (this.failListing) {
+      throw new RoutingDataAccessError('list complaint taxonomy');
+    }
+    return this.complaintTaxonomy;
   }
 
   public async discoverRoutingAssets(): Promise<RoutingAssetOption[]> {
@@ -375,6 +411,39 @@ describe('API routing contract', () => {
       .expect(200);
 
     assert.equal(routingStore.categoryCatalogCalls, 2);
+  });
+
+  it('lists and caches the authenticated detailed complaint taxonomy', async () => {
+    const firstResponse = await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/taxonomy')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(200);
+    const secondResponse = await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/taxonomy')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(200);
+
+    assert.deepEqual(firstResponse.body.data, [taxonomyItem]);
+    assert.deepEqual(secondResponse.body.data, [taxonomyItem]);
+    assert.equal(routingStore.complaintTaxonomyCalls, 1);
+    assert.equal(JSON.stringify(firstResponse.body).includes('authorityId'), false);
+    assert.equal(JSON.stringify(firstResponse.body).includes('officerRoleId'), false);
+  });
+
+  it('does not cache a failed complaint taxonomy request', async () => {
+    routingStore.failListing = true;
+    await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/taxonomy')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(503);
+
+    routingStore.failListing = false;
+    await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/taxonomy')
+      .set('authorization', 'Bearer valid-access-token')
+      .expect(200);
+
+    assert.equal(routingStore.complaintTaxonomyCalls, 2);
   });
 
   it('returns only the sanitized nearby-asset contract for an authenticated request', async () => {
@@ -798,6 +867,9 @@ describe('API routing contract', () => {
     await request(application.getHttpServer()).get('/api/v1/routing/categories').expect(401);
     await request(application.getHttpServer())
       .get('/api/v1/routing/categories/catalog')
+      .expect(401);
+    await request(application.getHttpServer())
+      .get('/api/v1/routing/categories/taxonomy')
       .expect(401);
     await request(application.getHttpServer()).post('/api/v1/routing/resolve').send({}).expect(401);
   });

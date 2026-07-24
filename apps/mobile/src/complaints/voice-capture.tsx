@@ -18,7 +18,11 @@ import {
 } from 'react-native';
 import type { ComplaintLocationCapture } from '@local-wellness/types';
 
-import { captureCurrentLocation, requiresLocationPermissionSettings } from './location-service';
+import {
+  captureComplaintEvidenceLocation,
+  requiresLocationPermissionSettings,
+} from '../location/device-location';
+import { useLocalization } from '../ui/localization';
 import { prepareCapturedVoice, type PreparedComplaintMedia } from './media-service';
 
 export const ComplaintVoiceCapture = ({
@@ -28,6 +32,7 @@ export const ComplaintVoiceCapture = ({
   disabled: boolean;
   onCaptured: (media: PreparedComplaintMedia, location: ComplaintLocationCapture) => Promise<void>;
 }>) => {
+  const { t } = useLocalization();
   const [error, setError] = useState<string | null>(null);
   const [finishedUri, setFinishedUri] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -38,7 +43,7 @@ export const ComplaintVoiceCapture = ({
   const onCapturedRef = useRef(onCaptured);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
     if (status.hasError) {
-      setError(status.error ?? 'Voice recording failed.');
+      setError(status.error ?? t('voiceRecordingFailed'));
     }
     if (status.isFinished && status.url) {
       setIsProcessing(true);
@@ -78,7 +83,7 @@ export const ComplaintVoiceCapture = ({
       );
       try {
         setLocationSettingsRequired(false);
-        const location = await captureCurrentLocation();
+        const location = await captureComplaintEvidenceLocation();
         const media = await prepareCapturedVoice({
           capturedAt: started?.capturedAt ?? new Date().toISOString(),
           durationMilliseconds,
@@ -88,7 +93,7 @@ export const ComplaintVoiceCapture = ({
       } catch (recordingError) {
         setLocationSettingsRequired(requiresLocationPermissionSettings(recordingError));
         setError(
-          recordingError instanceof Error ? recordingError.message : 'Voice recording failed.',
+          recordingError instanceof Error ? recordingError.message : t('voiceRecordingFailed'),
         );
       } finally {
         captureStartedAt.current = null;
@@ -100,7 +105,7 @@ export const ComplaintVoiceCapture = ({
     };
 
     void processRecording();
-  }, [disabled, finishedUri]);
+  }, [disabled, finishedUri, t]);
 
   const start = async (): Promise<void> => {
     try {
@@ -109,7 +114,7 @@ export const ComplaintVoiceCapture = ({
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
         setMicrophoneSettingsRequired(permission.canAskAgain === false);
-        setError('Microphone permission is required to record private voice evidence.');
+        setError(t('microphoneVoiceRequired'));
         return;
       }
 
@@ -123,7 +128,7 @@ export const ComplaintVoiceCapture = ({
       recorder.record({ forDuration: 60 });
     } catch (recordingError) {
       setError(
-        recordingError instanceof Error ? recordingError.message : 'Voice recording failed.',
+        recordingError instanceof Error ? recordingError.message : t('voiceRecordingFailed'),
       );
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
     }
@@ -134,11 +139,11 @@ export const ComplaintVoiceCapture = ({
     setError(null);
     try {
       await recorder.stop();
-      if (!recorder.uri) throw new Error('The voice recording did not produce a file.');
+      if (!recorder.uri) throw new Error(t('voiceNoFile'));
       setFinishedUri(recorder.uri);
     } catch (recordingError) {
       setError(
-        recordingError instanceof Error ? recordingError.message : 'Voice recording failed.',
+        recordingError instanceof Error ? recordingError.message : t('voiceRecordingFailed'),
       );
       setIsProcessing(false);
       captureStartedAt.current = null;
@@ -148,13 +153,12 @@ export const ComplaintVoiceCapture = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.help}>
-        Automatic transcription is not configured. The recording remains private evidence; type and
-        confirm the description yourself before submitting.
-      </Text>
+      <Text style={styles.help}>{t('voicePrivacyHint')}</Text>
       {recorderState.isRecording ? (
         <Text accessibilityLiveRegion="polite" style={styles.recording}>
-          Recording… {Math.ceil(recorderState.durationMillis / 1_000)}s / 60s
+          {t('recordingProgress', {
+            seconds: Math.ceil(recorderState.durationMillis / 1_000),
+          })}
         </Text>
       ) : null}
       {error === null ? null : (
@@ -169,7 +173,7 @@ export const ComplaintVoiceCapture = ({
           style={styles.settingsButton}
         >
           <Text style={styles.settingsButtonText}>
-            Open {locationSettingsRequired ? 'location' : 'microphone'} settings
+            {t(locationSettingsRequired ? 'openLocationSettings' : 'openMicrophoneSettings')}
           </Text>
         </Pressable>
       ) : null}
@@ -183,7 +187,7 @@ export const ComplaintVoiceCapture = ({
           <ActivityIndicator color="#ffffff" />
         ) : (
           <Text style={styles.buttonText}>
-            {recorderState.isRecording ? 'Stop and upload voice' : 'Record voice (60s max)'}
+            {t(recorderState.isRecording ? 'stopUploadVoice' : 'recordVoice')}
           </Text>
         )}
       </Pressable>

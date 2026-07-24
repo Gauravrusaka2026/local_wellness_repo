@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { getPublicApiUrl } from '../environment';
+import {
+  assertCitizenProtectedAccessAvailable,
+  CitizenAccessUnavailableError,
+} from '../access-policy';
+import { isCitizenPhoneVerifiedUser } from '../auth/phone-verification-state';
+import { getCitizenPhoneVerificationMode, getPublicApiUrl } from '../environment';
 
 type ApiRequestOptions = Readonly<{
   accessToken: string;
@@ -58,10 +63,14 @@ const getRequestId = (payload: unknown): string | null => {
 export const getVerifiedCitizenSession = async (
   supabase: SupabaseClient,
 ): Promise<VerifiedCitizenSession> => {
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-  const claims = claimsData?.claims;
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  const user = userData.user;
 
-  if (claimsError || typeof claims?.sub !== 'string') {
+  if (
+    userError ||
+    !user ||
+    (getCitizenPhoneVerificationMode() === 'enforce' && !isCitizenPhoneVerifiedUser(user))
+  ) {
     throw new AuthenticationRequiredError();
   }
 
@@ -74,9 +83,9 @@ export const getVerifiedCitizenSession = async (
   return {
     accessToken: sessionData.session.access_token,
     identity: {
-      email: typeof claims.email === 'string' ? claims.email : null,
-      phone: typeof claims.phone === 'string' ? claims.phone : null,
-      userId: claims.sub,
+      email: user.email ?? null,
+      phone: user.phone ?? null,
+      userId: user.id,
     },
   };
 };
@@ -85,6 +94,8 @@ export const getVerifiedAccessToken = async (supabase: SupabaseClient): Promise<
   (await getVerifiedCitizenSession(supabase)).accessToken;
 
 export const apiRequest = async <T>(path: `/${string}`, options: ApiRequestOptions): Promise<T> => {
+  assertCitizenProtectedAccessAvailable();
+
   let response: Response;
 
   try {
@@ -143,6 +154,10 @@ export const apiRequest = async <T>(path: `/${string}`, options: ApiRequestOptio
 };
 
 export const getUserFacingApiError = (error: unknown): string => {
+  if (error instanceof CitizenAccessUnavailableError) {
+    return error.message;
+  }
+
   if (error instanceof AuthenticationRequiredError) {
     return 'Your session has expired. Sign in again.';
   }

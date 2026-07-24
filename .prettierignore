@@ -16,5 +16,6 @@ general_idea.md
 **/next-env.d.ts
 **/*.tsbuildinfo
 resources/governance/geometry
+resources/governance/generated
 resources/governance/manifests/mumbai-bmc-demo-bootstrap.v1.json
 resources/governance/manifests/mumbai-bmc-demo-bootstrap.v1.validation.json

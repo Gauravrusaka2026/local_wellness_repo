@@ -15,14 +15,16 @@ Supabase Auth is the V1 identity provider.
 Authentication options:
 
 - email/password account creation and sign-in;
-- provider-managed password recovery;
-- phone OTP as a staged Supabase Phone MFA verification factor.
+- provider-managed email recovery followed by a fresh OTP to the account's confirmed phone;
+- mandatory confirmed phone through ordinary Supabase Phone Auth for private citizen use;
+- signed-in password change only after a fresh phone challenge.
 
 Citizen entry no longer depends on a code-only email template. Government and administrator email
 entry may still accept a six-digit `Token`, a secure link, or both. Government invitations remain
 one-time and must pass the application membership and role checks after authentication. Citizen
-phone verification requires a verified Phone MFA factor and an `aal2` session when enforced; a
-profile phone value is not sufficient.
+phone verification requires current `auth.users.phone` and `phone_confirmed_at`; citizen `aal2` and
+profile metadata are not sufficient or required. Citizen Web public-only mode remains available,
+and latent full mode follows the same confirmed-phone gate.
 
 Google and Apple sign-in are not part of Phase 1.
 
@@ -61,10 +63,11 @@ observe/enforce rollout gate. Existing-user assignment lifecycle remains tracked
 
 ### Portal account context
 
-Every web authentication surface makes the active identity understandable without exposing whether
-another account exists. Citizen Web shows the current email/phone label and an explicit
-switch-account action. The Government Dashboard and Admin Console display the exact verified email
-after a session exists, including MFA, authorized, denied, and dependency-error states.
+Every active web authentication surface makes the identity understandable without exposing whether
+another account exists. Citizen Web protected surfaces are disabled in public-only mode; its latent
+full mode retains the current email/phone label and switch-account action for future parity. The
+Government Dashboard and Admin Console display the exact verified email after a session exists,
+including MFA, authorized, denied, and dependency-error states.
 
 Privileged screens describe three independent gates:
 
@@ -161,22 +164,38 @@ User creates an account with email and password
 Supabase session and application profile are created
         |
         v
-User enrolls an E.164 phone as a Supabase Phone MFA factor
+User requests an E.164 phone change through ordinary Supabase Phone Auth
         |
         v
-Configured SMS provider delivers and verifies the challenge
+Configured Twilio Verify provider delivers the phone_change OTP
         |
         v
-Session reaches aal2
+Client verifies the same user, confirmed phone and confirmation timestamp
         |
         v
-API independently verifies factor and assurance policy
+API independently verifies current confirmed-phone state
 ```
 
-Phone enrollment is optional while all citizen MFA modes are `observe`. Switch the web, mobile,
-and API modes to `enforce` together only after the SMS provider, recovery, abuse controls, and
-hosted device tests pass. Supabase Storage or an Edge Function cannot act as an SMS carrier, and a
-custom OTP table must not replace Supabase Auth factors.
+Mobile and API citizen modes default to `enforce`. A missing or unconfirmed phone keeps the user on
+the phone-verification route, and the API independently rejects the citizen request with
+`PHONE_VERIFICATION_REQUIRED`. Citizen sessions remain `aal1`; no `auth.mfa.*` call or Phone MFA
+factor is involved. Supabase Storage or an Edge Function cannot act as an SMS carrier, and a custom
+OTP table must not replace Supabase Auth.
+
+Configure the ordinary Phone provider/SMS transport under
+**Authentication → Sign In / Providers → Phone**. Enable phone confirmations and Phone Auth
+signup capability. Supabase applies that provider gate even to an existing linked user's
+`signInWithOtp({ shouldCreateUser: false })` request. Activate
+`public.hook_require_email_identity` as the Before User Created Auth Hook so actual phone-only user
+creation is rejected, then verify both the allowed existing-user OTP and denied phone-only-signup
+cases. Review OTP expiry, rate limits and abuse controls. Advanced Phone MFA Enrollment and Phone
+Verification are not required for citizens.
+
+For `sms_send_failed`, verify the Twilio Verify Account SID, current Auth Token and **Verify Service
+SID**, service state, Indian geographic permissions and any trial-recipient restriction. Never put
+those values in application configuration or logs. Wrong, expired, throttled and provider-disabled
+ordinary OTP errors are translated into actionable messages. The local deterministic test OTP
+cannot prove hosted carrier delivery.
 
 ### Mobile Email Password Modes
 
@@ -186,11 +205,43 @@ The Expo client presents three explicit email/password modes:
 - **Create account** validates password confirmation and is the only mode that provisions an Auth
   identity;
 - **Forgot password** requests a provider recovery link with a generic response, and the reviewed
-  callback exchanges the recovery code before allowing a new password.
+  callback exchanges the recovery code. The account must already have a confirmed phone and then
+  complete a fresh ordinary SMS OTP. An account without that phone fails closed into reviewed
+  support recovery.
+- **Change password** is available to a signed-in citizen but always challenges the current
+  confirmed phone. Delivery uses `shouldCreateUser: false`; verification and the password update
+  run immediately on an isolated, non-persistent Supabase client after exact user/phone matching.
 
 Passwords are sent only to Supabase Auth over TLS and are never logged, stored in application
-tables, or placed in resume state. Recovery responses remain generic, and a citizen cannot select
-a privileged application role during registration.
+tables, routed through NestJS, or placed in resume state. After an accepted update, the client
+immediately attempts global sign-out, falls back to local sign-out if necessary, then waits no more
+than two seconds for the best-effort `password_changed` audit before returning to sign-in. Recovery
+responses remain generic, and a citizen cannot select a privileged application role during
+registration. A successful phone verification does not wait for the non-critical
+`otp_verified` audit request to finish.
+
+Supabase emits `USER_UPDATED` when the phone-change request is accepted. The mobile confirmation
+screen keys its initial authoritative inspection by stable user ID so that expected same-user event
+cannot reset an in-progress code-entry challenge. A different account still starts a new
+inspection. This is a UI lifecycle rule and does not replace the API's service-owned
+`phone_confirmed_at` check.
+
+The pinned Supabase Auth SDK coordinates refresh concurrency internally, so mobile uses its
+lockless default and does not supply the deprecated `processLock`. That legacy option made the
+auto-refresh tick attempt an immediate zero-millisecond lock acquisition and log warnings during
+ordinary Auth work. Mobile keeps `onAuthStateChange` short by deferring authoritative `getUser()`
+inspection until the callback returns. A newer event cancels and invalidates older scheduled work,
+while sign-out or provider unmount prevents a stale session from restoring access.
+
+The reset-password screen owns the lifetime of its isolated recovery client. If navigation
+unmounts the screen after email recovery establishes a session but before phone inspection or
+password completion finishes, cleanup locally signs out that isolated session. This prevents a
+late recovery exchange from leaving an unintended credential session alive on the device.
+
+The ordinary audit route uses the same confirmed-phone citizen guard as other protected API
+routes. The former zero-factor recovery exception is removed because no supported no-phone
+password update remains. Audit rows are deliberately labelled client-reported and cannot prove the
+Supabase password mutation.
 
 ### Government Invitation
 
@@ -288,10 +339,11 @@ constructing the authenticated actor. Email and phone are accepted only from the
 claims. Unverified decoding is never authentication.
 
 JWT claims establish identity and assurance, not application authorization. Profile status,
-current role and authority membership, and the applicable privileged or citizen MFA policy remain
+current role and authority membership, and the applicable privileged MFA or citizen
+confirmed-phone policy remain
 database reads. When several requests for the same actor arrive together, they may share only the
 same unfinished actor-context read. That entry is removed on success or failure; there is no
-completed profile, role, membership, MFA-policy, or bearer-token cache. Application deactivation
+completed profile, role, membership, phone-policy, or bearer-token cache. Application deactivation
 therefore remains immediately effective, while session-only revocation follows the bounded access-
 token expiry. See
 [ADR-0026](adr/0026-use-verified-jwt-claims-for-api-authentication.md).
@@ -327,12 +379,32 @@ realtime URLs because `localhost` on a phone is the phone itself. Local Expo Go 
 one root environment and receive a LAN-reachable API URL; app-local environment copies are not an
 approved credential source.
 
+User-initiated HTTPS references open through Expo's in-app browser after rejecting non-HTTPS URLs
+and embedded credentials. The adapter never includes the URL in an error. Auth/recovery deep links,
+internal routes, native settings and the emergency telephone action do not use this browser path.
+
+The mobile current-area cache is bound to the active Auth identity. Sign-out, loss of the current
+user, or replacement with another user clears the memory-only location and invalidates its request
+generation so a late native result cannot repopulate state for the next account. Exact coordinates
+are not placed in the Supabase session, SecureStore, SQLite, logs, or authentication audit. The
+separate complaint-evidence path never reads this cache.
+
+Foreground location permission may be requested automatically only once per application process,
+across all current-area and complaint features. Clearing an identity's coordinate cache does not
+reset that prompt gate. If the request is denied, route focus cannot re-prompt; the citizen must use
+an explicit retry or operating-system settings action. This is a device-permission UX boundary, not
+an authentication claim, and no permission outcome is copied into JWT/profile authorization.
+
 ### Web
 
-Use the official Supabase SSR PKCE integration and cookies shared by browser and server clients. Authenticated pages are dynamic and validate the current user or claims rather than trusting an unverified cookie payload.
+Citizen Web currently uses `NEXT_PUBLIC_CITIZEN_ACCESS_MODE=public-only`. Its public home,
+transparency, and directory placeholder work without a session. Authentication/callback, account,
+reporting, complaint, and unknown future routes redirect to a query-free mobile-app notice before
+session mutation or protected API work.
 
-Citizen web account creation/sign-in uses Supabase email/password and password recovery uses the
-SSR PKCE callback. Government and administrator entry may use a password already attached to a
+The prior citizen SSR implementation remains behind explicit `full` mode for future parity and must
+not be deployed until it adopts this ADR's fresh-phone password flows. Government and
+administrator entry may use a password already attached to a
 pre-provisioned identity, a six-digit email code, or a secure link. Password entry never calls a
 signup API. Email code entry uses Supabase `verifyOtp` with the `email` type; ordinary browser links
 use the SSR client's PKCE flow. Each browser callback accepts exactly one reviewed method and rejects
@@ -366,7 +438,8 @@ citizen, government, administrator, and mobile callback to the redirect allow-li
 only in non-production projects. Authentication callback success never implies authorization: the
 API, RLS, active account state, invitation membership, role, and scope checks remain authoritative.
 
-After callback completion, the citizen account page still depends on the application profile API.
+When explicit full mode is used in future development, the citizen account page still depends on
+the application profile API.
 Citizen web, NestJS API, and Supabase Auth must target the same environment; the API configured by
 `NEXT_PUBLIC_API_URL` must be reachable and that database must include the Phase 1 Auth-to-profile
 trigger. A valid Auth session with no matching `public.profiles` row is a provisioning error, not an
@@ -400,21 +473,20 @@ membership revoked after connection does not authorize the pending event. Typing
 ephemeral but still require a fresh complaint-room authorization. Tokens, socket auth payloads,
 service credentials, and lease tokens are not logged.
 
-### Governance synchronization machine boundary
+### Retired governance synchronization machine boundary
 
-The `governance-sync-fetch` Edge Function is not user authentication. Supabase Cron calls it with a
-dedicated high-entropy `x-governance-sync-secret`, which is compared in constant time before any
-source claim. `verify_jwt = false` is scoped to this function because Cron does not present a user
-session; the dispatch secret and service credential remain environment-only server secrets.
-Anonymous/authenticated database roles cannot execute the claim/finalization RPCs or read the
-private governance tables. Lease tokens are single-run database capabilities and are neither logged
-nor returned to the caller.
+ADR-0031 removes the undeployed `governance-sync-fetch`/Cron boundary, its synchronization
+tables and its claim/heartbeat/finalization/failure RPCs. There is therefore no V1 dispatch secret,
+lease token, machine identity or synchronization authorization path to configure.
 
-Synchronization scope targets are also service-only and forced-RLS. An authenticated user cannot
-read or activate them directly; activation/manual verification is accepted only when the attributed
-reviewer has a current global `platform_admin` role. That approval selects future synchronization
-work only and does not grant routing eligibility or change the referenced authority/ward's access
-state.
+This change does not weaken user authentication, citizen confirmed-phone verification, privileged TOTP/AAL2,
+database-current role/membership checks, or service-role isolation. Current BMC ward/contact
+routing remains a private service-only database path through `routing.ward_issue_contacts` and
+never exposes recipient values to a citizen token.
+
+If an old Edge Function or external Cron invocation was deployed manually, disable it before
+applying `20260723110000_prune_deferred_v1_subsystems.sql`. Reintroducing automated governance
+retrieval requires a new authentication/threat-model decision.
 
 ---
 
@@ -588,8 +660,9 @@ contracts or logs.
   choose an authority, department, officer role, officer assignment, confidence policy, or fallback;
 - the API resolves those targets through service-only database functions and records the acting Auth
   user plus request identifier in the append-only routing decision audit;
-- ordinary authenticated and anonymous database roles have no direct access to private routing or
-  governance-synchronization tables, functions, raw snapshots, or exact-location decision evidence.
+- ordinary authenticated and anonymous database roles have no direct access to private routing,
+  ward-recipient records, email outbox rows or exact-location decision evidence; the former
+  governance synchronization tables/functions are physically removed by ADR-0031.
 - a complaint retry reuses its server-owned stable routing request ID and exact stored decision;
   conflicting key or evidence reuse fails closed.
 
@@ -611,10 +684,24 @@ is checked for this portal's own unverified friendly name. An explicit **Restart
 setup** action removes only those unfinished factors before enrolling again; unrelated or verified
 factors are never removed automatically.
 
-Citizens use Supabase Phone MFA separately. `API_CITIZEN_PHONE_MFA_MODE=enforce` requires both a
-current verified phone factor and `aal2` for citizen-only accounts. It remains `observe` until
-Advanced Phone MFA and real SMS delivery are configured. TOTP does not satisfy the citizen phone-
-verification policy, and phone metadata does not satisfy either assurance policy.
+Citizens use ordinary Supabase Phone Auth separately.
+`API_CITIZEN_PHONE_VERIFICATION_MODE=enforce` requires a current non-empty Auth phone with
+`phone_confirmed_at` for citizen-only accounts; citizen `aal2` is not required. Production API
+startup rejects a missing/non-enforcing citizen setting. Editable profile metadata and JWT phone
+claims do not satisfy this server-side policy. The ordinary Phone provider, phone confirmations and
+Twilio Verify transport must be configured in each managed project. Advanced Phone MFA is not
+required for citizens.
+
+An existing citizen can nevertheless carry a verified TOTP factor from an earlier portal or test
+workflow. Supabase evaluates that factor independently of JagrukSetu roles and returns HTTP `401`
+with `insufficient_aal` when an AAL1 session tries to change the phone. Under ADR-0034, the mobile
+flow conditionally asks for the current authenticator code, calls `challengeAndVerify`, and
+requires the same user at AAL2 before returning to ordinary phone entry. A citizen with no
+verified factor skips this step and continues directly to `phone_change` SMS. The client never
+enrolls, deletes or persists a factor as part of phone confirmation. This TOTP code is generated
+inside the previously enrolled authenticator application and is never sent by SMS, so it has no
+resend action. The mobile screen states that distinction and explains that a lost authenticator
+requires an attributed administrator factor reset.
 
 ---
 
@@ -676,11 +763,17 @@ Potential risk indicators:
 
 Citizen recovery:
 
-- provider-managed email password recovery;
-- reviewed phone-factor replacement after SMS activation.
+- provider-managed generic email password-recovery request;
+- one reviewed recovery session established by PKCE code or recovery token hash;
+- a fresh ordinary phone OTP for the account's already confirmed phone;
+- no email-only password update when the account has no confirmed phone;
+- immediate global sign-out after password update;
+- reviewed support recovery when a confirmed phone is lost.
 
 Password-recovery requests return a generic acknowledgement whether or not an account exists.
-Recovery links and codes are one-time provider credentials and must never enter logs.
+Recovery links, codes, OTPs and bearer tokens are one-time or
+sensitive provider credentials and must never enter logs. An unavailable verified phone never
+silently falls back to email-only recovery.
 
 Government recovery:
 
@@ -702,14 +795,15 @@ Required tests:
 - disabled account rejected;
 - expired role rejected;
 - service role not exposed;
-- MFA-required operation rejected without the required verified factor and assurance level;
+- phone-verification-required citizen operation rejected without a current confirmed phone;
+- privileged MFA-required operation rejected without the required factor and assurance level;
 - anonymous user blocked from private complaint.
 
 Identity coverage includes self/cross-user/cross-authority RLS, expiry/revocation, sensitive-column
-isolation, audit immutability, profile-image ownership, privileged TOTP/AAL policy, citizen verified-
-phone/AAL policy, email/password client behavior, and recovery input handling. Phone MFA remains
-provider-gated because local Supabase Auth disables it without an SMS provider. Hosted recovery,
-redirect allow-lists, managed factor enrollment, device/session revocation, and real-device
+isolation, audit immutability, profile-image ownership, privileged TOTP/AAL policy, citizen
+confirmed-phone policy, email/password client behavior, and recovery input handling. Ordinary
+phone verification remains provider-gated because real delivery requires an SMS provider. Hosted
+recovery, redirect allow-lists, phone confirmation, device/session revocation, and real-device
 SecureStore behavior still require environment-specific validation before launch.
 
 Phase 2 extends those tests with canonical-authority foreign keys, safe legacy placeholder backfill, ward/department ownership checks, and governance RLS isolation. The invitation E2E uses the deterministic seeded Maharashtra authority, so arbitrary client-supplied UUIDs can no longer create government access scope.
@@ -743,18 +837,19 @@ private evidence authorization/integrity, rating bounds, immutable feedback, pol
 attempt limits, and database-derived reopen/escalation. Synthetic approved policies are rolled back
 inside tests and do not activate a managed environment.
 
-The mobile completion suite additionally verifies that sign-in/recovery disable user creation,
-create-account permits it, errors remain generic, detectable Supabase project mismatch fails without
-echoing values, and a native runtime rejects loopback service URLs. Delivered hosted OTPs and the
-physical-device session/profile transition remain environment-gated.
+The mobile completion suite additionally verifies that password OTP delivery cannot create a phone
+user, verification is bound to the expected user and phone, recovery cannot bypass a missing or
+different confirmed phone, detectable Supabase project mismatch fails without echoing values, and
+a native runtime rejects loopback service URLs.
+Delivered Twilio OTPs and physical-device session/profile transitions remain environment-gated.
 
 ## Complaint-routing contact privacy
 
 ### UI benchmark authentication boundary
 
-The UI benchmark does not change authentication. Report creation remains authenticated
-email/password plus the existing staged Phone MFA path; signed-out users use the existing login
-flow. Public/guest/private examples in the benchmark are not enabled account modes.
+Report creation remains authenticated email/password plus mandatory confirmed-phone verification; signed-out
+users use the existing login flow. Citizen Web protected examples are unavailable in public-only
+mode. Public/guest/private examples in the benchmark are not enabled account modes.
 
 Authentication and authorization behavior is unchanged by the V1 BMC ward-contact facade. The API
 derives the actor from the verified bearer token and the database derives every ward, assignment and
@@ -777,3 +872,9 @@ global platform-administrator role supplied by the network-verified API actor; a
 claimed role, or anonymous request cannot publish. Reviewer Auth UUIDs remain audit data and never
 appear in public responses. RLS/direct-ACL tests must continue to prove that anonymous users cannot
 read private complaints, exact geometry, identities, media, comments, or projection tables.
+
+The mobile Community **Your reports** preview is not anonymous transparency. It renders only when a
+signed-in mobile session has an access token and calls the existing bearer-authenticated,
+actor-scoped complaint-list route. Focus cleanup and request-generation checks prevent a late
+response from an earlier screen/account lifecycle from replacing current state. Signing out hides
+the preview; no owner result is cached into the reviewed-public feed.

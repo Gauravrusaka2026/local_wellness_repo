@@ -9,9 +9,11 @@ deep-link routes. Visible cards/actions use concise labels; accessibility and st
 retain the detail removed from repeated screen copy.
 
 The auth screen selects email/password sign-in, create-account, or provider-managed password
-recovery. Supabase Phone MFA is a separate staged verification factor; observe mode explains that it
-is optional during SMS-provider rollout, while enforce mode requires the verified factor and AAL2.
-The application never stores or delivers an OTP itself. Sessions remain in Expo SecureStore.
+recovery. Ordinary Supabase Phone Auth confirms the same user's phone after password entry; a
+resend cooldown and escalating guidance prevent repeated sends. Fresh SMS is also required before
+supported password changes. This citizen flow does not require Advanced Phone MFA or AAL2, while
+privileged portal TOTP remains unchanged. The application never stores or delivers an OTP itself.
+Sessions remain in Expo SecureStore.
 
 ## Complaint Experience
 
@@ -36,6 +38,13 @@ the only final submit action. Ward resolution is explained separately from categ
 availability; neither the UI nor the helper can promote database evidence. Server-mutating controls
 are disabled during an in-flight draft request so the one-page layout cannot create overlapping
 updates; an active recording can still be stopped safely.
+
+The current presentation uses primary and subcategory dropdowns, debounced server autosave,
+automatic complaint-location acquisition after a submit-capable category is selected, automatic
+duplicate checking when prerequisites are ready, one combined evidence launcher, and a sticky
+submit area. A committed receipt routes to an explicit success view; attributed failures route to
+a failure view; ambiguous transport/decoding outcomes route to an unknown-state view that directs
+the citizen to owner complaints before retry.
 
 Expo Location, Camera, and Audio remain the device capability adapters. SQLite/SecureStore retain
 only the existing allow-listed resume evidence. Voice evidence does not satisfy a database
@@ -78,6 +87,12 @@ governance resolver. It holds only the derived ward/local-body/authority labels,
 and official source URL in component memory. It persists no exact profile coordinate or street
 address and keeps low-accuracy, ambiguous, and unsupported results explicit.
 
+Community, Nearby, and Profile now use the same current-area coordinator. It reuses only a
+non-mocked, at-most-100-metre fix for five minutes, coalesces identical concurrent work, consults a
+bounded OS last-known fix, and keeps exact coordinates in memory only. Automatic feature entry may
+show the native permission dialog once per process; later recovery is citizen-initiated. Complaint
+and media evidence never use this cache and always request a fresh high-accuracy fix.
+
 ## Reviewed-Public Community
 
 Community reuses the reviewed transparency projection through three compact modes. Local uses
@@ -87,6 +102,28 @@ third-party coordinate transfer. Authenticated lookup restores only the current 
 and star state; mutation sets those booleans idempotently for a current reviewed public ID. No
 supporter identity, avatar, exact location, original media, or private complaint data is rendered.
 Withdrawal removes the current surface, and support/star never changes official complaint state.
+
+The screen loads owner reports independently of location and reviewed-public state, virtualises
+report lists, and requests Heat aggregates only when Heat is selected. The owner preview uses the
+existing authenticated complaint endpoint and never creates a public projection.
+
+## Civic-Area Offices and Localisation
+
+The governance resolver optionally returns at most 25 verified exact-ward and explicitly scoped
+municipality-wide offices. The strict response omits null fields and exposes only public
+name/type/address/phone/email, verification date, and official HTTPS source. Mobile hides missing
+actions, validates phone/mail targets, opens sources in Expo's in-app browser, and ignores stale
+responses after blur, identity change, or a newer lookup.
+
+Core authenticated screens consume the typed localisation provider for English, Marathi, and
+Hindi. The locale is restored from protected local preferences, updated immediately after a
+successful profile-language save, and used for dates/status copy. Official entity names and
+server-originated messages remain data rather than client translations.
+
+Compact mobile tokens define a restrained civic palette, smaller type scale, subtle surfaces and
+filled code-native icons. The bottom navigation is a detached capsule with five stable
+destinations, while visible instructions are kept short and detailed guidance remains contextual
+or accessible.
 
 ## Configuration and Notifications
 

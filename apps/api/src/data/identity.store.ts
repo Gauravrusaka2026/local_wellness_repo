@@ -136,7 +136,7 @@ export abstract class IdentityStore {
 
   public abstract upsertDevice(userId: string, input: DeviceRegistration): Promise<Device>;
 
-  public abstract userHasVerifiedPhoneMfa(userId: string): Promise<boolean>;
+  public abstract userHasVerifiedPhone(userId: string): Promise<boolean>;
 
   public abstract userRequiresPrivilegedMfa(userId: string, at: string): Promise<boolean>;
 }

@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 
 import { completeAuthCallback, getUserFacingAuthError } from '../../src/auth/auth-service';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen } from '../../src/ui/screen';
 
 export default function AuthCallbackScreen() {
@@ -14,6 +15,7 @@ export default function AuthCallbackScreen() {
     type?: string | string[];
   }>();
   const router = useRouter();
+  const { t } = useLocalization();
   const started = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,12 +63,12 @@ export default function AuthCallbackScreen() {
   ]);
 
   return error === null ? (
-    <LoadingScreen label="Completing your secure sign-in…" />
+    <LoadingScreen label={t('completingSignIn')} />
   ) : (
     <ErrorScreen
-      action={{ label: 'Return to sign in', onPress: () => router.replace('/auth') }}
+      action={{ label: t('returnToSignIn'), onPress: () => router.replace('/auth') }}
       message={error}
-      title="Sign-in link not accepted"
+      title={t('signInLinkRejected')}
     />
   );
 }

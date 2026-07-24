@@ -1,4 +1,5 @@
 import {
+  complaintHandoffActionKinds,
   complaintDraftStatuses,
   complaintLocationProviders,
   complaintLocationVerificationStatuses,
@@ -11,10 +12,13 @@ import {
   complaintStatuses,
   complaintTimelineEventTypes,
   complaintVisibilityValues,
+  complaintTaxonomyRoutingStatuses,
+  complaintTaxonomySensitivityClasses,
   routingConfidenceBands,
   routingCategorySubmissionAvailabilities,
   routingDecisionStatuses,
   type ComplaintDetail,
+  type ComplaintTaxonomyCatalogItem,
   type ComplaintDraft,
   type ComplaintDuplicateCheckResult,
   type ComplaintListResult,
@@ -136,24 +140,60 @@ const publicRoutingExplanationSchema = z
   })
   .strict();
 
-const receiptSchema = z
+const receiptRoutingSchema = z
+  .object({
+    categoryId: z.uuid().optional(),
+    confidence: publicRoutingConfidenceSchema,
+    explanation: publicRoutingExplanationSchema,
+    status: z.enum(routingDecisionStatuses),
+    target: routingTargetSchema.nullable(),
+  })
+  .strict();
+
+const receiptObjectSchema = z
   .object({
     categoryId: z.uuid(),
     complaintNumber: z.string().min(1),
     id: z.uuid(),
-    routing: z
-      .object({
-        confidence: publicRoutingConfidenceSchema,
-        explanation: publicRoutingExplanationSchema,
-        status: z.enum(routingDecisionStatuses),
-        target: routingTargetSchema.nullable(),
-      })
-      .strict(),
+    routing: receiptRoutingSchema,
     status: z.enum(complaintStatuses),
     submittedAt: timestamp,
     visibility: z.literal('private'),
   })
   .strict();
+
+const validateReceiptRoutingCategory = (
+  receipt: z.infer<typeof receiptObjectSchema>,
+  context: z.RefinementCtx,
+): void => {
+  if (
+    receipt.routing.categoryId !== undefined &&
+    receipt.routing.categoryId !== receipt.categoryId
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'The receipt routing category does not match the submitted complaint category.',
+      path: ['routing', 'categoryId'],
+    });
+  }
+};
+
+const normalizeReceiptRouting = <Receipt extends z.infer<typeof receiptObjectSchema>>({
+  routing,
+  ...receipt
+}: Receipt) => ({
+  ...receipt,
+  routing: {
+    confidence: routing.confidence,
+    explanation: routing.explanation,
+    status: routing.status,
+    target: routing.target,
+  },
+});
+
+const receiptSchema = receiptObjectSchema
+  .superRefine(validateReceiptRoutingCategory)
+  .transform(normalizeReceiptRouting);
 
 const duplicateCheckSchema = z
   .object({
@@ -204,6 +244,140 @@ const categoryCatalogItemSchema = categorySchema.extend({
   submissionAvailability: z.enum(routingCategorySubmissionAvailabilities),
 });
 
+const isSecureHttpsUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.hostname.length > 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+};
+
+const complaintHandoffActionSchema = z
+  .object({
+    description: z.string().trim().min(1).max(500),
+    key: z.string().regex(/^[a-z][a-z0-9_]{1,79}$/u),
+    kind: z.enum(complaintHandoffActionKinds),
+    label: z.string().trim().min(1).max(120),
+    priority: z.number().int().min(0).max(32_767),
+    target: z.string().trim().min(1).max(2_048),
+  })
+  .strict()
+  .superRefine((action, context) => {
+    const targetIsValid =
+      action.kind === 'call'
+        ? /^[0-9]{3,15}$/u.test(action.target)
+        : isSecureHttpsUrl(action.target);
+    if (!targetIsValid) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Complaint handoff target is invalid.',
+        path: ['target'],
+      });
+    }
+  });
+
+const complaintTaxonomyCatalogSchema = z
+  .array(
+    z
+      .object({
+        handoffActions: z.array(complaintHandoffActionSchema).max(20),
+        id: z.uuid(),
+        isEmergency: z.boolean(),
+        maximumMediaCount: z.number().int().min(0).max(20),
+        minimumMediaCount: z.number().int().min(0).max(20),
+        primaryCategoryId: z.uuid(),
+        primaryCode: z.string().regex(/^[A-Z]{3}$/u),
+        primaryName: z.string().trim().min(1).max(160),
+        recommendedMediaKinds: z.array(z.enum(complaintMediaKinds)).max(3),
+        requiredAttributes: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u)).max(20),
+        requiresAsset: z.boolean(),
+        requiresLocation: z.boolean(),
+        routingProfileCategoryId: nullableUuid,
+        routingProfileCode: z
+          .string()
+          .regex(/^[a-z][a-z0-9_]{1,79}$/u)
+          .nullable(),
+        routingProfileName: z.string().trim().min(1).max(160).nullable(),
+        routingStatus: z.enum(complaintTaxonomyRoutingStatuses),
+        sensitivityClass: z.enum(complaintTaxonomySensitivityClasses),
+        subcategoryCode: z.string().regex(/^[A-Z]{3}-[0-9]{3}$/u),
+        subcategoryDescription: z.string().trim().min(1).max(1_000).nullable(),
+        subcategoryName: z.string().trim().min(1).max(240),
+        submissionAvailability: z.enum(routingCategorySubmissionAvailabilities),
+        workflowType: z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/u),
+      })
+      .strict()
+      .superRefine((item, context) => {
+        const profileFields = [
+          item.routingProfileCategoryId,
+          item.routingProfileCode,
+          item.routingProfileName,
+        ];
+        const hasCompleteProfile = profileFields.every((value) => value !== null);
+        const hasNoProfile = profileFields.every((value) => value === null);
+        const hasProtectedSensitivity =
+          item.sensitivityClass === 'PRIVATE' || item.sensitivityClass === 'EMERGENCY_PRIVATE';
+        const hasUniqueHandoffActions =
+          new Set(item.handoffActions.map((action) => action.key)).size ===
+          item.handoffActions.length;
+        const hasProtectedHandoff =
+          item.routingStatus === 'protected_handoff' &&
+          hasProtectedSensitivity &&
+          hasNoProfile &&
+          item.submissionAvailability === 'unavailable' &&
+          item.handoffActions.length > 0;
+        const hasNoHandoff =
+          item.routingStatus !== 'protected_handoff' && item.handoffActions.length === 0;
+        if (
+          !item.subcategoryCode.startsWith(`${item.primaryCode}-`) ||
+          item.maximumMediaCount < item.minimumMediaCount ||
+          new Set(item.requiredAttributes).size !== item.requiredAttributes.length ||
+          !hasUniqueHandoffActions ||
+          (!hasCompleteProfile && !hasNoProfile) ||
+          (item.routingStatus === 'mapped' && (!hasCompleteProfile || hasProtectedSensitivity)) ||
+          (item.routingStatus !== 'mapped' && !hasNoProfile) ||
+          (item.submissionAvailability === 'available' && item.routingStatus !== 'mapped') ||
+          (!hasProtectedHandoff && !hasNoHandoff)
+        ) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Taxonomy routing metadata is inconsistent.',
+          });
+        }
+      }),
+  )
+  .max(400)
+  .superRefine((items, context) => {
+    const primaryCategories = new Map<string, Readonly<{ id: string; name: string }>>();
+    const hasConflictingPrimary = items.some((item) => {
+      const existing = primaryCategories.get(item.primaryCode);
+      if (
+        existing &&
+        (existing.id !== item.primaryCategoryId || existing.name !== item.primaryName)
+      ) {
+        return true;
+      }
+      primaryCategories.set(item.primaryCode, {
+        id: item.primaryCategoryId,
+        name: item.primaryName,
+      });
+      return false;
+    });
+    if (
+      new Set(items.map((item) => item.id)).size !== items.length ||
+      new Set(items.map((item) => item.subcategoryCode)).size !== items.length ||
+      hasConflictingPrimary
+    ) {
+      context.addIssue({ code: 'custom', message: 'Taxonomy identifiers must be unique.' });
+    }
+  });
+
 const routingAssetDiscoverySchema = z
   .object({
     assets: z
@@ -248,12 +422,15 @@ const listResultSchema = z
   })
   .strict();
 
-const detailSchema = receiptSchema.extend({
-  description: z.string().nullable(),
-  location: locationEvidenceSchema,
-  media: z.array(mediaSchema),
-  updatedAt: timestamp,
-});
+const detailSchema = receiptObjectSchema
+  .extend({
+    description: z.string().nullable(),
+    location: locationEvidenceSchema,
+    media: z.array(mediaSchema),
+    updatedAt: timestamp,
+  })
+  .superRefine(validateReceiptRoutingCategory)
+  .transform(normalizeReceiptRouting);
 
 const timelineSchema = z
   .object({
@@ -278,6 +455,8 @@ export const decodeRoutingCategories = (value: unknown): RoutingCategory[] =>
   z.array(categorySchema).parse(value) as RoutingCategory[];
 export const decodeRoutingCategoryCatalog = (value: unknown): RoutingCategoryCatalogItem[] =>
   z.array(categoryCatalogItemSchema).max(500).parse(value) as RoutingCategoryCatalogItem[];
+export const decodeComplaintTaxonomyCatalog = (value: unknown): ComplaintTaxonomyCatalogItem[] =>
+  complaintTaxonomyCatalogSchema.parse(value) as ComplaintTaxonomyCatalogItem[];
 export const decodeRoutingAssetDiscovery = (value: unknown): RoutingAssetDiscoveryResult =>
   routingAssetDiscoverySchema.parse(value) as RoutingAssetDiscoveryResult;
 export const decodeComplaintDraft = (value: unknown): ComplaintDraft =>

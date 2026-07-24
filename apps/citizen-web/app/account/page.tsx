@@ -16,8 +16,11 @@ import {
   getCitizenAccountLabel,
   getCitizenPhoneVerificationStatus,
 } from '../../lib/auth/presentation';
-import { getCitizenPhoneMfaState, type CitizenPhoneMfaState } from '../../lib/auth/phone-mfa';
-import { getCitizenPhoneMfaMode } from '../../lib/environment';
+import {
+  getCitizenPhoneVerificationState,
+  type CitizenPhoneVerificationState,
+} from '../../lib/auth/phone-verification';
+import { getCitizenPhoneVerificationMode } from '../../lib/environment';
 import { createServerSupabaseClient } from '../../lib/supabase/server';
 import { ProfileForm } from './profile-form';
 import { ProfileImageCard } from './profile-image-card';
@@ -35,19 +38,21 @@ type AccountLoadResult =
       status: 'success';
       identity: VerifiedCitizenSession['identity'];
       profile: Awaited<ReturnType<typeof getProfile>>;
-      phoneMfaState: CitizenPhoneMfaState | null;
+      phoneVerificationState: CitizenPhoneVerificationState | null;
     }>;
 
 const loadAccount = async (): Promise<AccountLoadResult> => {
   try {
     const supabase = await createServerSupabaseClient();
     const session = await getVerifiedCitizenSession(supabase);
-    const phoneMfaState = await getCitizenPhoneMfaState(supabase).catch(() => null);
+    const phoneVerificationState = await getCitizenPhoneVerificationState(supabase).catch(
+      () => null,
+    );
 
     try {
       const profile = await getProfile(session.accessToken);
 
-      return { identity: session.identity, phoneMfaState, profile, status: 'success' };
+      return { identity: session.identity, phoneVerificationState, profile, status: 'success' };
     } catch (error) {
       if (isProfileSetupRequired(error)) {
         return { identity: session.identity, status: 'profile-setup-required' };
@@ -91,7 +96,7 @@ const AccountActions = () => (
 
 export default async function AccountPage() {
   const result = await loadAccount();
-  const phoneMfaIsEnforced = getCitizenPhoneMfaMode() === 'enforce';
+  const phoneVerificationIsEnforced = getCitizenPhoneVerificationMode() === 'enforce';
 
   if (result.status === 'signed-out') {
     redirect('/auth/login?next=/account');
@@ -132,8 +137,8 @@ export default async function AccountPage() {
 
   const onboardingComplete = isProfileOnboardingComplete(result.profile);
   const phoneVerification = getCitizenPhoneVerificationStatus(
-    result.phoneMfaState,
-    phoneMfaIsEnforced,
+    result.phoneVerificationState,
+    phoneVerificationIsEnforced,
   );
 
   return (
@@ -175,7 +180,7 @@ export default async function AccountPage() {
           ) : null}
         </div>
       </section>
-      {!phoneMfaIsEnforced ? (
+      {!phoneVerificationIsEnforced ? (
         <p className="setup-notice" role="status">
           Email-and-password access is active. Phone verification is optional during the current
           rollout and is never inferred from the phone number in your profile.

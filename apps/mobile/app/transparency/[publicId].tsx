@@ -2,11 +2,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { PublicComplaintDetail } from '@local-wellness/types';
+import { localeForIntl, type MessageKey } from '@local-wellness/localization';
 
 import {
   getPublicComplaint,
   getUserFacingTransparencyError,
 } from '../../src/transparency/transparency-service';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
 
 type DetailState =
@@ -14,18 +16,19 @@ type DetailState =
   | Readonly<{ message: string; status: 'error' }>
   | Readonly<{ complaint: PublicComplaintDetail; status: 'ready' }>;
 
-const statusLabels = {
-  closed: 'Closed',
-  in_progress: 'In progress',
-  reported: 'Reported',
-  resolved: 'Resolved',
-} as const;
+const statusMessageKeys = {
+  closed: 'statusClosed',
+  in_progress: 'statusInProgress',
+  reported: 'statusReported',
+  resolved: 'statusResolved',
+} as const satisfies Readonly<Record<PublicComplaintDetail['status'], MessageKey>>;
 
 const firstParameter = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
 
 export default function PublicComplaintDetailScreen() {
   const router = useRouter();
+  const { formatDateTime, locale, t } = useLocalization();
   const parameters = useLocalSearchParams<{ publicId?: string | string[] }>();
   const publicId = firstParameter(parameters.publicId);
   const [attempt, setAttempt] = useState(0);
@@ -49,21 +52,21 @@ export default function PublicComplaintDetailScreen() {
   }, [attempt, publicId]);
 
   if (publicId === undefined) {
-    return <ErrorScreen message="The public report link is incomplete." />;
+    return <ErrorScreen message={t('publicReportLinkIncomplete')} />;
   }
-  if (state.status === 'loading') return <LoadingScreen label="Loading public report…" />;
+  if (state.status === 'loading') return <LoadingScreen label={t('loadPublicReport')} />;
   if (state.status === 'error') {
     return (
       <ErrorScreen
         action={{
-          label: 'Try again',
+          label: t('tryAgain'),
           onPress: () => {
             setState({ status: 'loading' });
             setAttempt((value) => value + 1);
           },
         }}
         message={state.message}
-        title="Public report unavailable"
+        title={t('publicReportUnavailable')}
       />
     );
   }
@@ -74,8 +77,8 @@ export default function PublicComplaintDetailScreen() {
       : state.complaint.duplicateGroup.relatedPublicIds.map((relatedPublicId) => ({
           label:
             relatedPublicId === state.complaint.duplicateGroup?.canonicalPublicId
-              ? 'Primary public report'
-              : 'Related public report',
+              ? t('primaryPublicReport')
+              : t('relatedPublicReport'),
           publicId: relatedPublicId,
         }));
 
@@ -83,31 +86,31 @@ export default function PublicComplaintDetailScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.hero}>
-          <Text style={styles.eyebrow}>Reviewed public report</Text>
+          <Text style={styles.eyebrow}>{t('reviewedPublicReport')}</Text>
           <Text accessibilityRole="header" style={styles.title}>
             {state.complaint.title}
           </Text>
-          <Text style={styles.status}>{statusLabels[state.complaint.status]}</Text>
+          <Text style={styles.status}>{t(statusMessageKeys[state.complaint.status])}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Category</Text>
+          <Text style={styles.label}>{t('category')}</Text>
           <Text style={styles.value}>{state.complaint.category.name}</Text>
-          <Text style={styles.label}>Local body</Text>
+          <Text style={styles.label}>{t('localBody')}</Text>
           <Text style={styles.value}>{state.complaint.localBody.name}</Text>
-          <Text style={styles.label}>Ward</Text>
-          <Text style={styles.value}>{state.complaint.ward?.name ?? 'Not published'}</Text>
-          <Text style={styles.label}>Submitted</Text>
-          <Text style={styles.value}>{new Date(state.complaint.submittedAt).toLocaleString()}</Text>
-          <Text style={styles.label}>Approximate location precision</Text>
+          <Text style={styles.label}>{t('ward')}</Text>
+          <Text style={styles.value}>{state.complaint.ward?.name ?? t('notPublished')}</Text>
+          <Text style={styles.label}>{t('submittedLabel')}</Text>
+          <Text style={styles.value}>{formatDateTime(state.complaint.submittedAt)}</Text>
+          <Text style={styles.label}>{t('approximateLocationPrecision')}</Text>
           <Text style={styles.value}>
-            About {state.complaint.location.precisionMeters.toLocaleString()} metres
+            {state.complaint.location.precisionMeters.toLocaleString(localeForIntl(locale))} m
           </Text>
         </View>
 
         <View style={styles.card}>
           <Text accessibilityRole="header" style={styles.heading}>
-            Public summary
+            {t('publicSummary')}
           </Text>
           <Text style={styles.body}>{state.complaint.summary}</Text>
         </View>
@@ -115,16 +118,22 @@ export default function PublicComplaintDetailScreen() {
         {state.complaint.duplicateGroup === null ? null : (
           <View style={styles.card}>
             <Text accessibilityRole="header" style={styles.heading}>
-              Related public reports
+              {t('relatedPublicReports')}
             </Text>
             <Text style={styles.body}>
-              This is one of {state.complaint.duplicateGroup.totalCount.toLocaleString()} reviewed
-              public reports linked to the same issue.
+              {t('relatedReportsSummary', {
+                count: state.complaint.duplicateGroup.totalCount.toLocaleString(
+                  localeForIntl(locale),
+                ),
+              })}
             </Text>
             <View style={styles.relatedList}>
               {relatedPublicReports.map((relatedReport) => (
                 <Pressable
-                  accessibilityLabel={`Open ${relatedReport.label.toLowerCase()} ${relatedReport.publicId}`}
+                  accessibilityLabel={t('openRelatedPublicReport', {
+                    id: relatedReport.publicId,
+                    label: relatedReport.label.toLowerCase(),
+                  })}
                   accessibilityRole="link"
                   key={relatedReport.publicId}
                   onPress={() => router.push(`/transparency/${relatedReport.publicId}`)}
@@ -139,11 +148,8 @@ export default function PublicComplaintDetailScreen() {
         )}
 
         <View style={styles.privacyCard}>
-          <Text style={styles.privacyTitle}>Privacy-protected view</Text>
-          <Text style={styles.privacyText}>
-            This page excludes exact coordinates, citizen identity, original media, private
-            messages, comments, and government internal notes.
-          </Text>
+          <Text style={styles.privacyTitle}>{t('privacyProtectedView')}</Text>
+          <Text style={styles.privacyText}>{t('privacyProtectedViewBody')}</Text>
         </View>
 
         <Pressable
@@ -151,7 +157,7 @@ export default function PublicComplaintDetailScreen() {
           onPress={() => router.replace('/transparency')}
           style={styles.backButton}
         >
-          <Text style={styles.backText}>Back to public reports</Text>
+          <Text style={styles.backText}>{t('backToPublicReports')}</Text>
         </Pressable>
       </ScrollView>
     </Screen>
@@ -204,6 +210,6 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   status: { color: '#475569', fontSize: 16, fontWeight: '700' },
-  title: { color: '#14281d', fontSize: 29, fontWeight: '900' },
+  title: { color: '#14281d', fontSize: 24, fontWeight: '900' },
   value: { color: '#1e293b', fontSize: 16, fontWeight: '700' },
 });

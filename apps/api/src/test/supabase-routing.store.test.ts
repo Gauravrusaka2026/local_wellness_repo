@@ -34,6 +34,7 @@ const identifiers = {
   officerRole: '60000000-0000-4000-8000-000000000001',
   policy: '70000000-0000-4000-8000-000000000001',
   policyVersion: '70000000-0000-4000-8000-000000000002',
+  primaryCategory: '70000000-0000-4000-8000-000000000003',
   rule: '80000000-0000-4000-8000-000000000001',
   ruleVersion: '80000000-0000-4000-8000-000000000002',
   source: '90000000-0000-4000-8000-000000000001',
@@ -41,6 +42,7 @@ const identifiers = {
   stateBoundary: '90000000-0000-4000-8000-000000000003',
   taluka: '90000000-0000-4000-8000-000000000004',
   talukaBoundary: '90000000-0000-4000-8000-000000000005',
+  taxonomy: '90000000-0000-4000-8000-000000000006',
   ward: 'a0000000-0000-4000-8000-000000000001',
   wardBoundary: 'a0000000-0000-4000-8000-000000000002',
 } as const;
@@ -88,6 +90,31 @@ const categoryRow = {
   verification_status: 'verified',
   is_placeholder: false,
   is_routing_eligible: true,
+} as const;
+
+const complaintTaxonomyRow = {
+  handoff_actions: [],
+  taxonomy_id: identifiers.taxonomy,
+  primary_category_id: identifiers.primaryCategory,
+  primary_code: 'SWM',
+  primary_name: 'Solid Waste Management',
+  subcategory_code: 'SWM-001',
+  subcategory_name: 'Garbage dump',
+  subcategory_description: 'Garbage accumulated in a public place.',
+  workflow_type: 'PUBLIC_HEALTH',
+  sensitivity_class: 'PUBLIC',
+  routing_status: 'mapped',
+  routing_profile_category_id: identifiers.category,
+  routing_profile_code: categoryRow.category_code,
+  routing_profile_name: categoryRow.category_name,
+  submission_available: true,
+  requires_asset: categoryRow.requires_asset,
+  requires_location: categoryRow.requires_location,
+  is_emergency: categoryRow.is_emergency,
+  minimum_media_count: categoryRow.minimum_media_count,
+  maximum_media_count: categoryRow.maximum_media_count,
+  required_attributes: categoryRow.required_attributes,
+  recommended_media_kinds: ['photo'],
 } as const;
 
 const verifiedEvidence = (
@@ -501,6 +528,171 @@ describe('Supabase routing category catalog', () => {
 
     await assert.rejects(malformedStore.listRoutingCategories(), RoutingDataAccessError);
     await assert.rejects(unavailableStore.listRoutingCategories(), RoutingDataAccessError);
+  });
+
+  it('maps only the public-safe detailed complaint taxonomy RPC response', async () => {
+    const calls: RpcCall[] = [];
+    const store = createStore(async (functionName, arguments_) => {
+      calls.push({ functionName, arguments_ });
+      return { data: [complaintTaxonomyRow], error: null };
+    });
+
+    const taxonomy = await store.listComplaintTaxonomy();
+
+    assert.deepEqual(taxonomy, [
+      {
+        handoffActions: [],
+        id: identifiers.taxonomy,
+        primaryCategoryId: identifiers.primaryCategory,
+        primaryCode: 'SWM',
+        primaryName: 'Solid Waste Management',
+        subcategoryCode: 'SWM-001',
+        subcategoryName: 'Garbage dump',
+        subcategoryDescription: 'Garbage accumulated in a public place.',
+        workflowType: 'PUBLIC_HEALTH',
+        sensitivityClass: 'PUBLIC',
+        routingStatus: 'mapped',
+        routingProfileCategoryId: identifiers.category,
+        routingProfileCode: 'test_issue',
+        routingProfileName: 'Test issue',
+        submissionAvailability: 'available',
+        requiresAsset: false,
+        requiresLocation: true,
+        isEmergency: false,
+        minimumMediaCount: 0,
+        maximumMediaCount: 5,
+        requiredAttributes: [],
+        recommendedMediaKinds: ['photo'],
+      },
+    ]);
+    assert.deepEqual(calls, [{ functionName: 'list_complaint_taxonomy', arguments_: {} }]);
+    assert.equal(JSON.stringify(taxonomy).includes('authority'), false);
+    assert.equal(JSON.stringify(taxonomy).includes('officer'), false);
+  });
+
+  it('maps protected official handoffs without exposing an operational routing profile', async () => {
+    const protectedRow = {
+      ...complaintTaxonomyRow,
+      handoff_actions: [
+        {
+          description: 'Call emergency services when anyone is in immediate danger.',
+          key: 'call_112',
+          kind: 'call',
+          label: 'Call 112',
+          priority: 10,
+          target: '112',
+        },
+        {
+          description: 'Open the official Mumbai Police complaint page.',
+          key: 'open_mumbai_police',
+          kind: 'browser',
+          label: 'Open Mumbai Police',
+          priority: 20,
+          target: 'https://mumbaipolice.gov.in/OnlineComplaints',
+        },
+      ],
+      routing_profile_category_id: null,
+      routing_profile_code: null,
+      routing_profile_name: null,
+      routing_status: 'protected_handoff',
+      sensitivity_class: 'EMERGENCY_PRIVATE',
+      submission_available: false,
+    } as const;
+    const store = createStore(async () => ({ data: [protectedRow], error: null }));
+
+    assert.deepEqual((await store.listComplaintTaxonomy())[0]?.handoffActions, [
+      {
+        key: 'call_112',
+        kind: 'call',
+        label: 'Call 112',
+        description: 'Call emergency services when anyone is in immediate danger.',
+        target: '112',
+        priority: 10,
+      },
+      {
+        key: 'open_mumbai_police',
+        kind: 'browser',
+        label: 'Open Mumbai Police',
+        description: 'Open the official Mumbai Police complaint page.',
+        target: 'https://mumbaipolice.gov.in/OnlineComplaints',
+        priority: 20,
+      },
+    ]);
+  });
+
+  it('rejects inconsistent or secret-bearing detailed complaint taxonomy rows', async () => {
+    const partialProfileStore = createStore(async () => ({
+      data: [{ ...complaintTaxonomyRow, routing_profile_name: null }],
+      error: null,
+    }));
+    const secretBearingStore = createStore(async () => ({
+      data: [{ ...complaintTaxonomyRow, recipient_email: 'private@example.test' }],
+      error: null,
+    }));
+    const conflictingPrimaryStore = createStore(async () => ({
+      data: [
+        complaintTaxonomyRow,
+        {
+          ...complaintTaxonomyRow,
+          taxonomy_id: '90000000-0000-4000-8000-000000000007',
+          primary_category_id: '70000000-0000-4000-8000-000000000008',
+          subcategory_code: 'SWM-002',
+        },
+      ],
+      error: null,
+    }));
+    const protectedWithoutActionStore = createStore(async () => ({
+      data: [
+        {
+          ...complaintTaxonomyRow,
+          routing_profile_category_id: null,
+          routing_profile_code: null,
+          routing_profile_name: null,
+          routing_status: 'protected_handoff',
+          sensitivity_class: 'PRIVATE',
+          submission_available: false,
+        },
+      ],
+      error: null,
+    }));
+    const unsafeHandoffStore = createStore(async () => ({
+      data: [
+        {
+          ...complaintTaxonomyRow,
+          handoff_actions: [
+            {
+              description: 'Unsafe non-HTTPS link.',
+              key: 'unsafe_link',
+              kind: 'browser',
+              label: 'Open unsafe link',
+              priority: 10,
+              target: 'http://example.test/help',
+            },
+          ],
+          routing_profile_category_id: null,
+          routing_profile_code: null,
+          routing_profile_name: null,
+          routing_status: 'protected_handoff',
+          sensitivity_class: 'PRIVATE',
+          submission_available: false,
+        },
+      ],
+      error: null,
+    }));
+    const protectedMappedStore = createStore(async () => ({
+      data: [{ ...complaintTaxonomyRow, sensitivity_class: 'PRIVATE' }],
+      error: null,
+    }));
+
+    await assert.rejects(partialProfileStore.listComplaintTaxonomy(), RoutingDataAccessError);
+    await assert.rejects(secretBearingStore.listComplaintTaxonomy(), RoutingDataAccessError);
+    await assert.rejects(conflictingPrimaryStore.listComplaintTaxonomy(), RoutingDataAccessError);
+    await assert.rejects(
+      protectedWithoutActionStore.listComplaintTaxonomy(),
+      RoutingDataAccessError,
+    );
+    await assert.rejects(unsafeHandoffStore.listComplaintTaxonomy(), RoutingDataAccessError);
+    await assert.rejects(protectedMappedStore.listComplaintTaxonomy(), RoutingDataAccessError);
   });
 
   it('preserves the Supabase client receiver when invoking RPC methods', async () => {

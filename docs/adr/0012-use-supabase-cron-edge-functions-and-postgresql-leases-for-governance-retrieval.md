@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by
+[ADR-0031](./0031-prune-deferred-database-subsystems-for-v1.md) for V1. The scheduled Edge retrieval
+runtime and PostgreSQL lease/contact pipeline are retired from the active repository.
 
 ## Date
 

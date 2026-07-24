@@ -1,10 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CivicIcon } from '../../src/ui/civic-icon';
+import { useLocalization } from '../../src/ui/localization';
 import { Screen } from '../../src/ui/screen';
+import { mobileTheme } from '../../src/ui/theme';
 
 export default function ComplaintResultScreen() {
   const router = useRouter();
+  const { t } = useLocalization();
   const params = useLocalSearchParams<{
     status?: string;
     complaintId?: string;
@@ -12,55 +16,138 @@ export default function ComplaintResultScreen() {
     message?: string;
   }>();
   const success = params.status === 'success';
+  const unknown = params.status === 'unknown';
+  const title = success
+    ? t('reportSubmitted')
+    : unknown
+      ? t('submissionStatusUnknown')
+      : t('reportNotSubmitted');
+  const message = success
+    ? t('complaintReceived', { number: params.number ?? '' })
+    : unknown
+      ? t('submissionUnconfirmed')
+      : (params.message ?? t('draftSafeRetry'));
+
   return (
     <Screen>
       <View style={styles.container}>
-        <Text style={[styles.icon, success ? styles.success : styles.failure]}>
-          {success ? '✓' : '!'}
-        </Text>
+        <View
+          style={[
+            styles.icon,
+            success ? styles.success : unknown ? styles.unknown : styles.failure,
+          ]}
+        >
+          <CivicIcon
+            color={
+              success
+                ? mobileTheme.colors.success
+                : unknown
+                  ? mobileTheme.colors.info
+                  : mobileTheme.colors.accent
+            }
+            name={success ? 'shield' : unknown ? 'status' : 'complaint'}
+          />
+        </View>
         <Text accessibilityRole="header" style={styles.title}>
-          {success ? 'Report submitted' : 'Report not submitted'}
+          {title}
         </Text>
-        <Text style={styles.message}>
-          {success
-            ? `Your complaint ${params.number ?? ''} was received and routed.`
-            : (params.message ?? 'We could not submit this report. Your draft is safe to retry.')}
-        </Text>
+        <Text style={styles.message}>{message}</Text>
         {success && params.complaintId ? (
           <Action
-            label="View complaint"
+            label={t('viewComplaint')}
             onPress={() => router.replace(`/complaints/${params.complaintId}`)}
           />
         ) : null}
-        <Action label="Open your complaints" onPress={() => router.replace('/complaints')} />
-        {!success ? (
-          <Action label="Return to report" onPress={() => router.replace('/complaints/new')} />
-        ) : null}
+        {unknown ? (
+          <>
+            <Action label={t('openComplaints')} onPress={() => router.replace('/complaints')} />
+            <Action
+              label={t('returnToReport')}
+              onPress={() => router.replace('/complaints/new')}
+              secondary
+            />
+          </>
+        ) : success ? (
+          <Action
+            label={t('openComplaints')}
+            onPress={() => router.replace('/complaints')}
+            secondary={Boolean(params.complaintId)}
+          />
+        ) : (
+          <>
+            <Action label={t('returnToReport')} onPress={() => router.replace('/complaints/new')} />
+            <Action
+              label={t('openComplaints')}
+              onPress={() => router.replace('/complaints')}
+              secondary
+            />
+          </>
+        )}
       </View>
     </Screen>
   );
 }
 
-const Action = ({ label, onPress }: { label: string; onPress: () => void }) => (
-  <Pressable onPress={onPress} style={styles.action}>
-    <Text style={styles.actionText}>{label}</Text>
+const Action = ({
+  label,
+  onPress,
+  secondary = false,
+}: {
+  label: string;
+  onPress: () => void;
+  secondary?: boolean;
+}) => (
+  <Pressable
+    accessibilityRole="button"
+    onPress={onPress}
+    style={[styles.action, secondary && styles.secondaryAction]}
+  >
+    <Text style={[styles.actionText, secondary && styles.secondaryActionText]}>{label}</Text>
   </Pressable>
 );
 
 const styles = StyleSheet.create({
   action: {
-    backgroundColor: '#17683b',
-    borderRadius: 14,
-    minHeight: 50,
+    backgroundColor: mobileTheme.colors.primary,
+    borderRadius: mobileTheme.radius.medium,
+    minHeight: 48,
     paddingHorizontal: 22,
     paddingVertical: 14,
     width: '100%',
   },
-  actionText: { color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  container: { alignItems: 'center', flex: 1, gap: 18, justifyContent: 'center', padding: 24 },
-  failure: { backgroundColor: '#fff7ed', color: '#c2410c' },
-  icon: { borderRadius: 999, fontSize: 42, fontWeight: '900', padding: 16 },
-  message: { color: '#334155', fontSize: 16, lineHeight: 24, textAlign: 'center' },
-  success: { backgroundColor: '#ecfdf5', color: '#15803d' },
-  title: { color: '#143b2a', fontSize: 28, fontWeight: '900', textAlign: 'center' },
+  actionText: {
+    color: mobileTheme.colors.white,
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  container: { alignItems: 'center', flex: 1, gap: 16, justifyContent: 'center', padding: 22 },
+  failure: { backgroundColor: mobileTheme.colors.accentSoft },
+  icon: {
+    alignItems: 'center',
+    borderRadius: mobileTheme.radius.full,
+    height: 58,
+    justifyContent: 'center',
+    width: 58,
+  },
+  message: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+    textAlign: 'center',
+  },
+  secondaryAction: {
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.primary,
+    borderWidth: 1,
+  },
+  secondaryActionText: { color: mobileTheme.colors.primary },
+  success: { backgroundColor: mobileTheme.colors.primarySoft },
+  title: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.title,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  unknown: { backgroundColor: mobileTheme.colors.infoSoft },
 });

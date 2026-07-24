@@ -28,7 +28,7 @@ export type PublicSupabaseConfiguration = Readonly<{
 
 export type ApiConfiguration = Readonly<{
   allowedOrigins: readonly string[];
-  citizenPhoneMfaMode: 'enforce' | 'observe';
+  citizenPhoneVerificationMode: 'enforce' | 'observe';
   governmentInviteRedirectUrl: string;
   port: number;
   privilegedMfaMode: 'enforce' | 'observe';
@@ -64,7 +64,7 @@ type PublicSupabaseInput = Readonly<{
 
 type ApiConfigurationInput = Readonly<{
   allowedOrigins: string | undefined;
-  citizenPhoneMfaMode: string | undefined;
+  citizenPhoneVerificationMode: string | undefined;
   governmentInviteRedirectUrl: string | undefined;
   port: string | undefined;
   privilegedMfaMode: string | undefined;
@@ -183,7 +183,10 @@ export const parseApiConfiguration = (input: ApiConfigurationInput): ApiConfigur
 
   return {
     allowedOrigins: parseAllowedOrigins(input.allowedOrigins, 'API allowed origin'),
-    citizenPhoneMfaMode: parseMfaMode(input.citizenPhoneMfaMode, 'API citizen phone MFA mode'),
+    citizenPhoneVerificationMode: parseMfaMode(
+      input.citizenPhoneVerificationMode,
+      'API citizen phone verification mode',
+    ),
     governmentInviteRedirectUrl: requireHttpUrl(
       input.governmentInviteRedirectUrl,
       'Government invitation redirect URL',

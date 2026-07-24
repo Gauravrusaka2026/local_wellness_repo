@@ -254,33 +254,15 @@ metrics (metric, expected, actual, passed) as (
     and version.is_routing_eligible
   union all
   select
-    'BMC contacts approved for external complaint delivery',
-    0::bigint,
+    'active BMC V1 ward/category contacts',
+    312::bigint,
     count(*)::bigint,
-    count(*) = 0
-  from governance.contact_channel_versions as version
-  inner join governance.contact_channels as channel on channel.id = version.contact_channel_id
+    count(*) = 312
+  from routing.ward_issue_contacts as contact
+  inner join governance.wards as ward on ward.id = contact.ward_id
   cross join bmc_scope
-  where version.is_complaint_delivery_approved
-    and (
-      channel.authority_id = bmc_scope.authority_id
-      or channel.local_body_id = bmc_scope.local_body_id
-      or channel.ward_id in (
-        select ward.id
-        from governance.wards as ward
-        where ward.local_body_id = bmc_scope.local_body_id
-      )
-      or channel.office_id in (
-        select office.id
-        from governance.offices as office
-        where office.authority_id = bmc_scope.authority_id
-      )
-      or channel.officer_assignment_id in (
-        select assignment.id
-        from governance.officer_assignments as assignment
-        where assignment.authority_id = bmc_scope.authority_id
-      )
-    )
+  where ward.local_body_id = bmc_scope.local_body_id
+    and contact.is_active
 )
 select metric, expected, actual, passed
 from metrics

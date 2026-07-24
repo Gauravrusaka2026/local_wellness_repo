@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "datasetKey": "jagruksetu_bmc_intake_v1",
+  "datasetVersion": "2026-07-24.v1",
+  "sourceFiles": {
+    "resources/JAGRUKSETU_COMPLAINT_TAXONOMY_V1.md": "30688cf8af038d059770c1b2c50ba02e7547e473e406ab61ad4227c8b475a6ad",
+    "resources/governance/csv/jagruksetu_bmc_intake_v1/Source_Registry.csv": "456bcca2e23c2cdc44a0e79b1c0b492cf7aa1302a69baef19c4072a4a2c76f47",
+    "resources/governance/csv/jagruksetu_bmc_intake_v1/Protected_Handoff_Actions.csv": "3984e702e69b858c5ed7487391f5cc341dfeec73700d9d2a6c780bdfe5cd3b8a",
+    "supabase/migrations/20260724110000_v1_bmc_general_intake_and_handoffs.sql": "20cd17c36b742ed0fd118d6b197d8836d42c801bb68779d91ea9eb79b2293fb2"
+  },
+  "generatedFiles": {
+    "resources/governance/generated/jagruksetu-bmc-intake-v1/taxonomy-route-map.csv": "568e15f05f36a5b61a0a7321efdc3987a770af5c6dc3f431fde5195aa9c5a627",
+    "resources/governance/generated/jagruksetu-bmc-intake-v1/import-ready.json": "65b69908181c2561c8c032efc293aca0587d581bd3de685cdb36c164d42c8f56",
+    "resources/governance/generated/jagruksetu-bmc-intake-v1/validation-report.json": "6c988d6029d43ce3375b9b8fa2c8000eb945d23b8862103b884e72c1309ed8be",
+    "supabase/seed/56_jagruksetu_bmc_intake.generated.sql": "84aeba81f1dd1d7ccb8b179bae2948ced5f510a9191ca9e638c2f9de8d79c6ab",
+    "supabase/deploy/jagruksetu-bmc-intake-v1.sql": "99451a9db695a841d40aff207aae8f6b2f2b9e1ff460d4aa4d4520adae331b87"
+  }
+}

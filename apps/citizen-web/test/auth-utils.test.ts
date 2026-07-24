@@ -16,16 +16,24 @@ import {
   normalizePhone,
 } from '../lib/auth/input';
 import { getSafeReturnPath } from '../lib/auth/return-path';
-import { parseCitizenPhoneMfaMode } from '../lib/environment';
 import {
+  getCitizenPhoneVerificationMode,
+  parseCitizenPhoneVerificationMode,
+} from '../lib/environment';
+import {
+  CitizenPasswordRecoveryPhoneRequiredError,
+  CitizenPasswordRecoverySecurityError,
+  CitizenPasswordSessionRevocationError,
   createCitizenPasswordAccount,
   establishCitizenPasswordRecoverySession,
   getUserFacingAuthError,
+  requestCitizenPasswordPhoneOtp,
   requestCitizenPasswordReset,
   signInCitizenWithPassword,
   signOutCitizenSession,
-  updateCitizenPassword,
+  updateCitizenPasswordWithPhoneOtp,
 } from '../lib/auth/service';
+import { recordAuthAuditEventWithin } from '../lib/api/auth-audit';
 
 test('accepts local return paths and rejects cross-origin redirects', () => {
   assert.equal(getSafeReturnPath('/account?tab=profile', '/account'), '/account?tab=profile');
@@ -33,12 +41,39 @@ test('accepts local return paths and rejects cross-origin redirects', () => {
   assert.equal(getSafeReturnPath('https://attacker.example/path', '/account'), '/account');
 });
 
-test('defaults citizen Phone MFA to observe and validates explicit rollout modes', () => {
-  assert.equal(parseCitizenPhoneMfaMode(undefined), 'observe');
-  assert.equal(parseCitizenPhoneMfaMode(''), 'observe');
-  assert.equal(parseCitizenPhoneMfaMode('observe'), 'observe');
-  assert.equal(parseCitizenPhoneMfaMode('enforce'), 'enforce');
-  assert.throws(() => parseCitizenPhoneMfaMode('disabled'));
+test('defaults citizen phone verification to enforce and validates rollout modes', () => {
+  assert.equal(parseCitizenPhoneVerificationMode(undefined), 'enforce');
+  assert.equal(parseCitizenPhoneVerificationMode(''), 'enforce');
+  assert.equal(parseCitizenPhoneVerificationMode('observe'), 'observe');
+  assert.equal(parseCitizenPhoneVerificationMode('enforce'), 'enforce');
+  assert.throws(() => parseCitizenPhoneVerificationMode('disabled'));
+});
+
+test('uses the legacy phone rollout variable only when the preferred variable is absent', () => {
+  const environment = process.env as Record<string, string | undefined>;
+  const preferred = environment['NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE'];
+  const legacy = environment['NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE'];
+
+  try {
+    delete environment['NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE'];
+    environment['NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE'] = 'observe';
+    assert.equal(getCitizenPhoneVerificationMode(), 'observe');
+
+    environment['NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE'] = 'enforce';
+    assert.equal(getCitizenPhoneVerificationMode(), 'enforce');
+  } finally {
+    if (preferred === undefined) {
+      delete environment['NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE'];
+    } else {
+      environment['NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE'] = preferred;
+    }
+
+    if (legacy === undefined) {
+      delete environment['NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE'];
+    } else {
+      environment['NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE'] = legacy;
+    }
+  }
 });
 
 test('normalizes citizen authentication inputs', () => {
@@ -211,6 +246,12 @@ test('requests a non-enumerating password recovery redirect', async () => {
 
 test('establishes password recovery only from PKCE or a recovery token hash', async () => {
   const calls: unknown[] = [];
+  const recoveryUser = {
+    email: 'citizen@example.org',
+    id: 'citizen-user-id',
+    phone: '919876543210',
+    phone_confirmed_at: '2026-07-23T08:00:00.000Z',
+  };
   const supabase = {
     auth: {
       exchangeCodeForSession: async (code: string) => {
@@ -219,22 +260,23 @@ test('establishes password recovery only from PKCE or a recovery token hash', as
           data: {
             session: {
               access_token: 'recovery-token',
-              user: { email: 'citizen@example.org' },
+              user: recoveryUser,
             },
-            user: { email: 'citizen@example.org' },
+            user: recoveryUser,
           },
           error: null,
         };
       },
+      getUser: async () => ({ data: { user: recoveryUser }, error: null }),
       verifyOtp: async (input: unknown) => {
         calls.push(input);
         return {
           data: {
             session: {
               access_token: 'recovery-token',
-              user: { email: 'citizen@example.org' },
+              user: recoveryUser,
             },
-            user: { email: 'citizen@example.org' },
+            user: recoveryUser,
           },
           error: null,
         };
@@ -242,19 +284,27 @@ test('establishes password recovery only from PKCE or a recovery token hash', as
     },
   } as unknown as SupabaseClient;
 
-  assert.equal(
+  assert.deepEqual(
     await establishCitizenPasswordRecoverySession(
       supabase,
       'https://citizen.example/auth/reset-password?code=pkce',
     ),
-    'citizen@example.org',
+    {
+      email: 'citizen@example.org',
+      phone: '+919876543210',
+      userId: 'citizen-user-id',
+    },
   );
-  assert.equal(
+  assert.deepEqual(
     await establishCitizenPasswordRecoverySession(
       supabase,
       'https://citizen.example/auth/reset-password?token_hash=hashed&type=recovery',
     ),
-    'citizen@example.org',
+    {
+      email: 'citizen@example.org',
+      phone: '+919876543210',
+      userId: 'citizen-user-id',
+    },
   );
   await assert.rejects(
     establishCitizenPasswordRecoverySession(
@@ -272,6 +322,41 @@ test('establishes password recovery only from PKCE or a recovery token hash', as
   assert.deepEqual(calls, [{ code: 'pkce' }, { token_hash: 'hashed', type: 'recovery' }]);
 });
 
+test('closes a recovery session when the account has no previously confirmed phone', async () => {
+  const signOutCalls: unknown[] = [];
+  const recoveryUser = {
+    email: 'citizen@example.org',
+    id: 'citizen-user-id',
+    phone: '+919876543210',
+    phone_confirmed_at: null,
+  };
+  const supabase = {
+    auth: {
+      exchangeCodeForSession: async () => ({
+        data: {
+          session: { access_token: 'recovery-token', user: recoveryUser },
+          user: recoveryUser,
+        },
+        error: null,
+      }),
+      getUser: async () => ({ data: { user: recoveryUser }, error: null }),
+      signOut: async (input: unknown) => {
+        signOutCalls.push(input);
+        return { error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(
+    establishCitizenPasswordRecoverySession(
+      supabase,
+      'https://citizen.example/auth/reset-password?code=pkce',
+    ),
+    CitizenPasswordRecoveryPhoneRequiredError,
+  );
+  assert.deepEqual(signOutCalls, [{ scope: 'local' }]);
+});
+
 test('maps provider auth failures to specific safe recovery guidance', () => {
   assert.equal(
     getUserFacingAuthError(new Error('Email not confirmed')),
@@ -287,23 +372,238 @@ test('maps provider auth failures to specific safe recovery guidance', () => {
   );
 });
 
-test('updates the password and globally revokes prior sessions', async () => {
+test('bounds best-effort authentication audit delivery', async () => {
+  const startedAt = Date.now();
+  const delivered = await recordAuthAuditEventWithin(
+    'access-token',
+    'otp_verified',
+    async () => new Promise<boolean>(() => undefined),
+    5,
+  );
+
+  assert.equal(delivered, false);
+  assert.ok(Date.now() - startedAt < 1_000);
+});
+
+test('uses an isolated phone OTP session to update the password and revoke sessions', async () => {
   const calls: unknown[] = [];
-  const supabase = {
+  const recoveryUser = {
+    email: 'citizen@example.org',
+    id: 'citizen-user-id',
+    phone: '+919876543210',
+    phone_confirmed_at: '2026-07-23T08:00:00.000Z',
+  };
+  const recoveryClient = {
     auth: {
+      getUser: async () => {
+        calls.push('persistent:get-user');
+        return { data: { user: recoveryUser }, error: null };
+      },
       signOut: async (input: unknown) => {
-        calls.push(input);
+        calls.push({ persistentSignOut: input });
         return { error: null };
       },
-      updateUser: async (input: unknown) => {
-        calls.push(input);
+    },
+  } as unknown as SupabaseClient;
+  const sendClient = {
+    auth: {
+      signInWithOtp: async (input: unknown) => {
+        calls.push({ signInWithOtp: input });
         return { data: {}, error: null };
       },
     },
   } as unknown as SupabaseClient;
+  const verificationClient = {
+    auth: {
+      getUser: async () => {
+        calls.push('isolated:get-user');
+        return { data: { user: recoveryUser }, error: null };
+      },
+      signOut: async (input: unknown) => {
+        calls.push({ isolatedSignOut: input });
+        return { error: null };
+      },
+      updateUser: async (input: unknown) => {
+        calls.push({ updateUser: input });
+        return { data: { user: recoveryUser }, error: null };
+      },
+      verifyOtp: async (input: unknown) => {
+        calls.push({ verifyOtp: input });
+        return {
+          data: {
+            session: { access_token: 'phone-access-token', user: recoveryUser },
+            user: recoveryUser,
+          },
+          error: null,
+        };
+      },
+    },
+  } as unknown as SupabaseClient;
 
-  await updateCitizenPassword(supabase, 'new secure password');
-  assert.deepEqual(calls, [{ password: 'new secure password' }, { scope: 'global' }]);
+  const identity = {
+    email: recoveryUser.email,
+    phone: recoveryUser.phone,
+    userId: recoveryUser.id,
+  };
+  const request = await requestCitizenPasswordPhoneOtp(recoveryClient, identity, () => sendClient);
+  await updateCitizenPasswordWithPhoneOtp(
+    recoveryClient,
+    'new secure password',
+    '123 456',
+    request,
+    () => verificationClient,
+    async (accessToken, eventType) => {
+      calls.push({ otpAudit: { accessToken, eventType } });
+      return true;
+    },
+    async (accessToken, eventType) => {
+      calls.push({ passwordAudit: { accessToken, eventType } });
+      return true;
+    },
+  );
+
+  assert.deepEqual(calls, [
+    'persistent:get-user',
+    {
+      signInWithOtp: {
+        options: { shouldCreateUser: false },
+        phone: '+919876543210',
+      },
+    },
+    'persistent:get-user',
+    {
+      verifyOtp: {
+        phone: '+919876543210',
+        token: '123456',
+        type: 'sms',
+      },
+    },
+    'isolated:get-user',
+    {
+      otpAudit: {
+        accessToken: 'phone-access-token',
+        eventType: 'otp_verified',
+      },
+    },
+    { updateUser: { password: 'new secure password' } },
+    {
+      passwordAudit: {
+        accessToken: 'phone-access-token',
+        eventType: 'password_changed',
+      },
+    },
+    { isolatedSignOut: { scope: 'global' } },
+    { persistentSignOut: { scope: 'local' } },
+  ]);
+});
+
+test('fails closed when the phone OTP authenticates a different account', async () => {
+  const calls: unknown[] = [];
+  const recoveryUser = {
+    id: 'citizen-user-id',
+    phone: '+919876543210',
+    phone_confirmed_at: '2026-07-23T08:00:00.000Z',
+  };
+  const unexpectedUser = {
+    ...recoveryUser,
+    id: 'different-user-id',
+  };
+  const recoveryClient = {
+    auth: {
+      getUser: async () => ({ data: { user: recoveryUser }, error: null }),
+      signOut: async (input: unknown) => {
+        calls.push({ persistentSignOut: input });
+        return { error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+  const isolatedClient = {
+    auth: {
+      signOut: async (input: unknown) => {
+        calls.push({ isolatedSignOut: input });
+        return { error: null };
+      },
+      verifyOtp: async () => ({
+        data: {
+          session: { access_token: 'unexpected-token', user: unexpectedUser },
+          user: unexpectedUser,
+        },
+        error: null,
+      }),
+    },
+  } as unknown as SupabaseClient;
+
+  await assert.rejects(
+    updateCitizenPasswordWithPhoneOtp(
+      recoveryClient,
+      'new secure password',
+      '123456',
+      { phone: recoveryUser.phone, userId: recoveryUser.id },
+      () => isolatedClient,
+    ),
+    CitizenPasswordRecoverySecurityError,
+  );
+  assert.deepEqual(calls, [
+    { persistentSignOut: { scope: 'local' } },
+    { isolatedSignOut: { scope: 'local' } },
+  ]);
+});
+
+test('clears local sessions when global revocation fails after a password update', async () => {
+  const calls: unknown[] = [];
+  const recoveryUser = {
+    id: 'citizen-user-id',
+    phone: '+919876543210',
+    phone_confirmed_at: '2026-07-23T08:00:00.000Z',
+  };
+  const recoveryClient = {
+    auth: {
+      getUser: async () => ({ data: { user: recoveryUser }, error: null }),
+      signOut: async (input: unknown) => {
+        calls.push({ persistentSignOut: input });
+        return { error: null };
+      },
+    },
+  } as unknown as SupabaseClient;
+  const isolatedClient = {
+    auth: {
+      getUser: async () => ({ data: { user: recoveryUser }, error: null }),
+      signOut: async (input: { scope: string }) => {
+        calls.push({ isolatedSignOut: input });
+        if (input.scope === 'global') {
+          throw new Error('provider unavailable');
+        }
+        return { error: null };
+      },
+      updateUser: async () => ({ data: { user: recoveryUser }, error: null }),
+      verifyOtp: async () => ({
+        data: {
+          session: { access_token: 'phone-access-token', user: recoveryUser },
+          user: recoveryUser,
+        },
+        error: null,
+      }),
+    },
+  } as unknown as SupabaseClient;
+  const recordAudit = async (): Promise<boolean> => true;
+
+  await assert.rejects(
+    updateCitizenPasswordWithPhoneOtp(
+      recoveryClient,
+      'new secure password',
+      '123456',
+      { phone: recoveryUser.phone, userId: recoveryUser.id },
+      () => isolatedClient,
+      recordAudit,
+      recordAudit,
+    ),
+    CitizenPasswordSessionRevocationError,
+  );
+  assert.deepEqual(calls, [
+    { isolatedSignOut: { scope: 'global' } },
+    { isolatedSignOut: { scope: 'local' } },
+    { persistentSignOut: { scope: 'local' } },
+  ]);
 });
 
 test('records citizen sign-out success only after Supabase signs out', async () => {

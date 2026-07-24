@@ -34,12 +34,13 @@ const incompleteProfile = {
 test('loads the verified citizen identity with the server access token', async () => {
   const supabase = {
     auth: {
-      getClaims: async () => ({
+      getUser: async () => ({
         data: {
-          claims: {
+          user: {
             email: 'citizen@example.org',
-            phone: null,
-            sub: incompleteProfile.id,
+            id: incompleteProfile.id,
+            phone: '+919876543210',
+            phone_confirmed_at: '2026-07-14T10:00:00.000Z',
           },
         },
         error: null,
@@ -55,16 +56,16 @@ test('loads the verified citizen identity with the server access token', async (
     accessToken: 'verified-access-token',
     identity: {
       email: 'citizen@example.org',
-      phone: null,
+      phone: '+919876543210',
       userId: incompleteProfile.id,
     },
   });
 });
 
-test('rejects a stale session that has no verified claims', async () => {
+test('rejects a stale session that has no authoritative user', async () => {
   const supabase = {
     auth: {
-      getClaims: async () => ({ data: { claims: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
     },
   } as unknown as SupabaseClient;
 
@@ -129,19 +130,35 @@ test('classifies missing or unavailable profiles as account-provisioning states'
   );
 });
 
-test('presents the active account and Phone MFA state without trusting profile phone data', () => {
+test('presents the active account and confirmed phone state without trusting profile data', () => {
   assert.equal(
     getCitizenAccountLabel({ email: 'citizen@example.org', phone: '+919876543210' }),
     'citizen@example.org',
   );
-  assert.deepEqual(getCitizenPhoneVerificationStatus({ status: 'verified' }, true), {
-    detail: 'This session has a verified Supabase Phone MFA factor.',
-    label: 'Verified for this session',
-    needsAction: false,
-  });
-  assert.deepEqual(getCitizenPhoneVerificationStatus({ status: 'enrollment-required' }, false), {
-    detail: 'Phone verification is optional during the current rollout.',
-    label: 'Not verified',
-    needsAction: true,
-  });
+  assert.deepEqual(
+    getCitizenPhoneVerificationStatus(
+      {
+        phone: '+919876543210',
+        status: 'verified',
+        userId: incompleteProfile.id,
+      },
+      true,
+    ),
+    {
+      detail: 'This account has a confirmed phone number.',
+      label: 'Phone confirmed',
+      needsAction: false,
+    },
+  );
+  assert.deepEqual(
+    getCitizenPhoneVerificationStatus(
+      { status: 'phone-required', userId: incompleteProfile.id },
+      false,
+    ),
+    {
+      detail: 'Phone verification is optional during the current rollout.',
+      label: 'Not verified',
+      needsAction: true,
+    },
+  );
 });

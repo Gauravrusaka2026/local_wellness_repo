@@ -1,14 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import type {
   ComplaintAccountabilityEvidence,
   ComplaintLocationCapture,
@@ -22,6 +14,12 @@ import type {
   FinalizeComplaintReopenEvidenceInput,
 } from '@local-wellness/types';
 
+import {
+  getUserFacingInAppBrowserError,
+  InAppBrowserError,
+  openSecureExternalPage,
+} from '../device/in-app-browser';
+import { useLocalization } from '../ui/localization';
 import {
   retainStableComplaintMutationIdentity,
   type StableComplaintMutationIdentity,
@@ -85,10 +83,6 @@ type PendingEvidenceUpload = Readonly<{
 }>;
 
 const readableCode = (value: string): string => value.replaceAll('_', ' ');
-const formatDateTime = (value: string): string => new Date(value).toLocaleString();
-
-const evidenceLabel = (evidence: ComplaintAccountabilityEvidence): string =>
-  `${readableCode(evidence.role)} ${readableCode(evidence.kind)} evidence`;
 
 export const ResolutionAccountability = ({
   accessToken,
@@ -101,6 +95,7 @@ export const ResolutionAccountability = ({
   onChanged: () => Promise<void>;
   refreshSignal: number;
 }>) => {
+  const { formatDateTime, t } = useLocalization();
   const [state, setState] = useState<ContextState>({ status: 'loading' });
   const [openingEvidenceId, setOpeningEvidenceId] = useState<string | null>(null);
   const [evidenceAccessError, setEvidenceAccessError] = useState<string | null>(null);
@@ -189,11 +184,13 @@ export const ResolutionAccountability = ({
     setEvidenceAccessError(null);
     try {
       const access = await getComplaintEvidenceAccess(accessToken, complaintId, evidence.id);
-      const supported = await Linking.canOpenURL(access.signedUrl);
-      if (!supported) throw new Error('This device cannot open the private evidence link.');
-      await Linking.openURL(access.signedUrl);
+      await openSecureExternalPage(access.signedUrl);
     } catch (error) {
-      setEvidenceAccessError(getUserFacingComplaintError(error));
+      setEvidenceAccessError(
+        error instanceof InAppBrowserError
+          ? getUserFacingInAppBrowserError(error)
+          : getUserFacingComplaintError(error),
+      );
     } finally {
       setOpeningEvidenceId(null);
     }
@@ -218,7 +215,7 @@ export const ResolutionAccountability = ({
     const completeRatings = toCompleteRatings(ratings);
     const hasEveryRating = completeRatings !== null;
     if ((context.policy.ratingsRequired || hasAnyRating) && !hasEveryRating) {
-      setFeedbackError('Choose a value for every rating, or leave all optional ratings blank.');
+      setFeedbackError(t('chooseAllRatings'));
       return;
     }
     const ratingValues = createRatingValues(
@@ -229,7 +226,7 @@ export const ResolutionAccountability = ({
       hasEveryRating &&
       selectedRatings.some((value) => value === undefined || !ratingValues.includes(value))
     ) {
-      setFeedbackError('Choose ratings only from the current policy range.');
+      setFeedbackError(t('ratingRangeError'));
       return;
     }
 
@@ -312,7 +309,7 @@ export const ResolutionAccountability = ({
           intent.evidence.uploadStatus === 'expired' ||
           intent.evidence.uploadStatus === 'failed'
         ) {
-          throw new Error('This evidence reservation can no longer be used. Capture it again.');
+          throw new Error(t('evidenceReservationExpired'));
         }
 
         const finalizeInput =
@@ -362,7 +359,7 @@ export const ResolutionAccountability = ({
         if (isMountedRef.current) setIsUploadingEvidence(false);
       }
     },
-    [accessToken, complaintId, isUploadingEvidence, rememberPendingEvidence],
+    [accessToken, complaintId, isUploadingEvidence, rememberPendingEvidence, t],
   );
 
   const captureEvidence = async (
@@ -412,11 +409,11 @@ export const ResolutionAccountability = ({
     }
     const explanation = reopenExplanation.trim();
     if (explanation.length === 0) {
-      setReopenError('Explain why the resolution needs another review.');
+      setReopenError(t('explainReviewRequired'));
       return;
     }
     if (context.policy.reopenEvidenceRequired && finalizedEvidenceIds.length === 0) {
-      setReopenError('Add the evidence required by the current reopening policy.');
+      setReopenError(t('addReopenEvidenceRequired'));
       return;
     }
 
@@ -455,7 +452,7 @@ export const ResolutionAccountability = ({
   if (state.status === 'loading') {
     return (
       <View style={styles.card}>
-        <ActivityIndicator accessibilityLabel="Loading resolution options" color="#166534" />
+        <ActivityIndicator accessibilityLabel={t('loadingResolutionOptions')} color="#166534" />
       </View>
     );
   }
@@ -463,13 +460,13 @@ export const ResolutionAccountability = ({
     return (
       <View style={styles.card}>
         <Text accessibilityRole="header" style={styles.title}>
-          Resolution and follow-up
+          {t('resolutionFollowUp')}
         </Text>
         <Text accessibilityRole="alert" style={styles.error}>
-          Resolution details are temporarily unavailable. {state.message}
+          {t('resolutionUnavailable', { message: state.message })}
         </Text>
         <Pressable accessibilityRole="button" onPress={() => void load()} style={styles.secondary}>
-          <Text style={styles.secondaryText}>Retry resolution details</Text>
+          <Text style={styles.secondaryText}>{t('retryResolutionDetails')}</Text>
         </Pressable>
       </View>
     );
@@ -493,9 +490,7 @@ export const ResolutionAccountability = ({
     policy.reopenAttemptsRemaining > 0 &&
     policy.reopenReasonOptions.length > 0;
   const unavailableReason =
-    context.policyUnavailableReason ??
-    policy?.unavailableReason ??
-    'The current complaint status and policy do not allow this action.';
+    context.policyUnavailableReason ?? policy?.unavailableReason ?? t('unavailableAction');
   const evidence =
     resolution === null
       ? []
@@ -521,44 +516,42 @@ export const ResolutionAccountability = ({
     0,
     finalizedEvidenceIds.length - recoveredEvidence.length,
   );
-  const accountabilityHistory = buildCitizenAccountabilityHistory(context);
+  const accountabilityHistory = buildCitizenAccountabilityHistory(context, t);
 
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.title}>
-        Resolution and follow-up
+        {t('resolutionFollowUp')}
       </Text>
       {resolution === null ? (
-        <Text style={styles.muted}>No completed resolution is available for review yet.</Text>
+        <Text style={styles.muted}>{t('noCompletedResolution')}</Text>
       ) : (
         <View style={styles.section}>
-          <Text style={styles.heading}>Resolution record</Text>
-          <Text style={styles.body}>
-            {resolution.publicMessage ?? 'No public message supplied.'}
-          </Text>
+          <Text style={styles.heading}>{t('resolutionRecord')}</Text>
+          <Text style={styles.body}>{resolution.publicMessage ?? t('noPublicMessage')}</Text>
           <Text style={styles.muted}>
             {resolution.completedAt === null
-              ? 'Completion time unavailable'
-              : `Completed ${formatDateTime(resolution.completedAt)}`}
+              ? t('completionTimeUnavailable')
+              : t('completedOn', { date: formatDateTime(resolution.completedAt) })}
           </Text>
           {resolution.distanceFromComplaintMeters === null ? null : (
             <Text style={styles.muted}>
-              Completion evidence recorded approximately{' '}
-              {Math.round(resolution.distanceFromComplaintMeters)} metres from the report.
+              {t('completionEvidenceDistance', {
+                distance: Math.round(resolution.distanceFromComplaintMeters),
+              })}
             </Text>
           )}
           {resolution.workReference === null ? null : (
             <Text style={styles.muted}>
-              Work reference: {resolution.workReference.referenceType} ·{' '}
-              {resolution.workReference.referenceNumber}
+              {t('workReference', {
+                number: resolution.workReference.referenceNumber,
+                type: resolution.workReference.referenceType,
+              })}
             </Text>
           )}
-          <Text style={styles.privacyNote}>
-            Evidence is private. Access links are authorized, short-lived, and opened only when you
-            choose an item.
-          </Text>
+          <Text style={styles.privacyNote}>{t('evidencePrivateBody')}</Text>
           {evidence.length === 0 ? (
-            <Text style={styles.muted}>No before, after, or follow-up evidence is available.</Text>
+            <Text style={styles.muted}>{t('noBeforeAfterEvidence')}</Text>
           ) : (
             evidence.map((item) => (
               <Pressable
@@ -569,7 +562,14 @@ export const ResolutionAccountability = ({
                 style={styles.evidenceButton}
               >
                 <Text style={styles.evidenceButtonText}>
-                  {openingEvidenceId === item.id ? 'Opening…' : `Open ${evidenceLabel(item)}`}
+                  {openingEvidenceId === item.id
+                    ? t('opening')
+                    : t('openEvidence', {
+                        label: t('evidenceLabel', {
+                          kind: readableCode(item.kind),
+                          role: readableCode(item.role),
+                        }),
+                      })}
                 </Text>
                 <Text style={styles.muted}>{formatDateTime(item.createdAt)}</Text>
               </Pressable>
@@ -584,11 +584,9 @@ export const ResolutionAccountability = ({
       )}
 
       <View style={styles.section}>
-        <Text style={styles.heading}>Your resolution history</Text>
+        <Text style={styles.heading}>{t('yourResolutionHistory')}</Text>
         {accountabilityHistory.length === 0 ? (
-          <Text style={styles.muted}>
-            No feedback, reopen, or escalation receipts have been recorded.
-          </Text>
+          <Text style={styles.muted}>{t('noFeedbackHistory')}</Text>
         ) : (
           accountabilityHistory.map((item) => (
             <View key={item.id} style={styles.historyReceipt}>
@@ -605,7 +603,7 @@ export const ResolutionAccountability = ({
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.heading}>Confirm the outcome</Text>
+        <Text style={styles.heading}>{t('confirmOutcome')}</Text>
         {policy === null || !feedbackAvailable ? (
           <Text style={styles.unavailable}>{unavailableReason}</Text>
         ) : (
@@ -652,19 +650,17 @@ export const ResolutionAccountability = ({
               </View>
             ))}
             <Text style={styles.muted}>
-              {policy.ratingsRequired
-                ? 'All four ratings are required by the current policy.'
-                : 'Ratings are optional; if you rate, complete all four.'}
+              {policy.ratingsRequired ? t('allRatingsRequired') : t('ratingsOptionalCompleteAll')}
             </Text>
             <TextInput
-              accessibilityLabel="Optional resolution feedback comment"
+              accessibilityLabel={t('optionalFeedbackComment')}
               maxLength={2_000}
               multiline
               onChangeText={(value) => {
                 feedbackIdentityRef.current = null;
                 setFeedbackComment(value);
               }}
-              placeholder="Optional comment"
+              placeholder={t('optionalComment')}
               style={styles.input}
               value={feedbackComment}
             />
@@ -678,7 +674,7 @@ export const ResolutionAccountability = ({
               style={styles.confirmRow}
             >
               <Text style={styles.checkbox}>{feedbackConfirmed ? '✓' : ''}</Text>
-              <Text style={styles.body}>I confirm this feedback reflects the current outcome.</Text>
+              <Text style={styles.body}>{t('confirmFeedbackCurrentOutcome')}</Text>
             </Pressable>
             {feedbackError === null ? null : (
               <Text accessibilityRole="alert" style={styles.error}>
@@ -695,7 +691,7 @@ export const ResolutionAccountability = ({
               {isSubmittingFeedback ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryText}>Submit confirmed feedback</Text>
+                <Text style={styles.primaryText}>{t('submitConfirmedFeedback')}</Text>
               )}
             </Pressable>
           </>
@@ -703,23 +699,25 @@ export const ResolutionAccountability = ({
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.heading}>Request another review</Text>
+        <Text style={styles.heading}>{t('requestAnotherReview')}</Text>
         {recoveredEvidence.length === 0 ? null : (
           <View style={styles.recoveredPanel}>
             <Text style={styles.success}>
-              {recoveredEvidence.length} previously finalized evidence item(s) were restored and
-              remain ready for this reopen request.
+              {t('restoredEvidence', { count: recoveredEvidence.length })}
             </Text>
             {recoveredEvidence.map((item) => (
               <Text key={item.id} style={styles.muted}>
-                {readableCode(item.kind)} · captured {formatDateTime(item.capturedAt)}
+                {t('capturedOn', {
+                  date: formatDateTime(item.capturedAt),
+                  kind: readableCode(item.kind),
+                })}
               </Text>
             ))}
           </View>
         )}
         {newlyFinalizedEvidenceCount === 0 ? null : (
           <Text style={styles.success}>
-            {newlyFinalizedEvidenceCount} newly finalized evidence item(s) are ready.
+            {t('newEvidenceReady', { count: newlyFinalizedEvidenceCount })}
           </Text>
         )}
         {policy === null || !reopenAvailable ? (
@@ -727,10 +725,12 @@ export const ResolutionAccountability = ({
         ) : (
           <>
             <Text style={styles.muted}>
-              {policy.reopenAttemptsRemaining} attempt(s) remain
               {policy.reopenDeadline === null
-                ? '.'
-                : ` until ${formatDateTime(policy.reopenDeadline)}.`}
+                ? t('reopenAttemptsRemain', { count: policy.reopenAttemptsRemaining })
+                : t('reopenAttemptsUntil', {
+                    count: policy.reopenAttemptsRemaining,
+                    date: formatDateTime(policy.reopenDeadline),
+                  })}
             </Text>
             <View accessibilityRole="radiogroup" style={styles.optionGrid}>
               {policy.reopenReasonOptions.map((option) => (
@@ -752,21 +752,21 @@ export const ResolutionAccountability = ({
               ))}
             </View>
             <TextInput
-              accessibilityLabel="Reason another review is needed"
+              accessibilityLabel={t('reasonAnotherReview')}
               maxLength={4_000}
               multiline
               onChangeText={(value) => {
                 reopenIdentityRef.current = null;
                 setReopenExplanation(value);
               }}
-              placeholder="Explain what remains unresolved"
+              placeholder={t('explainUnresolved')}
               style={styles.input}
               value={reopenExplanation}
             />
             <Text style={styles.muted}>
               {policy.reopenEvidenceRequired
-                ? 'Additional live photo or video evidence is required.'
-                : 'Additional live photo or video evidence is optional.'}
+                ? t('additionalEvidenceRequired')
+                : t('additionalEvidenceOptional')}
             </Text>
             {isCapturingEvidence ? (
               <ComplaintCameraCapture
@@ -776,7 +776,7 @@ export const ResolutionAccountability = ({
             ) : null}
             {pendingEvidence === null ? null : (
               <View style={styles.pendingPanel}>
-                <Text style={styles.body}>A captured evidence item is awaiting completion.</Text>
+                <Text style={styles.body}>{t('capturedEvidenceAwaiting')}</Text>
                 <View style={styles.buttonRow}>
                   <Pressable
                     accessibilityRole="button"
@@ -787,7 +787,7 @@ export const ResolutionAccountability = ({
                     style={styles.secondary}
                   >
                     <Text style={styles.secondaryText}>
-                      {isUploadingEvidence ? 'Uploading…' : 'Retry evidence upload'}
+                      {t(isUploadingEvidence ? 'uploading' : 'retryEvidenceUpload')}
                     </Text>
                   </Pressable>
                   <Pressable
@@ -796,7 +796,7 @@ export const ResolutionAccountability = ({
                     onPress={discardPendingEvidence}
                     style={styles.secondary}
                   >
-                    <Text style={styles.secondaryText}>Discard capture</Text>
+                    <Text style={styles.secondaryText}>{t('discardCapture')}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -808,13 +808,11 @@ export const ResolutionAccountability = ({
                 onPress={() => setIsCapturingEvidence(true)}
                 style={styles.secondary}
               >
-                <Text style={styles.secondaryText}>Capture additional evidence</Text>
+                <Text style={styles.secondaryText}>{t('captureAdditionalEvidence')}</Text>
               </Pressable>
             ) : null}
             {!policy.reopenEvidenceUploadAllowed && policy.reopenEvidenceRequired ? (
-              <Text style={styles.unavailable}>
-                Required evidence upload is unavailable, so reopening is safely blocked.
-              </Text>
+              <Text style={styles.unavailable}>{t('requiredEvidenceUploadUnavailable')}</Text>
             ) : null}
             {reopenError === null ? null : (
               <Text accessibilityRole="alert" style={styles.error}>
@@ -831,7 +829,7 @@ export const ResolutionAccountability = ({
               {isSubmittingReopen ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryText}>Submit reopen request</Text>
+                <Text style={styles.primaryText}>{t('submitReopenRequest')}</Text>
               )}
             </Pressable>
           </>

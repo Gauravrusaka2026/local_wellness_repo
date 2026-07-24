@@ -61,7 +61,8 @@ Only activate categories with confirmed ownership.
 
 For the immediate V1 staging release, BMC is the operational data pilot while Pune remains the
 generic architecture/test reference. The BMC path is intentionally reduced to PostGIS ward
-resolution plus a private ward/category recipient matrix for all 12 pilot categories. It retains
+resolution plus a private ward/profile recipient matrix for 13 operational profiles and 256
+public/restricted taxonomy leaves. It retains
 the complaint ledger, assignment history and security controls, but defers asset-owner specificity
 and outbound provider activation. Expansion outside the configured BMC ward geometry remains
 fail-closed and data-driven.
@@ -107,8 +108,9 @@ Implement citizen and government authentication with scoped authorization.
 ## Tasks
 
 - email/password citizen account creation and sign-in;
-- password recovery;
-- staged Supabase Phone MFA verification after SMS-provider activation;
+- phone-gated password recovery and signed-in password change;
+- mandatory ordinary Supabase Phone Auth confirmation for citizen access after the Phone provider,
+  phone confirmations and SMS transport are active;
 - profile setup;
 - private profile images;
 - preferred language;
@@ -168,6 +170,8 @@ Create structured categories and deterministic routing.
 ## Tasks
 
 - domains, categories, subcategories and issue types;
+- a deterministic citizen taxonomy with separate operational-profile mappings;
+- mobile primary-category and subcategory/issue-type dropdowns with derived read-only workflow;
 - severity, media and location requirements;
 - asset types and owners;
 - routing rules and fallbacks;
@@ -185,6 +189,13 @@ Engineering completion and pilot-data readiness are separate gates.
 
 Engineering completion requires:
 
+- 17 primary categories, 340 subcategories and 19 workflow types generated from the reviewed
+  JagrukSetu source without replacing the twelve operational category identifiers;
+- an authenticated, public-safe taxonomy catalog and server-validated draft tuple;
+- 13 specialised and 243 general-ward mappings covering all 256 public/restricted leaves, with
+  route readiness derived from active rules and complete ward-contact coverage;
+- official call/browser handoffs for all 84 private/emergency-private leaves, with no ordinary
+  complaint, Community or ward-email side effect;
 - deterministic, data-driven jurisdiction, category, asset-owner, department, role, assignment,
   confidence, ambiguity, and fallback resolution;
 - service-only PostGIS and routing query boundaries;
@@ -203,58 +214,39 @@ Pilot-data readiness additionally requires:
 
 Phase 3 engineering may be complete while the pilot-data gate remains pending.
 
-# Cross-cutting workstream — Governance synchronization
+# Cross-cutting workstream — V1 database reduction
 
 ## Goals
 
-Continuously maintain current, provenance-backed governance structure, officer assignments, office
-contacts, wards, departments, utilities, emergency contacts, and complaint-delivery channels from
-official sources. This is a permanent statewide capability layered on the Phase 2 canonical
-bootstrap and Phase 3 review gate, not a one-time import or a replacement product phase.
+Keep the operational schema proportional to the current BMC pilot while preserving complaint
+history, security and every active user-visible workflow.
 
-## Architecture and tasks
+## Current reduction
 
-- database-backed official source registry, refresh cadence, due-source claiming, leases, retry and
-  immutable import audit;
-- Supabase Cron invoking a bounded Edge retrieval function with environment-owned secrets;
-- official API/CSV/JSON/HTML/PDF/contact-directory retrieval through exact reviewed source records;
-- private content-addressed raw snapshots and field-level source evidence;
-- source-specific parsers, normalization, validation, entity matching and change detection;
-- review queues for additions, removals, conflicts, stale data and ambiguous matches;
-- append-and-close officer assignments, office/contact versions, ward/boundary versions and routing
-  records rather than in-place history loss;
-- separate source verification, manual verification, publication, routing activation and
-  complaint-delivery approval;
-- generic service-only synchronization scope targets for authorities, local bodies, and wards, with
-  immutable canonical hierarchy and review-gated activation independent from routing eligibility;
-- structured logs and synchronization audit tables without Redis, BullMQ or Sentry.
+- physically remove the undeployed 14-table governance synchronization/contact pipeline;
+- physically remove the unused public-comments table;
+- remove the corresponding Edge fetcher, RPCs, triggers, pilot seeds and generated types;
+- preserve delivery-readiness responses through the private `routing.ward_issue_contacts` matrix;
+- preserve imported governance records, PostGIS boundaries, all 12 categories, complaint/media/
+  email/Community/government behavior, private messaging, notifications, SLA and KPI behavior;
+- keep historical migrations immutable and make adaptive SQL Editor bundles prune-aware.
 
-PMC and BMC are the initial retrieval/parser targets. The architecture must remain source- and
-entity-driven so municipal corporations, councils, Nagar Panchayats, Gram Panchayats, districts,
-talukas, rural offices, utilities and emergency authorities can be added without redesign or
-municipality-specific application branches.
+This first forward prune reduces the custom application schema from 129 to 114 tables. The later
+protected-handoff registry adds one focused table, so the current application-owned count is 115.
+This does not claim to resolve database CPU by itself; request-rate control remains the performance
+requirement.
 
-The current engineering slice implements exact-hash-approved source contracts, single-source
-PostgreSQL claims, heartbeat-protected leases/lifecycle RPCs, bounded Edge fetch and immutable
-snapshot preservation, review-bound contact versions, a pure contact normalizer, and draft-only
-PMC/BMC source registration. It also registers five Pune and five Brihanmumbai canonical ward
-targets as draft, unverified, non-routable synchronization scope—not verified ward coverage. It
-does not deploy Cron, activate a source or scope, parse municipality-specific content, publish a
-candidate, or update hosted data. DNS/private resolved-address enforcement and grace-period orphan
-reconciliation remain activation gates.
+## Later reduction gates
 
-## Exit criteria
+- replace generalized asset/rule/confidence routing before dropping its legacy relations;
+- combine complaint workflow/event tables only after ID-preserving backfill and compatibility RPCs;
+- replace transparency, messaging, notification and SLA/KPI clusters before removing any visible
+  mobile or dashboard behavior;
+- validate complaint replay, ward routing/email, owner isolation, Community privacy, government
+  scope and RLS before every physical drop.
 
-- at least one reviewed PMC source and one reviewed BMC source complete scheduled retrieval,
-  snapshot, parser, normalization, validation, matching, change, review and publication paths;
-- empty, malformed, unexpected-count, layout-changed, placeholder, conflicting and stale source
-  results fail closed without deleting or activating canonical records;
-- published assignments and contacts preserve prior effective-dated versions, raw snapshot/field
-  provenance and reviewer attribution;
-- no source-derived record becomes routable or eligible for complaint delivery without the required
-  independent manual approvals;
-- DNS/private-network controls, orphan snapshot reconciliation, secrets, retention, monitoring,
-  rollback and hosted-environment tests pass before scheduled production operation.
+The removed governance synchronization design is historical after ADR-0031. Reintroducing scheduled
+official-source synchronization requires a new product decision, ADR and forward migration.
 
 # Phase 4 — Citizen complaint capture
 
@@ -277,6 +269,11 @@ Build the complete mobile submission flow.
 ## Location tasks
 
 - capture latitude, longitude, accuracy, timestamps and provider;
+- coordinate purpose-scoped foreground acquisition so non-evidentiary current-area screens can
+  reuse a bounded five-minute in-memory fix without background polling or persistent coordinates;
+- coalesce identical concurrent native requests and let explicit context refresh bypass caches;
+- keep complaint issue and every live-media location on fresh high-accuracy acquisition, never the
+  context/last-known cache;
 - freshness validation;
 - distance validation;
 - media-to-complaint distance;
@@ -322,8 +319,9 @@ Operational pilot readiness additionally requires:
 - at least one verified routable category and its reviewed jurisdiction, ownership, department,
   officer-role, assignment, confidence, and fallback evidence;
 - production transcription and media-moderation providers;
-- physical-device validation of permissions, location accuracy, camera, upload recovery, and poor
-  connectivity behavior;
+- physical-device validation of permissions, location accuracy, camera, upload recovery, poor
+  connectivity behavior, current-area reuse, explicit refresh after movement,
+  sign-out/account-switch invalidation, and fresh complaint/media evidence;
 - hosted-environment authentication, Storage, API, and submission verification.
 
 The current bootstrap intentionally exposes zero verified routable categories, so the
@@ -441,6 +439,7 @@ Provide locality awareness without exposing sensitive information.
 - duplicate groups;
 - public complaint page;
 - locality-first Local and Trending report views;
+- signed-in owner report preview kept separate from reviewed-public Community results;
 - one support per active account with aggregate-only public counts;
 - account-private star/follow state;
 - approximate public coordinates;
@@ -452,6 +451,8 @@ Provide locality awareness without exposing sensitive information.
 
 - sensitive exact coordinates remain private;
 - private complaints remain private;
+- owner-visible private reports never enter public map, heat, ranking, or engagement results without
+  the existing reviewed-public publication workflow;
 - public pages exclude internal notes;
 - supporter identity and private star/follow state remain private;
 - community signals never alter official routing, status, escalation, SLA, or KPI evidence;
@@ -492,7 +493,11 @@ Add measurable accountability.
 - penetration test;
 - RLS audit;
 - PostgreSQL-backed API rate limits without Redis;
-- citizen Phone MFA and privileged TOTP/AAL2 staged enforcement;
+- citizen confirmed-phone enforcement with rehearsed lost-phone recovery and privileged TOTP/AAL2
+  enforcement;
+- managed evidence that the ordinary Phone provider, Twilio Verify, phone confirmations and Phone
+  Auth signup capability are active, and that the Before User Created hook rejects phone-only
+  account creation; Advanced Phone MFA is not required for citizens;
 - storage-policy audit;
 - dependency and secret scanning;
 - abuse controls;
@@ -534,6 +539,9 @@ Add measurable accountability.
 - verify every routing rule and contact;
 - verify queue assignment separately from any approved external contact-delivery channel;
 - internal test;
+- physical-device test of the compact one-page report, contextual location permission/recovery,
+  live evidence capture, result routing, Community lists, and civic-office actions in English,
+  Marathi, and Hindi;
 - officer test;
 - closed citizen beta;
 - limited public launch.
@@ -591,13 +599,16 @@ Add measurable accountability.
 
 ## E — Communication
 
-- complaint_comments;
 - conversation_rooms;
 - room_members;
 - messages;
 - message_receipts;
 - notifications;
 - notification_outbox.
+
+Public complaint comments are deferred for V1. Their unused structural table was removed by
+ADR-0031; a future moderated public-discussion model requires an explicit privacy/abuse decision
+and a new forward migration.
 
 ## F — Accountability
 
@@ -652,9 +663,9 @@ Add measurable accountability.
 
 ## Branding
 
-- working project name;
-- language priority;
-- visual direction;
+- citizen-facing product name: JagrukSetu;
+- core mobile languages: English, Marathi, and Hindi;
+- compact mobile visual direction using restrained civic green, saffron, white, and blue;
 - logo later.
 
 # V1 completion definition
@@ -671,7 +682,9 @@ A citizen can:
 8. receive notifications;
 9. view resolution evidence;
 10. provide feedback;
-11. reopen.
+11. reopen;
+12. see their own reports in Community without publishing them;
+13. view verified current-area public office contacts when the governance registry provides them.
 
 An officer can:
 

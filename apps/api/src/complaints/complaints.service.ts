@@ -5,7 +5,9 @@ import type {
   ComplaintListQuery,
   ComplaintListResult,
   ComplaintReceipt,
+  ComplaintRoutingSummary,
   ComplaintTimeline,
+  RoutingResolutionResult,
   SubmitComplaintInput,
 } from '@local-wellness/types';
 
@@ -13,6 +15,18 @@ import { ApiException } from '../common/api-exception.js';
 import { createComplaintMutationIdentity } from '../common/idempotency.js';
 import { ComplaintStore } from '../data/complaint.store.js';
 import { RoutingService } from '../routing/routing.service.js';
+
+const toComplaintRoutingSummary = ({
+  confidence,
+  explanation,
+  status,
+  target,
+}: RoutingResolutionResult): ComplaintRoutingSummary => ({
+  confidence,
+  explanation,
+  status,
+  target,
+});
 
 @Injectable()
 export class ComplaintsService {
@@ -87,7 +101,7 @@ export class ComplaintsService {
       actorUserId: actor.id,
       categoryId: draft.categoryId,
       emergencyDisclaimerAcknowledged: input.emergencyDisclaimerAcknowledged === true,
-      routing: routing.result,
+      routing: toComplaintRoutingSummary(routing.result),
       routingDecisionId: routing.decisionId,
       submissionRequestId: claim.submissionRequestId,
     });

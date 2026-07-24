@@ -4,17 +4,14 @@ import Link from 'next/link';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import type { CitizenAuthMode } from '../../../lib/auth/input';
-import {
-  enrollCitizenPhoneFactor,
-  getCitizenPostPasswordDestination,
-} from '../../../lib/auth/phone-mfa';
+import { getCitizenPostPasswordDestination } from '../../../lib/auth/phone-verification';
 import {
   createCitizenPasswordAccount,
   getUserFacingAuthError,
   signInCitizenWithPassword,
   signOutCitizenSession,
 } from '../../../lib/auth/service';
-import type { CitizenPhoneMfaMode } from '../../../lib/environment';
+import type { CitizenPhoneVerificationMode } from '../../../lib/environment';
 import { createBrowserSupabaseClient } from '../../../lib/supabase/client';
 
 const modeContent: Record<CitizenAuthMode, Readonly<{ heading: string; introduction: string }>> = {
@@ -36,14 +33,14 @@ export const PasswordAuthForm = ({
   initialEmail,
   nextPath,
   passwordReset,
-  phoneMfaMode,
+  phoneVerificationMode,
 }: Readonly<{
   callbackError: boolean;
   currentAccount: string | null;
   initialEmail: string;
   nextPath: string;
   passwordReset: boolean;
-  phoneMfaMode: CitizenPhoneMfaMode;
+  phoneVerificationMode: CitizenPhoneVerificationMode;
 }>) => {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,10 +52,9 @@ export const PasswordAuthForm = ({
   const [isPending, setIsPending] = useState(false);
   const [mode, setMode] = useState<CitizenAuthMode>('sign_in');
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
   const [signedInAccount, setSignedInAccount] = useState(currentAccount);
   const introduction =
-    phoneMfaMode === 'enforce'
+    phoneVerificationMode === 'enforce'
       ? modeContent[mode].introduction
       : mode === 'create_account'
         ? 'Create your citizen account with an email address and password.'
@@ -70,7 +66,6 @@ export const PasswordAuthForm = ({
     setConfirmationEmail(null);
     setError(null);
     setPassword('');
-    setPhone('');
   };
 
   const signOutAndSwitchAccount = async (): Promise<void> => {
@@ -109,15 +104,11 @@ export const PasswordAuthForm = ({
           setIsPending(false);
           return;
         }
-
-        if (phoneMfaMode === 'enforce') {
-          await enrollCitizenPhoneFactor(supabase, phone);
-        }
       } else {
         await signInCitizenWithPassword(supabase, email, password);
       }
 
-      window.location.assign(getCitizenPostPasswordDestination(phoneMfaMode, nextPath));
+      window.location.assign(getCitizenPostPasswordDestination(phoneVerificationMode, nextPath));
     } catch (authenticationError) {
       setError(getUserFacingAuthError(authenticationError));
       setIsPending(false);
@@ -157,7 +148,7 @@ export const PasswordAuthForm = ({
         </div>
       )}
 
-      {phoneMfaMode === 'observe' ? (
+      {phoneVerificationMode === 'observe' ? (
         <p className="setup-notice" role="status">
           Email-and-password access is active. Phone OTP verification is staged and will become
           required after the project SMS provider is configured.
@@ -201,7 +192,7 @@ export const PasswordAuthForm = ({
             email-confirmation message, including its spam folder. If no message arrives, return to
             sign in or reset the password for that address.
           </p>
-          {phoneMfaMode === 'enforce' ? (
+          {phoneVerificationMode === 'enforce' ? (
             <p className="setup-notice">
               Phone verification starts after the email is confirmed and you sign in.
             </p>
@@ -271,30 +262,6 @@ export const PasswordAuthForm = ({
                 type="password"
                 value={confirmPassword}
               />
-
-              {phoneMfaMode === 'enforce' ? (
-                <>
-                  <label htmlFor="phone">Mobile number</label>
-                  <input
-                    autoComplete="tel"
-                    disabled={isPending}
-                    id="phone"
-                    inputMode="tel"
-                    onChange={(event) => {
-                      setPhone(event.target.value);
-                      setError(null);
-                    }}
-                    placeholder="+91 98765 43210"
-                    required
-                    type="tel"
-                    value={phone}
-                  />
-                  <p className="field-hint">
-                    Include the country code. We use this number as your Supabase Phone MFA factor,
-                    not as a separate sign-in identity. Standard SMS charges may apply.
-                  </p>
-                </>
-              ) : null}
             </>
           ) : (
             <div className="auth-help-row">
@@ -316,10 +283,10 @@ export const PasswordAuthForm = ({
                 ? 'Creating account…'
                 : 'Signing in…'
               : mode === 'create_account'
-                ? phoneMfaMode === 'enforce'
+                ? phoneVerificationMode === 'enforce'
                   ? 'Create account and verify phone'
                   : 'Create account'
-                : phoneMfaMode === 'enforce'
+                : phoneVerificationMode === 'enforce'
                   ? 'Sign in and verify phone'
                   : 'Sign in'}
           </button>

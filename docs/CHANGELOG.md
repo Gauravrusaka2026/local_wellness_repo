@@ -2195,3 +2195,829 @@ or notification architecture.
   ESLint, changed-file whitespace validation, and a live Android Metro bundle pass.
 - Migrations: none. ADR: none; this extends the existing JagrukSetu UI conventions. Breaking
   changes: none.
+
+## 2026-07-23 — Enforced citizen Phone MFA and protected password lifecycle
+
+### Summary
+
+Completed the first application-finalization authentication milestone: citizen email/password
+remains the core credential, mobile/private API access now requires verified Supabase Phone MFA and
+AAL2, every supported password change requires a fresh SMS challenge, Citizen Web is fail-closed
+to reviewed public routes, and mobile HTTPS references open through Expo's in-app browser.
+
+### Feature
+
+- Added mobile signed-in password change and provider-owned recovery flows with fresh phone OTP,
+  a five-minute user/factor-bound in-memory proof, immediate AAL2/current-user revalidation, resend
+  cooldowns, duplicate-submit guards, non-blocking OTP audit delivery, global sign-out with local
+  fallback, and explicit partial-success handling.
+- Preserved a bounded email-only recovery path only for legacy accounts with zero verified phone
+  factors. Existing-factor loss requires an attributed administrator reset and never falls back to
+  email alone.
+- Made mobile/API citizen Phone MFA enforcement the default and made production API startup reject
+  missing or weaker citizen policy.
+- Put Citizen Web in `public-only` mode: home, reviewed transparency, and directory remain
+  available; auth, callbacks, accounts, reporting, owned complaints, and unknown routes fail before
+  protected session/network work.
+- Added one validated Expo in-app-browser adapter for user-initiated HTTPS references while keeping
+  settings, `tel:112`, Auth/deep links, and internal navigation native.
+- Added the client-reportable `password_changed` audit contract. Its only AAL1 API exception is an
+  exact one-field request from a valid non-privileged citizen whose server-confirmed account has
+  zero verified phone factors; normal validation and PostgreSQL quotas still apply.
+- Added the citizen lost-phone factor-reset runbook with separation of duties, identity and factor
+  checks, supported Supabase Admin deletion, audit evidence, old-session denial, replacement
+  enrollment, failure handling, and safe user communication.
+
+### Files Modified
+
+- Mobile authentication routes/services/tests, external-link consumers, environment contract, and
+  Expo dependency metadata.
+- API authentication guard/configuration/audit contract and focused tests.
+- Citizen Web proxy, access policy, protected clients, unavailable page, environment contract, and
+  tests.
+- Shared type/validation contracts, root environment example, generated master SQL artifacts, and
+  project documentation/tracking.
+
+### Migration and Tests
+
+- Added forward migration `20260723100000_password_change_audit_event.sql`.
+- Added pgTAP plan `049_password_change_audit_event.test.sql`.
+- A clean local reset applied all 49 migrations and seeds; all 49 pgTAP files passed 1,649
+  assertions. Database lint reported only installed PostGIS extension diagnostics.
+- Workspace lint, strict type-check, production builds, formatting, generated master/type drift,
+  secret scanning, all 30 Turbo test tasks, and 72 root tests passed. Three provider-gated local
+  Auth E2E cases remained skipped in the default root run. A separate required-local run passed
+  citizen email-code and government-invitation flows and skipped only phone SMS because no local
+  provider is configured.
+- The API passed 232 tests, mobile passed 117 tests across 20 files, and the Android Expo export
+  bundled successfully.
+
+### Documentation Updated
+
+Updated README, product overview, plan, architecture, API, authentication, database, deployment,
+Supabase setup, tasks, progress, decisions, known issues, the citizen-MFA worklog, ADR-0020, and new
+ADR-0028. Added the citizen lost-phone factor-reset operator runbook and linked it from the runbook
+index and authentication setup guidance.
+
+### Breaking Changes
+
+- Authenticated mobile/API citizen access now fails closed without a verified phone factor and AAL2.
+- Citizen Web protected routes are intentionally unavailable until equivalent protected-flow
+  parity is implemented.
+- A managed release must apply migration 49 and explicitly configure the production enforcement
+  modes. Hosted migration, Twilio/device delivery, exact recovery redirects, India DLT/provider
+  controls, and lost-phone operator rehearsal remain release gates.
+
+## 2026-07-23 — Purpose-scoped mobile location coordination
+
+### Summary
+
+Removed redundant location acquisition across mobile locality screens without weakening complaint
+evidence. Community, Nearby, and Profile now share a bounded memory-only current-area result;
+complaint issue and media captures remain fresh, high-accuracy, and independently validated.
+
+### Feature
+
+- Added one injectable mobile location coordinator with a five-minute current-area TTL,
+  100-metre accuracy ceiling, non-mocked input, operating-system last-known reuse, and in-flight
+  request coalescing.
+- Made explicit Refresh bypass reusable memory and last-known results.
+- Checked existing foreground permission before requesting it and retained distinct recovery copy
+  for askable denial, permanent denial, and disabled services.
+- Kept sequential complaint issue/photo/video/voice evidence on fresh high-accuracy acquisition
+  with the existing five-minute age, 50-metre accuracy, mock-location, and media-proximity rules.
+- Cleared current-area state across Auth identity changes and invalidated late completions.
+- Added no watcher, timer, background permission, persisted coordinate cache, API contract, or
+  database change.
+
+### Files Modified
+
+- Mobile location coordinator/Expo adapter, Auth lifecycle, Community/Profile/Nearby callers,
+  complaint issue/media capture callers, governance request typing, and focused tests.
+- Required architecture, API, authentication, database, deployment, Supabase setup, planning,
+  progress, decision, known-issue, ADR, and worklog documentation.
+
+### Migration and Tests
+
+- Migrations: none.
+- The focused coordinator suite passed 14/14 subtests.
+- Mobile strict type-check and lint passed; all 21 mobile test files passed.
+- Workspace formatting, lint, strict type-check, tests, production builds, secret scan, and
+  whitespace validation passed. The root Node suite passed 72 tests with three provider-gated
+  skips, and the 1,289-module Android Expo export completed.
+- Representative physical-device validation remains open.
+
+### Documentation Updated
+
+Updated README, PROJECT_OVERVIEW, PLAN, architecture, API, authentication, database, deployment,
+Supabase setup, TASKS, PROGRESS, DECISIONS, KNOWN_ISSUES, and this changelog. Added ADR-0029 and the
+mobile-location-coordination worklog.
+
+### Security and Breaking Changes
+
+Exact current-area coordinates remain in process memory only and cannot satisfy complaint evidence.
+No public/private data contract, RLS policy, Storage rule, or server-side routing decision changed.
+There are no breaking changes.
+
+## 2026-07-23 — Owner reports in mobile Community
+
+### Summary
+
+Added a privacy-safe signed-in **Your reports** section to mobile Community so a citizen can find a
+newly submitted complaint immediately without waiting for reviewed public publication.
+
+### Feature
+
+- Loaded the existing owner-scoped complaint list whenever Community gains focus and derived a
+  three-item newest-first preview.
+- Kept owner loading/error/empty state independent of location acquisition and reviewed-public
+  Local, Trending, and Heat state.
+- Reused the authenticated complaint card/detail route without adding support or star controls.
+- Preserved the publication boundary: private owner items are never adapted into public map,
+  hotspot, ranking, or engagement data.
+
+### Files Modified
+
+- Mobile Community presentation, owner-preview projection helper, and focused tests.
+- Required product, architecture, API, authentication, database, deployment, Supabase, planning,
+  progress, decisions, known-issues, ADR, worklog, and changelog documentation.
+
+### Migration and Tests
+
+- Migrations: none.
+- Mobile lint and strict type-check passed.
+- All 22 mobile test files passed, including two focused owner-preview cases.
+- Full workspace release-gate verification is recorded after the final documentation pass.
+
+### Security and Breaking Changes
+
+The feature reuses the existing bearer-authenticated actor-scoped complaint API and forced-RLS
+database boundary. It does not expose another citizen's reports, publish private data, or change an
+API/RLS/Storage contract. There are no breaking changes.
+
+## 2026-07-23 — Physical V1 database and synchronization-prototype prune
+
+### Summary
+
+Reduced the application-owned database from 129 to 114 physical tables by removing only
+never-deployed governance synchronization/versioned-contact structures and the unused public
+comment table. Current complaint, Community, government workflow and ward-email capabilities remain
+installed and locally verified.
+
+### Feature
+
+- Added forward migration `20260723110000_prune_deferred_v1_subsystems.sql`, removing fourteen
+  governance source/run/snapshot/candidate/review/contact tables and
+  `complaints.complaint_comments`.
+- Rebound government delivery readiness to the active private
+  `routing.ward_issue_contacts` matrix, retaining all 312 BMC ward/category rows and existing
+  complaint assignment behavior.
+- Removed the undeployed governance-sync Edge Function, configuration, draft seeds, generated
+  integration tests and the zero-consumer `@local-wellness/database` governance-sync export/source/
+  tests. The governance-import package remains.
+- Updated the BMC submission runtime diagnostic to validate the 312-row V1 matrix instead of retired
+  contact tables. Marked the legacy BMC mobile-demo verification artifact as historical and
+  explicitly unsafe to run after the V1/prune path.
+- Updated legacy pgTAP schema/contact assertions to validate the compact schema rather than
+  referencing retired relations.
+
+### Files Modified
+
+- V1 prune migration, master/bootstrap generation artifacts, Supabase configuration and focused
+  pruning/legacy pgTAP coverage.
+- Governance-sync Edge/runtime/seed/package surfaces removed; governance import retained.
+- Performance diagnostics and historical BMC mobile-demo verification guidance.
+- Architecture/database/API/deployment/Supabase guidance, ADR-0031, V1 pruning worklog and required
+  tracking documents.
+
+### Migration and Tests
+
+- Migration: `20260723110000_prune_deferred_v1_subsystems.sql`.
+- A clean local reset completed on the compact schema.
+- Database lint passed.
+- All 46 pgTAP files passed 1,548 tests after legacy assertions were updated.
+
+### Security and Operational Status
+
+No complaint history, authorization evidence, active workflow, Community projection/engagement or
+ward-email state is removed. Public comments and automated governance synchronization remain
+unavailable. Hosted Supabase was not modified and still requires an operator backup/preflight,
+ordinary migration application and post-migration smoke tests.
+
+The 129→114 reduction is a maintainability and operational-surface improvement. It is not presented
+as the root cause or fix for the earlier high-CPU/PostgREST request storm; hosted performance work
+still requires query/request evidence. Any later physical reduction must wait for an approved
+replacement, backfill, compatibility period, cutover/rollback plan and complete regression
+coverage.
+
+## 2026-07-23 — Physical V1 prune safety and final verification follow-up
+
+### Summary
+
+Hardened the forward prune so it fails closed on retained complaint history, incomplete replacement
+contact coverage, active synchronization work, and unknown hosted-only dependencies. Completed the
+full repository verification after regenerating all deployment artifacts.
+
+### Safety hardening
+
+- The migration now refuses to remove a non-empty `complaints.complaint_comments` table.
+- Populated retired governance tables can be removed only when the owner-approved active
+  replacement contains all 312 rows across 26 wards and 12 categories.
+- The retired lease table is locked before checking for an active unexpired synchronization lease.
+- Table and view drops use dependency-restricted behavior; no cascading drop can silently remove a
+  hosted-only dependent object.
+- Focused static and pgTAP coverage now checks these guards, retained readiness execution, and
+  least-privilege function access.
+
+### Verification
+
+- A clean local reset applied all 50 migrations and current seeds.
+- All 46 pgTAP files passed 1,550 tests; application-schema database lint passed.
+- Formatting, lint, strict type-check, all 30 package test tasks, all 16 root test files, all 16
+  production builds, generated database/master/current-session/BMC artifact checks, canonical
+  governance checks, and secret scanning passed.
+- Hosted Supabase was not modified. Backup, preflight, application, post-migration smoke testing,
+  and optional Storage-bucket retirement remain operator actions.
+
+### Breaking changes
+
+The fourteen historical governance synchronization/versioned-contact tables and unused public
+comment table are removed only after the forward migration is applied. Existing complaint,
+Community, government workflow, private messaging, notification, accountability, SLA/KPI, and
+ward-email contracts remain installed.
+
+## 2026-07-23 — JagrukSetu detailed complaint taxonomy and exact Phone MFA diagnostics
+
+### Summary
+
+Implemented the reviewed JagrukSetu complaint hierarchy as a data-driven mobile classification
+flow without replacing stable operational routing identifiers. Added Corruption, Bribery & Public
+Integrity as a protected primary category and replaced the flat mobile category choice with two
+dropdowns. Phone-verification errors now distinguish managed Advanced MFA setup from Twilio
+delivery failure.
+
+### Feature
+
+- Generated 17 primary categories, 340 subcategories and 19 workflows from
+  `resources/JAGRUKSETU_COMPLAINT_TAXONOMY_V1.md`.
+- Mapped 13 taxonomy leaves to the 12 stable operational profiles and kept 327 leaves
+  discoverable/resumable but unavailable for submission.
+- Kept all 20 `COR` leaves private, `protected_pending`, unmapped and excluded from ordinary
+  ward-email, public visibility, comments and Community support.
+- Added authenticated `GET /api/v1/routing/categories/taxonomy`, strict public-safe RPC decoding,
+  concurrent-miss coalescing and a 30-second successful-result cache.
+- Added primary-category and **Subcategory / issue type** mobile dropdowns plus derived workflow,
+  sensitivity and route-readiness feedback.
+- Stored only the canonical taxonomy codes/workflow in draft custom attributes and revalidated the
+  database-owned operational mapping on draft and complaint insertion.
+- Added exact user guidance for `mfa_phone_enroll_not_enabled`,
+  `mfa_phone_verify_not_enabled` and `sms_send_failed`.
+
+### Files Modified
+
+- Mobile complaint capture, taxonomy selection/dropdown, service decoders and tests.
+- API routing controller/service/store, shared types/validation and tests.
+- Taxonomy generator, migration, generated seed, SQL Editor artifact, database types/master
+  artifacts and pgTAP coverage.
+- Authentication error mapping/tests and the required project documentation/worklogs.
+
+### Migration and Seed
+
+- `supabase/migrations/20260723120000_jagruksetu_complaint_taxonomy.sql`
+- `supabase/seed/55_jagruksetu_complaint_taxonomy.generated.sql`
+- `supabase/deploy/jagruksetu-complaint-taxonomy-v1.sql`
+
+### Tests and Verification
+
+- A clean local database run applied the current history; all 47 pgTAP files passed 1,589
+  assertions.
+- Focused taxonomy API verification passed 50 tests.
+- Focused mobile taxonomy/client verification passed all four selected test files.
+- Focused Phone MFA authentication verification passed 23 tests.
+- Generated taxonomy, database-type and master/deployment drift checks passed.
+
+### Documentation Updated
+
+README, project overview, plan, architecture, API, authentication, database, deployment, Supabase
+setup, trackers, ADR-0032 references and both implementation worklogs were aligned.
+
+### Security and Hosted Status
+
+The mobile never selects an official authority or recipient. Corruption has no unsafe generic
+fallback, and submission revalidates current server-owned taxonomy mapping. Twilio credentials
+under the ordinary Phone provider do not activate Advanced MFA Phone Enrollment/Verification; a
+hosted project administrator must enable those settings. No hosted Supabase schema, seed or Auth
+setting was changed by this local implementation.
+
+### Breaking Changes
+
+No existing operational category identifier or complaint route was replaced. The matching API and
+migration/seed must be deployed before releasing the new mobile taxonomy client.
+
+## 2026-07-24 — Citizen confirmed-phone OTP without Advanced Phone MFA
+
+### Summary
+
+Replaced the superseded citizen Advanced Phone MFA/AAL2 design with ordinary Supabase
+confirmed-phone OTP while retaining email/password as JagrukSetu's primary presented sign-in.
+Privileged Government Dashboard and Admin Console accounts continue to use their independent
+TOTP/AAL2 policy.
+
+### Feature
+
+- Phone linking and confirmation use `phone_change` OTP and fail closed unless the initiating Auth
+  user, normalized phone and `phone_confirmed_at` all match.
+- The API checks current server-owned confirmed-phone state through the service-role-only
+  `public.user_has_verified_phone` function; editable profile metadata and JWT phone claims do not
+  satisfy the citizen gate.
+- Supported password change and recovery send an ordinary SMS OTP with
+  `shouldCreateUser: false` through an isolated, non-persistent Supabase client, bind the returned
+  identity and phone, update the password immediately, and then revoke/clear sessions.
+- Accounts without an already confirmed phone fail closed to reviewed support recovery; the
+  superseded email-only zero-factor fallback and MFA-factor reset procedure are not current.
+- Preferred configuration names are `API_CITIZEN_PHONE_VERIFICATION_MODE`,
+  `EXPO_PUBLIC_PHONE_VERIFICATION_MODE`, and
+  `NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE`. Former `*_PHONE_MFA_MODE` values remain deprecated
+  compatibility fallbacks.
+
+### Migration and Deployment Artifact
+
+- Added `supabase/migrations/20260723130000_citizen_phone_verification_without_mfa.sql`.
+- Added the complete SQL Editor alternative
+  `supabase/deploy/citizen-phone-verification-without-mfa.sql`; running it does not reconcile the
+  Supabase migration ledger automatically.
+
+### Tests and Verification
+
+- A clean local Supabase reset applied the current migration and seed history.
+- All 48 pgTAP files passed 1,599 assertions.
+- Application-schema database lint passed.
+- Deterministic master-SQL generation/drift verification passed.
+- Mobile/client validation remains pending and is not claimed by this entry.
+
+### Documentation Updated
+
+Updated README, project overview, plan, architecture, API, authentication, database, deployment,
+Supabase setup, tasks, progress, decisions, known issues, the ADR-0033 worklog, historical
+ADR/worklog supersession notes, and the obsolete lost-phone factor-reset warning.
+
+### Security and Hosted Status
+
+Ordinary Phone Auth makes a linked phone an alternate Supabase AAL1 login identity; JagrukSetu can
+omit phone-only sign-in but cannot claim email/password is the only provider-level path. The fresh
+phone password rule is enforced by supported application flows, not a provider-wide password hook.
+Stale `phone_change` handling and lost-phone recovery remain managed release risks.
+
+Hosted Supabase was not changed. Operators must apply migration 52, enable the ordinary Phone
+provider/Twilio Verify and phone confirmations, disable phone signups, set the preferred enforcement
+variables, and complete the installed-device/recovery matrix. Advanced Phone MFA may remain
+disabled for citizens.
+
+### Breaking Changes
+
+Citizen access no longer requires an Advanced Phone MFA factor or AAL2 session. Existing accounts
+that only enrolled a Phone MFA factor must link and confirm `auth.users.phone` through the new
+ordinary Phone Auth flow before private citizen access. Privileged TOTP/AAL2 behavior is unchanged.
+
+## 2026-07-24 — Phone Auth provider-gate correction and email-required signup hook
+
+### Summary
+
+Corrected the immediately preceding citizen-phone setup after a real local Auth E2E proved that
+Supabase rejects `signInWithOtp({ phone, shouldCreateUser: false })` with
+`phone_provider_disabled` when Phone Auth signup capability is off. The provider gate must remain
+enabled for existing linked-phone SMS OTP. A Before User Created Auth Hook now rejects actual
+phone-only user creation by requiring every new Auth user to carry an email.
+
+This entry supersedes only the preceding instruction to disable phone signups. The ordinary
+confirmed-phone design, email/password primary UI, alternate AAL1 linked-phone limitation,
+isolated password-change client, and privileged TOTP/AAL2 boundary remain unchanged.
+
+### Feature and Security
+
+- Added `public.hook_require_email_identity(jsonb)`, executable only by
+  `supabase_auth_admin`.
+- Email-bearing Auth creation events are allowed; missing/blank-email creation returns a
+  provider-compatible `email_required`/`403` error.
+- Local Supabase enables Phone Auth, phone confirmations, deterministic test OTPs, and a non-secret
+  placeholder Twilio Verify provider block so GoTrue exercises the phone path without sending SMS.
+  Hosted environments must use real Twilio Verify credentials.
+- Supported password flows still send `shouldCreateUser: false`; that is defense in depth and does
+  not replace the server-owned creation hook.
+- Hosted operators must activate `public.hook_require_email_identity` as the Before User Created
+  Auth Hook. Creating the function through SQL does not activate the hosted hook automatically.
+
+### Migration and Deployment Artifact
+
+- Added `supabase/migrations/20260724100000_require_email_identity_for_auth_signup.sql`.
+- Extended `supabase/deploy/citizen-phone-verification-without-mfa.sql` to contain both migrations
+  52 and 53. SQL Editor execution still requires separate migration-ledger reconciliation.
+- Regenerated the 53-migration master SQL and its 1–23/24–53 adaptive parts.
+
+### Tests and Verification
+
+- A clean local start applied all 53 migrations and current seeds.
+- All 49 pgTAP files passed 1,607 assertions.
+- Application-schema database lint passed; generated database types and master artifacts are
+  current.
+- Auth E2E passed 5/5: email OTP, phone link/confirmation, existing-phone SMS OTP password change,
+  phone-only-signup denial through the hook, and government invitation.
+- Mobile tests/type-check/lint/diff validation passed.
+- Citizen Web passed all eight test files, type-check, lint and production build.
+- Focused API/config tests, type-check, build and lint passed.
+
+### Hosted Status
+
+Hosted Supabase was not changed. Enable the ordinary Phone provider with real Twilio Verify, phone
+confirmations and Phone Auth signup capability; apply migrations 52–53; activate the Before User
+Created hook; then prove both existing-linked-phone OTP success and new phone-only-user denial.
+Advanced Phone MFA may remain disabled for citizens.
+
+## 2026-07-24 — Citizen recovery-session lifecycle hardening and integrated validation
+
+### Summary
+
+Hardened the mobile reset-password lifecycle so navigation cannot leave a newly established,
+isolated recovery session alive, then completed the current citizen-auth client and workspace
+integration checks.
+
+### Feature and Security
+
+- If the reset-password screen unmounts after email recovery exchange creates an isolated session
+  but before phone inspection or password completion finishes, cleanup locally signs that
+  isolated session out.
+- No citizen `auth.mfa.*` or AAL2 path remains; privileged TOTP/AAL2 behavior is unchanged.
+
+### Tests and Verification
+
+- All 23 mobile test suites, mobile type-check/lint and the Expo Android export (1,293 modules)
+  passed.
+- Citizen Web's eight test files, type-check/lint and production build passed.
+- Repository-wide tests, type-check and lint passed.
+- Repository-wide formatting, secret scanning and the managed Supabase/Twilio device matrix remain
+  separate gates and are not claimed by this entry.
+
+### Hosted Status
+
+Hosted Supabase was not changed. Migrations 52–53, the real Twilio Verify provider, phone
+confirmations, Phone Auth signup capability and Before User Created hook activation still require
+managed deployment and device verification.
+
+## 2026-07-24 — Citizen-auth verification completion addendum
+
+### Summary
+
+Completed the remaining local repository checks for the citizen-auth change. This supersedes only
+the preceding statement that repository formatting and secret scanning were still pending.
+
+### Tests and Verification
+
+- Targeted Prettier passed.
+- Tracked/current-history secret scanning passed.
+- Repository diff checks passed.
+
+The managed Supabase/Twilio device matrix remains pending; hosted Supabase was not changed.
+
+## 2026-07-24 — Hosted phone-verification diagnosis and mobile OTP-state repair
+
+### Summary
+
+Diagnosed the current managed OTP failure with a read-only hosted probe and repaired a separate
+mobile Auth lifecycle race. Hosted Phone Auth is enabled with Twilio Verify and phone confirmation,
+but migration 52 is absent from PostgREST, so protected citizen API access fails closed before any
+hosted account can complete the intended confirmed-phone path.
+
+### Feature and Fix
+
+- Keyed the mobile phone-verification screen's initial inspection by stable authenticated user ID.
+  Supabase's expected same-user `USER_UPDATED` event after `updateUser({ phone })` can no longer
+  reset OTP code entry back to phone entry.
+- Added focused initial-user, repeated-same-user and changed-user regression coverage.
+- Extended `supabase/deploy/citizen-phone-verification-without-mfa.sql` to request an immediate
+  PostgREST schema reload and return five explicit installation/grant checks.
+- Added the preferred local API and Expo phone-verification mode names while preserving the
+  deprecated compatibility inputs.
+
+### Managed Diagnostic
+
+- Hosted Auth settings report the ordinary Phone provider enabled, phone auto-confirmation
+  disabled and `twilio_verify` selected.
+- `public.user_has_verified_phone(uuid)` returns `PGRST202`; the current API therefore reports
+  `DEPENDENCY_UNAVAILABLE` while determining citizen verified-phone state.
+- All fifteen hosted Auth users are email-bearing and none currently has a confirmed phone.
+- The direct database hostname is IPv6-only from this environment, the available pooler credential
+  was rejected, and no authenticated browser/management session was available. Hosted schema and
+  Auth-hook activation were therefore not changed.
+
+### Tests and Documentation
+
+- The focused mobile password/phone suite passes all 18 cases, including the new Auth-event
+  regression.
+- Updated authentication, Supabase setup, tasks, progress, decisions, known issues and the
+  citizen-phone worklog.
+
+### Remaining Operator Step
+
+Run `supabase/deploy/citizen-phone-verification-without-mfa.sql` in hosted SQL Editor and require all
+five returned checks to be `true`, then activate `public.hook_require_email_identity` as the Before
+User Created Auth Hook. Re-test initial phone confirmation before investigating Twilio carrier
+delivery.
+
+## 2026-07-24 — Mobile Supabase Auth-lock repair
+
+### Summary
+
+Removed a second mobile OTP/session failure mode by dropping the pinned Auth SDK's deprecated
+custom process lock and keeping authoritative phone-state follow-up outside the immediate Auth
+callback.
+
+### Feature and Fix
+
+- Removed `processLock` from the persistent React Native client. The pinned SDK coordinates refresh
+  concurrency internally, while its legacy custom-lock auto-refresh branch produced the observed
+  zero-millisecond acquisition warnings.
+- Deferred `getUser()` follow-up until the Auth callback returns.
+- Assigned each session resolution a monotonic ID and cancelled stale scheduled work after a newer
+  event, sign-out or provider unmount.
+- Added regression coverage for deferred execution and cancellation.
+
+### Tests and Documentation
+
+- All 23 mobile test suites pass.
+- Mobile type-check and lint pass.
+- Updated authentication, decisions, tasks, progress, known issues and the confirmed-phone worklog.
+
+### Hosted Status
+
+Hosted Supabase was not modified. The missing `public.user_has_verified_phone(uuid)` function and
+Before User Created hook activation remain the managed blocker tracked by `AUTH-010`.
+
+## 2026-07-24 — Existing-authenticator phone-change compatibility
+
+### Summary
+
+Attributed the managed `PUT /auth/v1/user` HTTP `401` and added a narrow compatibility path for a
+citizen account that already has a verified TOTP factor. Supabase was rejecting the phone mutation
+with `insufficient_aal` before Twilio Verify because the current session was AAL1 while the account
+could reach AAL2.
+
+### Feature and Security
+
+- Ordinary citizens without a verified factor continue directly to the existing `phone_change`
+  SMS flow.
+- An account with a pre-existing verified TOTP factor now receives an authenticator challenge
+  first. The client requires a normalized six-digit code, successful `challengeAndVerify`, the
+  expected user identity and current AAL2 before allowing phone entry.
+- No factor is enrolled, deleted, persisted or logged, and no service-role phone update bypass was
+  introduced.
+- Privileged Government Dashboard and Admin Console TOTP/AAL2 policy is unchanged.
+
+### Files and Documentation
+
+- Updated the mobile phone-verification assurance helper, screen and focused password/phone tests.
+- Added ADR-0034 and cross-linked ADR-0033.
+- Updated authentication, tasks, progress, decisions, known issues and the citizen confirmed-phone
+  implementation/testing worklog.
+- No migration was created and there is no breaking public API change.
+
+### Tests and Verification
+
+- Focused mobile Auth-state and password/phone tests pass.
+- Mobile type-check and lint pass.
+- All 23 mobile suites and the 1,293-module offline Android export pass.
+- A live temporary email-backed Auth identity received an accepted exact `phone_change` provider
+  request for the user-supplied number, and test-identity cleanup completed. Handset receipt and
+  code verification were not asserted.
+- The managed inspection was read-only. The existing TOTP factor and hosted Auth user were not
+  modified.
+
+### Remaining Managed Step
+
+Reload the updated mobile build and complete the existing authenticator challenge before requesting
+the phone SMS. If the authenticator is unavailable, use attributed administrator factor recovery
+or a separate citizen account; do not bypass or automatically delete the factor. Hosted migrations
+52–53 and the Before User Created hook remain independently required under `AUTH-010`.
+
+## 2026-07-24 — Authenticator and SMS step clarification
+
+### Summary
+
+Clarified the mobile compatibility screen after a citizen mistook the pre-existing TOTP challenge
+for an SMS OTP.
+
+### User Experience
+
+- The screen now states that no SMS is sent during the authenticator step.
+- It directs the user to the rotating six-digit code in the app that scanned the earlier QR code
+  and surfaces the factor label when available.
+- It explains that the mobile-number field and SMS challenge appear only after successful TOTP
+  verification.
+- It identifies attributed administrator factor reset as the recovery path when that authenticator
+  is no longer accessible.
+
+### Security and Compatibility
+
+- No factor, Auth policy or provider behavior changed.
+- TOTP remains non-resendable; the existing resend cooldown remains limited to the subsequent SMS
+  challenge.
+
+### Hosted Follow-up
+
+- The operator reported applying the combined citizen-phone SQL and activating the Before User
+  Created hook.
+- A service-role probe now resolves `public.user_has_verified_phone(uuid)` successfully and returns
+  `false` for the affected citizen, closing the former hosted RPC blocker.
+- The affected account still has one verified TOTP factor labelled `Local Wellness government
+dashboard`; factor reset remains an explicit administrator action because it signs out active
+  sessions.
+
+## 2026-07-24 — Authorized legacy citizen authenticator reset
+
+### Summary
+
+Removed the affected citizen's inaccessible legacy Government Dashboard TOTP factor after the user
+explicitly authorized that destructive security action.
+
+### Hosted Result
+
+- Matched exactly one verified TOTP factor by type, status and expected friendly label before
+  deletion.
+- Deleted only that factor through the Supabase Auth administrator MFA API.
+- Verified that the Auth user still exists, zero verified factors remain and no phone is yet
+  verified.
+- Supabase invalidated the account's active sessions as expected for deletion of a verified factor.
+
+### Next Verification
+
+Sign in again with email and password. The mobile app should now skip the authenticator step, show
+the phone-number field, and proceed to the ordinary `phone_change` SMS flow.
+
+## 2026-07-24 — Complaint result repair and isolated ward-email delivery
+
+### Summary
+
+Fixed the recurring false “Report not submitted” result after a complaint had already committed,
+and activated a low-frequency email-only worker without restarting unrelated background pollers.
+
+### Complaint Contract
+
+- The API now returns the declared `ComplaintReceipt` shape and no longer duplicates `categoryId`
+  inside the nested routing summary.
+- Mobile remains compatible with the earlier first-submit response, validates that the duplicate
+  category matches, normalizes it away, and continues to reject undeclared/private fields.
+- Added API and mobile regression coverage for first submission, replay, mismatched categories, and
+  private-field rejection.
+
+### Ward Email
+
+- Added a dedicated 60-second ward-email process, bounded continuous batches, clean shutdown, and a
+  one-row smoke command.
+- Worker scripts now load the ignored repository-root environment without exposing SMTP values.
+- Verified SMTP authentication, processed the bounded hosted-staging backlog, and persisted
+  provider message IDs including the current K/W complaint.
+- Provider acceptance is recorded; recipient-mailbox arrival, bounce behavior, and government
+  acknowledgement remain unverified.
+
+### Files and Architecture
+
+- Updated mobile response decoding/tests, API complaint response construction/tests, worker
+  entrypoints/tests/scripts, and the relevant setup, API, architecture, deployment, database, task,
+  progress, decision, and known-issue documentation.
+- Added ADR-0035 for isolated ward-email operation.
+- No database migration or breaking public API was introduced; the API output now matches its
+  existing declared contract.
+
+### Verification
+
+- API tests passed.
+- Mobile tests passed 141/141; mobile type-check and lint passed.
+- Worker tests passed 30/30; worker type-check, lint, and build passed.
+- SMTP transport verification and two bounded provider-accepted sends completed without logging
+  credentials, recipient values, descriptions, or coordinates.
+
+## 2026-07-24 — Ambiguous complaint-submission recovery
+
+### Summary
+
+Prevented a network or successful-response decoding problem from being presented as a definite
+complaint failure when the server may already have committed the report.
+
+### Mobile
+
+- Classifies only `NETWORK_ERROR` and `INVALID_RESPONSE` as unknown submission outcomes.
+- Shows “Submission status unknown,” explains that the report may have been received, and
+  prioritizes opening owned complaints before retrying.
+- Keeps attributed validation, routing, dependency, cancellation and local errors on the ordinary
+  failure path with sanitized copy.
+
+### Verification
+
+- Mobile tests passed 141/141.
+- Mobile type-check, lint and diff validation passed.
+- No migration or public API change was introduced.
+
+## 2026-07-24 — Complete JagrukSetu BMC V1 intake and protected handoffs
+
+### Summary
+
+Classified every one of the 340 complaint leaves for Mumbai V1 without creating a ward/category
+cross-product. Preserved 13 specialised mappings, mapped 243 public/restricted leaves to one
+general ward profile, and gave all 84 private/emergency-private leaves official protected
+handoffs.
+
+### Database and Generated Data
+
+- Added migration `20260724110000_v1_bmc_general_intake_and_handoffs.sql`.
+- Added the private, forced-RLS `routing.complaint_handoff_actions` registry with digits-only call
+  and credential-free HTTPS browser targets.
+- Added fail-closed taxonomy readiness requiring a verified profile/domain/rule and complete
+  owner-approved ward-contact coverage.
+- Added taxonomy-aware complaint labels to owner list/detail, government list/detail and ward-email
+  claims.
+- Added the versioned intake source overlay, deterministic generator, 340-row route worklist,
+  import-ready data, validation reports/manifests and seed
+  `56_jagruksetu_bmc_intake.generated.sql`.
+- Added `supabase/deploy/jagruksetu-bmc-intake-v1.sql`, which embeds the exact migration and seed
+  bytes with SHA-256 metadata.
+- Final local counts are 256 submittable leaves, 84 protected handoffs, 13 operational profiles,
+  338 private ward/profile contacts, 29 approved actions and 115 application-owned tables.
+
+### API and Mobile
+
+- Extended the strict shared/API/mobile taxonomy contract with `protected_handoff` and camel-case
+  `handoffActions`.
+- Protected selections now show official help and suppress description, location, media,
+  duplicate-check, submission, email and Community side effects.
+- Telephone actions open the native dialler; browser actions use the existing Expo in-app browser.
+
+### Tests and Documentation
+
+- Added generator regression tests and pgTAP plan 054; updated final-state database assertions.
+- Clean Supabase reset passed. All 50 pgTAP files passed 1,640 assertions; focused plan 054 passed
+  33/33.
+- Application-schema database lint passed without errors; an all-schema inspection found only
+  pre-existing PostGIS extension-body false positives.
+- The generator passed 6/6 tests plus drift/lint/format checks. Focused API verification passed 51
+  tests and focused mobile verification passed 16.
+- Full API and mobile suites passed 234/234 and 143/143 respectively; shared types, API and mobile
+  type-check/lint passed.
+- Regenerated the 54-migration master artifacts and database types.
+- Updated README, roadmap, architecture, API/database/deployment/Supabase/governance guides,
+  tracking documents and the feature worklog.
+- Added ADR-0036. No hosted Supabase project was changed; applying the generated SQL Editor
+  artifact remains an operator step.
+
+## 2026-07-24 — Compact localised mobile experience and civic-area offices
+
+### Summary
+
+Completed the current mobile-polish plan with smaller typography, restrained green/saffron/white/
+blue surfaces, filled code-native icons, contextual automatic location, owner-private Community
+reports, and a sanitized nearby-office directory. The visible mobile product name remains
+JagrukSetu.
+
+### Mobile Experience
+
+- Added a compact shared React Native theme, reusable civic icons, and a rounded detached
+  five-destination bottom navigation.
+- Localised the authenticated shell, Auth, Home, complaints, one-page report form and result,
+  evidence, accountability, Community, Civic Area, notifications, menu, and Profile in English,
+  Hindi, and Marathi with typed key and placeholder parity.
+- Reused a valid current-area fix in process memory for five minutes, coalesced concurrent
+  requests, limited automatic permission prompting to once per process, and retained explicit
+  recovery. Complaint and media evidence still require a fresh high-accuracy fix.
+- Added the newest three owner-private complaints to Community independently of location or public
+  review, virtualised long feeds, and deferred Heat requests until Heat is selected.
+- Kept complaint capture on one autosaving page with automatic location/duplicate progression, a
+  visible blocker list, one final action, and dedicated success, failure, and unknown result
+  routes.
+
+### Civic-Area Office Contract
+
+- Added migration `20260724120000_verified_civic_area_office_contacts.sql` and the byte-identical
+  `supabase/deploy/civic-area-office-contacts.sql` SQL Editor artifact.
+- Extended the verified governance projection with at most 25 exact-ward and explicitly
+  municipality-scoped offices.
+- Exposed only public name, type, optional address/phone/email, verification date, and official
+  HTTPS source. Operational routing recipients, WhatsApp contacts, officer mobiles, internal
+  identifiers, geometry, and unpublished records remain private.
+- Added strict shared validation, API/mobile decoding, safe dialler/mail/in-app-browser actions,
+  stale-response suppression, and rolling-deployment compatibility.
+
+### Verification
+
+- Clean local Supabase reset passed all 55 migrations; all 51 pgTAP plans passed 1,655 assertions.
+- Database lint, generated types, 55-migration master/current-session drift, SQL artifact byte
+  identity, and the new master-migration fingerprint test passed.
+- Shared validation passed 61 tests; API passed 235 tests plus strict type-check, lint, and build.
+- Localisation passed 3 tests, strict type-check, lint, and build.
+- Mobile passed 156 tests, strict type-check, lint, and a fresh 1,305-module Android export.
+- Targeted formatting, source/diff checks, and visible-brand/legacy-shadow scans passed.
+
+### Documentation and Architecture
+
+- Updated product, roadmap, architecture, Auth, API, database, deployment, Supabase setup,
+  decision, issue, task, progress, and mobile worklog documentation.
+- Amended ADR-0029 for the purpose-scoped location behavior and added ADR-0037 for the public-safe
+  civic-area office projection.
+- No breaking API change and no hosted Supabase or production infrastructure change was made.

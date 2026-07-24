@@ -59,8 +59,8 @@ select is(
       and relation.relkind = 'r'
       and relation.relrowsecurity
   ),
-  38,
-  'RLS is enabled on every governance and synchronization table'
+  24,
+  'RLS is enabled on every retained governance table'
 );
 select is(
   (
@@ -71,8 +71,8 @@ select is(
       and relation.relkind = 'r'
       and relation.relforcerowsecurity
   ),
-  38,
-  'RLS is forced on every governance and synchronization table'
+  24,
+  'RLS is forced on every retained governance table'
 );
 select is(
   (

@@ -1,4 +1,4 @@
-import { Redirect, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,25 +10,32 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../../src/auth/auth-context';
-import { getPhoneMfaSignInCopy } from '../../src/auth/phone-mfa-copy';
 import { usePasswordAuth, type PasswordAuthMode } from '../../src/auth/use-password-auth';
-import { getPublicPhoneMfaMode } from '../../src/config/environment';
+import { getPublicPhoneVerificationMode } from '../../src/config/environment';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
+import { mobileTheme } from '../../src/ui/theme';
 
 const accountModes = ['sign-in', 'create-account'] as const satisfies readonly PasswordAuthMode[];
 
 export default function SignInScreen() {
   const auth = useAuth();
+  const parameters = useLocalSearchParams<{
+    globalSignOutFailed?: string | string[];
+    passwordChanged?: string | string[];
+    recovered?: string | string[];
+  }>();
   const router = useRouter();
   const form = usePasswordAuth();
-  const phoneMfaCopy = getPhoneMfaSignInCopy(getPublicPhoneMfaMode());
+  const { t } = useLocalization();
+  const phoneVerificationMode = getPublicPhoneVerificationMode();
 
-  if (auth.state.status === 'loading') return <LoadingScreen label="Checking your session…" />;
+  if (auth.state.status === 'loading') return <LoadingScreen label={t('restoringSession')} />;
   if (auth.state.status === 'configuration-error') {
-    return <ErrorScreen message={auth.state.message} title="App configuration required" />;
+    return <ErrorScreen message={auth.state.message} title={t('appConfigurationRequired')} />;
   }
   if (auth.state.status === 'signed-in') return <Redirect href="/home" />;
-  if (auth.state.status === 'mfa-required') {
+  if (auth.state.status === 'phone-verification-required') {
     return <Redirect href="/auth/phone-verification" />;
   }
 
@@ -38,21 +45,21 @@ export default function SignInScreen() {
 
   const title =
     form.mode === 'create-account'
-      ? 'Create your account'
+      ? t('createYourAccount')
       : form.mode === 'forgot-password'
-        ? 'Reset your password'
-        : 'Welcome back';
+        ? t('resetYourPassword')
+        : t('welcomeBack');
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.brandRow}>
           <View style={styles.brandMark}>
-            <Text style={styles.brandMarkText}>LW</Text>
+            <Text style={styles.brandMarkText}>JS</Text>
           </View>
           <View style={styles.brandCopy}>
-            <Text style={styles.eyebrow}>LOCAL WELLNESS</Text>
-            <Text style={styles.brandTagline}>Civic services, made clearer</Text>
+            <Text style={styles.eyebrow}>{t('appName').toUpperCase()}</Text>
+            <Text style={styles.brandTagline}>{t('raiseTrackImprove')}</Text>
           </View>
         </View>
 
@@ -61,9 +68,23 @@ export default function SignInScreen() {
         </Text>
         <Text style={styles.description}>
           {form.mode === 'forgot-password'
-            ? 'We will email a secure recovery link without revealing whether an account exists.'
-            : phoneMfaCopy.description}
+            ? t('recoveryEmailHint')
+            : t(
+                phoneVerificationMode === 'enforce'
+                  ? 'authEnforceDescription'
+                  : 'authObserveDescription',
+              )}
         </Text>
+
+        {parameters.passwordChanged === '1' ? (
+          <Text accessibilityLiveRegion="polite" style={styles.successText}>
+            {parameters.globalSignOutFailed === '1'
+              ? t('passwordChangedGlobalSignOutWarning')
+              : parameters.recovered === '1'
+                ? t('passwordResetSuccess')
+                : t('passwordChangedSuccess')}
+          </Text>
+        ) : null}
 
         {form.mode === 'forgot-password' ? (
           <Pressable
@@ -72,7 +93,9 @@ export default function SignInScreen() {
             onPress={() => form.setMode('sign-in')}
             style={styles.inlineButton}
           >
-            <Text style={styles.inlineButtonText}>‹ Back to sign in</Text>
+            <Text style={styles.inlineButtonText}>
+              {t('back')} · {t('signIn')}
+            </Text>
           </Pressable>
         ) : (
           <View accessibilityRole="radiogroup" style={styles.modeGroup}>
@@ -88,7 +111,7 @@ export default function SignInScreen() {
                   style={[styles.modeButton, selected && styles.modeButtonSelected]}
                 >
                   <Text style={[styles.modeText, selected && styles.modeTextSelected]}>
-                    {mode === 'sign-in' ? 'Sign in' : 'Create account'}
+                    {mode === 'sign-in' ? t('signIn') : t('createAccount')}
                   </Text>
                 </Pressable>
               );
@@ -97,9 +120,9 @@ export default function SignInScreen() {
         )}
 
         <View style={styles.form}>
-          <Text style={styles.label}>Email address</Text>
+          <Text style={styles.label}>{t('emailAddress')}</Text>
           <TextInput
-            accessibilityLabel="Email address"
+            accessibilityLabel={t('emailAddress')}
             autoCapitalize="none"
             autoComplete="email"
             editable={!form.isPending}
@@ -113,14 +136,14 @@ export default function SignInScreen() {
 
           {form.mode === 'forgot-password' ? null : (
             <>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t('password')}</Text>
               <TextInput
-                accessibilityLabel="Password"
+                accessibilityLabel={t('password')}
                 autoCapitalize="none"
                 autoComplete={form.mode === 'create-account' ? 'new-password' : 'current-password'}
                 editable={!form.isPending}
                 onChangeText={form.setPassword}
-                placeholder="At least 8 characters"
+                placeholder={t('passwordMinimum')}
                 secureTextEntry
                 style={styles.input}
                 textContentType={form.mode === 'create-account' ? 'newPassword' : 'password'}
@@ -131,14 +154,14 @@ export default function SignInScreen() {
 
           {form.mode === 'create-account' ? (
             <>
-              <Text style={styles.label}>Confirm password</Text>
+              <Text style={styles.label}>{t('confirmPassword')}</Text>
               <TextInput
-                accessibilityLabel="Confirm password"
+                accessibilityLabel={t('confirmPassword')}
                 autoCapitalize="none"
                 autoComplete="new-password"
                 editable={!form.isPending}
                 onChangeText={form.setPasswordConfirmation}
-                placeholder="Repeat your password"
+                placeholder={t('repeatPassword')}
                 secureTextEntry
                 style={styles.input}
                 textContentType="newPassword"
@@ -155,14 +178,17 @@ export default function SignInScreen() {
             style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}
           >
             {form.isPending ? (
-              <ActivityIndicator accessibilityLabel="Authenticating" color="#ffffff" />
+              <ActivityIndicator
+                accessibilityLabel={t('authenticating')}
+                color={mobileTheme.colors.white}
+              />
             ) : (
               <Text style={styles.primaryButtonText}>
                 {form.mode === 'create-account'
-                  ? 'Create account'
+                  ? t('createAccount')
                   : form.mode === 'forgot-password'
-                    ? 'Send recovery email'
-                    : 'Sign in'}
+                    ? t('sendRecoveryEmail')
+                    : t('signIn')}
               </Text>
             )}
           </Pressable>
@@ -174,7 +200,7 @@ export default function SignInScreen() {
               onPress={() => form.setMode('forgot-password')}
               style={styles.secondaryButton}
             >
-              <Text style={styles.secondaryButtonText}>Forgot password?</Text>
+              <Text style={styles.secondaryButtonText}>{t('forgotPassword')}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -191,12 +217,12 @@ export default function SignInScreen() {
         )}
 
         <Pressable
-          accessibilityHint="Shows reviewed, privacy-protected reports"
+          accessibilityHint={t('browsePublicReportsHint')}
           accessibilityRole="button"
           onPress={() => router.push('/transparency')}
           style={styles.publicReportsButton}
         >
-          <Text style={styles.publicReportsText}>Browse public reports</Text>
+          <Text style={styles.publicReportsText}>{t('browsePublicReports')}</Text>
         </Pressable>
       </ScrollView>
     </Screen>
@@ -215,10 +241,15 @@ const styles = StyleSheet.create({
   },
   brandMarkText: { color: '#ffffff', fontSize: 17, fontWeight: '900' },
   brandRow: { alignItems: 'center', flexDirection: 'row', gap: 13, marginBottom: 34 },
-  brandTagline: { color: '#68796e', fontSize: 13 },
+  brandTagline: { color: mobileTheme.colors.muted, fontSize: mobileTheme.type.helper },
   buttonPressed: { opacity: 0.85 },
-  content: { flexGrow: 1, padding: 24, paddingBottom: 40, paddingTop: 54 },
-  description: { color: '#475569', fontSize: 16, lineHeight: 24, marginBottom: 24 },
+  content: { flexGrow: 1, padding: 20, paddingBottom: 36, paddingTop: 42 },
+  description: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+    marginBottom: 20,
+  },
   error: {
     backgroundColor: '#fef2f2',
     borderRadius: 12,
@@ -232,16 +263,16 @@ const styles = StyleSheet.create({
   inlineButton: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 44 },
   inlineButtonText: { color: '#166534', fontSize: 15, fontWeight: '700' },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: mobileTheme.colors.surface,
     borderColor: '#94a3b8',
     borderRadius: 14,
     borderWidth: 1,
-    color: '#0f172a',
-    fontSize: 17,
-    minHeight: 52,
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.body,
+    minHeight: 50,
     paddingHorizontal: 14,
   },
-  label: { color: '#1e293b', fontSize: 15, fontWeight: '700' },
+  label: { color: mobileTheme.colors.text, fontSize: mobileTheme.type.body, fontWeight: '700' },
   modeButton: {
     alignItems: 'center',
     borderRadius: 11,
@@ -249,7 +280,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
   },
-  modeButtonSelected: { backgroundColor: '#ffffff', elevation: 1 },
+  modeButtonSelected: {
+    ...mobileTheme.shadow.surface,
+    backgroundColor: mobileTheme.colors.surface,
+  },
   modeGroup: {
     backgroundColor: '#e7efe9',
     borderRadius: 14,
@@ -257,22 +291,27 @@ const styles = StyleSheet.create({
     marginBottom: 22,
     padding: 4,
   },
-  modeText: { color: '#64748b', fontSize: 16, fontWeight: '700' },
+  modeText: { color: mobileTheme.colors.muted, fontSize: 14, fontWeight: '700' },
   modeTextSelected: { color: '#14532d' },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#166534',
+    backgroundColor: mobileTheme.colors.primary,
     borderRadius: 14,
     justifyContent: 'center',
     marginTop: 8,
-    minHeight: 56,
+    minHeight: 52,
     paddingHorizontal: 18,
   },
-  primaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
+  primaryButtonText: { color: mobileTheme.colors.white, fontSize: 14, fontWeight: '800' },
   publicReportsButton: { alignItems: 'center', marginTop: 20, minHeight: 48, padding: 12 },
-  publicReportsText: { color: '#166534', fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  publicReportsText: {
+    color: mobileTheme.colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   secondaryButton: { alignItems: 'center', minHeight: 48, padding: 12 },
-  secondaryButtonText: { color: '#166534', fontSize: 15, fontWeight: '700' },
+  secondaryButtonText: { color: mobileTheme.colors.primary, fontSize: 14, fontWeight: '700' },
   successText: {
     backgroundColor: '#ecfdf5',
     borderRadius: 12,
@@ -281,5 +320,10 @@ const styles = StyleSheet.create({
     marginTop: 14,
     padding: 14,
   },
-  title: { color: '#143b27', fontSize: 34, fontWeight: '900', marginBottom: 10 },
+  title: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.display,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
 });

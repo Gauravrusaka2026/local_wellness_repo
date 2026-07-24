@@ -76,6 +76,16 @@ test('adaptive fingerprints cover the complaint submission runtime dependencies'
   assert.match(part2, /pg_catalog\.pg_get_functiondef/u);
 });
 
+test('adaptive fingerprints cover the sanitized civic-area office projection', () => {
+  assert.match(part2, /governance\.offices_verified_civic_area_scope_idx/u);
+  assert.match(
+    part2,
+    /public\.resolve_verified_governing_bodies\(double precision,double precision,double precision,timestamp with time zone\)/u,
+  );
+  assert.match(part2, /'offices'/u);
+  assert.match(part2, /limit 25/u);
+});
+
 test('each SQL Editor part is smaller than the complete master', () => {
   const completeBytes = Buffer.byteLength(completeMaster, 'utf8');
 

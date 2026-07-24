@@ -346,6 +346,26 @@ describe('complaint capture reducer and readiness', () => {
     assert.deepEqual(getAcknowledgedDuplicateSuggestionIds(null), []);
   });
 
+  it('requires the detailed taxonomy selection even when a legacy route category is present', () => {
+    assert.deepEqual(
+      getComplaintSubmissionBlockers({
+        assetOptions: [],
+        category: category(),
+        taxonomyItem: null,
+        draft: eligibleDraft(),
+        duplicateCheck: null,
+        duplicatesAcknowledged: false,
+        emergencyAcknowledged: false,
+        hasUnsavedDetails: false,
+        hasVoice: false,
+        isOnline: true,
+        upload: null,
+        voiceDescriptionConfirmed: false,
+      }),
+      ['taxonomy'],
+    );
+  });
+
   it('requires the asset and acknowledgements that the old step order enforced implicitly', () => {
     const selectedCategory = category({ isEmergency: true, requiresAsset: true });
     const currentDraft = eligibleDraft({ assetId: '77777777-7777-4777-8777-777777777777' });

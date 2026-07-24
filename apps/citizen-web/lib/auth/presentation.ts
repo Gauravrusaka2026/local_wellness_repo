@@ -1,4 +1,4 @@
-import type { CitizenPhoneMfaState } from './phone-mfa';
+import type { CitizenPhoneVerificationState } from './phone-verification';
 
 export type CitizenAuthIdentity = Readonly<{
   email?: string | null | undefined;
@@ -17,7 +17,7 @@ export type CitizenPhoneVerificationStatus = Readonly<{
 }>;
 
 export const getCitizenPhoneVerificationStatus = (
-  state: CitizenPhoneMfaState | null,
+  state: CitizenPhoneVerificationState | null,
   isRequired: boolean,
 ): CitizenPhoneVerificationStatus => {
   if (state === null) {
@@ -30,24 +30,16 @@ export const getCitizenPhoneVerificationStatus = (
 
   if (state.status === 'verified') {
     return {
-      detail: 'This session has a verified Supabase Phone MFA factor.',
-      label: 'Verified for this session',
+      detail: 'This account has a confirmed phone number.',
+      label: 'Phone confirmed',
       needsAction: false,
     };
   }
 
-  if (state.status === 'challenge-required' && state.factorStatus === 'verified') {
+  if (state.status === 'verification-required') {
     return {
-      detail: 'Your phone is enrolled. Enter a fresh SMS code to verify this session.',
-      label: isRequired ? 'Verification required' : 'Enrolled',
-      needsAction: true,
-    };
-  }
-
-  if (state.status === 'challenge-required') {
-    return {
-      detail: 'A phone was added but its first SMS verification is not complete.',
-      label: 'Setup incomplete',
+      detail: 'A phone number was added, but its SMS verification is not complete.',
+      label: isRequired ? 'Verification required' : 'Pending verification',
       needsAction: true,
     };
   }

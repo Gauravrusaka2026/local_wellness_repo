@@ -28,14 +28,21 @@ application/json
 Authorization: Bearer <supabase_jwt>
 ```
 
-Citizen web and mobile obtain that bearer session through Supabase email/password sign-up,
-sign-in, and provider-managed password recovery. Phone verification is a Supabase Phone MFA factor,
-not an application OTP endpoint. `API_CITIZEN_PHONE_MFA_MODE=observe` logs missing verified-phone
-`aal2` assurance while preserving access during provider rollout; `enforce` rejects it with
-`PHONE_MFA_REQUIRED`. Government or privileged users are evaluated separately through
-`API_PRIVILEGED_MFA_MODE` and receive `MFA_REQUIRED` when enforcement is enabled. Both modes default
-to the documented safe rollout setting and must be coordinated with the client and Supabase Auth
-configuration.
+Mobile citizens obtain bearer sessions through Supabase email/password sign-up, sign-in, and
+provider-managed recovery, then confirm a phone through ordinary Supabase Phone Auth. Phone
+verification is not an application OTP endpoint. `API_CITIZEN_PHONE_VERIFICATION_MODE=enforce`
+rejects a citizen whose current Auth row has no confirmed phone with
+`PHONE_VERIFICATION_REQUIRED`; citizen AAL2 is not required. Production startup rejects a missing
+or non-enforcing citizen setting. Government or privileged users are evaluated separately through
+`API_PRIVILEGED_MFA_MODE` and receive `MFA_REQUIRED` when that independent policy is enforced.
+Phone Auth signup capability remains enabled because Supabase also uses it to gate OTP for an
+existing linked phone. The separately activated Before User Created Auth Hook rejects any new Auth
+user without an email; this provider boundary is not an HTTP endpoint in this API.
+
+Passwords and OTPs never cross this API. Signed-in and recovered clients use an isolated,
+non-persistent Supabase Phone Auth session for the fresh OTP and immediate password update. After
+success, the client attempts global provider sign-out and clears its persistent local session. The
+best-effort `password_changed` event remains telemetry rather than credential-change authority.
 
 An already provisioned government or administrator identity may establish its bearer session by
 password or by the existing email code/link flow. Those methods differ only at the Supabase Auth
@@ -46,9 +53,10 @@ user, assigns access, or changes the `MFA_REQUIRED` contract.
 For the managed project's asymmetric access tokens, the API authenticates a request with
 `supabase.auth.getClaims()` rather than the former redundant `getUser()` plus `getClaims()` path.
 It requires a valid signature and expiry, the authenticated audience and role, a UUID subject, and
-an `aal1` or `aal2` assurance claim. Email and phone are read only from those verified claims.
+an `aal1` or `aal2` assurance claim. Email and phone claims are treated only as verified identity
+hints; citizen phone confirmation is read independently from current `auth.users` state.
 Application authorization remains database-current: profile status, role/membership scope, and
-the applicable privileged or citizen MFA policy are read for the request. Only identical
+the applicable privileged MFA or citizen confirmed-phone policy are read for the request. Only identical
 concurrent actor-context reads share the same unfinished promise; success and failure both remove
 it, and neither completed authorization state nor bearer tokens are cached. See
 [ADR-0026](adr/0026-use-verified-jwt-claims-for-api-authentication.md).
@@ -195,7 +203,7 @@ Representative current and later-phase contract codes:
 - `MESSAGE_READ_POSITION_INVALID`
 - `NOTIFICATION_NOT_FOUND`
 - `MFA_REQUIRED`
-- `PHONE_MFA_REQUIRED`
+- `PHONE_VERIFICATION_REQUIRED`
 - `RATE_LIMITED`
 - `INTERNAL_ERROR`
 
@@ -319,41 +327,31 @@ GET /api/v1/government/accountability/complaints/:complaintId/sla
 GET /api/v1/government/accountability/kpis
 ```
 
-## Governance Synchronization Runtime Boundary
+## Retired Governance Synchronization Runtime Boundary
 
-Governance retrieval is not a citizen or NestJS REST API. An environment-specific Supabase Cron
-job may send `POST` to the `governance-sync-fetch` Edge Function with a dedicated high-entropy
-`x-governance-sync-secret`. JWT verification is disabled for this one function only because the
-function performs constant-time custom-secret validation before claiming work. The secret and
-service credential are server-only and must never enter a client bundle, source row, response, or
-log.
+[ADR-0031](adr/0031-prune-deferred-database-subsystems-for-v1.md) retires the undeployed
+governance synchronization runtime. V1 has no `governance-sync-fetch` endpoint, synchronization
+Cron contract, synchronization lease API or source-activation REST surface.
 
-The optional JSON body accepts only `limit: 1` and `leaseSeconds` from 300–900, defaulting to 300.
-Exactly one source can be claimed per dispatch; the underlying trusted database RPC permits a
-180–900 second lease and also enforces `limit = 1`. A successful response contains aggregate
-`claimed`, `snapshotted`, `notModified`, and `failed` counts; it never returns lease tokens, raw
-source bytes, contacts, or parser output. The function heartbeats its lease after retrieval and
-again after a Storage write. Claims and finalization use service-role-only PostgreSQL functions.
-Anonymous and authenticated roles have no execute or table access.
+Migration `20260723110000_prune_deferred_v1_subsystems.sql` removes these former service-role RPCs:
 
-The Edge operation stops at immutable snapshot preservation. HTTP `304` reuses the prior source
-snapshot. A `200` finalization must match the exact private `storage.objects` row, byte size, MIME
-type, source path, and SHA-256 contract; referenced snapshot objects then become immutable. The Edge
-function deliberately retains a new content-addressed object when finalization fails or its outcome
-is ambiguous, because eager deletion could race a late database commit. Grace-period reconciliation
-must confirm that no snapshot link appeared before removing a true orphan. Safe failures close the
-run and schedule bounded retry; an expired lease is backed off and is not reclaimed in the same
-claim call. Source-specific parsing,
-normalization persistence, matching, change review, contact publication, and complaint-delivery
-approval do not occur through this endpoint. There is no public governance-contact API in this
-slice, and none of the ten draft/unverified PMC/BMC sources is active by default.
+- `claim_due_governance_sync_sources`;
+- `heartbeat_governance_sync_lease`;
+- `record_governance_sync_snapshot`; and
+- `fail_governance_sync_run`.
 
-Pilot synchronization scope is also not a public REST contract. The service-only, forced-RLS
-`governance.sync_scope_targets` registry selects canonical authority/local-body/ward rows for future
-jobs. Anonymous and authenticated clients cannot read or mutate it. Scope activation requires an
-active global platform-administrator review and never activates routing; routing remains independently
-gated by the referenced canonical entity. The ten seeded Pune/Brihanmumbai ward targets are draft,
-unverified, placeholder-backed, and non-routable.
+No current citizen, mobile, Admin Console, Government Dashboard, worker or realtime contract calls
+them. All other supported public RPC and HTTP contracts remain intact. The current BMC runtime
+continues to use `resolve_v1_ward_route`, `claim_v1_ward_emails`,
+`complete_v1_ward_email` and `fail_v1_ward_email`; contact values remain private.
+
+The unused `@local-wellness/database/governance-sync` package export and source/tests are removed
+with this subsystem. `@local-wellness/database/governance-import` remains the canonical offline,
+source-validated import tooling and is not a network synchronization API.
+
+Any externally deployed old Edge Function or Cron caller must be stopped before the hosted prune,
+otherwise it will receive errors from intentionally retired RPCs. Reintroducing synchronization
+requires a new ADR and API/schema design rather than restoring this historical contract.
 
 ## Phase 2 API Boundary
 
@@ -394,7 +392,9 @@ card calls `POST /api/v1/governance/bodies/resolve` and keeps only the returned 
 provenance in component memory. `PATCH /me` does not accept exact coordinates or a street address,
 and this slice does not persist either value.
 
-The citizen-web account page validates the `/me` payload before rendering and shows explicit
+Citizen Web public-only mode rejects `/me` and every other protected call before `fetch`. In its
+latent explicit full mode, the account page validates the `/me` payload before rendering and shows
+explicit
 signed-in, onboarding, profile-unavailable, and API-unavailable states. Authentication alone does
 not make this endpoint available: the citizen web and API must point to the same Supabase
 environment, the Phase 1 profile trigger/migration must exist there, and the NestJS API configured
@@ -407,17 +407,29 @@ row returns `PROFILE_NOT_FOUND`; the client does not fabricate a profile or bypa
 POST /api/v1/auth/audit-events
 ```
 
-The endpoint attaches the authenticated actor and subject on the server. It accepts only self-session event types, validates device and authority ownership, stamps `metadata.source` as `client_reported`, and rejects secret-bearing or unrecognized metadata. These records are best-effort client reports; Supabase Auth remains the authoritative identity-provider log.
+The endpoint attaches the authenticated actor and subject on the server. It accepts only
+self-session event types, including `otp_verified` and `password_changed`, validates device and
+authority ownership, stamps `metadata.source` as `client_reported`, and rejects secret-bearing or
+unrecognized metadata. These records are best-effort client reports; Supabase Auth remains the
+authoritative identity-provider log. The endpoint never accepts a password, OTP, challenge,
+recovery credential or factor secret.
+
+The endpoint retains the same confirmed-phone citizen guard as every protected API route. The
+former zero-factor `password_changed` exception is removed because supported recovery no longer
+updates a password without an already confirmed phone. Bearer verification, strict body validation
+and the PostgreSQL-backed `auth_audit_append` quota still run. The event remains telemetry only and
+does not prove that the identity provider changed a password.
 
 ### Routing Categories
 
 ```text
 GET /api/v1/routing/categories
 GET /api/v1/routing/categories/catalog
+GET /api/v1/routing/categories/taxonomy
 GET /api/v1/routing/categories/:categoryId
 ```
 
-All three routes require a valid bearer token. The list and identifier routes return only database
+All four routes require a valid bearer token. The list and identifier routes return only database
 categories whose domain and category are active, verified, non-placeholder, and routing-eligible.
 Each result includes its
 database-defined minimum/maximum photo-or-video evidence count, required attribute keys, and
@@ -434,18 +446,42 @@ internally inconsistent results fail closed. Mobile uses this route to show the 
 taxonomy while disabling unavailable choices. `available` permits category selection and a later
 location-specific routing check; it does not promise that every coordinate has a verified route.
 
-Because this catalog contains no user, coordinate, complaint, or mutable workflow state, each API
-process caches a successful catalog projection for 30 seconds and coalesces concurrent cache
-misses. A rejected load is not retained. This optimization does not apply to the identifier/list
-routes or to exact-coordinate jurisdiction and routing resolution. Complaint submission always
-revalidates the category and resolves its current route from the database.
+The taxonomy route is the citizen-facing hierarchy. It returns one public-safe row per
+subcategory, including primary/subcategory IDs, codes and labels; subcategory description; derived
+workflow type; sensitivity; routing state; optional mapped operational profile ID/code/name;
+submission availability; the mapped profile's media, attribute, asset, location and emergency
+requirements; and camel-case `handoffActions`. It never returns an authority, ward, office,
+department, officer, recipient, contact, source-provenance field or routing-rule identifier.
 
-The historical BMC seeds `50`–`53` expose the earlier three-category internal-demo route family.
-The current V1 contact seed `54` activates all 12 pilot categories and provides one private
-ward/category route for each of 26 configured BMC wards. The catalog therefore returns all 12 as
-available after the new deployment. Final submission still performs a fresh coordinate-specific
-PostGIS check; availability is not coverage outside BMC geometry. External delivery remains queued
-until a sender provider is configured.
+Each action in `handoffActions` has exactly `key`, `kind`, `label`, `description`, `target`, and
+`priority`. Ordinary rows return an empty array. A `protected_handoff` row is unavailable for
+normal submission and returns one or more actions whose `kind` is `call` with a digits-only target,
+or `browser` with a credential-free HTTPS target. The API rejects malformed, duplicate,
+credential-bearing or unsupported actions rather than partially exposing them.
+
+The generated BMC V1 catalog has 340 leaves under 17 primaries and 19 workflow types. Thirteen
+specialised leaves map to the 12 stable specialised profiles, and 243 ordinary leaves map to the
+single general ward profile. Those 256 leaves are internally submittable through 13 operational
+profiles. The remaining 84 private or emergency-private leaves return `protected_handoff` and
+unavailable submission. They create no normal complaint, assignment, ward email, or Community
+post. The 20 `COR` leaves are part of this protected set.
+
+Because the operational and taxonomy catalogs contain no user, coordinate, complaint, or mutable
+workflow state, each API process caches each successful projection for 30 seconds and coalesces
+concurrent cache misses. A rejected load is not retained. This optimization does not apply to the
+identifier/list routes or to exact-coordinate jurisdiction and routing resolution. Complaint
+submission always revalidates the taxonomy mapping/category and resolves its current route from the
+database.
+
+The historical BMC seeds `50`–`53` expose the earlier three-category internal-demo route family,
+and seed `54` provides the 26-ward × 12-specialised-profile contact base. Generated seed `56` adds
+one general profile/contact per ward, producing 338 private contact rows, and applies the 340-leaf
+split above. Final submission still performs a fresh coordinate-specific PostGIS check;
+availability is not coverage outside BMC geometry. External email delivery remains queued until a
+sender provider is configured. Owner and government complaint responses use the taxonomy-aware
+issue label from the canonical stored tuple; the ward-email worker uses the same label instead of
+the internal general-profile name. Repository generation and local verification do not establish
+that the generated migration and seed are installed on hosted Supabase.
 
 ### Nearby Routing Assets
 
@@ -500,6 +536,13 @@ The strict request is the same four-field location-evidence object used by juris
 The API rejects an accuracy worse than 100 metres before querying PostGIS and returns one of
 `resolved`, `ambiguous`, `unsupported`, or `low_accuracy`:
 
+Community, Profile, and Nearby use one purpose-scoped mobile current-area coordinator before
+calling this endpoint. It may reuse a non-mocked, at-most-five-minute-old position with accuracy of
+100 metres or better from memory or the operating-system last-known result, and it coalesces
+concurrent reads. An explicit Refresh bypasses both reusable sources. The request contract remains
+the same four fields, and PostGIS remains authoritative; the cache cannot select or retain a
+governing body.
+
 ```json
 {
   "status": "resolved",
@@ -533,7 +576,18 @@ The API rejects an accuracy worse than 100 metres before querying PostGIS and re
         "lastVerifiedOn": "2026-07-16",
         "sourceUrl": "https://official.example.gov.in/source"
       },
-      "ward": null
+      "ward": null,
+      "offices": [
+        {
+          "name": "Citizen Facilitation Office",
+          "type": "municipal_head_office",
+          "address": "Published civic office address",
+          "phone": "02200000000",
+          "email": "help@official.example.gov.in",
+          "lastVerifiedOn": "2026-07-24",
+          "sourceUrl": "https://official.example.gov.in/offices"
+        }
+      ]
     }
   ]
 }
@@ -541,11 +595,20 @@ The API rejects an accuracy worse than 100 metres before querying PostGIS and re
 
 The database projection is executable only by the API service role and accepts only active,
 verified, routing-eligible, non-placeholder entities and active official sources for every matched
-entity/boundary. The response exposes names, public types, verification dates, and official source
-URLs only. It deliberately omits all internal UUIDs, coordinates/geometry, officer identities,
-phone/email contacts, and private office data. Multiple matches remain ambiguous; no application
-fallback chooses Pune, Mumbai, a ward, or an authority. Until the additive projection migration and
-reviewed official geometry are applied to staging, a real lookup remains unsupported.
+entity/boundary. Each match may also contain a bounded `offices` array. It includes only
+already-present active, verified, non-placeholder `governance.offices` rows with an active official
+HTTPS source, a verification date, and at least one non-empty published address, phone, or email.
+Absent contact fields are omitted rather than returned as null. A ward result includes exact-ward
+offices plus wardless offices explicitly scoped to the resolved local body; another ward's office
+is never included. The shared response contract keeps `offices` optional for rolling database/API
+deployment compatibility, while the current API store normalizes an absent collection to `[]`.
+
+The response deliberately omits all internal UUIDs, coordinates/geometry, officer identities,
+officer mobile numbers, WhatsApp values, private complaint recipients, routing evidence, and every
+value from `routing.ward_issue_contacts`. Multiple matches remain ambiguous; no application
+fallback chooses Pune, Mumbai, a ward, or an authority. Until the additive projection migrations,
+matching API/client builds, and reviewed official geometry/data are applied to staging, a real
+lookup remains unsupported or may contain no published office contacts.
 
 ### Routing Resolution
 
@@ -660,6 +723,9 @@ strict current-location evidence:
   "categoryId": "uuid",
   "description": "Water is leaking beside the footpath.",
   "customAttributes": {
+    "taxonomy_primary_code": "WTR",
+    "taxonomy_subcategory_code": "WTR-001",
+    "taxonomy_workflow_type": "MAINTENANCE",
     "visible_landmark": "Beside the public garden gate"
   },
   "location": {
@@ -681,12 +747,24 @@ officer, status, visibility, storage path, and routing fields—fail strict vali
 database revision checks; terminal, expired, missing, cross-owner, and conflicting drafts fail
 closed. `DELETE` records a retained discard transition and is replay-safe.
 
+The three reserved taxonomy attributes are all-or-none and server-validated. Their primary,
+subcategory and workflow values must be one canonical tuple. For a mapped leaf, `categoryId` must
+equal the database-owned operational profile mapping. For a pending/protected leaf, `categoryId`
+must be `null`; the draft can be resumed but cannot be submitted. Updating the primary selection
+clears the previous subcategory, operational category and asset. Human labels and official routing
+targets are never accepted from the client.
+
 V1 complaint location evidence must report device accuracy of 50 metres or better. The API returns
 `LOCATION_LOW_ACCURACY` before persistence when that bound is exceeded, and PostgreSQL enforces the
 same category-capped rule. Any recorded media-capture point must also be no more than the
 database category's configured distance from the draft's selected issue point; every V1 category
 is constrained to a maximum of 50 metres. A mismatch fails closed and cannot be bypassed with a
 client-selected ward, authority, or route.
+
+The mobile current-area cache described under Verified Governing Bodies is never complaint
+evidence. Issue points and every photo, video, or voice evidence capture request a distinct fresh
+high-accuracy native position and retain the existing age, accuracy, mock-location, and proximity
+validation. Neither in-flight nor completed evidence results are shared across capture actions.
 
 The duplicate-check route requires a draft with a category and selected location. PostgreSQL loads
 capped candidates using exactly one current verified policy and PostGIS distance; the pure routing
@@ -784,6 +862,11 @@ exact point, accuracy, and capture time can be committed. Unsupported locations 
 dependency failures retain `DEPENDENCY_UNAVAILABLE` so clients do not mislabel every service
 failure as a routing-data gap.
 
+PostgreSQL repeats the canonical taxonomy-tuple/mapping assertion at complaint insertion. A route
+mapping changed after draft save therefore fails closed rather than submitting against stale
+client state. The 84 `protected_handoff` selections have no normal submission path; mobile opens
+only the approved official action, and a stale client cannot turn that action into a complaint.
+
 The API validates candidate hierarchy evidence and requires its exact boundary-version vector to
 match the independently verified PostGIS jurisdiction. Candidate explanation metadata does not
 need to duplicate boundary evidence already established by that jurisdiction result. Submission
@@ -799,7 +882,10 @@ status-history event, terminal draft transition, and stored response. An exact a
 returns the original receipt; conflicting reuse returns
 `COMPLAINT_SUBMISSION_IDEMPOTENCY_CONFLICT`. The receipt includes the complaint number, status,
 category, submitted time, and sanitized routing summary, not exact coordinates, original media,
-duplicate internals, or officer contacts.
+duplicate internals, or officer contacts. The outer receipt owns `categoryId`; the nested routing
+summary does not duplicate it. Mobile decoding remains backward compatible with the earlier
+first-submit shape that included the same nested category ID, but rejects a mismatch or any
+undeclared private routing field.
 
 For a `V1_WARD_*` route, the same transaction also queues one private ward-email job. The API does
 not return its recipient, phone, WhatsApp, source locator/status, description payload or delivery
@@ -835,11 +921,9 @@ not expose original submitted complaint media. An owner-authorized short-lived s
 and mobile viewer for those originals remain tracked under `COMPLAINT-005`; object paths and
 persistent/public URLs must stay private.
 
-Citizen Web consumes these same three endpoints for its protected complaint history and detail/
-timeline pages. It strictly validates owner-scoped responses and renders safe routing/location
-summaries without exposing exact coordinates or internal routing identifiers. Loading, empty,
-dependency-error, and not-found states remain explicit; the browser does not fall back to direct
-Supabase complaint-table reads.
+Citizen Web retains consumers for these three endpoints in latent explicit full mode, but
+public-only mode rejects them before network access. Mobile remains the supported owner history and
+detail client. No browser mode falls back to direct Supabase complaint-table reads.
 
 ### Private Complaint Communication
 
@@ -951,6 +1035,22 @@ quotas apply.
 Support and stars never update official routing, assignment, status, escalation, SLA, or KPI state.
 There is no comment endpoint, public supporter list, public avatar, engagement notification, or
 automatic government-priority effect in this slice.
+
+### Owner Reports in Mobile Community
+
+The signed-in mobile Community screen reuses:
+
+```text
+GET /api/v1/complaints?limit=25
+Authorization: Bearer <access-token>
+```
+
+It derives a three-item recent preview locally from the actor-scoped complaint list and links each
+card to the existing authenticated complaint detail. This is not a transparency endpoint and
+introduces no new response contract. It remains independent of current-area permission and public
+feed/hotspot failures. The API-derived actor boundary remains authoritative: the client cannot
+request another owner's reports, and private results are never adapted into public map items or
+engagement mutations.
 
 ### Public Nearby and Transparency
 

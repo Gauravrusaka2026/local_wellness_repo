@@ -47,6 +47,34 @@ audit
 
 Supabase Auth remains under the managed `auth` schema.
 
+### V1 physical pruning
+
+[ADR-0031](adr/0031-prune-deferred-database-subsystems-for-v1.md) removes the undeployed
+governance synchronization/versioned-contact subsystem and the unused public-comment table through
+the forward migration
+`20260723110000_prune_deferred_v1_subsystems.sql`. At that migration boundary this reduces custom
+application tables from 129 to 114:
+
+- 14 retired `governance` synchronization/contact tables are physically dropped;
+- `complaints.complaint_comments` is physically dropped;
+- the associated synchronization RPCs, views, validators and triggers are removed; and
+- `private.v1_deferred_subsystems_pruned()` records the adaptive-bundle state without exposing a
+  client-executable capability.
+
+The migration does not remove canonical governance/import records, PostGIS ward geometry,
+complaint data, private messages, notifications, public Community projections/engagements,
+government workflow, SLA/KPI records, `routing.ward_issue_contacts`, or
+`complaints.ward_email_outbox`. The prior high-CPU incident was caused by request frequency rather
+than relation bytes; this prune reduces operational and maintenance surface, not as a substitute
+for request-loop prevention.
+
+Migration `20260724110000_v1_bmc_general_intake_and_handoffs.sql` later adds one private
+protected-handoff registry, so the current application-owned table count is 115.
+
+The unused `@local-wellness/database/governance-sync` export and source/tests are removed with this
+runtime boundary. `@local-wellness/database/governance-import` remains the canonical offline
+source-validation/import tooling.
+
 ---
 
 ## Core Tables
@@ -69,7 +97,11 @@ Phase 1 keeps these tables in `public` because the Supabase data API must enforc
 - `roles.code` identifies immutable seeded system roles;
 - `user_roles` records status, scope, grantor, effective start and optional expiry;
 - `authority_memberships` records invitation/approval state and effective authority access;
-- `auth_audit_events` records actor, subject, authority, device, outcome and sanitized metadata as append-only history. Actor, subject and device UUIDs are immutable attribution snapshots rather than cascading foreign keys.
+- `auth_audit_events` records actor, subject, authority, device, outcome and sanitized metadata as
+  append-only history. The client-reportable allow-list includes the non-sensitive
+  `password_changed` lifecycle event; passwords, OTPs, recovery tokens, phone numbers and provider
+  payloads are never stored. Actor, subject and device UUIDs are immutable attribution snapshots
+  rather than cascading foreign keys.
 
 Access-lifecycle actor references use restrictive deletion semantics so an administrator identity cannot be deleted while it remains the recorded inviter, approver, grantor or revoker. Deactivate such identities instead of erasing provenance. Revoked memberships preserve any prior approval actor and timestamp.
 
@@ -94,12 +126,21 @@ from the verified governance resolver and remains in client memory. No profile c
 address column is introduced by that slice, avoiding storage of a new sensitive location field
 without a separately reviewed privacy and access model.
 
-Supabase Auth remains the credential and factor source of truth. The service-only
-`user_has_verified_phone_mfa` function reports only whether a citizen has a verified Phone MFA
-factor; it does not return a phone number, factor identifier, or OTP. Privileged direct-RLS checks
-require a JWT at `aal2`, while the API independently evaluates citizen Phone MFA and privileged MFA
-in configurable observe/enforce rollout modes. No application OTP table or Storage-backed OTP
-mechanism exists.
+Supabase Auth remains the credential source of truth. The service-only
+`user_has_verified_phone` function reports only whether an Auth user has a non-empty phone and
+non-null `phone_confirmed_at`; it does not return the phone number or an OTP. Privileged direct-RLS
+checks still require a JWT at `aal2`. The API independently evaluates citizen confirmed-phone state
+and privileged MFA: citizen production access is enforced at AAL1, while privileged rollout
+retains its separately configured TOTP/AAL2 policy. No application OTP table or Storage-backed OTP
+mechanism exists. The earlier `user_has_verified_phone_mfa` helper is retained only as an unused,
+revoked legacy migration object.
+
+Ordinary Phone Auth signup capability must remain enabled because Supabase applies that gate to
+existing-linked-phone OTP requests. The `hook_require_email_identity(jsonb)` Before User Created
+function accepts only an Auth creation event with a non-empty email, is executable only by
+`supabase_auth_admin`, and returns a provider error for phone-only creation. Creating the function
+in a migration does not activate the managed Auth Hook; each hosted project must configure that
+binding separately.
 
 The staging privileged-account helper adds no table, policy, or migration. It creates confirmed
 synthetic identities in `auth.users`, relies on the existing profile trigger, and persists
@@ -162,113 +203,40 @@ it does not promote the row to verified/routable state. Missing official evidenc
 unverified, and placeholder/template records remain quarantined or normalized to null/non-routable
 fields. The pipeline does not rewrite the canonical CSV files or workbook.
 
-Officer roles are durable definitions. Incumbency belongs to versioned `officer_assignments`. Boundary geometry and complaint-routing references are versioned independently with half-open UTC effective periods. Routing rows from the baseline remain `draft`, `unresolved`, and non-routable; they are reference evidence for Phase 3, not executable rules.
+Officer roles are durable definitions. Incumbency belongs to versioned `officer_assignments`.
+Boundary geometry and complaint-routing references are versioned independently with half-open UTC
+effective periods. Routing rows from the baseline remain `draft`, `unresolved`, and non-routable;
+they are reference evidence for Phase 3, not executable rules.
 
-Phase 3 adds the following permanent synchronization-foundation tables to the same private schema:
+The former Phase 3 governance synchronization and versioned-contact subsystem is historical. It
+was never activated by a deployed application path and is retired by ADR-0031. The prune migration
+physically removes its 14 tables, service RPCs, current-contact view, lifecycle/contact validators
+and Storage-object guards. Historical migrations remain immutable, but the removed subsystem is
+not part of the current V1 schema and must not be redeployed from those migrations in isolation.
 
-- `source_endpoints`;
-- `sync_runs`;
-- `raw_snapshots`;
-- `sync_run_snapshots`;
-- `sync_candidates`;
-- `sync_change_items`;
-- `sync_review_items`;
-- `sync_review_events`.
+Canonical source/import records and normalized governance rows remain. Current BMC routing/contact
+selection uses the private `routing.ward_issue_contacts` matrix. Delivery readiness is resolved
+from that matrix without returning contact values to clients. The private
+`governance-raw-snapshots` Storage bucket may remain in an upgraded project because SQL does not
+delete Storage objects; optional cleanup is an operator action through the Storage API/Dashboard
+after retention review.
 
-The operational retrieval/contact slice adds:
+Migration `20260724120000_verified_civic_area_office_contacts.sql` extends the existing
+service-role-only `public.resolve_verified_governing_bodies` JSON projection with an optional,
+bounded `offices` collection without changing the function's SQL signature. Eligible rows come
+only from `governance.offices`: they must be active, verified, non-placeholder, have a verification
+date, use an active official HTTPS `reference_sources` row, and publish at least one non-empty
+address, phone, or email. Missing contact fields are removed from the JSON. An exact ward result
+includes exact-ward offices and wardless offices explicitly scoped to the resolved local body; it
+never includes another ward's office. The partial
+`governance.offices_verified_civic_area_scope_idx` supports this lookup.
 
-- `sync_scope_targets` for review-gated authority, local-body, and ward synchronization selection;
-- `sync_source_leases` for short, exclusive source claims;
-- `sync_events` for append-only safe retrieval audit events;
-- `source_evidence` for immutable field/record locators into a source snapshot;
-- `contact_channels` for durable contact ownership, visibility, and intended use;
-- `contact_channel_versions` for temporal contact values, provenance, review, and delivery approval.
+The projection never reads `routing.ward_issue_contacts` and never emits its private complaint
+recipients, WhatsApp numbers, officer mobiles, routing evidence, or internal IDs. `anon` and
+`authenticated` retain no direct execution privilege; only the trusted service role calls the
+projection through NestJS.
 
-Source endpoints carry parser-contract and scheduling metadata, public retrieval locations or the
-repository-bootstrap path, plus opaque secret references rather than credentials. Official remote
-endpoints additionally carry exact HTTPS host allowlists, expected MIME types, response-size and
-timeout limits, failure counters, retry suspension, a deterministic SHA-256 contract hash, and
-attributed activation approval. Activation requires the approved hash to equal the current contract
-hash and the approving user to hold an active global `platform_admin` role. Only supported MIME
-types and HTTPS port 443 URLs without fragments are valid remote contracts. Raw-snapshot
-metadata points to immutable bytes in the private `governance-raw-snapshots` Storage bucket and
-deduplicates a source/content digest without overwriting the first observation. Run-to-snapshot
-links preserve repeated observations. Candidate, change, review, and review-event rows separate
-source parsing from canonical promotion.
-
-The Phase 3 seed creates one draft/unverified `bootstrap_bundle` endpoint for
-`resources/governance/csv/`, linked to the existing imported Phase 2 batch. Repository bootstrap
-records use that batch/path relationship and no invented official URL; official remote endpoints
-instead require a verified `reference_source_id` and HTTPS URL. Each record has one retrieval method
-(`http_get`, `api`, or `manual_upload`) and one supported foundation format (`csv`, `geojson`,
-`html`, `json`, `pdf`, `text`, or `xlsx`); bootstrap and official-source identity fields are
-mutually exclusive.
-
-Database triggers enforce the staged run lifecycle, immutable source evidence, terminal outcomes,
-review attribution, and explicit verification/routing decisions. A placeholder change can only be
-approved while quarantined, unverified/placeholder, and non-routable.
-
-The service-role-only retrieval RPCs are:
-
-- `public.claim_due_governance_sync_sources` for `FOR UPDATE SKIP LOCKED` claims and leases;
-- `public.heartbeat_governance_sync_lease` for bounded lease extension;
-- `public.record_governance_sync_snapshot` for content-addressed evidence or HTTP `304` linkage;
-- `public.fail_governance_sync_run` for terminal failure audit and bounded exponential backoff.
-
-Only active, verified, non-placeholder, attributed-approved official sources whose `next_sync_at`
-is due can be claimed. The claim RPC returns exactly one source per call. Its trusted lease range is
-180–900 seconds; the Edge dispatcher narrows this to 300–900 seconds with a 300-second default and
-heartbeats around Storage persistence. An expired lease fails its prior run, applies exponential
-backoff, and is not reclaimed in that call. Successful retrieval advances the source cadence; a
-failure delays retry with exponential backoff capped at 24 hours. The pilot seed adds ten PMC/BMC
-endpoint contracts, all `draft` and `unverified`, so the default database has no claimable scheduled
-source.
-
-Synchronization scope is independent from source activation and routing eligibility. The
-service-only `sync_scope_targets` table supports generic authority, local-body, and ward targets,
-uses composite foreign keys to reject cross-authority or cross-municipality hierarchy mismatches,
-and keeps target identity immutable. Active scope requires attributed review by an active global
-`platform_admin`. Even a reviewed active synchronization target remains non-routable unless the
-referenced canonical entity is independently active, verified, non-placeholder, and routing
-eligible. The pilot seed resolves `PUNE-W01`–`PUNE-W05` and `BRIH-W01`–`BRIH-W05` from the canonical
-ward import; all ten scope rows and their placeholder ward records remain non-routable V1 audit
-history. They are not official pilot identities. The reviewed replacement scope is BMC
-administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`, after authoritative
-identity and geometry evidence is available. `BRIH-W01`–`BRIH-W05` must never be ordinal-mapped to
-the lettered wards; create reviewed records and a new scope version instead.
-
-Snapshot finalization validates the exact `storage.objects` row, size, MIME type, source-bound
-content-addressed path, and digest. Referenced snapshot objects cannot be materially updated,
-renamed, or deleted. The Edge adapter retains a newly created content-addressed object when
-finalization fails or is ambiguous so it cannot race a late commit. The pending grace-period
-reconciler must recheck database references before classifying or removing a true orphan.
-
-The scheduling migration adds `source_contract_sha256` as nullable, installs the deterministic hash
-trigger, backfills every existing endpoint through that trigger, and only then sets the column
-`NOT NULL`. This sequencing is required for safe additive upgrades of populated Phase 3 databases
-and is covered by the root migration-safety test.
-
-Contact values never overwrite their durable owner. A channel has exactly one owner and separates
-`public_official`, internal, or restricted visibility from directory, complaint-intake, emergency,
-or general-enquiry use. Versions retain effective periods, source URL, snapshot, record locator,
-verification status, review attribution, and a separate complaint-delivery approval flag. A
-source-verified value remains staged; publication requires `manually_verified`, an approved review,
-and an active non-placeholder channel. The service-only `current_verified_contacts` view exposes
-only current, public-official, manually verified versions. Complaint delivery is permitted only
-when the published channel is also approved for complaint intake.
-
-Publication additionally binds the approved candidate/proposal to the exact owner type and UUID,
-channel identity and policy, normalized value, source URL, snapshot locator, evidence value hash,
-and complaint-delivery decision. Each approved review is single-use for contact publication.
-
-Legacy contact columns on `offices`, `officers`, `utilities`, and `emergency_contacts` are retained
-for compatibility but protected by update triggers. Every synchronized change must append a new
-contact version and close the prior version as superseded or stale; values and provenance cannot be
-rewritten.
-
-The Edge retrieval and pure contact-normalization slices are implemented. Source-specific parsers,
-candidate persistence/orchestration, entity matching, publication logic, and operator review UI
-remain unimplemented.
+See `docs/governance-synchronization.md` for the explicitly retired historical boundary.
 
 ### Complaints
 
@@ -317,6 +285,18 @@ rejects evidence above the category accuracy threshold and rejects media-capture
 PostGIS distance from the draft's selected current-location point exceeds the category threshold.
 The server still validates the request before persistence, but PostgreSQL is the final fail-closed
 boundary.
+
+The purpose-scoped mobile current-area cache changes no database schema or evidence record. It is
+memory-only, is limited to non-evidentiary Community/Profile/Nearby lookups, and cannot populate
+`complaints.complaint_location_evidence`. Complaint issue and media points continue through the
+fresh evidence path and the same PostgreSQL invariants. No migration, persisted coordinate cache,
+scheduled location job, or database TTL was introduced.
+
+The Community owner preview also changes no schema. It uses the existing actor-scoped
+`public.list_owned_complaints` boundary through `GET /api/v1/complaints`; forced RLS and the
+server-derived actor continue to prevent cross-account access. Its private rows are never copied to
+the transparency schema. Publication, generalization, withdrawal, and engagement therefore retain
+their existing review-gated tables and functions.
 
 Duplicate checks select exactly one current verified, non-placeholder, routing-eligible policy;
 use PostGIS distance, time, category, text similarity, media hashes, and asset evidence; cap the
@@ -451,6 +431,39 @@ overlapping non-draft versions. Rules target durable departments and officer rol
 resolved from the current governance assignment at decision time. Fallback order is a versioned,
 cycle-checked rule path rather than an application constant.
 
+Migration `20260723120000_jagruksetu_complaint_taxonomy.sql` extends
+`routing.issue_categories` rather than adding another table family. A category row explicitly
+identifies whether it is an operational routing profile, taxonomy primary or taxonomy subcategory.
+Taxonomy rows carry a stable code, derived workflow, sensitivity, configuration/routing state,
+public/community defaults and an optional self-referencing operational-profile mapping. The
+taxonomy seed adds 17 primaries and 340 subcategories across 19 workflows. The subsequent BMC
+intake seed preserves 13 specialised mappings, maps 243 public/restricted leaves to one
+`general_ward_complaint` profile and classifies 84 private/emergency-private leaves as
+`protected_handoff`. The active V1 result is therefore 256 internally submittable leaves over 13
+operational profiles plus 84 official handoffs, with no pending leaf.
+
+`public.list_complaint_taxonomy()` is service-role only and returns the sanitized 340-leaf catalog.
+`submission_available` is true only when the mapped profile/domain and matching `V1_WARD_*`
+rule/version are active and verified and every eligible ward has an active owner-approved contact.
+Protected rows return only bounded camel-case `handoff_actions` objects containing key, kind,
+label, description, target and priority. Source evidence and recipient email remain private.
+`complaints.assert_taxonomy_selection(category_id, custom_attributes)` validates the reserved
+primary/subcategory/workflow tuple and its database-owned mapping. Draft writes call it, and a
+separate complaint-insert trigger repeats the assertion so mapping drift cannot authorize a stale
+submission. Legacy drafts with none of the three reserved keys remain compatible; partial or
+tampered tuples fail.
+
+`routing.complaint_handoff_actions` is a private, forced-RLS registry for official telephone and
+credential-free HTTPS actions. Every active row must be owner-approved, effective and attached to
+a private/emergency-private taxonomy row. Database constraints prevent an operational mapping,
+public visibility, comments or Community support for all 84 protected leaves, including all 20
+`COR` leaves. No protected row enters the BMC ward-email matrix or ordinary complaint flow.
+
+`complaints.complaint_category_display_name(category_id, custom_attributes)` revalidates the stored
+taxonomy tuple before using its detailed issue label. Citizen list/detail, government list/detail
+and ward-email claims use this helper so a general operational profile does not erase the issue
+type shown to users and recipients.
+
 All routing-eligible records must be active, verified, non-placeholder, source-backed, and dated.
 Rule activation also requires an eligible category/domain, department, officer role, confidence
 policy, authority, and any configured asset evidence. Database candidate queries reapply these
@@ -477,17 +490,14 @@ owner authority and optional office/department/role relationships must all be cu
 non-placeholder, and routing-eligible. Ambiguous/unsupported jurisdiction or missing ownership
 returns no selectable asset rather than weakening routing validation.
 
-Phase 10 separates a routed government queue from optional external contact readiness. The
-service-only `assignment_delivery_readiness` function first revalidates the complaint assignment's
-current verified governance scope. A valid scope reports `governmentQueueStatus = verified_scope`
-even when no incumbent or approved contact exists, because the complaint remains visible to the
-authorized government queue. It then chooses only the most specific current, public-official,
-manually verified, complaint-intake contact version with explicit delivery approval, preferring
-officer assignment/officer before office, authority department, ward, local body, and authority.
-The result reports only contact scope and approved channel types; it never returns the contact
-value. Placeholder, source-only, stale, superseded, or merely unverified contacts are ineligible.
-`automaticOutboundDelivery` is always `false`: this migration reports readiness and does not send
-email, SMS, or portal traffic.
+Phase 10 separates a routed government queue from optional external contact readiness. After the
+ADR-0031 prune, the service-only `assignment_delivery_readiness` function first revalidates the
+complaint assignment's current governance scope, then derives ward/local-body/authority contact
+availability from active `routing.ward_issue_contacts` rows. A valid assignment reports
+`governmentQueueStatus = verified_scope`; contact readiness reports only the selected scope and
+available channel types and never returns recipient values. `automaticOutboundDelivery` remains
+`false`: a separate trusted sender must claim and complete `complaints.ward_email_outbox`, and no
+automatic SMS or WhatsApp sender is activated.
 
 The V1 matrix is a deterministic merge rather than a new source registry. The immutable
 `Mumbai_BMC_Ward_Issue_Contacts_CSV.zip` contributes category, phone and WhatsApp evidence;
@@ -495,14 +505,18 @@ The V1 matrix is a deterministic merge rather than a new source registry. The im
 Direct operational K/N and P/E mailboxes take precedence, while K/S uses the K/E parent-office
 record and P/W uses the P/N parent-office record. Migration
 `20260720103000_v1_ward_email_provenance.sql` requires each active row to retain the email source
-URL, dates, locator, raw reported status and an independent owner-approved-for-routing flag. Forced
-RLS and revoked client privileges keep all 312 merged records and their contact values private.
+URL, dates, locator, raw reported status and an independent owner-approved-for-routing flag. The
+base matrix contains 312 records. Seed 56 copies the same approved source/provenance into one
+general profile per ward, producing 338 active records. Forced RLS and revoked client privileges
+keep all contact values private.
 
 The additive V1 simplification also creates `complaints.ward_email_outbox`. A complaint assignment
 created from a `V1_WARD_*` decision atomically snapshots its ward recipient exactly once. Service
 workers may claim, complete or fail jobs through lease-checked RPCs; the table distinguishes
 `pending`, `processing`, `retry`, `sent` and `dead`. It is forced-RLS and has no direct citizen or
-browser grant. No sender runtime or provider is configured by the migration.
+browser grant. No sender runtime or provider is configured by the migration. ADR-0035's isolated
+worker changes only how the existing RPCs are supervised; it adds no table, trigger, grant, or
+migration.
 
 ### Communication
 
@@ -510,7 +524,6 @@ browser grant. No sender runtime or provider is configured by the migration.
 - `room_members`;
 - `messages`;
 - `message_receipts`;
-- `complaint_comments`;
 - `notification_outbox`;
 - `notification_outbox_jobs`;
 - `notifications`;
@@ -530,9 +543,9 @@ whether the current actor authored the record, body, and timestamps; they do not
 user UUID. `message_receipts` stores one read-through position per room/user. Database guards allow
 only a monotonic move to a later `(created_at, message_id)` pair.
 
-`complaint_comments` is structural preparation only. The table accepts retained moderation state,
-but no Phase 6 creation/read RPC or direct role grant exists while every complaint remains private.
-Public comments require a later visibility, moderation, abuse, and privacy decision.
+The unused structural `complaint_comments` table had no creation/read RPC or runtime writer and is
+physically removed by ADR-0031. A future public-comment capability requires a new moderation,
+abuse, privacy and persistence decision rather than restoring that table implicitly.
 
 Phase 6 extends the Phase 5 `notification_outbox` rather than creating another source ledger. Each
 row binds to exactly one status-history, assignment-version, or message source. Supported domain
@@ -791,10 +804,10 @@ supabase db push
 
 ### Master bootstrap SQL
 
-`supabase/master.sql` is the deterministic, single-file clean-bootstrap form of all 48 ordered SQL
+`supabase/master.sql` is the deterministic, single-file clean-bootstrap form of all ordered SQL
 files in `supabase/migrations/`. The two smaller files provide adaptive Dashboard reconciliation for
-an existing database created from an earlier Local Wellness master. Part 1 contains migrations
-1–23 through the complete Phase 5 schema/security boundary; Part 2 contains migrations 24–48.
+an existing database created from an earlier Local Wellness master. Part 1 ends at the complete
+Phase 5 schema/security boundary; Part 2 contains the remaining ordered forward migrations.
 Catalog fingerprints detect a coherent completed prefix, whole completed migrations are skipped,
 and only exact missing immutable source migrations execute. Each part is one transaction protected
 by an advisory transaction lock. Partial or non-contiguous fingerprints fail before later SQL runs.
@@ -922,18 +935,12 @@ Phase 1 also applies column privileges: citizens can directly update only safe p
 
 Phase 2 enables and forces RLS on every governance table. Anonymous roles receive no schema usage. Authenticated users receive no governance mutation privileges; verified, active, non-placeholder directory rows are selectable only through explicit policies, and authority managers may read their own managed scope. Import ledgers require platform-administrator scope. Officer/person and assignment rows are never public-directory data. The service role has explicit non-destructive DML and jurisdiction-resolution privileges but no delete grant on retained version/import history. The schema is also absent from the local Data API schema allow-list, so RLS and grants remain defense in depth for direct database access rather than an accidental public API.
 
-Phase 3 enables and forces RLS on all 15 routing tables and the synchronization tables. The
-`routing` and `governance` schemas remain outside the Data API allow-list. Anonymous and ordinary
-authenticated roles cannot execute routing RPCs or read routing/synchronization tables. The service
-role receives narrowly scoped non-destructive table privileges and execute access to category,
-jurisdiction, candidate, and decision-recording wrappers; it receives no delete privilege on
-routing decisions, raw snapshots, or review history.
-
-The scheduling/contact migration extends the same forced-RLS boundary to leases, events, evidence,
-channels, and contact versions. Only the service role can execute the four retrieval RPCs. Lease
-tokens authorize only the matching run/source claim and are not persisted in audit payloads.
-Append-only event/evidence tables and versioned contact history have no delete grant; normal clients
-cannot query the current-contact projection.
+Phase 3 enables and forces RLS on all 15 routing tables. The `routing` and `governance` schemas
+remain outside the Data API allow-list. Anonymous and ordinary authenticated roles cannot execute
+routing RPCs or read private routing/governance tables. The service role receives narrowly scoped
+access to category, jurisdiction, candidate and decision wrappers. The former synchronization
+tables and retrieval RPCs are removed by ADR-0031; there is no V1 synchronization lease or raw
+snapshot database surface after the prune.
 
 Phase 4 enables and forces RLS on all nine complaint tables. `public`, `anon`, `authenticated`, and
 `service_role` receive no direct schema, table, sequence, or private-function privilege. The service
@@ -968,10 +975,10 @@ bounded worker/instance identifier plus an opaque live claim token for completio
 Conversation membership does not grant access. Notification history is recipient-specific and is
 returned only while that recipient still has complaint access. The realtime claim also rechecks
 access and marks a revoked recipient's queued delivery terminal rather than returning its payload.
-Messages, comments, delivery attempts, and source outbox records are immutable; read positions,
-notification read time, and job/delivery lifecycle updates are constrained by guarded triggers.
-Public-comment table structure does not create public access because no create/read RPC or table
-privilege is granted.
+Messages, delivery attempts, and source outbox records are immutable; read positions, notification
+read time, and job/delivery lifecycle updates are constrained by guarded triggers. The unused
+public-comment table is removed by ADR-0031; public comments remain outside the V1 persistence and
+API contract.
 
 Phase 7 enables and forces RLS on every accountability and follow-up-evidence table and preserves
 the schema-wide denial of direct access, including for `service_role`. Actor-facing wrappers receive
@@ -1160,18 +1167,16 @@ A clean local reset and schema lint pass. The three pgTAP plans contain 154 asse
 
 Phase 2 adds seven ordered migrations for the governance schema, security/version guards, identity-authority forward fix, jurisdiction resolution, scope immutability/effective-access hardening, authority parent-type enforcement, and coordinate-envelope/placeholder-access hardening. Its five pgTAP plans contain 194 assertions covering schema and indexes, canonical seed counts and quarantine state, RLS/ACL visibility, hierarchy and role-scope constraints, temporal versioning, and synthetic PostGIS resolution. All eight database plans contain 348 passing assertions. Source-pipeline unit tests independently cover manifest/hash/title/header/row-width drift, malformed rows, duplicate keys, missing values, placeholders, cross-file references, deterministic IDs, SQL escaping, generated-artifact drift and failure atomicity.
 
-Phase 3 adds three ordered migrations for the routing model, governance-synchronization persistence,
-and service-only security/RPC boundary. Its database plans cover schema and seed invariants,
-forced-RLS/ACL behavior, placeholder non-routing, temporal and hierarchy guards, lifecycle/review
-gates, synthetic accuracy-aware PostGIS and asset-ownership resolution, fallback/ambiguity behavior,
-and append-only duplicate-safe decision evidence. Pure package tests cover eligibility, deterministic
-ranking, confidence thresholds, fallbacks, duplicate scoring, synchronization lifecycle, and
-publication eligibility; API tests cover authentication, validation, sanitized results, audit
-recording, and safe dependency failures.
+At the historical Phase 3 checkpoint, three ordered migrations covered the routing model,
+governance-synchronization persistence and its service-only security/RPC boundary. The then-current
+database/package/API tests covered routing, synchronization lifecycle, publication eligibility,
+PostGIS resolution and safe dependency failures. That checkpoint passed all 450 pgTAP assertions
+across 11 plans, including 102 Phase 3 routing/synchronization assertions.
 
-The final clean reset, application-schema lint, and generated-type drift check passed. All 450 pgTAP
-assertions passed across 11 plans, including 102 Phase 3 routing and synchronization assertions.
-The committed types cover `public`, `governance`, and `routing`. At that Phase 3 checkpoint,
+ADR-0031 later removes the synchronization persistence/RPC boundary and its unused package/tests.
+Those historical assertions are not part of the current V1 release count; pruning plan
+`050_v1_database_pruning.test.sql` verifies intentional absence and retained V1 contracts. At the
+original Phase 3 checkpoint,
 synthetic verified fixtures remained inside rolled-back tests and the reset bootstrap retained zero
 operational categories. The later generated BMC non-production seeds are documented at the current
 repository cutoff below; neither checkpoint creates a production route from placeholder or
@@ -1269,8 +1274,9 @@ production deployment was created by that database operation.
 The owner later switched the configured staging target and reports applying a generated master SQL
 file. The exact artifact revision and current target ledger were not independently verified, so the
 historical deployment above must not be treated as ledger evidence for the replacement project.
-Reconcile that target against all 48 current migrations through `20260720103000` before a managed
-release.
+Reconcile that target against all 55 current migrations through
+`20260724120000_verified_civic_area_office_contacts.sql` before a managed release. SQL Editor
+execution of the prune changes schema but does not repair the Supabase CLI migration ledger.
 
 An earlier read-only hosted audit found `api_readiness_check()` healthy and all five required
 private Storage buckets present but returned zero category projections and no tested BMC governing
@@ -1417,33 +1423,67 @@ The invitation projection returns only active, verified, non-placeholder, routin
 authorities, wards, and authority departments. `anon` and `authenticated` cannot execute it; the
 trusted API supplies the caller-authorized authority filter and strictly decodes the result.
 
-The current repository cutoff is 48 ordered migrations through `20260720103000`. The final forward
-migration, `20260720103000_v1_ward_email_provenance.sql`, adds the email-specific source URL,
+The current repository cutoff is 55 ordered migrations through
+`20260724120000_verified_civic_area_office_contacts.sql`. Migration
+`20260720103000_v1_ward_email_provenance.sql` adds the email-specific source URL,
 source-as-of/check dates, deterministic record locator, raw source-reported status and explicit
 owner staging-approval evidence required by every active V1 matrix row. It does not make the
-recipient public or install an outbound sender. Plans 033–039
-define 124 assertions for quota/readiness ACLs and behavior, privileged and citizen-factor MFA,
-private profile-image metadata/Storage policies, the 50-metre location/media invariant, and the
-queue-versus-contact readiness boundary. Existing routing and government-workflow plans also assert
-the exact authority, department, role, assignment, and placeholder fail-closed behavior. These
-tests use rollback-isolated fixtures and do not activate a real municipality, contact, routing
-rule, or outbound-delivery channel.
+recipient public or install an outbound sender. Migration 49 extends the existing
+append-only authentication audit constraint with `password_changed`; it adds no password-bearing
+column and exposes no new table. Migration 50 performs the V1 physical prune documented above.
+Migration 51 adds the citizen taxonomy metadata/RPC/validation layer without adding a table or
+changing existing operational profile identifiers. Generated seed
+`55_jagruksetu_complaint_taxonomy.generated.sql` is separate deployment data.
+Migration 52 adds only the service-role confirmed-phone projection over current
+`auth.users.phone`/`phone_confirmed_at`; it creates no OTP, credential or application-auth table.
+Migration 53 adds the email-required Before User Created Auth Hook function, grants execution only
+to `supabase_auth_admin`, and creates no credential or application-auth table.
+Migration 54 adds the forced-RLS protected-action registry, fail-closed full-ward readiness,
+taxonomy-aware display names and sanitized handoff projection. Generated seed
+`56_jagruksetu_bmc_intake.generated.sql` adds the general route/profile, 26 general contacts and
+the official handoff rows. Migration 55 adds the bounded, sanitized, service-role civic-area office
+projection and its partial lookup index; it adds no office seed rows and exposes no private routing
+contact.
+Plans 033–039 define 124 assertions for quota/readiness ACLs and
+behavior, privileged MFA and the historical citizen-factor helper, private profile-image
+metadata/Storage policies, the
+50-metre location/media invariant, and the queue-versus-contact readiness boundary. Plan 049 adds
+four rollback-isolated assertions for the new allow-list value, sanitized metadata retention and
+unknown-event rejection. Plan 052 adds ten assertions for the service-only confirmed-phone
+contract, and plan 053 adds eight assertions for the email-required Auth creation hook. Existing
+routing and government-workflow plans also assert the exact
+authority, department, role, assignment, and placeholder fail-closed behavior. These tests do not
+activate a real municipality, contact, routing rule, or outbound-delivery channel.
 
-The generated BMC staging pack imports 114 source records across ten source tables, preserves six
+The latest full clean local reset before migration 55 applied through migration 54 and the complete
+then-current seed history. All 50 then-current pgTAP files passed 1,640 assertions.
+Application-schema database lint found no error; an additional all-schema inspection reported only
+the pre-existing PostGIS extension-body false positives and no project-function error.
+Deterministic master-SQL verification passed. Migration 55 was then applied directly to local
+Supabase and its focused plan passed 15 assertions. These results do not apply migrations 52–55,
+seeds 55–56 or any Auth setting/hook to hosted Supabase.
+
+The generated legacy BMC staging pack imports 114 source records across ten source tables, preserves six
 documented warnings, and creates source-backed BMC authority/zone/operational-ward/office/
 department/role/officer/assignment/contact/boundary/category evidence. Its four generated files are
 applied in order: `50_bmc_demo_governance.generated.sql`,
 `51_bmc_demo_governance_checksum.generated.sql`, `52_bmc_demo_routing.generated.sql`, and
 `53_bmc_demo_routing_verification.generated.sql`.
 
-For an existing current Local Wellness schema whose seed rows are absent, the generated
+For an existing pre-V1 Local Wellness schema whose seed rows are absent, the generated
 `supabase/deploy/bmc-mobile-demo/` directory repackages that data into four SQL Editor-sized,
 transaction-atomic parts: baseline categories/core, official boundaries, ward crosswalk/governance
 verification, and routing activation/verification. It does not alter the canonical Maharashtra
 inputs, hide a partial schema, populate the migration ledger, or approve external delivery.
 The schema must first be complete through migration 43: use the compact current-session bundle only
 from a verified migration-38 baseline, or stop/reconcile and use the adaptive master parts as
-appropriate before running BMC parts 01–04.
+appropriate before running BMC parts 01–04. This is a bootstrap-only path: afterward apply exact
+migrations 44–46, the current V1 artifact for migrations 47/48 plus seed 54, and then migrations
+49–50. Apply migration 51 plus seed 55 only through the later taxonomy deployment path. Never
+replay the legacy bootstrap into an already-pruned project. Apply migration 52 afterward to add
+the service-only citizen confirmed-phone check, followed by migration 53 for the email-required
+Auth creation hook. Apply migration 54 plus seed 56 only through the generated BMC intake
+deployment after the taxonomy and 312-row ward matrix are present.
 
 The routing activation makes only `garbage_dump`, `missed_sweeping`, and `mosquito_breeding`
 operational. One confidence-policy version, three category-specific duplicate-policy versions, and

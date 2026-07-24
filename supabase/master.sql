@@ -8,8 +8,8 @@
 -- adaptive migration-level guards validate and skip an already-complete prefix.
 -- Do not place any generated artifact in supabase/migrations. Seed data remains
 -- intentionally separate under supabase/seed.
--- Source migration cutoff: 20260720
--- Source migration count: 48
+-- Source migration cutoff: 20260724
+-- Source migration count: 55
 --
 -- Source manifest (SHA-256 of the exact source file bytes):
 -- 863ce6c718de64ae702385e979c44b011fd979c271ba5f400fe2db658f90d513  20260713100000_phase_1_identity_and_access.sql
@@ -57,9 +57,16 @@
 -- a2d81b05dec142d8dceb75c6db4bcbeb5c6e60257c242bb9706c351e737d764c  20260717100000_public_complaint_engagements.sql
 -- 5c37f8f8175a5147d0ea6cfa3a95756f7fd510c2f31a467751d52ab522c78dc9  20260718100000_complaint_routing_evidence_diagnostics.sql
 -- fdad9b29c845ba1749eb08fdb2c9d0140d6a0c926fe95692ea23e0eb9d62f411  20260718110000_governance_source_bundle_imports.sql
--- 0a199bc0773c613996c0ca52ae407a0a063d5455c7254b0a73e19c01220a635e  20260718123000_relax_routing_evidence_precision.sql
+-- 7453e8152cdb56d0574b9ad1bf39c84e42f426edfb7ba8de675315ca0d74d9bd  20260718123000_relax_routing_evidence_precision.sql
 -- 3a1a35a531494fbeeea876c5b74a541fa9f9bba19a305777f7f461dbe87a002d  20260720100000_v1_simple_ward_routing.sql
 -- 090e5033c0e0b354bd9b01f47ca8b2045db9ddd0a11c96481daa25f816f9ffa1  20260720103000_v1_ward_email_provenance.sql
+-- 59b43665d31658d2ed03c4f735550a59ba46aeb1a5d8fef06152a2e2408d0ef6  20260723100000_password_change_audit_event.sql
+-- f527d0e6bc9367e6769d228e1b16c560187aa1a61ab948e855783c43177b5cb5  20260723110000_prune_deferred_v1_subsystems.sql
+-- b5908420caef817f99eb830e6cf548651d68d81dc1e4c683d8dc54a4d29a3788  20260723120000_jagruksetu_complaint_taxonomy.sql
+-- 937dc8994c30c9cd4659c6ffccd68532113def89840c0d57a3e0bccffbd596e1  20260723130000_citizen_phone_verification_without_mfa.sql
+-- 583dd8dcc1b9daee804a38ecfef8bd3a39f4221af84a9c5e3e1d222d57e3a16a  20260724100000_require_email_identity_for_auth_signup.sql
+-- 20cd17c36b742ed0fd118d6b197d8836d42c801bb68779d91ea9eb79b2293fb2  20260724110000_v1_bmc_general_intake_and_handoffs.sql
+-- 1312e6f0427b942d95c142ce068ac30e3264c0a575f969de599633f57fcb3d9e  20260724120000_verified_civic_area_office_contacts.sql
 
 -- ============================================================================
 -- BEGIN SOURCE MIGRATION: 20260713100000_phase_1_identity_and_access.sql
@@ -33909,7 +33916,6 @@ $$;
 
 revoke all on function complaints.complaint_routing_evidence_mismatches(uuid, uuid, uuid)
   from public, anon, authenticated, service_role;
-
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260718123000_relax_routing_evidence_precision.sql
@@ -34780,4 +34786,2601 @@ comment on column routing.ward_issue_contacts.email_owner_approved_for_routing i
 commit;
 -- ============================================================================
 -- END SOURCE MIGRATION: 20260720103000_v1_ward_email_provenance.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260723100000_password_change_audit_event.sql
+-- ============================================================================
+begin;
+
+alter table public.auth_audit_events
+  drop constraint auth_audit_events_event_type_check;
+
+alter table public.auth_audit_events
+  add constraint auth_audit_events_event_type_check check (
+    event_type in (
+      'sign_in_succeeded',
+      'sign_in_failed',
+      'sign_out_succeeded',
+      'session_refreshed',
+      'otp_requested',
+      'otp_verified',
+      'password_changed',
+      'device_registered',
+      'device_revoked',
+      'government_invitation_created',
+      'government_invitation_failed',
+      'platform_admin_bootstrapped',
+      'access_denied'
+    )
+  );
+
+comment on constraint auth_audit_events_event_type_check on public.auth_audit_events is
+  'Limits authentication audit rows to reviewed event types, including client-reported password changes after fresh phone verification.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260723100000_password_change_audit_event.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260723110000_prune_deferred_v1_subsystems.sql
+-- ============================================================================
+begin;
+
+-- The V1 runtime uses the owner-approved ward/category contact matrix. The
+-- review-gated governance synchronization pipeline and public comments were
+-- never activated, so keeping their tables, triggers, RPCs and Edge boundary
+-- only increases the operational surface.
+
+do $prune_preflight$
+declare
+  has_active_sync_leases boolean := false;
+  has_complaint_comments boolean := false;
+  has_retired_governance_data boolean := false;
+  retired_relation_has_rows boolean := false;
+  retired_relation_name text;
+  active_contact_count integer := 0;
+  approved_contact_count integer := 0;
+  active_ward_count integer := 0;
+  active_category_count integer := 0;
+begin
+  if pg_catalog.to_regclass('routing.ward_issue_contacts') is null then
+    raise exception using
+      errcode = '55000',
+      message = 'V1_PRUNE_WARD_CONTACT_MATRIX_REQUIRED',
+      hint = 'Apply the V1 ward-routing migrations before pruning deferred subsystems.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_catalog.pg_attribute as attribute
+    where attribute.attrelid = 'routing.ward_issue_contacts'::regclass
+      and attribute.attname = 'email_owner_approved_for_routing'
+      and attribute.attnum > 0
+      and not attribute.attisdropped
+  ) then
+    raise exception using
+      errcode = '55000',
+      message = 'V1_PRUNE_WARD_CONTACT_PROVENANCE_REQUIRED',
+      hint = 'Apply the V1 ward-email provenance migration and seed before pruning.';
+  end if;
+
+  execute
+    'select
+       count(*) filter (where is_active),
+       count(*) filter (where is_active and email_owner_approved_for_routing),
+       count(distinct ward_id) filter (where is_active),
+       count(distinct category_id) filter (where is_active)
+     from routing.ward_issue_contacts'
+  into
+    active_contact_count,
+    approved_contact_count,
+    active_ward_count,
+    active_category_count;
+
+  foreach retired_relation_name in array array[
+    'governance.source_endpoints',
+    'governance.sync_runs',
+    'governance.raw_snapshots',
+    'governance.sync_run_snapshots',
+    'governance.sync_candidates',
+    'governance.sync_change_items',
+    'governance.sync_review_items',
+    'governance.sync_review_events',
+    'governance.sync_source_leases',
+    'governance.sync_events',
+    'governance.source_evidence',
+    'governance.contact_channels',
+    'governance.contact_channel_versions',
+    'governance.sync_scope_targets'
+  ]
+  loop
+    if pg_catalog.to_regclass(retired_relation_name) is not null then
+      execute format(
+        'select exists (select 1 from %s)',
+        retired_relation_name
+      )
+      into retired_relation_has_rows;
+
+      if retired_relation_has_rows then
+        has_retired_governance_data := true;
+        exit;
+      end if;
+    end if;
+  end loop;
+
+  if has_retired_governance_data
+    and (
+      active_contact_count < 312
+      or active_contact_count <> approved_contact_count
+      or active_ward_count < 26
+      or active_category_count < 12
+      or active_contact_count <> active_ward_count * active_category_count
+    ) then
+    raise exception using
+      errcode = '55000',
+      message = 'V1_PRUNE_WARD_CONTACT_MATRIX_INCOMPLETE',
+      detail = format(
+        'active=%s approved=%s wards=%s categories=%s',
+        active_contact_count,
+        approved_contact_count,
+        active_ward_count,
+        active_category_count
+      ),
+      hint = 'Load and verify a complete owner-approved ward-by-category matrix before pruning.';
+  end if;
+
+  if pg_catalog.to_regclass('complaints.complaint_comments') is not null then
+    execute
+      'select exists (select 1 from complaints.complaint_comments)'
+      into has_complaint_comments;
+  end if;
+
+  if has_complaint_comments then
+    raise exception using
+      errcode = '55000',
+      message = 'V1_PRUNE_COMPLAINT_COMMENT_HISTORY_PRESENT',
+      hint = 'Preserve and migrate existing comment history before retrying; this migration never deletes it.';
+  end if;
+
+  if pg_catalog.to_regclass('governance.sync_source_leases') is not null then
+    execute
+      'lock table governance.sync_source_leases in access exclusive mode';
+
+    execute
+      'select exists (
+        select 1
+        from governance.sync_source_leases
+        where expires_at > current_timestamp
+      )'
+      into has_active_sync_leases;
+  end if;
+
+  if has_active_sync_leases then
+    raise exception using
+      errcode = '55000',
+      message = 'V1_PRUNE_ACTIVE_GOVERNANCE_SYNC_LEASES',
+      hint = 'Stop governance synchronization and clear or expire its leases before retrying.';
+  end if;
+end;
+$prune_preflight$;
+
+-- Replace the only retained SQL dependency on the versioned-contact view
+-- before removing that view. This keeps unexpected hosted-only dependencies
+-- visible: the subsequent RESTRICT drops abort instead of deleting them.
+create or replace function governance.resolve_complaint_contact_readiness(
+  p_authority_id uuid,
+  p_local_body_id uuid,
+  p_ward_id uuid,
+  p_authority_department_id uuid,
+  p_office_id uuid,
+  p_officer_id uuid,
+  p_officer_assignment_id uuid
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with selected_scope as (
+    select 'ward'::text as contact_scope, 1 as scope_priority
+    where p_ward_id is not null
+      and exists (
+        select 1
+        from routing.ward_issue_contacts as contact
+        where contact.ward_id = p_ward_id
+          and contact.is_active
+      )
+
+    union all
+
+    select 'local_body'::text, 2
+    where p_local_body_id is not null
+      and exists (
+        select 1
+        from routing.ward_issue_contacts as contact
+        inner join governance.wards as ward on ward.id = contact.ward_id
+        where ward.local_body_id = p_local_body_id
+          and contact.is_active
+      )
+
+    union all
+
+    select 'authority'::text, 3
+    where p_authority_id is not null
+      and exists (
+        select 1
+        from routing.ward_issue_contacts as contact
+        inner join governance.wards as ward on ward.id = contact.ward_id
+        inner join governance.local_bodies as local_body
+          on local_body.id = ward.local_body_id
+        where local_body.authority_id = p_authority_id
+          and contact.is_active
+      )
+
+    order by scope_priority
+    limit 1
+  )
+  select case
+    when selected_scope.contact_scope is null then jsonb_build_object(
+      'externalContactStatus', 'not_available',
+      'contactScope', null,
+      'approvedChannelTypes', '[]'::jsonb,
+      'automaticOutboundDelivery', false,
+      'reason', 'verified_queue_no_approved_external_contact'
+    )
+    else jsonb_build_object(
+      'externalContactStatus', 'verified_governing_body_contact',
+      'contactScope', selected_scope.contact_scope,
+      'approvedChannelTypes', '["email","phone","whatsapp"]'::jsonb,
+      'automaticOutboundDelivery', false,
+      'reason', 'verified_governing_body_contact_available'
+    )
+  end
+  from (select 1) as singleton
+  left join selected_scope on true;
+$$;
+
+-- These Storage guards query raw_snapshots on every matching object mutation.
+-- Remove them before the snapshot registry is dropped.
+drop trigger if exists governance_snapshot_objects_guard_update on storage.objects;
+drop trigger if exists governance_snapshot_objects_guard_delete on storage.objects;
+drop function if exists governance.guard_referenced_snapshot_object();
+
+-- The versioned contact pipeline made the original contact columns immutable.
+-- Once that deferred pipeline is removed, those guards would point operators
+-- at a table that no longer exists.
+drop trigger if exists offices_reject_legacy_contact_update on governance.offices;
+drop trigger if exists officers_reject_legacy_contact_update on governance.officers;
+drop trigger if exists utilities_reject_legacy_contact_update on governance.utilities;
+drop trigger if exists emergency_contacts_reject_legacy_contact_update
+  on governance.emergency_contacts;
+drop function if exists governance.reject_legacy_contact_update();
+
+drop view if exists governance.current_verified_contacts;
+
+drop table if exists complaints.complaint_comments;
+
+drop table if exists governance.contact_channel_versions;
+drop table if exists governance.contact_channels;
+drop table if exists governance.source_evidence;
+drop table if exists governance.sync_events;
+drop table if exists governance.sync_source_leases;
+drop table if exists governance.sync_scope_targets;
+drop table if exists governance.sync_review_events;
+drop table if exists governance.sync_review_items;
+drop table if exists governance.sync_change_items;
+drop table if exists governance.sync_candidates;
+drop table if exists governance.sync_run_snapshots;
+drop table if exists governance.raw_snapshots;
+drop table if exists governance.sync_runs;
+drop table if exists governance.source_endpoints;
+
+-- PL/pgSQL dependencies are not always recorded from function bodies. Remove
+-- the retired service surface explicitly so no deployed caller can recreate
+-- work against a missing subsystem.
+drop function if exists public.claim_due_governance_sync_sources(text, integer, integer);
+drop function if exists public.heartbeat_governance_sync_lease(uuid, uuid, integer);
+drop function if exists public.record_governance_sync_snapshot(
+  uuid,
+  uuid,
+  uuid,
+  text,
+  text,
+  text,
+  bigint,
+  text,
+  text,
+  timestamptz,
+  timestamptz,
+  smallint
+);
+drop function if exists public.fail_governance_sync_run(uuid, uuid, uuid, text, text);
+drop function if exists private.enforce_governance_sync_scope_target();
+
+drop function if exists governance.set_source_endpoint_contract_hash();
+drop function if exists governance.validate_source_endpoint();
+drop function if exists governance.guard_sync_run_update();
+drop function if exists governance.validate_sync_run_insert();
+drop function if exists governance.validate_raw_snapshot_scope();
+drop function if exists governance.validate_sync_run_snapshot();
+drop function if exists governance.guard_sync_candidate_update();
+drop function if exists governance.validate_sync_candidate_scope();
+drop function if exists governance.guard_sync_change_update();
+drop function if exists governance.validate_sync_change_insert();
+drop function if exists governance.guard_sync_review_update();
+drop function if exists governance.validate_sync_review_insert();
+drop function if exists governance.validate_source_evidence_scope();
+drop function if exists governance.validate_contact_channel_version();
+drop function if exists governance.guard_contact_channel_update();
+drop function if exists governance.guard_contact_channel_version_update();
+
+create or replace function complaints.assignment_delivery_readiness(p_assignment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  target complaints.complaint_assignments%rowtype;
+  current_officer_id uuid;
+  current_office_id uuid;
+  current_officer_assignment_id uuid;
+begin
+  select assignment.* into target
+  from complaints.complaint_assignments as assignment
+  where assignment.id = p_assignment_id;
+
+  if not found or not complaints.is_verified_assignment_scope(
+    target.authority_id,
+    target.local_body_id,
+    target.ward_id,
+    target.department_id,
+    target.authority_department_id,
+    target.officer_role_id,
+    null,
+    current_timestamp
+  ) then
+    return jsonb_build_object(
+      'governmentQueueStatus', 'unavailable',
+      'externalContactStatus', 'not_available',
+      'contactScope', null,
+      'approvedChannelTypes', '[]'::jsonb,
+      'automaticOutboundDelivery', false,
+      'reason', 'verified_assignment_scope_unavailable'
+    );
+  end if;
+
+  if complaints.assignment_has_current_verified_officer(target.id, current_timestamp) then
+    select
+      officer_assignment.id,
+      officer_assignment.officer_id,
+      officer_assignment.office_id
+    into
+      current_officer_assignment_id,
+      current_officer_id,
+      current_office_id
+    from governance.officer_assignments as officer_assignment
+    where officer_assignment.id = target.officer_assignment_id;
+  end if;
+
+  return jsonb_build_object('governmentQueueStatus', 'verified_scope')
+    || governance.resolve_complaint_contact_readiness(
+      target.authority_id,
+      target.local_body_id,
+      target.ward_id,
+      target.authority_department_id,
+      current_office_id,
+      current_officer_id,
+      current_officer_assignment_id
+    );
+end;
+$$;
+
+create or replace function complaints.assignment_summary(p_assignment_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', assignment.id,
+    'authorityId', assignment.authority_id,
+    'authorityName', authority.name,
+    'localBodyId', assignment.local_body_id,
+    'localBodyName', local_body.name,
+    'wardId', assignment.ward_id,
+    'wardName', ward.name,
+    'departmentId', assignment.department_id,
+    'departmentName', department.name,
+    'authorityDepartmentId', assignment.authority_department_id,
+    'officerRoleId', assignment.officer_role_id,
+    'officerRoleName', officer_role.name,
+    'officerAssignmentId', officer_assignment.id,
+    'officerName', officer.full_name,
+    'source', case
+      when assignment.assignment_source = 'routing_decision' then 'routing_decision'
+      when assignment.assignment_source = 'government_transfer' then 'transfer'
+      else 'manual_assignment'
+    end,
+    'status', assignment.status,
+    'assignedAt', assignment.effective_from,
+    'endedAt', assignment.effective_to,
+    'deliveryReadiness', complaints.assignment_delivery_readiness(assignment.id)
+  )
+  from complaints.complaint_assignments as assignment
+  inner join governance.authorities as authority on authority.id = assignment.authority_id
+  inner join governance.local_bodies as local_body on local_body.id = assignment.local_body_id
+  left join governance.wards as ward on ward.id = assignment.ward_id
+  inner join governance.departments as department on department.id = assignment.department_id
+  inner join governance.officer_roles as officer_role on officer_role.id = assignment.officer_role_id
+  left join governance.officer_assignments as officer_assignment
+    on officer_assignment.id = assignment.officer_assignment_id
+   and (
+     assignment.status <> 'active'
+     or assignment.effective_to is not null
+     or complaints.assignment_has_current_verified_officer(
+       assignment.id,
+       current_timestamp
+     )
+   )
+  left join governance.officers as officer on officer.id = officer_assignment.officer_id
+  where assignment.id = p_assignment_id;
+$$;
+
+revoke all on function governance.resolve_complaint_contact_readiness(
+  uuid, uuid, uuid, uuid, uuid, uuid, uuid
+) from public, anon, authenticated;
+revoke all on function complaints.assignment_delivery_readiness(uuid)
+  from public, anon, authenticated;
+
+grant execute on function governance.resolve_complaint_contact_readiness(
+  uuid, uuid, uuid, uuid, uuid, uuid, uuid
+) to service_role;
+grant execute on function complaints.assignment_delivery_readiness(uuid)
+  to service_role;
+
+comment on function governance.resolve_complaint_contact_readiness(
+  uuid, uuid, uuid, uuid, uuid, uuid, uuid
+) is
+  'Reports V1 governing-body contact readiness from the private active ward/category matrix without exposing contact values.';
+comment on function complaints.assignment_delivery_readiness(uuid) is
+  'Reports verified government-queue scope and V1 ward-contact readiness without exposing recipient values.';
+
+-- An adaptive master-bundle marker lets already-pruned databases skip the
+-- historical synchronization migrations on subsequent SQL Editor runs.
+create or replace function private.v1_deferred_subsystems_pruned()
+returns boolean
+language sql
+immutable
+security definer
+set search_path = ''
+as $$
+  select true;
+$$;
+
+revoke all on function private.v1_deferred_subsystems_pruned()
+  from public, anon, authenticated, service_role;
+
+comment on function private.v1_deferred_subsystems_pruned() is
+  'Adaptive migration marker: the unused governance-sync/contact and public-comment tables were physically removed for V1.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260723110000_prune_deferred_v1_subsystems.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260723120000_jagruksetu_complaint_taxonomy.sql
+-- ============================================================================
+begin;
+
+-- Keep the existing operational category identifiers stable while adding the
+-- citizen-facing JagrukSetu taxonomy to the same private routing registry.
+-- Taxonomy classification never grants routing eligibility: a subcategory can
+-- submit only through an independently verified operational route profile.
+
+alter table routing.issue_categories
+  add column category_purpose text not null default 'routing_profile',
+  add column taxonomy_code text,
+  add column workflow_type text,
+  add column sensitivity_class text,
+  add column configuration_status text not null default 'legacy',
+  add column routing_status text not null default 'legacy',
+  add column routing_profile_category_id uuid
+    references routing.issue_categories (id) on delete restrict,
+  add column public_visibility_default boolean,
+  add column comments_allowed boolean,
+  add column community_support_allowed boolean,
+  add constraint issue_categories_category_purpose_check check (
+    category_purpose in (
+      'routing_profile',
+      'taxonomy_primary',
+      'taxonomy_subcategory'
+    )
+  ),
+  add constraint issue_categories_taxonomy_code_check check (
+    taxonomy_code is null
+    or taxonomy_code ~ '^[A-Z]{3}(-[0-9]{3})?$'
+  ),
+  add constraint issue_categories_workflow_type_check check (
+    workflow_type is null
+    or workflow_type in (
+      'MAINTENANCE',
+      'SERVICE_FAILURE',
+      'PUBLIC_HEALTH',
+      'ENVIRONMENTAL',
+      'ENFORCEMENT',
+      'SAFETY_HAZARD',
+      'EMERGENCY',
+      'FACILITY_SERVICE',
+      'LAW_AND_ORDER',
+      'CRIME_REPORT',
+      'CYBER_INCIDENT',
+      'WELFARE_PROTECTION',
+      'ADMINISTRATIVE_GRIEVANCE',
+      'CONSUMER_REGULATORY',
+      'TRANSPORT_SERVICE',
+      'DISASTER_RESPONSE',
+      'INFORMATION_ACCESS',
+      'ANIMAL_WELFARE',
+      'ANTI_CORRUPTION'
+    )
+  ),
+  add constraint issue_categories_sensitivity_class_check check (
+    sensitivity_class is null
+    or sensitivity_class in (
+      'PUBLIC',
+      'RESTRICTED',
+      'PRIVATE',
+      'EMERGENCY_PRIVATE'
+    )
+  ),
+  add constraint issue_categories_configuration_status_check check (
+    configuration_status in ('legacy', 'taxonomy_ready')
+  ),
+  add constraint issue_categories_routing_status_check check (
+    routing_status in (
+      'legacy',
+      'mapped',
+      'pending_verification',
+      'protected_pending'
+    )
+  ),
+  add constraint issue_categories_routing_profile_not_self_check check (
+    routing_profile_category_id is distinct from id
+  ),
+  add constraint issue_categories_taxonomy_shape_check check (
+    (
+      category_purpose = 'routing_profile'
+      and taxonomy_code is null
+      and workflow_type is null
+      and sensitivity_class is null
+      and configuration_status = 'legacy'
+      and routing_status = 'legacy'
+      and routing_profile_category_id is null
+      and public_visibility_default is null
+      and comments_allowed is null
+      and community_support_allowed is null
+    )
+    or (
+      category_purpose = 'taxonomy_primary'
+      and taxonomy_code ~ '^[A-Z]{3}$'
+      and workflow_type is null
+      and sensitivity_class is not null
+      and configuration_status = 'taxonomy_ready'
+      and routing_status in ('pending_verification', 'protected_pending')
+      and routing_profile_category_id is null
+      and classification_level = 'category'
+      and parent_category_id is null
+      and public_visibility_default is not null
+      and comments_allowed is not null
+      and community_support_allowed is not null
+      and not is_routing_eligible
+    )
+    or (
+      category_purpose = 'taxonomy_subcategory'
+      and taxonomy_code ~ '^[A-Z]{3}-[0-9]{3}$'
+      and workflow_type is not null
+      and sensitivity_class is not null
+      and configuration_status = 'taxonomy_ready'
+      and (
+        (
+          routing_status = 'mapped'
+          and routing_profile_category_id is not null
+        )
+        or (
+          routing_status in ('pending_verification', 'protected_pending')
+          and routing_profile_category_id is null
+        )
+      )
+      and classification_level = 'subcategory'
+      and parent_category_id is not null
+      and public_visibility_default is not null
+      and comments_allowed is not null
+      and community_support_allowed is not null
+      and not is_routing_eligible
+    )
+  );
+
+create unique index issue_categories_taxonomy_code_unique_idx
+  on routing.issue_categories (taxonomy_code)
+  where taxonomy_code is not null;
+
+create index issue_categories_taxonomy_parent_idx
+  on routing.issue_categories (category_purpose, parent_category_id, taxonomy_code)
+  where category_purpose in ('taxonomy_primary', 'taxonomy_subcategory');
+
+create index issue_categories_routing_profile_category_idx
+  on routing.issue_categories (routing_profile_category_id)
+  where routing_profile_category_id is not null;
+
+create function routing.validate_complaint_taxonomy_category()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  parent_record record;
+  route_profile_record record;
+begin
+  if tg_op = 'UPDATE'
+    and old.category_purpose in ('taxonomy_primary', 'taxonomy_subcategory')
+    and (
+      new.category_purpose is distinct from old.category_purpose
+      or new.taxonomy_code is distinct from old.taxonomy_code
+    ) then
+    raise exception using
+      errcode = '55000',
+      message = 'JAGRUKSETU_TAXONOMY_IDENTITY_IMMUTABLE';
+  end if;
+
+  if new.category_purpose = 'routing_profile' then
+    return new;
+  end if;
+
+  if new.category_purpose = 'taxonomy_primary' then
+    if new.taxonomy_code = 'COR' and (
+      new.sensitivity_class <> 'PRIVATE'
+      or new.routing_status <> 'protected_pending'
+      or new.routing_profile_category_id is not null
+      or new.public_visibility_default
+      or new.comments_allowed
+      or new.community_support_allowed
+    ) then
+      raise exception using
+        errcode = '23514',
+        message = 'JAGRUKSETU_CORRUPTION_PRIMARY_MUST_REMAIN_PROTECTED';
+    end if;
+
+    return new;
+  end if;
+
+  select
+    parent.id,
+    parent.domain_id,
+    parent.category_purpose,
+    parent.taxonomy_code
+  into parent_record
+  from routing.issue_categories as parent
+  where parent.id = new.parent_category_id;
+
+  if not found
+    or parent_record.category_purpose <> 'taxonomy_primary'
+    or parent_record.domain_id <> new.domain_id
+    or split_part(new.taxonomy_code, '-', 1) <> parent_record.taxonomy_code then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_TAXONOMY_PARENT_INVALID';
+  end if;
+
+  if new.routing_profile_category_id is not null then
+    select
+      route_profile.id,
+      route_profile.category_purpose,
+      route_profile.classification_level,
+      route_profile.parent_category_id
+    into route_profile_record
+    from routing.issue_categories as route_profile
+    where route_profile.id = new.routing_profile_category_id;
+
+    if not found
+      or route_profile_record.category_purpose <> 'routing_profile'
+      or route_profile_record.classification_level <> 'category'
+      or route_profile_record.parent_category_id is not null then
+      raise exception using
+        errcode = '23514',
+        message = 'JAGRUKSETU_TAXONOMY_ROUTE_PROFILE_INVALID';
+    end if;
+  end if;
+
+  if parent_record.taxonomy_code = 'COR' and (
+    new.sensitivity_class <> 'PRIVATE'
+    or new.workflow_type <> 'ANTI_CORRUPTION'
+    or new.routing_status <> 'protected_pending'
+    or new.routing_profile_category_id is not null
+    or new.public_visibility_default
+    or new.comments_allowed
+    or new.community_support_allowed
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_CORRUPTION_INTAKE_MUST_REMAIN_PROTECTED';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger issue_categories_validate_complaint_taxonomy
+before insert or update of
+  category_purpose,
+  taxonomy_code,
+  workflow_type,
+  sensitivity_class,
+  configuration_status,
+  routing_status,
+  routing_profile_category_id,
+  public_visibility_default,
+  comments_allowed,
+  community_support_allowed,
+  domain_id,
+  parent_category_id,
+  classification_level,
+  is_routing_eligible
+on routing.issue_categories
+for each row execute function routing.validate_complaint_taxonomy_category();
+
+-- Preserve the established operational-category catalogue. Citizen-facing
+-- taxonomy records have a separate, deliberately narrower projection below.
+create or replace function public.list_routing_categories(
+  p_include_non_routable boolean default false
+)
+returns table (
+  category_id uuid,
+  domain_code text,
+  category_code text,
+  category_name text,
+  description text,
+  parent_category_id uuid,
+  classification_level text,
+  default_severity text,
+  requires_asset boolean,
+  requires_location boolean,
+  location_requirement text,
+  is_emergency boolean,
+  minimum_media_count smallint,
+  maximum_media_count smallint,
+  required_attributes text[],
+  media_requirements jsonb,
+  verification_status text,
+  is_placeholder boolean,
+  is_routing_eligible boolean
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    category.id,
+    domain.code,
+    category.code,
+    category.name,
+    category.description,
+    category.parent_category_id,
+    category.classification_level,
+    category.default_severity,
+    category.requires_asset,
+    category.requires_location,
+    category.location_requirement,
+    category.is_emergency,
+    category.minimum_media_count,
+    category.maximum_media_count,
+    category.required_attributes,
+    category.media_requirements,
+    category.verification_status,
+    category.is_placeholder,
+    category.is_routing_eligible
+  from routing.issue_categories as category
+  inner join routing.issue_domains as domain on domain.id = category.domain_id
+  where category.category_purpose = 'routing_profile'
+    and (
+      p_include_non_routable
+      or (
+        category.status = 'active'
+        and category.verification_status = 'verified'
+        and not category.is_placeholder
+        and category.is_routing_eligible
+        and domain.status = 'active'
+        and domain.verification_status = 'verified'
+        and not domain.is_placeholder
+        and domain.is_routing_eligible
+      )
+    )
+  order by domain.code, category.code;
+$$;
+
+create function public.list_complaint_taxonomy()
+returns table (
+  taxonomy_id uuid,
+  primary_category_id uuid,
+  primary_code text,
+  primary_name text,
+  subcategory_code text,
+  subcategory_name text,
+  subcategory_description text,
+  workflow_type text,
+  sensitivity_class text,
+  routing_status text,
+  routing_profile_category_id uuid,
+  routing_profile_code text,
+  routing_profile_name text,
+  submission_available boolean,
+  requires_asset boolean,
+  requires_location boolean,
+  is_emergency boolean,
+  minimum_media_count integer,
+  maximum_media_count integer,
+  required_attributes text[],
+  recommended_media_kinds text[]
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    subcategory.id,
+    primary_category.id,
+    primary_category.taxonomy_code,
+    primary_category.name,
+    subcategory.taxonomy_code,
+    subcategory.name,
+    subcategory.description,
+    subcategory.workflow_type,
+    subcategory.sensitivity_class,
+    subcategory.routing_status,
+    route_profile.id,
+    route_profile.code,
+    route_profile.name,
+    (
+      subcategory.routing_status = 'mapped'
+      and route_profile.id is not null
+      and route_profile.status = 'active'
+      and route_profile.verification_status = 'verified'
+      and not route_profile.is_placeholder
+      and route_profile.is_routing_eligible
+      and route_domain.status = 'active'
+      and route_domain.verification_status = 'verified'
+      and not route_domain.is_placeholder
+      and route_domain.is_routing_eligible
+    ),
+    coalesce(route_profile.requires_asset, subcategory.requires_asset),
+    coalesce(route_profile.requires_location, subcategory.requires_location),
+    coalesce(route_profile.is_emergency, false) or subcategory.is_emergency,
+    coalesce(route_profile.minimum_media_count, subcategory.minimum_media_count)::integer,
+    coalesce(route_profile.maximum_media_count, subcategory.maximum_media_count)::integer,
+    coalesce(route_profile.required_attributes, subcategory.required_attributes),
+    case
+      when jsonb_typeof(
+        coalesce(route_profile.media_requirements, subcategory.media_requirements)
+          -> 'recommended'
+      ) = 'array'
+      then array(
+        select jsonb_array_elements_text(
+          coalesce(route_profile.media_requirements, subcategory.media_requirements)
+            -> 'recommended'
+        )
+      )
+      else '{}'::text[]
+    end
+  from routing.issue_categories as subcategory
+  inner join routing.issue_categories as primary_category
+    on primary_category.id = subcategory.parent_category_id
+   and primary_category.category_purpose = 'taxonomy_primary'
+  left join routing.issue_categories as route_profile
+    on route_profile.id = subcategory.routing_profile_category_id
+   and route_profile.category_purpose = 'routing_profile'
+  left join routing.issue_domains as route_domain
+    on route_domain.id = route_profile.domain_id
+  where subcategory.category_purpose = 'taxonomy_subcategory'
+    and subcategory.status = 'active'
+    and primary_category.status = 'active'
+  order by primary_category.taxonomy_code, subcategory.taxonomy_code;
+$$;
+
+create function complaints.assert_taxonomy_selection(
+  p_category_id uuid,
+  p_custom_attributes jsonb
+)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  reserved_keys constant text[] := array[
+    'taxonomy_primary_code',
+    'taxonomy_subcategory_code',
+    'taxonomy_workflow_type'
+  ]::text[];
+  has_taxonomy_selection boolean;
+  taxonomy_record record;
+begin
+  has_taxonomy_selection := p_custom_attributes ?| reserved_keys;
+
+  if not has_taxonomy_selection then
+    if p_category_id is not null and exists (
+      select 1
+      from routing.issue_categories as category
+      where category.id = p_category_id
+        and category.category_purpose <> 'routing_profile'
+    ) then
+      raise exception using
+        errcode = '23514',
+        message = 'COMPLAINT_TAXONOMY_SELECTION_REQUIRED';
+    end if;
+
+    return;
+  end if;
+
+  if not (p_custom_attributes ?& reserved_keys)
+    or jsonb_typeof(p_custom_attributes -> 'taxonomy_primary_code') <> 'string'
+    or jsonb_typeof(p_custom_attributes -> 'taxonomy_subcategory_code') <> 'string'
+    or jsonb_typeof(p_custom_attributes -> 'taxonomy_workflow_type') <> 'string' then
+    raise exception using
+      errcode = '23514',
+      message = 'COMPLAINT_TAXONOMY_SELECTION_INCOMPLETE';
+  end if;
+
+  select
+    subcategory.id,
+    subcategory.workflow_type,
+    subcategory.routing_profile_category_id,
+    primary_category.taxonomy_code as primary_code
+  into taxonomy_record
+  from routing.issue_categories as subcategory
+  inner join routing.issue_categories as primary_category
+    on primary_category.id = subcategory.parent_category_id
+   and primary_category.category_purpose = 'taxonomy_primary'
+  where subcategory.category_purpose = 'taxonomy_subcategory'
+    and subcategory.taxonomy_code =
+      p_custom_attributes ->> 'taxonomy_subcategory_code'
+    and primary_category.taxonomy_code =
+      p_custom_attributes ->> 'taxonomy_primary_code'
+    and subcategory.workflow_type =
+      p_custom_attributes ->> 'taxonomy_workflow_type'
+    and subcategory.status = 'active'
+    and primary_category.status = 'active';
+
+  if not found then
+    raise exception using
+      errcode = '23514',
+      message = 'COMPLAINT_TAXONOMY_SELECTION_INVALID';
+  end if;
+
+  if taxonomy_record.routing_profile_category_id is null then
+    if p_category_id is not null then
+      raise exception using
+        errcode = '23514',
+        message = 'COMPLAINT_TAXONOMY_ROUTE_PROFILE_NOT_AVAILABLE';
+    end if;
+  elsif p_category_id is distinct from taxonomy_record.routing_profile_category_id then
+    raise exception using
+      errcode = '23514',
+      message = 'COMPLAINT_TAXONOMY_ROUTE_PROFILE_MISMATCH';
+  end if;
+
+  return;
+end;
+$$;
+
+create function complaints.validate_draft_taxonomy_selection()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform complaints.assert_taxonomy_selection(new.category_id, new.custom_attributes);
+  return new;
+end;
+$$;
+
+create function complaints.validate_submitted_complaint_taxonomy()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  -- This re-resolves the tuple at the final complaint insert, so a taxonomy
+  -- mapping changed after draft save cannot silently submit through a stale
+  -- operational route profile.
+  perform complaints.assert_taxonomy_selection(new.category_id, new.custom_attributes);
+  return new;
+end;
+$$;
+
+create trigger complaint_drafts_validate_taxonomy_selection
+before insert or update of category_id, custom_attributes
+on complaints.complaint_drafts
+for each row execute function complaints.validate_draft_taxonomy_selection();
+
+create trigger complaints_validate_taxonomy_on_submission
+before insert on complaints.complaints
+for each row execute function complaints.validate_submitted_complaint_taxonomy();
+
+revoke all on function routing.validate_complaint_taxonomy_category()
+  from public, anon, authenticated, service_role;
+revoke all on function complaints.assert_taxonomy_selection(uuid, jsonb)
+  from public, anon, authenticated, service_role;
+revoke all on function complaints.validate_draft_taxonomy_selection()
+  from public, anon, authenticated, service_role;
+revoke all on function complaints.validate_submitted_complaint_taxonomy()
+  from public, anon, authenticated, service_role;
+revoke all on function public.list_complaint_taxonomy()
+  from public, anon, authenticated, service_role;
+grant execute on function public.list_complaint_taxonomy() to service_role;
+
+comment on column routing.issue_categories.category_purpose is
+  'Separates operational routing profiles from citizen-facing taxonomy hierarchy records.';
+comment on column routing.issue_categories.taxonomy_code is
+  'Stable uppercase JagrukSetu taxonomy code; null for operational route profiles.';
+comment on column routing.issue_categories.routing_profile_category_id is
+  'Optional server-controlled mapping from a taxonomy subcategory to an operational route profile.';
+comment on function public.list_complaint_taxonomy() is
+  'Returns the sanitized two-level JagrukSetu complaint taxonomy and current route-profile readiness to the trusted API.';
+comment on function complaints.validate_draft_taxonomy_selection() is
+  'Validates the three reserved taxonomy custom attributes and their server-controlled operational category mapping.';
+comment on function complaints.assert_taxonomy_selection(uuid, jsonb) is
+  'Re-resolves a taxonomy tuple and asserts its current server-controlled operational category mapping.';
+comment on function complaints.validate_submitted_complaint_taxonomy() is
+  'Revalidates taxonomy mapping at the canonical final complaint insert to reject mapping drift.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260723120000_jagruksetu_complaint_taxonomy.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260723130000_citizen_phone_verification_without_mfa.sql
+-- ============================================================================
+begin;
+
+create function public.user_has_verified_phone(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from auth.users as auth_user
+    where auth_user.id = p_user_id
+      and nullif(btrim(auth_user.phone), '') is not null
+      and auth_user.phone_confirmed_at is not null
+      and auth_user.deleted_at is null
+  );
+$$;
+
+revoke all on function public.user_has_verified_phone(uuid)
+  from public, anon, authenticated;
+grant execute on function public.user_has_verified_phone(uuid)
+  to service_role;
+
+comment on function public.user_has_verified_phone(uuid) is
+  'Service-only confirmed-phone check used for citizen verification without requiring an MFA factor or AAL2 session.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260723130000_citizen_phone_verification_without_mfa.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260724100000_require_email_identity_for_auth_signup.sql
+-- ============================================================================
+begin;
+
+create function public.hook_require_email_identity(event jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  candidate_email text;
+begin
+  candidate_email := nullif(btrim(event #>> '{user,email}'), '');
+
+  if candidate_email is null then
+    return jsonb_build_object(
+      'error',
+      jsonb_build_object(
+        'code',
+        'email_required',
+        'http_code',
+        403,
+        'message',
+        'Create this account with an email address before linking a phone.'
+      )
+    );
+  end if;
+
+  return '{}'::jsonb;
+end;
+$$;
+
+revoke all on function public.hook_require_email_identity(jsonb)
+  from public, anon, authenticated, service_role;
+grant execute on function public.hook_require_email_identity(jsonb)
+  to supabase_auth_admin;
+
+comment on function public.hook_require_email_identity(jsonb) is
+  'Before User Created Auth Hook that rejects phone-only users while ordinary Phone Auth remains enabled for OTP sign-in to existing email accounts.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260724100000_require_email_identity_for_auth_signup.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260724110000_v1_bmc_general_intake_and_handoffs.sql
+-- ============================================================================
+begin;
+
+-- Extend the V1 taxonomy contract in two deliberately separate directions:
+-- ordinary civic issues may become ward-routable only after every operational
+-- prerequisite is present, while protected issues expose official call/browser
+-- handoffs without entering the ordinary complaint or email-delivery workflow.
+
+alter table routing.issue_categories
+  drop constraint if exists issue_categories_routing_status_check,
+  drop constraint if exists issue_categories_taxonomy_shape_check;
+
+alter table routing.issue_categories
+  add constraint issue_categories_routing_status_check check (
+    routing_status in (
+      'legacy',
+      'mapped',
+      'pending_verification',
+      'protected_pending',
+      'protected_handoff'
+    )
+  ),
+  add constraint issue_categories_taxonomy_shape_check check (
+    (
+      category_purpose = 'routing_profile'
+      and taxonomy_code is null
+      and workflow_type is null
+      and sensitivity_class is null
+      and configuration_status = 'legacy'
+      and routing_status = 'legacy'
+      and routing_profile_category_id is null
+      and public_visibility_default is null
+      and comments_allowed is null
+      and community_support_allowed is null
+    )
+    or (
+      category_purpose = 'taxonomy_primary'
+      and taxonomy_code ~ '^[A-Z]{3}$'
+      and workflow_type is null
+      and sensitivity_class is not null
+      and configuration_status = 'taxonomy_ready'
+      and routing_status in (
+        'pending_verification',
+        'protected_pending',
+        'protected_handoff'
+      )
+      and routing_profile_category_id is null
+      and classification_level = 'category'
+      and parent_category_id is null
+      and public_visibility_default is not null
+      and comments_allowed is not null
+      and community_support_allowed is not null
+      and not is_routing_eligible
+    )
+    or (
+      category_purpose = 'taxonomy_subcategory'
+      and taxonomy_code ~ '^[A-Z]{3}-[0-9]{3}$'
+      and workflow_type is not null
+      and sensitivity_class is not null
+      and configuration_status = 'taxonomy_ready'
+      and (
+        (
+          routing_status = 'mapped'
+          and routing_profile_category_id is not null
+        )
+        or (
+          routing_status in (
+            'pending_verification',
+            'protected_pending',
+            'protected_handoff'
+          )
+          and routing_profile_category_id is null
+        )
+      )
+      and classification_level = 'subcategory'
+      and parent_category_id is not null
+      and public_visibility_default is not null
+      and comments_allowed is not null
+      and community_support_allowed is not null
+      and not is_routing_eligible
+    )
+  );
+
+create table routing.complaint_handoff_actions (
+  id uuid primary key default gen_random_uuid(),
+  action_key text not null,
+  taxonomy_category_id uuid not null
+    references routing.issue_categories (id) on delete restrict,
+  action_kind text not null,
+  label text not null,
+  description text not null,
+  target_value text not null,
+  priority smallint not null default 100,
+  source_url text not null,
+  source_locator text not null,
+  source_as_of date not null,
+  last_checked_on date not null,
+  source_status text not null,
+  owner_approved_for_display boolean not null default false,
+  is_active boolean not null default false,
+  effective_from timestamptz not null default now(),
+  effective_to timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint complaint_handoff_actions_action_key_check check (
+    action_key = btrim(action_key)
+    and action_key ~ '^[a-z][a-z0-9_]{1,79}$'
+  ),
+  constraint complaint_handoff_actions_kind_check check (
+    action_kind in ('call', 'browser')
+  ),
+  constraint complaint_handoff_actions_label_check check (
+    label = btrim(label)
+    and char_length(label) between 1 and 120
+  ),
+  constraint complaint_handoff_actions_description_check check (
+    description = btrim(description)
+    and char_length(description) between 1 and 500
+  ),
+  constraint complaint_handoff_actions_target_check check (
+    (
+      action_kind = 'call'
+      and target_value = btrim(target_value)
+      and target_value ~ '^[0-9]{3,15}$'
+    )
+    or (
+      action_kind = 'browser'
+      and target_value = btrim(target_value)
+      and target_value ~ '^https://[^/@[:space:]]+([/?#][^[:space:]]*)?$'
+    )
+  ),
+  constraint complaint_handoff_actions_priority_check check (
+    priority between 0 and 32767
+  ),
+  constraint complaint_handoff_actions_source_url_check check (
+    source_url = btrim(source_url)
+    and source_url ~ '^https://[^/@[:space:]]+([/?#][^[:space:]]*)?$'
+  ),
+  constraint complaint_handoff_actions_source_locator_check check (
+    source_locator = btrim(source_locator)
+    and char_length(source_locator) between 1 and 500
+  ),
+  constraint complaint_handoff_actions_source_dates_check check (
+    source_as_of <= last_checked_on
+  ),
+  constraint complaint_handoff_actions_source_status_check check (
+    source_status = btrim(source_status)
+    and source_status ~ '^[a-z][a-z0-9_]{1,79}$'
+  ),
+  constraint complaint_handoff_actions_active_approval_check check (
+    not is_active or owner_approved_for_display
+  ),
+  constraint complaint_handoff_actions_effective_period_check check (
+    effective_to is null or effective_to > effective_from
+  ),
+  constraint complaint_handoff_actions_action_key_unique unique (action_key),
+  constraint complaint_handoff_actions_category_target_unique unique (
+    taxonomy_category_id,
+    action_kind,
+    target_value
+  )
+);
+
+create index complaint_handoff_actions_taxonomy_active_idx
+  on routing.complaint_handoff_actions (
+    taxonomy_category_id,
+    priority,
+    action_key
+  )
+  where is_active and owner_approved_for_display;
+
+create function routing.validate_complaint_handoff_action()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  taxonomy_record record;
+begin
+  if new.action_kind not in ('call', 'browser') then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_HANDOFF_KIND_INVALID';
+  end if;
+
+  if (
+    new.action_kind = 'call'
+    and (
+      new.target_value is distinct from btrim(new.target_value)
+      or new.target_value !~ '^[0-9]{3,15}$'
+    )
+  ) or (
+    new.action_kind = 'browser'
+    and (
+      new.target_value is distinct from btrim(new.target_value)
+      or new.target_value !~ '^https://[^/@[:space:]]+([/?#][^[:space:]]*)?$'
+    )
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_HANDOFF_TARGET_INVALID';
+  end if;
+
+  if new.source_url is distinct from btrim(new.source_url)
+    or new.source_url !~ '^https://[^/@[:space:]]+([/?#][^[:space:]]*)?$' then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_HANDOFF_SOURCE_URL_INVALID';
+  end if;
+
+  select
+    category.category_purpose,
+    category.sensitivity_class,
+    category.routing_status,
+    category.routing_profile_category_id,
+    category.public_visibility_default,
+    category.comments_allowed,
+    category.community_support_allowed
+  into taxonomy_record
+  from routing.issue_categories as category
+  where category.id = new.taxonomy_category_id;
+
+  if not found
+    or taxonomy_record.category_purpose not in (
+      'taxonomy_primary',
+      'taxonomy_subcategory'
+    )
+    or taxonomy_record.sensitivity_class not in (
+      'PRIVATE',
+      'EMERGENCY_PRIVATE'
+    )
+    or taxonomy_record.routing_status not in (
+      'protected_pending',
+      'protected_handoff'
+    )
+    or taxonomy_record.routing_profile_category_id is not null
+    or taxonomy_record.public_visibility_default
+    or taxonomy_record.comments_allowed
+    or taxonomy_record.community_support_allowed then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_HANDOFF_CATEGORY_MUST_BE_PROTECTED';
+  end if;
+
+  if new.is_active
+    and taxonomy_record.routing_status <> 'protected_handoff' then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_ACTIVE_HANDOFF_REQUIRES_READY_CATEGORY';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger complaint_handoff_actions_validate
+before insert or update of
+  taxonomy_category_id,
+  action_kind,
+  target_value,
+  owner_approved_for_display,
+  is_active,
+  effective_from,
+  effective_to
+on routing.complaint_handoff_actions
+for each row execute function routing.validate_complaint_handoff_action();
+
+create trigger set_complaint_handoff_actions_updated_at
+before update on routing.complaint_handoff_actions
+for each row execute function private.set_updated_at();
+
+alter table routing.complaint_handoff_actions enable row level security;
+alter table routing.complaint_handoff_actions force row level security;
+
+revoke all on table routing.complaint_handoff_actions
+  from public, anon, authenticated;
+grant all on table routing.complaint_handoff_actions to service_role;
+
+create or replace function routing.validate_complaint_taxonomy_category()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  parent_record record;
+  route_profile_record record;
+  is_protected boolean;
+begin
+  if tg_op = 'UPDATE'
+    and old.category_purpose in ('taxonomy_primary', 'taxonomy_subcategory')
+    and (
+      new.category_purpose is distinct from old.category_purpose
+      or new.taxonomy_code is distinct from old.taxonomy_code
+    ) then
+    raise exception using
+      errcode = '55000',
+      message = 'JAGRUKSETU_TAXONOMY_IDENTITY_IMMUTABLE';
+  end if;
+
+  if new.category_purpose = 'routing_profile' then
+    return new;
+  end if;
+
+  is_protected := new.sensitivity_class in ('PRIVATE', 'EMERGENCY_PRIVATE');
+
+  if is_protected and (
+    new.routing_status not in ('protected_pending', 'protected_handoff')
+    or new.routing_profile_category_id is not null
+    or new.public_visibility_default
+    or new.comments_allowed
+    or new.community_support_allowed
+  ) then
+    if new.taxonomy_code = 'COR'
+      or new.taxonomy_code like 'COR-%' then
+      raise exception using
+        errcode = '23514',
+        message = case
+          when new.category_purpose = 'taxonomy_primary'
+            then 'JAGRUKSETU_CORRUPTION_PRIMARY_MUST_REMAIN_PROTECTED'
+          else 'JAGRUKSETU_CORRUPTION_INTAKE_MUST_REMAIN_PROTECTED'
+        end;
+    end if;
+
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_PROTECTED_CATEGORY_MUST_REMAIN_NON_ROUTABLE';
+  end if;
+
+  if not is_protected
+    and new.routing_status in ('protected_pending', 'protected_handoff') then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_PROTECTED_STATUS_REQUIRES_PROTECTED_SENSITIVITY';
+  end if;
+
+  if tg_op = 'UPDATE'
+    and exists (
+      select 1
+      from routing.complaint_handoff_actions as action
+      where action.taxonomy_category_id = new.id
+        and action.is_active
+        and action.owner_approved_for_display
+        and action.effective_from <= current_timestamp
+        and (action.effective_to is null or action.effective_to > current_timestamp)
+    )
+    and (
+      not is_protected
+      or new.routing_status <> 'protected_handoff'
+      or new.routing_profile_category_id is not null
+      or new.public_visibility_default
+      or new.comments_allowed
+      or new.community_support_allowed
+    ) then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_CATEGORY_HAS_ACTIVE_HANDOFF';
+  end if;
+
+  if new.category_purpose = 'taxonomy_primary' then
+    return new;
+  end if;
+
+  select
+    parent.id,
+    parent.domain_id,
+    parent.category_purpose,
+    parent.taxonomy_code
+  into parent_record
+  from routing.issue_categories as parent
+  where parent.id = new.parent_category_id;
+
+  if not found
+    or parent_record.category_purpose <> 'taxonomy_primary'
+    or parent_record.domain_id <> new.domain_id
+    or split_part(new.taxonomy_code, '-', 1) <> parent_record.taxonomy_code then
+    raise exception using
+      errcode = '23514',
+      message = 'JAGRUKSETU_TAXONOMY_PARENT_INVALID';
+  end if;
+
+  if new.routing_profile_category_id is not null then
+    select
+      route_profile.id,
+      route_profile.category_purpose,
+      route_profile.classification_level,
+      route_profile.parent_category_id
+    into route_profile_record
+    from routing.issue_categories as route_profile
+    where route_profile.id = new.routing_profile_category_id;
+
+    if not found
+      or route_profile_record.category_purpose <> 'routing_profile'
+      or route_profile_record.classification_level <> 'category'
+      or route_profile_record.parent_category_id is not null then
+      raise exception using
+        errcode = '23514',
+        message = 'JAGRUKSETU_TAXONOMY_ROUTE_PROFILE_INVALID';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop function public.list_complaint_taxonomy();
+
+create function public.list_complaint_taxonomy()
+returns table (
+  taxonomy_id uuid,
+  primary_category_id uuid,
+  primary_code text,
+  primary_name text,
+  subcategory_code text,
+  subcategory_name text,
+  subcategory_description text,
+  workflow_type text,
+  sensitivity_class text,
+  routing_status text,
+  routing_profile_category_id uuid,
+  routing_profile_code text,
+  routing_profile_name text,
+  submission_available boolean,
+  requires_asset boolean,
+  requires_location boolean,
+  is_emergency boolean,
+  minimum_media_count integer,
+  maximum_media_count integer,
+  required_attributes text[],
+  recommended_media_kinds text[],
+  handoff_actions jsonb
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    subcategory.id,
+    primary_category.id,
+    primary_category.taxonomy_code,
+    primary_category.name,
+    subcategory.taxonomy_code,
+    subcategory.name,
+    subcategory.description,
+    subcategory.workflow_type,
+    subcategory.sensitivity_class,
+    subcategory.routing_status,
+    route_profile.id,
+    route_profile.code,
+    route_profile.name,
+    (
+      subcategory.routing_status = 'mapped'
+      and route_profile.id is not null
+      and route_profile.status = 'active'
+      and route_profile.verification_status = 'verified'
+      and not route_profile.is_placeholder
+      and route_profile.is_routing_eligible
+      and route_domain.status = 'active'
+      and route_domain.verification_status = 'verified'
+      and not route_domain.is_placeholder
+      and route_domain.is_routing_eligible
+      and exists (
+        select 1
+        from routing.route_rules as rule
+        inner join routing.route_rule_versions as rule_version
+          on rule_version.route_rule_id = rule.id
+        inner join governance.local_bodies as local_body
+          on local_body.id = rule_version.scope_local_body_id
+        where rule.category_id = route_profile.id
+          and rule.rule_code = 'V1_WARD_' || upper(route_profile.code)
+          and rule.status = 'active'
+          and rule.verification_status = 'verified'
+          and not rule.is_placeholder
+          and rule.is_routing_eligible
+          and rule_version.status = 'active'
+          and rule_version.verification_status = 'verified'
+          and not rule_version.is_placeholder
+          and rule_version.is_routing_eligible
+          and rule_version.scope_local_body_id is not null
+          and rule_version.scope_ward_id is null
+          and rule_version.effective_from <= current_timestamp
+          and (
+            rule_version.effective_to is null
+            or rule_version.effective_to > current_timestamp
+          )
+          and local_body.status = 'active'
+          and local_body.verification_status = 'verified'
+          and not local_body.is_placeholder
+          and local_body.is_routing_eligible
+          and exists (
+            select 1
+            from governance.wards as eligible_ward
+            where eligible_ward.local_body_id = rule_version.scope_local_body_id
+              and eligible_ward.status = 'active'
+              and eligible_ward.verification_status = 'verified'
+              and not eligible_ward.is_placeholder
+              and eligible_ward.is_routing_eligible
+          )
+          and not exists (
+            select 1
+            from governance.wards as eligible_ward
+            where eligible_ward.local_body_id = rule_version.scope_local_body_id
+              and eligible_ward.status = 'active'
+              and eligible_ward.verification_status = 'verified'
+              and not eligible_ward.is_placeholder
+              and eligible_ward.is_routing_eligible
+              and not exists (
+                select 1
+                from routing.ward_issue_contacts as contact
+                where contact.ward_id = eligible_ward.id
+                  and contact.category_id = route_profile.id
+                  and contact.is_active
+                  and contact.email_owner_approved_for_routing
+              )
+          )
+      )
+    ),
+    coalesce(route_profile.requires_asset, subcategory.requires_asset),
+    coalesce(route_profile.requires_location, subcategory.requires_location),
+    coalesce(route_profile.is_emergency, false) or subcategory.is_emergency,
+    coalesce(
+      route_profile.minimum_media_count,
+      subcategory.minimum_media_count
+    )::integer,
+    coalesce(
+      route_profile.maximum_media_count,
+      subcategory.maximum_media_count
+    )::integer,
+    coalesce(route_profile.required_attributes, subcategory.required_attributes),
+    case
+      when jsonb_typeof(
+        coalesce(route_profile.media_requirements, subcategory.media_requirements)
+          -> 'recommended'
+      ) = 'array'
+      then array(
+        select jsonb_array_elements_text(
+          coalesce(route_profile.media_requirements, subcategory.media_requirements)
+            -> 'recommended'
+        )
+      )
+      else '{}'::text[]
+    end,
+    coalesce(
+      (
+        select jsonb_agg(
+          jsonb_build_object(
+            'key', selected_action.action_key,
+            'kind', selected_action.action_kind,
+            'label', selected_action.label,
+            'description', selected_action.description,
+            'target', selected_action.target_value,
+            'priority', selected_action.priority
+          )
+          order by
+            selected_action.scope_rank,
+            selected_action.priority,
+            selected_action.action_key
+        )
+        from (
+          select distinct on (candidate.action_kind, candidate.target_value)
+            candidate.action_key,
+            candidate.action_kind,
+            candidate.label,
+            candidate.description,
+            candidate.target_value,
+            candidate.priority,
+            case
+              when candidate.taxonomy_category_id = subcategory.id then 0
+              else 1
+            end as scope_rank
+          from routing.complaint_handoff_actions as candidate
+          where candidate.taxonomy_category_id in (
+              subcategory.id,
+              primary_category.id
+            )
+            and candidate.is_active
+            and candidate.owner_approved_for_display
+            and candidate.effective_from <= current_timestamp
+            and (
+              candidate.effective_to is null
+              or candidate.effective_to > current_timestamp
+            )
+          order by
+            candidate.action_kind,
+            candidate.target_value,
+            case
+              when candidate.taxonomy_category_id = subcategory.id then 0
+              else 1
+            end,
+            candidate.priority,
+            candidate.action_key
+        ) as selected_action
+      ),
+      '[]'::jsonb
+    )
+  from routing.issue_categories as subcategory
+  inner join routing.issue_categories as primary_category
+    on primary_category.id = subcategory.parent_category_id
+   and primary_category.category_purpose = 'taxonomy_primary'
+  left join routing.issue_categories as route_profile
+    on route_profile.id = subcategory.routing_profile_category_id
+   and route_profile.category_purpose = 'routing_profile'
+  left join routing.issue_domains as route_domain
+    on route_domain.id = route_profile.domain_id
+  where subcategory.category_purpose = 'taxonomy_subcategory'
+    and subcategory.status = 'active'
+    and primary_category.status = 'active'
+  order by primary_category.taxonomy_code, subcategory.taxonomy_code;
+$$;
+
+create function complaints.complaint_category_display_name(
+  p_category_id uuid,
+  p_custom_attributes jsonb
+)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (
+      select subcategory.name
+      from routing.issue_categories as subcategory
+      inner join routing.issue_categories as primary_category
+        on primary_category.id = subcategory.parent_category_id
+       and primary_category.category_purpose = 'taxonomy_primary'
+      where subcategory.category_purpose = 'taxonomy_subcategory'
+        and subcategory.taxonomy_code =
+          p_custom_attributes ->> 'taxonomy_subcategory_code'
+        and primary_category.taxonomy_code =
+          p_custom_attributes ->> 'taxonomy_primary_code'
+        and subcategory.workflow_type =
+          p_custom_attributes ->> 'taxonomy_workflow_type'
+        and subcategory.routing_profile_category_id = p_category_id
+        and subcategory.status = 'active'
+        and primary_category.status = 'active'
+      limit 1
+    ),
+    (
+      select route_profile.name
+      from routing.issue_categories as route_profile
+      where route_profile.id = p_category_id
+    )
+  );
+$$;
+
+create or replace function public.list_owned_complaints(
+  p_actor_user_id uuid,
+  p_limit integer default 25,
+  p_before_submitted_at timestamptz default null,
+  p_before_id uuid default null
+)
+returns table (
+  complaint_id uuid,
+  draft_id uuid,
+  complaint_number text,
+  category_id uuid,
+  category_name text,
+  status text,
+  visibility text,
+  submitted_at timestamptz,
+  updated_at timestamptz,
+  authority_id uuid,
+  local_body_id uuid,
+  ward_id uuid,
+  department_id uuid
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 100
+    or ((p_before_submitted_at is null) <> (p_before_id is null)) then
+    raise exception using errcode = '22023', message = 'COMPLAINT_LIST_CURSOR_INVALID';
+  end if;
+  return query
+  select
+    complaint.id, complaint.draft_id, complaint.complaint_number,
+    complaint.category_id,
+    complaints.complaint_category_display_name(
+      complaint.category_id,
+      complaint.custom_attributes
+    ),
+    complaint.current_status,
+    complaint.visibility, complaint.submitted_at, complaint.updated_at,
+    assignment.authority_id, assignment.local_body_id, assignment.ward_id,
+    assignment.department_id
+  from complaints.complaints as complaint
+  inner join complaints.complaint_assignments as assignment
+    on assignment.complaint_id = complaint.id
+   and assignment.status = 'active'
+   and assignment.effective_to is null
+  where complaint.citizen_user_id = p_actor_user_id
+    and (
+      p_before_submitted_at is null
+      or (complaint.submitted_at, complaint.id) < (p_before_submitted_at, p_before_id)
+    )
+  order by complaint.submitted_at desc, complaint.id desc
+  limit p_limit;
+end;
+$$;
+
+create or replace function public.get_owned_complaint(
+  p_actor_user_id uuid,
+  p_complaint_id uuid
+)
+returns table (
+  complaint_id uuid,
+  draft_id uuid,
+  complaint_number text,
+  category_id uuid,
+  category_name text,
+  asset_id uuid,
+  description text,
+  description_language text,
+  custom_attributes jsonb,
+  status text,
+  visibility text,
+  submitted_at timestamptz,
+  updated_at timestamptz,
+  location_evidence_id uuid,
+  longitude double precision,
+  latitude double precision,
+  accuracy_meters double precision,
+  location_provider text,
+  location_captured_at timestamptz,
+  location_device_recorded_at timestamptz,
+  mock_location_detected boolean,
+  location_verification_status text,
+  location_verification_score numeric,
+  routing_decision_id uuid,
+  routing_request_id text,
+  assignment_id uuid,
+  authority_id uuid,
+  local_body_id uuid,
+  ward_id uuid,
+  department_id uuid,
+  authority_department_id uuid,
+  officer_role_id uuid
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    complaint.id, complaint.draft_id, complaint.complaint_number,
+    complaint.category_id,
+    complaints.complaint_category_display_name(
+      complaint.category_id,
+      complaint.custom_attributes
+    ),
+    complaint.asset_id, complaint.description,
+    complaint.description_language, complaint.custom_attributes,
+    complaint.current_status, complaint.visibility, complaint.submitted_at,
+    complaint.updated_at, evidence.id, extensions.st_x(evidence.location),
+    extensions.st_y(evidence.location), evidence.accuracy_meters, evidence.provider,
+    evidence.captured_at, evidence.device_recorded_at, evidence.mock_location_detected,
+    evidence.verification_status, evidence.verification_score,
+    complaint.routing_decision_id, submission.routing_request_id, assignment.id,
+    assignment.authority_id, assignment.local_body_id, assignment.ward_id,
+    assignment.department_id, assignment.authority_department_id,
+    assignment.officer_role_id
+  from complaints.complaints as complaint
+  inner join complaints.complaint_location_evidence as evidence
+    on evidence.id = complaint.location_evidence_id
+  inner join complaints.complaint_assignments as assignment
+    on assignment.complaint_id = complaint.id
+   and assignment.status = 'active'
+   and assignment.effective_to is null
+  inner join complaints.complaint_submission_requests as submission
+    on submission.complaint_id = complaint.id
+  where complaint.id = p_complaint_id
+    and complaint.citizen_user_id = p_actor_user_id;
+$$;
+
+create or replace function public.list_government_complaints(
+  p_actor_user_id uuid,
+  p_limit integer default 25,
+  p_before_submitted_at timestamptz default null,
+  p_before_id uuid default null,
+  p_scope_role_assignment_id uuid default null,
+  p_queue text default null,
+  p_statuses text[] default null,
+  p_category_id uuid default null,
+  p_ward_id uuid default null,
+  p_authority_department_id uuid default null,
+  p_officer_assignment_id uuid default null,
+  p_submitted_from timestamptz default null,
+  p_submitted_to timestamptz default null,
+  p_search text default null
+)
+returns table (
+  complaint_id uuid,
+  complaint_number text,
+  category_id uuid,
+  category_name text,
+  status text,
+  submitted_at timestamptz,
+  updated_at timestamptz,
+  workflow_version bigint,
+  current_assignment jsonb,
+  queue_flags jsonb
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 100
+    or ((p_before_submitted_at is null) <> (p_before_id is null))
+    or (p_queue is not null and p_queue not in (
+      'new', 'unassigned', 'assigned', 'reopened', 'transferred',
+      'awaiting_citizen_verification'
+    ))
+    or (p_search is not null and (
+      btrim(p_search) = '' or char_length(p_search) > 120
+    ))
+    or (p_submitted_from is not null and p_submitted_to is not null
+      and p_submitted_to <= p_submitted_from) then
+    raise exception using errcode = '22023', message = 'GOVERNMENT_COMPLAINT_REQUEST_INVALID';
+  end if;
+
+  return query
+  select
+    complaint.id,
+    complaint.complaint_number,
+    complaint.category_id,
+    complaints.complaint_category_display_name(
+      complaint.category_id,
+      complaint.custom_attributes
+    ),
+    complaint.current_status,
+    complaint.submitted_at,
+    complaint.updated_at,
+    complaint.workflow_version,
+    complaints.assignment_summary(assignment.id),
+    jsonb_build_object(
+      'isUnassigned', not complaints.assignment_has_current_verified_officer(
+        assignment.id,
+        current_timestamp
+      ),
+      'isReopened', complaint.current_status = 'reopened',
+      'isTransferred', complaint.current_status = 'transferred',
+      'isAwaitingCitizenVerification',
+        complaint.current_status = 'citizen_verification_pending'
+    )
+  from complaints.complaints as complaint
+  inner join complaints.complaint_assignments as assignment
+    on assignment.complaint_id = complaint.id
+   and assignment.status = 'active'
+   and assignment.effective_to is null
+  where complaints.actor_can_access_assignment(
+      p_actor_user_id,
+      assignment.id,
+      'view',
+      p_scope_role_assignment_id,
+      current_timestamp
+    )
+    and (p_statuses is null or complaint.current_status = any(p_statuses))
+    and (p_category_id is null or complaint.category_id = p_category_id)
+    and (p_ward_id is null or assignment.ward_id = p_ward_id)
+    and (
+      p_authority_department_id is null
+      or assignment.authority_department_id = p_authority_department_id
+    )
+    and (
+      p_officer_assignment_id is null
+      or (
+        assignment.officer_assignment_id = p_officer_assignment_id
+        and complaints.assignment_has_current_verified_officer(
+          assignment.id,
+          current_timestamp
+        )
+      )
+    )
+    and (p_submitted_from is null or complaint.submitted_at >= p_submitted_from)
+    and (p_submitted_to is null or complaint.submitted_at < p_submitted_to)
+    and (
+      p_search is null
+      or complaint.complaint_number ilike '%' || btrim(p_search) || '%'
+    )
+    and (
+      p_queue is null
+      or (p_queue = 'new' and complaint.current_status = 'submitted')
+      or (
+        p_queue = 'unassigned'
+        and not complaints.assignment_has_current_verified_officer(
+          assignment.id,
+          current_timestamp
+        )
+      )
+      or (
+        p_queue = 'assigned'
+        and complaints.assignment_has_current_verified_officer(
+          assignment.id,
+          current_timestamp
+        )
+      )
+      or (p_queue = 'reopened' and complaint.current_status = 'reopened')
+      or (p_queue = 'transferred' and complaint.current_status = 'transferred')
+      or (
+        p_queue = 'awaiting_citizen_verification'
+        and complaint.current_status = 'citizen_verification_pending'
+      )
+    )
+    and (
+      p_before_submitted_at is null
+      or (complaint.submitted_at, complaint.id) < (p_before_submitted_at, p_before_id)
+    )
+  order by complaint.submitted_at desc, complaint.id desc
+  limit p_limit + 1;
+end;
+$$;
+
+alter function public.get_government_complaint(uuid, uuid, uuid)
+  rename to get_government_complaint_phase5_impl;
+alter function public.get_government_complaint_phase5_impl(uuid, uuid, uuid)
+  set schema private;
+
+create function public.get_government_complaint(
+  p_actor_user_id uuid,
+  p_complaint_id uuid,
+  p_scope_role_assignment_id uuid default null
+)
+returns table (
+  complaint_id uuid,
+  complaint_number text,
+  category_id uuid,
+  category_name text,
+  status text,
+  submitted_at timestamptz,
+  updated_at timestamptz,
+  workflow_version bigint,
+  current_assignment jsonb,
+  queue_flags jsonb,
+  description text,
+  longitude double precision,
+  latitude double precision,
+  accuracy_meters double precision,
+  location_provider text,
+  location_captured_at timestamptz,
+  location_verification_status text,
+  location_verification_score numeric,
+  routing_summary jsonb,
+  media jsonb,
+  assignment_history jsonb,
+  timeline jsonb,
+  internal_notes jsonb,
+  inspections jsonb,
+  work_references jsonb,
+  external_dependencies jsonb,
+  resolution_evidence jsonb,
+  allowed_actions text[],
+  allowed_status_transitions text[]
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    implementation.complaint_id,
+    implementation.complaint_number,
+    implementation.category_id,
+    complaints.complaint_category_display_name(
+      implementation.category_id,
+      complaint.custom_attributes
+    ),
+    implementation.status,
+    implementation.submitted_at,
+    implementation.updated_at,
+    implementation.workflow_version,
+    implementation.current_assignment,
+    implementation.queue_flags,
+    implementation.description,
+    implementation.longitude,
+    implementation.latitude,
+    implementation.accuracy_meters,
+    implementation.location_provider,
+    implementation.location_captured_at,
+    implementation.location_verification_status,
+    implementation.location_verification_score,
+    implementation.routing_summary,
+    implementation.media,
+    implementation.assignment_history,
+    implementation.timeline,
+    implementation.internal_notes,
+    implementation.inspections,
+    implementation.work_references,
+    implementation.external_dependencies,
+    implementation.resolution_evidence,
+    implementation.allowed_actions,
+    implementation.allowed_status_transitions
+  from private.get_government_complaint_phase5_impl(
+    p_actor_user_id,
+    p_complaint_id,
+    p_scope_role_assignment_id
+  ) as implementation
+  inner join complaints.complaints as complaint
+    on complaint.id = implementation.complaint_id;
+$$;
+
+create or replace function public.claim_v1_ward_emails(
+  p_worker_id text,
+  p_limit integer default 10,
+  p_lease_seconds integer default 300
+)
+returns table (
+  outbox_id uuid,
+  complaint_id uuid,
+  recipient_email text,
+  complaint_number text,
+  category_name text,
+  ward_name text,
+  description text,
+  longitude double precision,
+  latitude double precision,
+  submitted_at timestamptz,
+  attempt_count integer
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_worker_id is null
+    or btrim(p_worker_id) = ''
+    or p_limit not between 1 and 100
+    or p_lease_seconds not between 30 and 3600 then
+    raise exception using errcode = '22023', message = 'V1_WARD_EMAIL_CLAIM_INVALID';
+  end if;
+
+  return query
+  with candidates as (
+    select outbox.id
+    from complaints.ward_email_outbox as outbox
+    where (
+      outbox.state in ('pending', 'retry')
+      and outbox.available_at <= now()
+    ) or (
+      outbox.state = 'processing'
+      and outbox.lease_expires_at <= now()
+    )
+    order by outbox.available_at, outbox.queued_at, outbox.id
+    for update skip locked
+    limit p_limit
+  ), claimed as (
+    update complaints.ward_email_outbox as outbox
+    set
+      state = 'processing',
+      attempt_count = outbox.attempt_count + 1,
+      lease_owner = btrim(p_worker_id),
+      lease_expires_at = now() + make_interval(secs => p_lease_seconds),
+      last_error_code = null,
+      updated_at = now()
+    from candidates
+    where outbox.id = candidates.id
+    returning outbox.*
+  )
+  select
+    claimed.id,
+    claimed.complaint_id,
+    claimed.recipient_email,
+    complaint.complaint_number,
+    complaints.complaint_category_display_name(
+      complaint.category_id,
+      complaint.custom_attributes
+    ),
+    ward.name,
+    complaint.description,
+    extensions.st_x(evidence.location),
+    extensions.st_y(evidence.location),
+    complaint.submitted_at,
+    claimed.attempt_count
+  from claimed
+  inner join complaints.complaints as complaint on complaint.id = claimed.complaint_id
+  inner join routing.issue_categories as route_profile
+    on route_profile.id = claimed.category_id
+  inner join governance.wards as ward on ward.id = claimed.ward_id
+  inner join complaints.complaint_location_evidence as evidence
+    on evidence.id = complaint.location_evidence_id
+  order by claimed.queued_at, claimed.id;
+end;
+$$;
+
+revoke all on function routing.validate_complaint_handoff_action()
+  from public, anon, authenticated, service_role;
+revoke all on function routing.validate_complaint_taxonomy_category()
+  from public, anon, authenticated, service_role;
+revoke all on function complaints.complaint_category_display_name(uuid, jsonb)
+  from public, anon, authenticated, service_role;
+revoke all on function private.get_government_complaint_phase5_impl(
+  uuid, uuid, uuid
+) from public, anon, authenticated, service_role;
+revoke all on function public.list_complaint_taxonomy()
+  from public, anon, authenticated, service_role;
+grant execute on function public.list_complaint_taxonomy() to service_role;
+revoke all on function public.list_owned_complaints(
+  uuid, integer, timestamptz, uuid
+) from public, anon, authenticated;
+grant execute on function public.list_owned_complaints(
+  uuid, integer, timestamptz, uuid
+) to service_role;
+revoke all on function public.get_owned_complaint(uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.get_owned_complaint(uuid, uuid)
+  to service_role;
+revoke all on function public.list_government_complaints(
+  uuid, integer, timestamptz, uuid, uuid, text, text[], uuid, uuid, uuid, uuid,
+  timestamptz, timestamptz, text
+) from public, anon, authenticated;
+grant execute on function public.list_government_complaints(
+  uuid, integer, timestamptz, uuid, uuid, text, text[], uuid, uuid, uuid, uuid,
+  timestamptz, timestamptz, text
+) to service_role;
+revoke all on function public.get_government_complaint(uuid, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.get_government_complaint(uuid, uuid, uuid)
+  to service_role;
+revoke all on function public.claim_v1_ward_emails(text, integer, integer)
+  from public, anon, authenticated;
+grant execute on function public.claim_v1_ward_emails(text, integer, integer)
+  to service_role;
+
+comment on table routing.complaint_handoff_actions is
+  'Private source-of-truth registry for official call/browser handoffs on protected taxonomy categories.';
+comment on column routing.complaint_handoff_actions.target_value is
+  'Public-safe digits-only telephone number or HTTPS URL; email and arbitrary URI targets are not supported.';
+comment on column routing.complaint_handoff_actions.owner_approved_for_display is
+  'Explicit approval to expose the sanitized handoff action through the trusted taxonomy API.';
+comment on function complaints.complaint_category_display_name(uuid, jsonb) is
+  'Returns the validated citizen taxonomy subcategory name, falling back to the operational routing-profile name.';
+comment on function public.list_complaint_taxonomy() is
+  'Returns taxonomy, fail-closed V1 ward-route readiness, and sanitized official handoff actions to the trusted API.';
+comment on function public.claim_v1_ward_emails(text, integer, integer) is
+  'Claims V1 ward-email jobs and uses the validated citizen taxonomy subcategory name when one is present.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260724110000_v1_bmc_general_intake_and_handoffs.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN SOURCE MIGRATION: 20260724120000_verified_civic_area_office_contacts.sql
+-- ============================================================================
+begin;
+
+create index if not exists offices_verified_civic_area_scope_idx
+on governance.offices (
+  authority_id,
+  local_body_id,
+  ward_id,
+  name,
+  reference_source_id
+)
+where status = 'active'
+  and verification_status = 'verified'
+  and not is_placeholder;
+
+create or replace function public.resolve_verified_governing_bodies(
+  p_longitude double precision,
+  p_latitude double precision,
+  p_accuracy_meters double precision,
+  p_resolved_at timestamptz default current_timestamp
+)
+returns table (
+  state_id uuid,
+  district_id uuid,
+  taluka_id uuid,
+  local_body_id uuid,
+  ward_id uuid,
+  match jsonb
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    resolved.state_id,
+    resolved.district_id,
+    resolved.taluka_id,
+    resolved.local_body_id,
+    resolved.ward_id,
+    jsonb_build_object(
+      'state', jsonb_build_object(
+        'kind', 'state',
+        'name', state.name,
+        'type', 'state',
+        'verificationStatus', state.verification_status,
+        'lastVerifiedOn', state.last_verified_on,
+        'sourceUrl', state_source.url
+      ),
+      'district', case
+        when district.id is null then null
+        else jsonb_build_object(
+          'kind', 'district',
+          'name', district.name,
+          'type', 'district',
+          'verificationStatus', district.verification_status,
+          'lastVerifiedOn', district.last_verified_on,
+          'sourceUrl', district_source.url
+        )
+      end,
+      'taluka', case
+        when taluka.id is null then null
+        else jsonb_build_object(
+          'kind', 'taluka',
+          'name', taluka.name,
+          'type', 'taluka',
+          'verificationStatus', taluka.verification_status,
+          'lastVerifiedOn', taluka.last_verified_on,
+          'sourceUrl', taluka_source.url
+        )
+      end,
+      'authority', jsonb_build_object(
+        'kind', 'authority',
+        'name', authority.name,
+        'type', authority.authority_type,
+        'verificationStatus', authority.verification_status,
+        'lastVerifiedOn', authority.last_verified_on,
+        'sourceUrl', authority_source.url
+      ),
+      'localBody', jsonb_build_object(
+        'kind', 'local_body',
+        'name', local_body.name,
+        'type', local_body.body_type,
+        'verificationStatus', local_body.verification_status,
+        'lastVerifiedOn', local_body.last_verified_on,
+        'sourceUrl', local_body_source.url
+      ),
+      'ward', case
+        when ward.id is null then null
+        else jsonb_build_object(
+          'kind', 'ward',
+          'name', ward.name,
+          'type', 'ward',
+          'verificationStatus', ward.verification_status,
+          'lastVerifiedOn', ward.last_verified_on,
+          'sourceUrl', ward_source.url
+        )
+      end,
+      'offices', coalesce(
+        (
+          select jsonb_agg(
+            scoped_office.public_office
+            order by scoped_office.office_name
+          )
+          from (
+            select
+              office.name as office_name,
+              jsonb_strip_nulls(
+                jsonb_build_object(
+                  'name', office.name,
+                  'type', office.office_type,
+                  'address', nullif(btrim(office.address), ''),
+                  'phone', nullif(btrim(office.official_phone), ''),
+                  'email', nullif(btrim(office.official_email), ''),
+                  'lastVerifiedOn', office.last_verified_on,
+                  'sourceUrl', office_source.url
+                )
+              ) as public_office
+            from governance.offices as office
+            inner join governance.reference_sources as office_source
+              on office_source.id = office.reference_source_id
+            where office.authority_id = authority.id
+              and (
+                office.local_body_id is null
+                or office.local_body_id = resolved.local_body_id
+              )
+              and (
+                (
+                  resolved.ward_id is not null
+                  and office.ward_id = resolved.ward_id
+                )
+                or (
+                  office.ward_id is null
+                  and office.local_body_id = resolved.local_body_id
+                )
+              )
+              and office.status = 'active'
+              and office.verification_status = 'verified'
+              and not office.is_placeholder
+              and office.last_verified_on is not null
+              and coalesce(
+                nullif(btrim(office.address), ''),
+                nullif(btrim(office.official_phone), ''),
+                nullif(btrim(office.official_email), '')
+              ) is not null
+              and office_source.status = 'active'
+              and office_source.source_type = 'official'
+              and office_source.url ~ '^https://'
+            order by office.name
+            limit 25
+          ) as scoped_office
+        ),
+        '[]'::jsonb
+      )
+    ) as match
+  from routing.resolve_jurisdiction_with_accuracy(
+    p_longitude,
+    p_latitude,
+    p_accuracy_meters,
+    p_resolved_at
+  ) as resolved
+  inner join governance.states as state on state.id = resolved.state_id
+  inner join governance.reference_sources as state_source
+    on state_source.id = state.reference_source_id
+  inner join governance.local_bodies as local_body
+    on local_body.id = resolved.local_body_id
+  inner join governance.reference_sources as local_body_source
+    on local_body_source.id = local_body.reference_source_id
+  inner join governance.authorities as authority
+    on authority.id = local_body.authority_id
+  inner join governance.reference_sources as authority_source
+    on authority_source.id = authority.reference_source_id
+  inner join governance.jurisdiction_boundary_versions as local_body_boundary
+    on local_body_boundary.id = resolved.local_body_boundary_version_id
+  inner join governance.reference_sources as local_body_boundary_source
+    on local_body_boundary_source.id = local_body_boundary.reference_source_id
+  left join governance.districts as district on district.id = resolved.district_id
+  left join governance.reference_sources as district_source
+    on district_source.id = district.reference_source_id
+  left join governance.talukas as taluka on taluka.id = resolved.taluka_id
+  left join governance.reference_sources as taluka_source
+    on taluka_source.id = taluka.reference_source_id
+  left join governance.wards as ward on ward.id = resolved.ward_id
+  left join governance.reference_sources as ward_source
+    on ward_source.id = ward.reference_source_id
+  left join governance.jurisdiction_boundary_versions as state_boundary
+    on state_boundary.id = resolved.state_boundary_version_id
+  left join governance.reference_sources as state_boundary_source
+    on state_boundary_source.id = state_boundary.reference_source_id
+  left join governance.jurisdiction_boundary_versions as district_boundary
+    on district_boundary.id = resolved.district_boundary_version_id
+  left join governance.reference_sources as district_boundary_source
+    on district_boundary_source.id = district_boundary.reference_source_id
+  left join governance.jurisdiction_boundary_versions as taluka_boundary
+    on taluka_boundary.id = resolved.taluka_boundary_version_id
+  left join governance.reference_sources as taluka_boundary_source
+    on taluka_boundary_source.id = taluka_boundary.reference_source_id
+  left join governance.jurisdiction_boundary_versions as ward_boundary
+    on ward_boundary.id = resolved.ward_boundary_version_id
+  left join governance.reference_sources as ward_boundary_source
+    on ward_boundary_source.id = ward_boundary.reference_source_id
+  where state.status = 'active'
+    and state.verification_status = 'verified'
+    and not state.is_placeholder
+    and state.is_routing_eligible
+    and state_source.status = 'active'
+    and state_source.source_type = 'official'
+    and local_body.status = 'active'
+    and local_body.verification_status = 'verified'
+    and not local_body.is_placeholder
+    and local_body.is_routing_eligible
+    and local_body_source.status = 'active'
+    and local_body_source.source_type = 'official'
+    and authority.status = 'active'
+    and authority.verification_status = 'verified'
+    and not authority.is_placeholder
+    and authority.is_routing_eligible
+    and authority_source.status = 'active'
+    and authority_source.source_type = 'official'
+    and local_body_boundary_source.status = 'active'
+    and local_body_boundary_source.source_type = 'official'
+    and (
+      resolved.state_boundary_version_id is null
+      or (
+        state_boundary_source.status = 'active'
+        and state_boundary_source.source_type = 'official'
+      )
+    )
+    and (
+      resolved.district_id is null
+      or (
+        district.status = 'active'
+        and district.verification_status = 'verified'
+        and not district.is_placeholder
+        and district.is_routing_eligible
+        and district_source.status = 'active'
+        and district_source.source_type = 'official'
+        and district_boundary_source.status = 'active'
+        and district_boundary_source.source_type = 'official'
+      )
+    )
+    and (
+      resolved.taluka_id is null
+      or (
+        taluka.status = 'active'
+        and taluka.verification_status = 'verified'
+        and not taluka.is_placeholder
+        and taluka.is_routing_eligible
+        and taluka_source.status = 'active'
+        and taluka_source.source_type = 'official'
+        and taluka_boundary_source.status = 'active'
+        and taluka_boundary_source.source_type = 'official'
+      )
+    )
+    and (
+      resolved.ward_id is null
+      or (
+        ward.status = 'active'
+        and ward.verification_status = 'verified'
+        and not ward.is_placeholder
+        and ward.is_routing_eligible
+        and ward_source.status = 'active'
+        and ward_source.source_type = 'official'
+        and ward_boundary_source.status = 'active'
+        and ward_boundary_source.source_type = 'official'
+      )
+    )
+  order by
+    state.name,
+    district.name nulls last,
+    taluka.name nulls last,
+    local_body.name,
+    ward.name nulls last,
+    resolved.local_body_id,
+    resolved.ward_id nulls last;
+$$;
+
+revoke all on function public.resolve_verified_governing_bodies(
+  double precision,
+  double precision,
+  double precision,
+  timestamptz
+) from public, anon, authenticated, service_role;
+
+grant execute on function public.resolve_verified_governing_bodies(
+  double precision,
+  double precision,
+  double precision,
+  timestamptz
+) to service_role;
+
+comment on index governance.offices_verified_civic_area_scope_idx is
+  'Supports bounded service-role lookup of verified civic-area offices without reading private routing contacts.';
+
+comment on function public.resolve_verified_governing_bodies(
+  double precision,
+  double precision,
+  double precision,
+  timestamptz
+) is
+  'Service-role-only official-source civic-area projection with sanitized verified office contacts and no private routing recipients.';
+commit;
+-- ============================================================================
+-- END SOURCE MIGRATION: 20260724120000_verified_civic_area_office_contacts.sql
 -- ============================================================================

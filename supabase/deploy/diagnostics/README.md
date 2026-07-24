@@ -11,7 +11,9 @@ verified BMC complaint reaches routing but submission returns `DEPENDENCY_UNAVAI
 The audit is read-only. It reports whether the complaint submission wrapper, granular routing-
 evidence classifier, protected `complaints.complete_complaint_submission_v2` implementation,
 service-role boundary, required triggers, and expected BMC internal-routing records are present. It
-does not inspect or return citizen, complaint, contact, credential, or location values.
+also verifies the count of active private V1 ward/category contact routes without returning
+recipient values. It does not inspect or return citizen, complaint, contact, credential, or
+location values.
 
 The current wrapper must delegate to `complaints.complete_complaint_submission_v2`. Only the
 service-role-facing `public.submit_complaint` wrapper is executable by `service_role`; both the

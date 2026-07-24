@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0028](0028-enforce-citizen-phone-mfa-for-mobile-password-access.md)
+
+ADR-0028 was subsequently superseded by
+[ADR-0033](0033-use-confirmed-phone-auth-without-citizen-mfa.md). The Phone-MFA/AAL2 material below
+is retained as architectural history and is not the current citizen authentication policy.
 
 ## Date
 
@@ -79,6 +83,8 @@ for legacy sessions and recovery, but new citizen entry is email/password.
 
 ## Related Documents
 
+- `docs/adr/0033-use-confirmed-phone-auth-without-citizen-mfa.md`
+- `docs/adr/0028-enforce-citizen-phone-mfa-for-mobile-password-access.md`
 - `docs/adr/0006-use-supabase-auth-and-database-enforced-access-control.md`
 - `docs/adr/0019-support-provider-default-passwordless-callbacks.md`
 - `docs/authentication.md`

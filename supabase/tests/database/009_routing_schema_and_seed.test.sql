@@ -38,7 +38,7 @@ select is(
       and relation.relkind = 'r'
       and relation.relrowsecurity
   ),
-  16,
+  17,
   'RLS is enabled on every routing table'
 );
 select is(
@@ -50,7 +50,7 @@ select is(
       and relation.relkind = 'r'
       and relation.relforcerowsecurity
   ),
-  16,
+  17,
   'RLS is forced on every routing table'
 );
 select is(
@@ -67,33 +67,21 @@ select is(
         'sync_candidates',
         'sync_change_items',
         'sync_review_items',
-        'sync_review_events'
+        'sync_review_events',
+        'sync_source_leases',
+        'sync_events',
+        'source_evidence',
+        'contact_channels',
+        'contact_channel_versions',
+        'sync_scope_targets'
       )
   ),
-  8,
-  'governance synchronization foundation tables exist'
+  0,
+  'deferred governance synchronization and contact tables are physically absent'
 );
-select is(
-  (
-    select count(*)::integer
-    from pg_catalog.pg_class as relation
-    inner join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
-    where namespace.nspname = 'governance'
-      and relation.relname in (
-        'source_endpoints',
-        'sync_runs',
-        'raw_snapshots',
-        'sync_run_snapshots',
-        'sync_candidates',
-        'sync_change_items',
-        'sync_review_items',
-        'sync_review_events'
-      )
-      and relation.relrowsecurity
-      and relation.relforcerowsecurity
-  ),
-  8,
-  'synchronization tables force RLS'
+select ok(
+  to_regprocedure('private.v1_deferred_subsystems_pruned()') is not null,
+  'the adaptive master bundle records the V1 physical prune'
 );
 
 select ok(
@@ -166,7 +154,11 @@ select ok(
   'the service boundary can load policy context without a candidate row'
 );
 
-select is((select count(*)::integer from routing.issue_categories), 12, 'all pilot categories are seeded');
+select is(
+  (select count(*)::integer from routing.issue_categories),
+  370,
+  'thirteen operational profiles and the complete JagrukSetu taxonomy are seeded'
+);
 select is(
   (
     select count(*)::integer
@@ -177,8 +169,8 @@ select is(
       and is_routing_eligible
       and not requires_asset
   ),
-  12,
-  'all pilot categories are enabled for the owner-approved V1 ward route'
+  13,
+  'all V1 profiles are enabled for the owner-approved ward route'
 );
 select is(
   (
@@ -198,12 +190,12 @@ select is(
 );
 select is(
   (select count(*)::integer from public.list_routing_categories(true)),
-  12,
+  13,
   'service callers can explicitly inspect all engineering categories'
 );
 select is(
   (select count(*)::integer from public.list_routing_categories(false)),
-  12,
+  13,
   'operational category lookup returns all V1 ward-routable categories'
 );
 select ok(
@@ -211,34 +203,15 @@ select ok(
     select 1 from storage.buckets
     where id = 'governance-raw-snapshots' and not public
   ),
-  'raw governance snapshots use a private Storage bucket'
+  'the retired raw-snapshot bucket stays private until removed through the Storage API'
 );
-select is(
-  (
-    select count(*)::integer
-    from governance.source_endpoints
-    where id = '93000000-0000-4000-8000-000000000010'
-      and source_kind = 'repository_bootstrap'
-      and dataset_kind = 'bootstrap_bundle'
-      and retrieval_method = 'manual_upload'
-      and repository_path = 'resources/governance/csv/'
-      and reference_source_id is null
-      and import_batch_id = '1340c42e-d0f0-5864-b886-5634136276a9'
-  ),
-  1,
-  'the canonical CSV directory is registered against the immutable Phase 2 import batch'
+select ok(
+  to_regclass('complaints.complaint_comments') is null,
+  'unused public comments are physically absent'
 );
-select is(
-  (
-    select count(*)::integer
-    from governance.source_endpoints
-    where id = '93000000-0000-4000-8000-000000000010'
-      and status = 'draft'
-      and verification_status = 'unverified'
-      and not is_placeholder
-  ),
-  1,
-  'bootstrap registration remains review-gated and unverified'
+select ok(
+  to_regprocedure('public.claim_due_governance_sync_sources(text,integer,integer)') is null,
+  'the retired synchronization claim RPC is absent'
 );
 select ok(
   exists (
@@ -252,10 +225,8 @@ select ok(
   'asset and jurisdiction radius queries have geography GiST indexes'
 );
 select ok(
-  not has_table_privilege('service_role', 'routing.routing_decisions', 'delete')
-  and not has_table_privilege('service_role', 'governance.raw_snapshots', 'delete')
-  and not has_table_privilege('service_role', 'governance.sync_review_events', 'delete'),
-  'service operations cannot delete routing, snapshot, or review history'
+  not has_table_privilege('service_role', 'routing.routing_decisions', 'delete'),
+  'service operations cannot delete routing history'
 );
 select is(
   (

@@ -31,7 +31,7 @@ export const normalizeOtp = (value: string): string => {
   const otp = value.replace(/\s/gu, '');
 
   if (!/^\d{6,8}$/u.test(otp)) {
-    throw new AuthInputError('Enter the 6-digit verification code.');
+    throw new AuthInputError('Enter the verification code from the newest SMS.');
   }
 
   return otp;

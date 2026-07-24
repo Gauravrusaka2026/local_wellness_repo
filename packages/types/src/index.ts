@@ -51,6 +51,7 @@ export const authAuditEventTypes = [
   'session_refreshed',
   'otp_requested',
   'otp_verified',
+  'password_changed',
   'device_registered',
   'device_revoked',
   'government_invitation_created',
@@ -68,6 +69,7 @@ export const clientAuthAuditEventTypes = [
   'sign_out_succeeded',
   'session_refreshed',
   'otp_verified',
+  'password_changed',
 ] as const;
 export type ClientAuthAuditEventType = (typeof clientAuthAuditEventTypes)[number];
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
   createEmailPasswordAccount,
@@ -7,10 +7,13 @@ import {
   signInWithEmailPassword,
 } from './auth-service';
 import { AuthInputError } from './auth-input';
+import { useLocalization } from '../ui/localization';
 
 export type PasswordAuthMode = 'create-account' | 'forgot-password' | 'sign-in';
 
 export const usePasswordAuth = () => {
+  const { t } = useLocalization();
+  const pending = useRef(false);
   const [email, setEmailValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -47,25 +50,22 @@ export const usePasswordAuth = () => {
   };
 
   const submit = async (): Promise<'authenticated' | 'idle'> => {
+    if (pending.current) return 'idle';
+    pending.current = true;
     clearFeedback();
     setIsPending(true);
     try {
       if (mode === 'forgot-password') {
         const normalizedEmail = await sendPasswordRecoveryEmail(email);
-        setMessage(
-          `If an account exists for ${normalizedEmail}, its password recovery email is on the way.`,
-        );
+        setMessage(t('recoveryEmailSentIfAccount', { email: normalizedEmail }));
         return 'idle';
       }
 
       if (mode === 'create-account') {
-        if (password !== passwordConfirmation)
-          throw new AuthInputError('The passwords do not match.');
+        if (password !== passwordConfirmation) throw new AuthInputError(t('passwordsDoNotMatch'));
         const result = await createEmailPasswordAccount(email, password);
         if (result.status === 'email-confirmation-required') {
-          setMessage(
-            'Your account was created. Confirm the email using the newest Supabase message, then sign in to verify your phone.',
-          );
+          setMessage(t('accountCreatedConfirmEmail'));
           return 'idle';
         }
         return 'authenticated';
@@ -79,6 +79,7 @@ export const usePasswordAuth = () => {
       );
       return 'idle';
     } finally {
+      pending.current = false;
       setIsPending(false);
     }
   };

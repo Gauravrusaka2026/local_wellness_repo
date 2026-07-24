@@ -62,6 +62,17 @@ const verifiedMatch: VerifiedGoverningBodyMatch = {
     lastVerifiedOn: '2026-07-12',
     sourceUrl: 'https://municipality.gov.test/wards',
   },
+  offices: [
+    {
+      name: 'Test Ward Office',
+      type: 'ward_office',
+      address: '1 Civic Street',
+      phone: '12345678',
+      email: 'test-ward@municipality.gov.test',
+      lastVerifiedOn: '2026-07-12',
+      sourceUrl: 'https://municipality.gov.test/wards/test-ward',
+    },
+  ],
 };
 
 class FakeGovernanceDirectoryStore extends GovernanceDirectoryStore {
@@ -138,11 +149,13 @@ describe('API governing-body directory contract', () => {
     ]);
 
     const serialized = JSON.stringify(response.body.data);
-    assert.equal(serialized.includes('phone'), false);
-    assert.equal(serialized.includes('email'), false);
+    assert.equal(serialized.includes('officerMobile'), false);
+    assert.equal(serialized.includes('whatsapp'), false);
+    assert.equal(serialized.includes('wardId'), false);
+    assert.equal(serialized.includes('authorityId'), false);
     assert.equal(serialized.includes('geometry'), false);
     assert.equal(serialized.includes('latitude'), false);
-    assert.equal(serialized.includes('Id"'), false);
+    assert.equal(serialized.includes('routingRule'), false);
   });
 
   it('reports unsupported and ambiguous states honestly', async () => {

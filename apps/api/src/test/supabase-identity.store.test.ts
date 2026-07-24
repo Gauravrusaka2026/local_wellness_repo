@@ -395,8 +395,8 @@ describe('Supabase identity store government invitation options', () => {
   });
 });
 
-describe('Supabase identity store MFA state', () => {
-  it('queries verified phone MFA through the service-only RPC', async () => {
+describe('Supabase identity store phone-verification state', () => {
+  it('queries verified phone state through the service-only RPC', async () => {
     const calls: Array<Readonly<{ arguments_: Record<string, unknown>; functionName: string }>> =
       [];
     const store = new SupabaseIdentityStore({
@@ -408,22 +408,22 @@ describe('Supabase identity store MFA state', () => {
       },
     } as unknown as SupabaseClients);
 
-    assert.equal(await store.userHasVerifiedPhoneMfa(userId), true);
+    assert.equal(await store.userHasVerifiedPhone(userId), true);
     assert.deepEqual(calls, [
       {
         arguments_: { p_user_id: userId },
-        functionName: 'user_has_verified_phone_mfa',
+        functionName: 'user_has_verified_phone',
       },
     ]);
   });
 
-  it('fails closed when verified phone MFA state cannot be loaded', async () => {
+  it('fails closed when verified phone state cannot be loaded', async () => {
     const store = new SupabaseIdentityStore({
       serviceRoleClient: {
         rpc: async () => ({ data: null, error: { message: 'internal detail' } }),
       },
     } as unknown as SupabaseClients);
 
-    await assert.rejects(store.userHasVerifiedPhoneMfa(userId), IdentityDataAccessError);
+    await assert.rejects(store.userHasVerifiedPhone(userId), IdentityDataAccessError);
   });
 });

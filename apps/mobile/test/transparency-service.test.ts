@@ -5,9 +5,7 @@ import { ApiError } from '../src/api/client';
 import {
   createNearbyViewport,
   createRegionalTrendingViewport,
-  NearbyLocationError,
   projectApproximatePoint,
-  requiresNearbyLocationSettings,
 } from '../src/transparency/nearby-viewport';
 import { buildHotspotVisuals } from '../src/transparency/hotspot-visualization';
 import {
@@ -59,17 +57,6 @@ afterEach(() => {
 });
 
 describe('mobile transparency service', () => {
-  it('offers settings recovery only for permanent nearby-location denial', () => {
-    assert.equal(
-      requiresNearbyLocationSettings(
-        new NearbyLocationError('Enable permission.', { requiresAppSettings: true }),
-      ),
-      true,
-    );
-    assert.equal(requiresNearbyLocationSettings(new NearbyLocationError('Try again.')), false);
-    assert.equal(requiresNearbyLocationSettings(new Error('unrelated')), false);
-  });
-
   it('uses an anonymous request and validates the shared list contract', async () => {
     let requestInit: RequestInit | undefined;
     globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {

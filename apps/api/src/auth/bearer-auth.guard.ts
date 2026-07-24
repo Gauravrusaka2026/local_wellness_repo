@@ -21,7 +21,7 @@ import {
 const bearerTokenPattern = /^Bearer[ \t]+([^\s]+)$/iu;
 
 type ActorAccessContext = Readonly<{
-  hasVerifiedPhoneMfa: boolean;
+  hasVerifiedPhone: boolean;
   profile: Profile | null;
   requiresPrivilegedMfa: boolean;
 }>;
@@ -98,20 +98,17 @@ export class BearerAuthGuard implements CanActivate {
     }
 
     if (!requiresPrivilegedMfa) {
-      const hasVerifiedPhoneMfa = actorAccess.hasVerifiedPhoneMfa;
-      const hasVerifiedPhoneSession = hasVerifiedPhoneMfa && user.assuranceLevel === 'aal2';
-
-      if (!hasVerifiedPhoneSession) {
-        if (this.configuration.citizenPhoneMfaMode === 'enforce') {
+      if (!actorAccess.hasVerifiedPhone) {
+        if (this.configuration.citizenPhoneVerificationMode === 'enforce') {
           throw new ApiException(
             HttpStatus.FORBIDDEN,
-            'PHONE_MFA_REQUIRED',
-            'Phone verification is required for this account.',
+            'PHONE_VERIFICATION_REQUIRED',
+            'A verified phone number is required for this account.',
           );
         }
 
         this.logger.warn(
-          `Citizen request ${request.requestId ?? 'unavailable'} lacks verified phone AAL2 while phone MFA is in observe mode.`,
+          `Citizen request ${request.requestId ?? 'unavailable'} lacks a verified phone while phone verification is in observe mode.`,
         );
       }
     }
@@ -140,10 +137,10 @@ export class BearerAuthGuard implements CanActivate {
       this.identityStore.findProfile(userId),
       this.identityStore.userRequiresPrivilegedMfa(userId, new Date().toISOString()),
     ]);
-    const hasVerifiedPhoneMfa = requiresPrivilegedMfa
+    const hasVerifiedPhone = requiresPrivilegedMfa
       ? false
-      : await this.identityStore.userHasVerifiedPhoneMfa(userId);
+      : await this.identityStore.userHasVerifiedPhone(userId);
 
-    return { hasVerifiedPhoneMfa, profile, requiresPrivilegedMfa };
+    return { hasVerifiedPhone, profile, requiresPrivilegedMfa };
   }
 }

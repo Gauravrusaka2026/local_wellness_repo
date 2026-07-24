@@ -29,8 +29,8 @@ select is(
       and relation.relrowsecurity
       and relation.relforcerowsecurity
   ),
-  68,
-  'every complaint table enables and forces RLS'
+  67,
+  'every retained complaint table enables and forces RLS'
 );
 
 select has_column(

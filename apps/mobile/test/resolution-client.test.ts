@@ -8,6 +8,7 @@ import {
   getComplaintEvidenceAccess,
   getComplaintResolutionContext,
   getUserFacingComplaintError,
+  isComplaintSubmissionOutcomeUnknown,
   reopenComplaint,
   shouldRotateSubmitIdempotencyKeyAfterError,
   submitComplaintResolutionFeedback,
@@ -329,6 +330,24 @@ test('classifies routing terminal errors separately from ambiguous submission ou
       false,
     );
   }
+
+  for (const code of ['NETWORK_ERROR', 'INVALID_RESPONSE']) {
+    assert.equal(
+      isComplaintSubmissionOutcomeUnknown(
+        new ApiClientError({ code, message: 'ambiguous outcome', status: 0 }),
+      ),
+      true,
+    );
+  }
+  for (const code of ['REQUEST_ABORTED', 'DEPENDENCY_UNAVAILABLE', 'COMPLAINT_ROUTE_UNAVAILABLE']) {
+    assert.equal(
+      isComplaintSubmissionOutcomeUnknown(
+        new ApiClientError({ code, message: 'known outcome', status: 503 }),
+      ),
+      false,
+    );
+  }
+  assert.equal(isComplaintSubmissionOutcomeUnknown(new Error('local failure')), false);
 
   assert.equal(
     getUserFacingComplaintError(

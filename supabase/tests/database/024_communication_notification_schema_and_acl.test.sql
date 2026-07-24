@@ -9,7 +9,11 @@ select has_table('complaints', 'conversation_rooms');
 select has_table('complaints', 'room_members');
 select has_table('complaints', 'messages');
 select has_table('complaints', 'message_receipts');
-select has_table('complaints', 'complaint_comments');
+select hasnt_table(
+  'complaints',
+  'complaint_comments',
+  'the deferred public-comment table is pruned from V1'
+);
 select has_table('complaints', 'notifications');
 select has_table('complaints', 'notification_deliveries');
 select has_table('complaints', 'notification_delivery_attempts');
@@ -97,12 +101,15 @@ select ok((
   inner join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
   where namespace.nspname = 'complaints' and relation.relname = 'message_receipts'
 ), 'message receipts enable and force RLS');
-select ok((
-  select relation.relrowsecurity and relation.relforcerowsecurity
-  from pg_catalog.pg_class as relation
-  inner join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
-  where namespace.nspname = 'complaints' and relation.relname = 'complaint_comments'
-), 'public-comment structure enables and forces RLS');
+select ok(
+  not exists (
+    select 1
+    from pg_catalog.pg_policies
+    where schemaname = 'complaints'
+      and tablename = 'complaint_comments'
+  ),
+  'the pruned public-comment structure leaves no stale RLS policies'
+);
 select ok((
   select relation.relrowsecurity and relation.relforcerowsecurity
   from pg_catalog.pg_class as relation
@@ -130,7 +137,10 @@ select ok((
 
 select ok(not has_schema_privilege('anon', 'complaints', 'usage'));
 select ok(not has_table_privilege('service_role', 'complaints.messages', 'select'));
-select ok(not has_table_privilege('authenticated', 'complaints.complaint_comments', 'select'));
+select ok(
+  to_regclass('complaints.complaint_comments') is null,
+  'authenticated clients have no public-comment table to query'
+);
 select ok(not has_function_privilege(
   'authenticated',
   'public.create_complaint_message(uuid,uuid,uuid,text,text)',

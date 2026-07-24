@@ -9,5 +9,8 @@
   (`AUTH-002`).
 - Add bounded authority-first search and pagination before statewide invitation rollout
   (`AUTH-011`).
-- Keep citizen Phone MFA in observe mode until an approved SMS provider and recovery/device tests
-  are operational (`AUTH-010`).
+- Apply migrations 52–53, enable the ordinary Phone provider/Twilio Verify, phone confirmations and
+  Phone Auth signup capability, activate the email-required Before User Created hook, set the
+  preferred `*_PHONE_VERIFICATION_MODE` values to `enforce`, and complete the managed
+  recovery/device matrix (`AUTH-010`, `AUTH-014`, `AUTH-015`). Advanced Phone MFA is not required
+  for citizens.

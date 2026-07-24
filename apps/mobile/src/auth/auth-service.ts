@@ -6,11 +6,15 @@ import { signOutWithAudit } from './sign-out';
 import { getSupabaseClient } from './supabase';
 import {
   createPasswordAccount,
-  exchangePasswordRecoveryCode,
+  establishPasswordRecoverySession,
   requestPasswordRecovery,
+  requestPasswordPhoneOtp,
   signInWithPassword,
-  updatePassword,
+  updatePasswordWithPhoneOtp,
+  type PasswordPhoneOtpRequest,
+  type PasswordRecoveryParameters,
   type PasswordSignUpResult,
+  type PasswordUpdateResult,
 } from './password-auth';
 
 export { getUserFacingAuthError } from './auth-error';
@@ -35,8 +39,15 @@ export const createEmailPasswordAccount = (
 export const sendPasswordRecoveryEmail = (email: string): Promise<string> =>
   requestPasswordRecovery(getSupabaseClient(), email, Linking.createURL('auth/reset-password'));
 
-export const completePasswordRecovery = (code: string): Promise<void> =>
-  exchangePasswordRecoveryCode(getSupabaseClient(), code);
+export const completePasswordRecovery = (parameters: PasswordRecoveryParameters) =>
+  establishPasswordRecoverySession(getSupabaseClient(), parameters);
 
-export const setNewPassword = (password: string): Promise<void> =>
-  updatePassword(getSupabaseClient(), password);
+export const sendPasswordPhoneCode = (expectedUserId: string): Promise<PasswordPhoneOtpRequest> =>
+  requestPasswordPhoneOtp(getSupabaseClient(), expectedUserId);
+
+export const changePasswordAfterPhoneVerification = (
+  password: string,
+  otp: string,
+  request: PasswordPhoneOtpRequest,
+): Promise<PasswordUpdateResult> =>
+  updatePasswordWithPhoneOtp(getSupabaseClient(), password, otp, request);

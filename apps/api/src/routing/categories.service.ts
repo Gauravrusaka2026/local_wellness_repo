@@ -1,5 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { RoutingCategory, RoutingCategoryCatalogItem } from '@local-wellness/types';
+import type {
+  ComplaintTaxonomyCatalogItem,
+  RoutingCategory,
+  RoutingCategoryCatalogItem,
+} from '@local-wellness/types';
 
 import { ApiException } from '../common/api-exception.js';
 import { RoutingStore } from '../data/routing.store.js';
@@ -13,6 +17,11 @@ export class CategoriesService {
     value: RoutingCategoryCatalogItem[];
   }> | null = null;
   private catalogRequest: Promise<RoutingCategoryCatalogItem[]> | null = null;
+  private taxonomyCache: Readonly<{
+    expiresAt: number;
+    value: ComplaintTaxonomyCatalogItem[];
+  }> | null = null;
+  private taxonomyRequest: Promise<ComplaintTaxonomyCatalogItem[]> | null = null;
 
   public constructor(
     @Inject(RoutingStore)
@@ -43,6 +52,29 @@ export class CategoriesService {
       return await request;
     } finally {
       if (this.catalogRequest === request) this.catalogRequest = null;
+    }
+  }
+
+  public async listComplaintTaxonomy(): Promise<ComplaintTaxonomyCatalogItem[]> {
+    const now = Date.now();
+    if (this.taxonomyCache && this.taxonomyCache.expiresAt > now) {
+      return this.taxonomyCache.value;
+    }
+    if (this.taxonomyRequest) return this.taxonomyRequest;
+
+    const request = this.routingStore.listComplaintTaxonomy().then((value) => {
+      this.taxonomyCache = {
+        expiresAt: Date.now() + categoryCatalogCacheTtlMilliseconds,
+        value,
+      };
+      return value;
+    });
+    this.taxonomyRequest = request;
+
+    try {
+      return await request;
+    } finally {
+      if (this.taxonomyRequest === request) this.taxonomyRequest = null;
     }
   }
 

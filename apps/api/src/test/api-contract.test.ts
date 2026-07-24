@@ -154,6 +154,32 @@ describe('API identity contract', () => {
     });
   });
 
+  it('accepts a password-change audit after the client completes fresh phone verification', async () => {
+    await request(application.getHttpServer())
+      .post('/api/v1/auth/audit-events')
+      .set('authorization', 'Bearer valid-access-token')
+      .send({
+        eventType: 'password_changed',
+        metadata: {
+          authMethod: 'phone_otp',
+          clientSurface: 'mobile',
+        },
+      })
+      .expect(201);
+
+    assert.deepEqual(identityStore.auditEvents[0], {
+      actorUserId: activeProfile.id,
+      eventType: 'password_changed',
+      metadata: {
+        authMethod: 'phone_otp',
+        clientSurface: 'mobile',
+        source: 'client_reported',
+      },
+      outcome: 'success',
+      subjectUserId: activeProfile.id,
+    });
+  });
+
   it('allows only configured browser origins through CORS', async () => {
     const allowedResponse = await request(application.getHttpServer())
       .options('/api/v1/me')

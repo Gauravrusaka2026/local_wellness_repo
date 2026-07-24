@@ -35,8 +35,8 @@ select is(
       and version.status = 'active'
       and version.is_routing_eligible
   ),
-  12,
-  '12 auditable V1 ward-facade rules are active and routing eligible'
+  13,
+  '13 auditable V1 ward-facade rules are active and routing eligible'
 );
 
 select is(
@@ -373,33 +373,16 @@ select is(
   'split-boundary points remain fail-closed for all operational categories'
 );
 
-select ok(
-  not exists (
-    select 1
-    from governance.contact_channel_versions as version
-    inner join governance.contact_channels as channel on channel.id = version.contact_channel_id
-    where version.is_complaint_delivery_approved
-      and (
-        channel.authority_id = '3fabe3b8-47cf-58fe-a59c-bb34bd02322a'
-        or channel.local_body_id = 'fa1e71b4-01e3-5e72-92e8-1476eec1adcd'
-        or channel.ward_id in (
-          select id
-          from governance.wards
-          where local_body_id = 'fa1e71b4-01e3-5e72-92e8-1476eec1adcd'
-        )
-        or channel.office_id in (
-          select id
-          from governance.offices
-          where authority_id = '3fabe3b8-47cf-58fe-a59c-bb34bd02322a'
-        )
-        or channel.officer_assignment_id in (
-          select id
-          from governance.officer_assignments
-          where authority_id = '3fabe3b8-47cf-58fe-a59c-bb34bd02322a'
-        )
-      )
+select is(
+  (
+    select count(*)::integer
+    from routing.ward_issue_contacts as contact
+    inner join governance.wards as ward on ward.id = contact.ward_id
+    where ward.local_body_id = 'fa1e71b4-01e3-5e72-92e8-1476eec1adcd'
+      and contact.is_active
   ),
-  'no BMC contact channel is approved for external delivery'
+  338,
+  'the compact V1 contact matrix remains active alongside internal routing'
 );
 
 select ok(

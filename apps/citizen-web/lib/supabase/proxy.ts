@@ -2,9 +2,10 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
-import { buildCitizenPhoneMfaPath, getCitizenPhoneMfaState } from '../auth/phone-mfa';
+import { buildCitizenPhoneVerificationPath } from '../auth/phone-verification';
+import { isCitizenPhoneVerifiedUser } from '../auth/phone-verification-state';
 import { getSafeReturnPath } from '../auth/return-path';
-import { getCitizenPhoneMfaMode, getPublicSupabaseConfiguration } from '../environment';
+import { getCitizenPhoneVerificationMode, getPublicSupabaseConfiguration } from '../environment';
 
 const copySessionCookies = (source: NextResponse, destination: NextResponse): void => {
   source.cookies.getAll().forEach((cookie) => {
@@ -27,7 +28,7 @@ export const updateSession = async (
   let response = NextResponse.next({ request });
   let sessionWasRefreshed = false;
   const configuration = getPublicSupabaseConfiguration();
-  const phoneMfaIsEnforced = getCitizenPhoneMfaMode() === 'enforce';
+  const phoneVerificationIsEnforced = getCitizenPhoneVerificationMode() === 'enforce';
   const supabase = createServerClient(configuration.url, configuration.anonKey, {
     cookies: {
       getAll() {
@@ -50,8 +51,9 @@ export const updateSession = async (
   });
 
   // Keep this immediately after client creation so refresh cookies stay synchronized.
-  const { data, error } = await supabase.auth.getClaims();
-  const hasSession = !error && Boolean(data?.claims);
+  const { data, error } = await supabase.auth.getUser();
+  const user = error ? null : data.user;
+  const hasSession = user !== null;
   const isLoginRoute = request.nextUrl.pathname === '/auth/login';
   const isPhoneVerificationRoute = request.nextUrl.pathname === '/auth/verify-phone';
   const requestedPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
@@ -81,34 +83,31 @@ export const updateSession = async (
     return redirectWithSessionCookies(`/auth/login?${parameters.toString()}`);
   }
 
-  if (hasSession && isLoginRoute && !phoneMfaIsEnforced) {
+  if (hasSession && isLoginRoute && !phoneVerificationIsEnforced) {
     return redirectWithSessionCookies(safeAuthReturnPath);
   }
 
   if (
     hasSession &&
-    phoneMfaIsEnforced &&
+    phoneVerificationIsEnforced &&
     (isProtectedRoute || isLoginRoute || isPhoneVerificationRoute)
   ) {
-    let phoneMfaIsVerified = false;
-    try {
-      phoneMfaIsVerified = (await getCitizenPhoneMfaState(supabase)).status === 'verified';
-    } catch {
-      // The verification page renders a recoverable provider error. Protected routes fail closed.
-    }
+    const phoneIsVerified = user !== null && isCitizenPhoneVerifiedUser(user);
 
     if (isPhoneVerificationRoute) {
-      return phoneMfaIsVerified ? redirectWithSessionCookies(safeAuthReturnPath) : response;
+      return phoneIsVerified ? redirectWithSessionCookies(safeAuthReturnPath) : response;
     }
 
     if (isLoginRoute) {
       return redirectWithSessionCookies(
-        phoneMfaIsVerified ? safeAuthReturnPath : buildCitizenPhoneMfaPath(safeAuthReturnPath),
+        phoneIsVerified
+          ? safeAuthReturnPath
+          : buildCitizenPhoneVerificationPath(safeAuthReturnPath),
       );
     }
 
-    if (!phoneMfaIsVerified) {
-      return redirectWithSessionCookies(buildCitizenPhoneMfaPath(safeRequestedPath));
+    if (!phoneIsVerified) {
+      return redirectWithSessionCookies(buildCitizenPhoneVerificationPath(safeRequestedPath));
     }
   }
 

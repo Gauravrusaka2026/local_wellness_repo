@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded
+
+Superseded by
+[ADR-0031](./0031-prune-deferred-database-subsystems-for-v1.md) for V1. The synchronization design is
+retained as historical context; its tables and runtime are no longer installed after the V1 prune.
 
 ## Date
 

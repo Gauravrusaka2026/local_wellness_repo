@@ -92,8 +92,9 @@ provide the practical V1 contract.
   structured logs contain identifiers and outcome codes only.
 - Recheck recipient complaint access at realtime claim/emission time. Revoked recipients must not
   receive queued events.
-- `complaint_comments` is structural only. No public-comment read/create RPC or client route may be
-  enabled until public visibility, moderation, and privacy policy are approved.
+- ADR-0031 removes the unused structural `complaint_comments` table from V1. Any future public
+  comment model requires a new forward migration plus approved visibility, moderation and privacy
+  policy.
 - Lease tokens are short-lived database capabilities and must never be logged or exposed to a
   client.
 

@@ -226,7 +226,7 @@ rename or promote `PUNE-W01`–`PUNE-W05` or ordinal-map `BRIH-W01`–`BRIH-W05`
 Preserve those rows and the V1 scope seed as audit history; publish reviewed canonical records and a
 new scope version when official evidence is available.
 
-### Separate BMC Demo Overlay
+### Legacy pre-V1 BMC Demo Overlay
 
 The read-only Maharashtra baseline is not rewritten to make Mumbai operational. The separate
 `resources/governance/csv/mumbai_bmc_demo_bootstrap_v1/` dataset, workbook, manifest, validation
@@ -234,14 +234,16 @@ report, and official legacy-ward GeoJSON preserve their own provenance and warni
 BMC governance/routing artifacts create separate source-backed operational records and retain the
 canonical numeric placeholders as audit history.
 
-For the current existing Supabase staging project, `supabase/deploy/bmc-mobile-demo/` packages the
+For an existing non-production project that has not yet applied the V1 ward facade or prune,
+`supabase/deploy/bmc-mobile-demo/` packages the
 reviewed subset into four transaction-atomic SQL Editor files: baseline categories/core, official
 boundaries, ward/governance crosswalk, and routing activation/verification. Run them in that exact
 order. The bundle exposes 12 categories but activates only garbage dump, missed sweeping, and
 mosquito breeding across 22 one-to-one wards. K/S, K/N, P/E, P/W, the other nine categories, and
 automatic external delivery remain fail closed. All nine canonical BMC routing-reference rows
 require asset ownership evidence. The bundle must never be used to claim official BMC-system
-submission or to promote the canonical Maharashtra placeholders.
+submission or to promote the canonical Maharashtra placeholders. Apply it only as a legacy
+bootstrap before the current V1 ward-routing artifact; never replay it after migration 47 or 50.
 
 `resources/governance/manifests/bmc-routing-asset-sources.v1.json` is the network-free discovery
 contract for those nine categories. It pins only official MCGM ArcGIS metadata for road, storm-water,
@@ -278,19 +280,46 @@ record locators and raw source-reported verification status; it never rewrites e
 The generated matrix is private operational staging configuration for the simplified facade. The
 owner's separate staging approval permits all 312 rows to route and queue email even where the raw
 source reports a conflict or a non-promoted state; it does not rewrite that raw status, update the
-review-gated governance synchronization history, prove recipient acceptance, or authorize
-production delivery. Email, phone and WhatsApp remain private, and phone/WhatsApp are reference-
-only in V1. Production replacement still uses versioned source snapshots, review, matching and
-publication.
+retired review-gated synchronization history, prove recipient acceptance, or authorize production
+delivery. Email, phone and WhatsApp remain private, and phone/WhatsApp are reference-only in V1.
+A future replacement for scheduled source review requires a new ADR and migration.
+
+### JagrukSetu BMC Intake V1 Overlay
+
+The complete citizen taxonomy is classified by a separate versioned overlay under
+`resources/governance/csv/jagruksetu_bmc_intake_v1/`. These files do not replace or rewrite the
+canonical Phase 2 CSV/workbook or either immutable ward-contact ZIP:
+
+- `Source_Registry.csv` pins the seven official public sources used by protected handoffs; and
+- `Protected_Handoff_Actions.csv` defines the approved digits-only call and credential-free HTTPS
+  browser actions.
+
+`scripts/generate-jagruksetu-bmc-intake.mjs` joins that overlay with
+`resources/JAGRUKSETU_COMPLAINT_TAXONOMY_V1.md`, preserves the 13 specialised mappings, assigns 243
+public/restricted leaves to one general ward profile and assigns 84 private/emergency-private
+leaves to protected handoffs. It generates a 340-row worklist, import-ready JSON, validation
+report, hash-pinned manifests, seed 56 and the exact SQL Editor deployment. Use:
+
+```bash
+pnpm governance:jagruksetu:intake:generate
+pnpm governance:jagruksetu:intake:check
+```
+
+The generated seed copies each ward's existing owner-approved email/provenance into exactly one
+general profile, increasing the private contact matrix from 312 to 338 rows. It never emits a
+recipient email into generated client data. Protected actions remain distinct from the ward-email
+matrix and never create ordinary complaints.
+
+After review, treat both overlay CSVs and generated manifests as versioned inputs: make changes
+through a new reviewed dataset version and regenerate; do not hand-edit generated outputs.
 
 ## Refresh Process
 
-The following remains the required operator workflow for a replacement repository bundle; it is not
-a capability of the current baseline generator. The committed command reproduces only the pinned
-baseline and does not diff replacement bundles or close temporal versions automatically
-(`DATA-008`). Phase 3 separately establishes the permanent official-source synchronization
-persistence and typed stage contracts described in `docs/governance-synchronization.md`. That
-foundation does not yet implement connectors, scheduling, parsing, review UI, or publication.
+The following remains the required offline operator workflow for a replacement repository bundle;
+it is not a capability of the current baseline generator. The committed command reproduces only
+the pinned baseline and does not diff replacement bundles or close temporal versions automatically
+(`DATA-008`). The former scheduled synchronization foundation is retired for V1 under ADR-0031;
+`docs/governance-synchronization.md` is historical design context only.
 
 1. Add the reviewed replacement source bundle without editing the previous canonical files in place.
 2. Record source origin, retrieval date and expected version outside sensitive configuration.
@@ -319,11 +348,11 @@ foundation does not yet implement connectors, scheduling, parsing, review UI, or
   asset-owner mapping, current assignment set, confidence policy, or fallback route in the current
   bootstrap.
 - The BMC overlay has no reviewed asset/ownership import for potholes, blocked drains, sewage
-  overflows, water leaks, broken streetlights, open manholes, illegal construction, encroachment, or
-  fallen trees. Its official layer manifest is discovery metadata only. The generic taxonomy also
-  treats illegal construction, encroachment, and fallen trees as not requiring an asset while the
-  BMC-specific canonical references require ownership; resolve that municipality-specific policy
-  mismatch before activation instead of weakening the BMC records.
+  overflows, water leaks, broken streetlights, open manholes, illegal construction, encroachment,
+  or fallen trees. Its official layer manifest is discovery metadata only. The V1 general ward
+  profile intentionally uses coarse location-only intake; it is not evidence of a precise
+  department, asset owner or official external filing. Replace individual general mappings only
+  after reviewed municipality-specific ownership data exists.
 - The canonical BMC numeric placeholders and Pune's current numeric wards `1`–`5` still lack an
   approved identity/boundary promotion. The separate BMC overlay supplies source-backed operational
   ward identities and legacy geometry without promoting those placeholders; split K/P child

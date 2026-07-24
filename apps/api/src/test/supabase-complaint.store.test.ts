@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { describe, it } from 'node:test';
 
 import type {
+  ComplaintTaxonomyCatalogItem,
   ComplaintLocationCapture,
   CreateComplaintMediaUploadIntentInput,
   DuplicateDetectionResult,
@@ -284,6 +285,10 @@ class FakeRoutingStore extends RoutingStore {
     throw new Error('Unexpected routing category catalog read.');
   }
 
+  public async listComplaintTaxonomy(): Promise<ComplaintTaxonomyCatalogItem[]> {
+    throw new Error('Unexpected complaint taxonomy read.');
+  }
+
   public async loadRoutingContext(
     input: RoutingResolutionInput,
     jurisdiction: JurisdictionResolution,
@@ -441,6 +446,40 @@ describe('Supabase complaint store drafts and media', () => {
     assert.equal(locationCall?.arguments_['p_longitude'], locationCapture.longitude);
     assert.equal(locationCall?.arguments_['p_latitude'], locationCapture.latitude);
     assert.equal(locationCall?.arguments_['p_evidence_type'], 'current_location');
+  });
+
+  it('forwards an explicit null category when a taxonomy selection clears its routing profile', async () => {
+    const calls: RpcCall[] = [];
+    let categoryCleared = false;
+    const { store } = createStore(async (functionName, arguments_) => {
+      calls.push({ functionName, arguments_ });
+      switch (functionName) {
+        case 'get_complaint_draft':
+          return {
+            data: [{ ...draftRow, category_id: categoryCleared ? null : draftRow.category_id }],
+            error: null,
+          };
+        case 'list_complaint_location_evidence':
+          return { data: [locationRow], error: null };
+        case 'list_complaint_media':
+          return { data: [mediaRow], error: null };
+        case 'update_complaint_draft':
+          categoryCleared = true;
+          return { data: [], error: null };
+        default:
+          throw new Error(`Unexpected RPC: ${functionName}`);
+      }
+    });
+
+    const updated = await store.updateDraft(ids.actor, ids.draft, {
+      categoryId: null,
+      customAttributes: {},
+    });
+
+    assert.equal(updated.categoryId, null);
+    const updateCall = calls.find((call) => call.functionName === 'update_complaint_draft');
+    assert.equal(updateCall?.arguments_['p_category_id'], null);
+    assert.deepEqual(updateCall?.arguments_['p_custom_attributes'], {});
   });
 
   it('uses deterministic media identity, a private locator, and verified finalization arguments', async () => {

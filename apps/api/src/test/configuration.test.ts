@@ -36,7 +36,7 @@ describe('API environment aliases', () => {
     assert.equal(configuration.supabase.serviceRoleKey, 'legacy-service-role');
   });
 
-  it('defaults MFA controls to observe and accepts only explicit enforcement', () => {
+  it('defaults assurance controls to observe and accepts only explicit enforcement', () => {
     const defaultConfiguration = loadApiConfiguration({
       ...baseEnvironment,
       SUPABASE_PUBLISHABLE_KEY: 'publishable',
@@ -44,15 +44,15 @@ describe('API environment aliases', () => {
     });
     const enforcedConfiguration = loadApiConfiguration({
       ...baseEnvironment,
-      API_CITIZEN_PHONE_MFA_MODE: 'enforce',
+      API_CITIZEN_PHONE_VERIFICATION_MODE: 'enforce',
       API_PRIVILEGED_MFA_MODE: 'enforce',
       SUPABASE_PUBLISHABLE_KEY: 'publishable',
       SUPABASE_SECRET_KEY: 'secret',
     });
 
-    assert.equal(defaultConfiguration.citizenPhoneMfaMode, 'observe');
+    assert.equal(defaultConfiguration.citizenPhoneVerificationMode, 'observe');
     assert.equal(defaultConfiguration.privilegedMfaMode, 'observe');
-    assert.equal(enforcedConfiguration.citizenPhoneMfaMode, 'enforce');
+    assert.equal(enforcedConfiguration.citizenPhoneVerificationMode, 'enforce');
     assert.equal(enforcedConfiguration.privilegedMfaMode, 'enforce');
     assert.throws(() =>
       loadApiConfiguration({
@@ -65,10 +65,62 @@ describe('API environment aliases', () => {
     assert.throws(() =>
       loadApiConfiguration({
         ...baseEnvironment,
-        API_CITIZEN_PHONE_MFA_MODE: 'disabled',
+        API_CITIZEN_PHONE_VERIFICATION_MODE: 'disabled',
         SUPABASE_PUBLISHABLE_KEY: 'publishable',
         SUPABASE_SECRET_KEY: 'secret',
       }),
     );
+  });
+
+  it('prefers the phone-verification setting and accepts the deprecated MFA fallback', () => {
+    const preferred = loadApiConfiguration({
+      ...baseEnvironment,
+      API_CITIZEN_PHONE_MFA_MODE: 'observe',
+      API_CITIZEN_PHONE_VERIFICATION_MODE: 'enforce',
+      SUPABASE_PUBLISHABLE_KEY: 'publishable',
+      SUPABASE_SECRET_KEY: 'secret',
+    });
+    const legacy = loadApiConfiguration({
+      ...baseEnvironment,
+      API_CITIZEN_PHONE_MFA_MODE: 'enforce',
+      SUPABASE_PUBLISHABLE_KEY: 'publishable',
+      SUPABASE_SECRET_KEY: 'secret',
+    });
+
+    assert.equal(preferred.citizenPhoneVerificationMode, 'enforce');
+    assert.equal(legacy.citizenPhoneVerificationMode, 'enforce');
+  });
+
+  it('requires explicit citizen phone verification enforcement in production', () => {
+    assert.throws(
+      () =>
+        loadApiConfiguration({
+          ...baseEnvironment,
+          NODE_ENV: 'production',
+          SUPABASE_PUBLISHABLE_KEY: 'publishable',
+          SUPABASE_SECRET_KEY: 'secret',
+        }),
+      /API_CITIZEN_PHONE_VERIFICATION_MODE must be explicitly set to enforce in production/u,
+    );
+
+    const configuration = loadApiConfiguration({
+      ...baseEnvironment,
+      API_CITIZEN_PHONE_VERIFICATION_MODE: 'enforce',
+      NODE_ENV: 'production',
+      SUPABASE_PUBLISHABLE_KEY: 'publishable',
+      SUPABASE_SECRET_KEY: 'secret',
+    });
+
+    assert.equal(configuration.citizenPhoneVerificationMode, 'enforce');
+
+    const legacyConfiguration = loadApiConfiguration({
+      ...baseEnvironment,
+      API_CITIZEN_PHONE_MFA_MODE: 'enforce',
+      NODE_ENV: 'production',
+      SUPABASE_PUBLISHABLE_KEY: 'publishable',
+      SUPABASE_SECRET_KEY: 'secret',
+    });
+
+    assert.equal(legacyConfiguration.citizenPhoneVerificationMode, 'enforce');
   });
 });

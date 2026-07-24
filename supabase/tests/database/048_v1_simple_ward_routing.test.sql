@@ -19,8 +19,8 @@ select has_table(
 
 select is(
   (select count(*)::integer from routing.ward_issue_contacts where is_active),
-  312,
-  'the BMC V1 matrix contains 26 wards by 12 categories'
+  338,
+  'the BMC V1 matrix contains 26 wards by 13 routing profiles'
 );
 
 select is(
@@ -37,8 +37,8 @@ select is(
 
 select is(
   (select count(distinct category_id)::integer from routing.ward_issue_contacts where is_active),
-  12,
-  'all 12 V1 complaint categories have ward contacts'
+  13,
+  'all 13 V1 routing profiles have ward contacts'
 );
 
 select ok(
@@ -96,8 +96,8 @@ select is(
       and version.scope_local_body_id = 'fa1e71b4-01e3-5e72-92e8-1476eec1adcd'
       and version.scope_ward_id is null
   ),
-  12,
-  'one auditable BMC ward-facade rule exists per V1 category'
+  13,
+  'one auditable BMC ward-facade rule exists per V1 routing profile'
 );
 
 select is(
@@ -173,8 +173,8 @@ select is(
     where is_active
       and email_source_locator like 'B2_operational_subscopes.csv:%'
   ),
-  48,
-  'four operational subscopes retain their B2 archive locators across 12 categories'
+  52,
+  'four operational subscopes retain their B2 archive locators across 13 profiles'
 );
 
 select is(
@@ -184,7 +184,7 @@ select is(
     where is_active
       and email_source_locator like 'E_offices_contacts.csv:%'
   ),
-  264,
+  286,
   'the remaining 22 wards retain their office-contact archive locators'
 );
 
@@ -198,7 +198,7 @@ select is(
       group by email_source_reported_status
     ) as status_counts
   ),
-  '{"source_verified":192,"conflicting":96,"unverified":24}'::jsonb,
+  '{"source_verified":208,"conflicting":104,"unverified":26}'::jsonb,
   'raw source statuses remain visible separately from the staging approval override'
 );
 

@@ -1,5 +1,9 @@
 import { Controller, Get, Inject, Param, UseGuards } from '@nestjs/common';
-import type { RoutingCategory, RoutingCategoryCatalogItem } from '@local-wellness/types';
+import type {
+  ComplaintTaxonomyCatalogItem,
+  RoutingCategory,
+  RoutingCategoryCatalogItem,
+} from '@local-wellness/types';
 import { categoryIdParametersSchema, type CategoryIdParameters } from '@local-wellness/validation';
 
 import { BearerAuthGuard } from '../auth/bearer-auth.guard.js';
@@ -22,6 +26,11 @@ export class CategoriesController {
   @Get('catalog')
   public listCategoryCatalog(): Promise<RoutingCategoryCatalogItem[]> {
     return this.categoriesService.listCategoryCatalog();
+  }
+
+  @Get('taxonomy')
+  public listComplaintTaxonomy(): Promise<ComplaintTaxonomyCatalogItem[]> {
+    return this.categoriesService.listComplaintTaxonomy();
   }
 
   @Get(':categoryId')

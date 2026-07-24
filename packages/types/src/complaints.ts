@@ -138,7 +138,9 @@ export interface CreateComplaintDraftInput {
   customAttributes?: ComplaintCustomAttributes | undefined;
 }
 
-export type UpdateComplaintDraftInput = CreateComplaintDraftInput;
+export interface UpdateComplaintDraftInput extends Omit<CreateComplaintDraftInput, 'categoryId'> {
+  categoryId?: string | null | undefined;
+}
 
 export interface ComplaintMediaMetadata {
   kind: ComplaintMediaKind;

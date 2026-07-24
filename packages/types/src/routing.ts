@@ -104,6 +104,73 @@ export interface RoutingCategoryCatalogItem extends RoutingCategory {
   submissionAvailability: RoutingCategorySubmissionAvailability;
 }
 
+export const complaintTaxonomySensitivityClasses = [
+  'PUBLIC',
+  'RESTRICTED',
+  'PRIVATE',
+  'EMERGENCY_PRIVATE',
+] as const;
+
+export type ComplaintTaxonomySensitivityClass =
+  (typeof complaintTaxonomySensitivityClasses)[number];
+
+export const complaintTaxonomyRoutingStatuses = [
+  'mapped',
+  'pending_verification',
+  'protected_pending',
+  'protected_handoff',
+] as const;
+
+export type ComplaintTaxonomyRoutingStatus = (typeof complaintTaxonomyRoutingStatuses)[number];
+
+export const complaintHandoffActionKinds = ['call', 'browser'] as const;
+export type ComplaintHandoffActionKind = (typeof complaintHandoffActionKinds)[number];
+
+/**
+ * A public-safe action for a protected complaint type that must leave the ordinary ward intake
+ * path. Targets are intentionally limited to telephone numbers and official HTTPS pages.
+ */
+export interface ComplaintHandoffAction {
+  key: string;
+  kind: ComplaintHandoffActionKind;
+  label: string;
+  description: string;
+  target: string;
+  priority: number;
+}
+
+/**
+ * Public-safe complaint intake taxonomy metadata.
+ *
+ * `routingProfileCategoryId` is the only value from this projection that may become a complaint
+ * draft's operational category. Official authority, department, office and officer identifiers
+ * remain server-owned routing evidence and are intentionally absent.
+ */
+export interface ComplaintTaxonomyCatalogItem {
+  id: string;
+  primaryCategoryId: string;
+  primaryCode: string;
+  primaryName: string;
+  handoffActions: ComplaintHandoffAction[];
+  subcategoryCode: string;
+  subcategoryName: string;
+  subcategoryDescription: string | null;
+  workflowType: string;
+  sensitivityClass: ComplaintTaxonomySensitivityClass;
+  routingStatus: ComplaintTaxonomyRoutingStatus;
+  routingProfileCategoryId: string | null;
+  routingProfileCode: string | null;
+  routingProfileName: string | null;
+  submissionAvailability: RoutingCategorySubmissionAvailability;
+  requiresAsset: boolean;
+  requiresLocation: boolean;
+  isEmergency: boolean;
+  minimumMediaCount: number;
+  maximumMediaCount: number;
+  requiredAttributes: string[];
+  recommendedMediaKinds: ComplaintMediaKind[];
+}
+
 export interface RoutingResolutionInput {
   categoryId: string;
   location: GeoPoint;

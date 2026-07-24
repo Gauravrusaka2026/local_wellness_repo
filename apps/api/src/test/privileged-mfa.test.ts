@@ -54,7 +54,7 @@ describe('privileged MFA API enforcement', () => {
     );
   });
 
-  it('allows AAL2 privileged requests and ordinary citizen AAL1 requests', async () => {
+  it('allows AAL2 privileged requests and verified citizen AAL1 requests', async () => {
     const gateway = new FakeAuthenticationGateway();
     const store = new FakeIdentityStore();
     const guard = new BearerAuthGuard(gateway, store, {
@@ -76,7 +76,7 @@ describe('privileged MFA API enforcement', () => {
   });
 });
 
-describe('citizen phone MFA API enforcement', () => {
+describe('citizen phone-verification API enforcement', () => {
   it('coalesces only concurrent actor-policy reads without caching completed authorization state', async () => {
     const gateway = new FakeAuthenticationGateway();
     const store = new FakeIdentityStore();
@@ -86,7 +86,7 @@ describe('citizen phone MFA API enforcement', () => {
     });
     let profileCalls = 0;
     let privilegedMfaCalls = 0;
-    let phoneMfaCalls = 0;
+    let phoneVerificationCalls = 0;
     store.findProfile = async () => {
       profileCalls += 1;
       await profileGate;
@@ -96,8 +96,8 @@ describe('citizen phone MFA API enforcement', () => {
       privilegedMfaCalls += 1;
       return false;
     };
-    store.userHasVerifiedPhoneMfa = async () => {
-      phoneMfaCalls += 1;
+    store.userHasVerifiedPhone = async () => {
+      phoneVerificationCalls += 1;
       return true;
     };
     const guard = new BearerAuthGuard(gateway, store, apiConfiguration);
@@ -112,25 +112,25 @@ describe('citizen phone MFA API enforcement', () => {
 
     assert.equal(profileCalls, 1);
     assert.equal(privilegedMfaCalls, 1);
-    assert.equal(phoneMfaCalls, 0);
+    assert.equal(phoneVerificationCalls, 0);
 
     releaseProfile();
     assert.deepEqual(await Promise.all([first, second]), [true, true]);
-    assert.equal(phoneMfaCalls, 1);
+    assert.equal(phoneVerificationCalls, 1);
 
     await guard.canActivate(createContext(createRequest()));
     assert.equal(profileCalls, 2);
     assert.equal(privilegedMfaCalls, 2);
-    assert.equal(phoneMfaCalls, 2);
+    assert.equal(phoneVerificationCalls, 2);
   });
 
   it('observes an unverified citizen without locking out existing accounts', async () => {
     const gateway = new FakeAuthenticationGateway();
     const store = new FakeIdentityStore();
-    store.verifiedPhoneMfa = false;
+    store.verifiedPhone = false;
     const guard = new BearerAuthGuard(gateway, store, {
       ...apiConfiguration,
-      citizenPhoneMfaMode: 'observe',
+      citizenPhoneVerificationMode: 'observe',
     });
 
     assert.equal(
@@ -141,33 +141,28 @@ describe('citizen phone MFA API enforcement', () => {
     );
   });
 
-  it('requires both a verified phone factor and an AAL2 session when enforcement is enabled', async () => {
+  it('requires a verified phone identity without requiring citizen AAL2', async () => {
     const gateway = new FakeAuthenticationGateway();
     const store = new FakeIdentityStore();
     const guard = new BearerAuthGuard(gateway, store, {
       ...apiConfiguration,
-      citizenPhoneMfaMode: 'enforce',
+      citizenPhoneVerificationMode: 'enforce',
     });
     const request = (): RequestContext => ({
       headers: { authorization: 'Bearer valid-token' },
       method: 'GET',
     });
 
-    store.verifiedPhoneMfa = false;
+    store.verifiedPhone = false;
     gateway.verifiedUser = { ...gateway.verifiedUser, assuranceLevel: 'aal2' };
     await assert.rejects(
       guard.canActivate(createContext(request())),
-      (error: unknown) => error instanceof ApiException && error.code === 'PHONE_MFA_REQUIRED',
+      (error: unknown) =>
+        error instanceof ApiException && error.code === 'PHONE_VERIFICATION_REQUIRED',
     );
 
-    store.verifiedPhoneMfa = true;
+    store.verifiedPhone = true;
     gateway.verifiedUser = { ...gateway.verifiedUser, assuranceLevel: 'aal1' };
-    await assert.rejects(
-      guard.canActivate(createContext(request())),
-      (error: unknown) => error instanceof ApiException && error.code === 'PHONE_MFA_REQUIRED',
-    );
-
-    gateway.verifiedUser = { ...gateway.verifiedUser, assuranceLevel: 'aal2' };
     assert.equal(await guard.canActivate(createContext(request())), true);
   });
 
@@ -175,11 +170,11 @@ describe('citizen phone MFA API enforcement', () => {
     const gateway = new FakeAuthenticationGateway();
     const store = new FakeIdentityStore();
     store.privilegedMfaRequired = true;
-    store.verifiedPhoneMfa = false;
+    store.verifiedPhone = false;
     gateway.verifiedUser = { ...gateway.verifiedUser, assuranceLevel: 'aal2' };
     const guard = new BearerAuthGuard(gateway, store, {
       ...apiConfiguration,
-      citizenPhoneMfaMode: 'enforce',
+      citizenPhoneVerificationMode: 'enforce',
       privilegedMfaMode: 'enforce',
     });
 

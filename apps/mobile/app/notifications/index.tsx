@@ -2,6 +2,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { InAppNotification } from '@local-wellness/types';
+import type { MessageKey } from '@local-wellness/localization';
 
 import { useAuth } from '../../src/auth/auth-context';
 import {
@@ -10,29 +11,34 @@ import {
   markNotificationRead,
 } from '../../src/complaints/complaint-service';
 import { subscribeToNotificationEvents } from '../../src/realtime/complaint-subscription';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
+import { mobileTheme } from '../../src/ui/theme';
 
 type NotificationState =
   | Readonly<{ status: 'error'; message: string }>
   | Readonly<{ status: 'loading' }>
   | Readonly<{ status: 'ready'; items: InAppNotification[] }>;
 
-const eventLabel = (eventType: InAppNotification['eventType']): string =>
-  ({
-    acknowledgement: 'Complaint acknowledged',
-    assignment: 'Complaint assigned',
-    escalation: 'Complaint escalated',
-    message: 'New private message',
-    reopen: 'Complaint reopened',
-    resolution: 'Resolution update',
-    status_update: 'Complaint status updated',
-    submission: 'Complaint submitted',
-    transfer: 'Complaint transferred',
-  })[eventType];
+const eventMessageKeys = {
+  acknowledgement: 'notificationAcknowledgement',
+  assignment: 'notificationAssignment',
+  escalation: 'notificationEscalation',
+  message: 'notificationMessage',
+  reopen: 'notificationReopen',
+  resolution: 'notificationResolution',
+  status_update: 'notificationStatusUpdate',
+  submission: 'notificationSubmission',
+  transfer: 'notificationTransfer',
+} as const satisfies Readonly<Record<InAppNotification['eventType'], MessageKey>>;
+
+const eventMessageKey = (eventType: InAppNotification['eventType']): MessageKey =>
+  eventMessageKeys[eventType];
 
 export default function NotificationsScreen() {
   const auth = useAuth();
   const router = useRouter();
+  const { formatDateTime, t } = useLocalization();
   const [state, setState] = useState<NotificationState>({ status: 'loading' });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -77,25 +83,27 @@ export default function NotificationsScreen() {
     };
   }, [accessToken, load]);
 
-  if (auth.state.status === 'loading') return <LoadingScreen label="Restoring your session…" />;
+  if (auth.state.status === 'loading') return <LoadingScreen label={t('restoringSession')} />;
   if (auth.state.status === 'configuration-error')
     return <ErrorScreen message={auth.state.message} />;
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
-  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
+  if (auth.state.status === 'phone-verification-required') {
+    return <Redirect href="/auth/phone-verification" />;
+  }
   if (accessToken === null) return <Redirect href="/auth" />;
-  if (state.status === 'loading') return <LoadingScreen label="Loading notifications…" />;
+  if (state.status === 'loading') return <LoadingScreen label={t('loading')} />;
   if (state.status === 'error')
     return (
       <ErrorScreen
         action={{
-          label: 'Try again',
+          label: t('tryAgain'),
           onPress: () => {
             setState({ status: 'loading' });
             void load();
           },
         }}
         message={state.message}
-        title="Notifications unavailable"
+        title={t('unableToContinue')}
       />
     );
 
@@ -136,25 +144,28 @@ export default function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headingRow}>
           <Text accessibilityRole="header" style={styles.title}>
-            Notifications
+            {t('notifications')}
           </Text>
           <Pressable accessibilityRole="button" onPress={() => void load()}>
-            <Text style={styles.refresh}>Refresh</Text>
+            <Text style={styles.refresh}>{t('refresh')}</Text>
           </Pressable>
         </View>
-        <Text style={styles.help}>Notifications remain available after reconnect.</Text>
+        <Text style={styles.help}>{t('notificationsReconnect')}</Text>
         {operationError === null ? null : (
           <Text accessibilityRole="alert" style={styles.error}>
             {operationError}
           </Text>
         )}
         {state.items.length === 0 ? (
-          <Text style={styles.empty}>No notifications yet.</Text>
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>{t('noNotifications')}</Text>
+            <Text style={styles.empty}>{t('noNotificationsBody')}</Text>
+          </View>
         ) : (
           state.items.map((notification) => (
             <Pressable
-              accessibilityHint="Opens the related complaint"
-              accessibilityLabel={`${eventLabel(notification.eventType)}. ${notification.payload.complaintNumber ?? 'Your complaint'}. ${new Date(notification.occurredAt).toLocaleString()}. ${notification.readAt === null ? 'Unread' : 'Read'}.`}
+              accessibilityHint={t('openRelatedComplaint')}
+              accessibilityLabel={`${t(eventMessageKey(notification.eventType))}. ${notification.payload.complaintNumber ?? t('complaint')}. ${formatDateTime(notification.occurredAt)}. ${notification.readAt === null ? t('unread') : t('read')}.`}
               accessibilityRole="button"
               accessibilityState={{
                 busy: busyId === notification.id,
@@ -165,13 +176,13 @@ export default function NotificationsScreen() {
               onPress={() => void openNotification(notification)}
               style={[styles.card, notification.readAt === null ? styles.unread : null]}
             >
-              <Text style={styles.cardTitle}>{eventLabel(notification.eventType)}</Text>
+              <Text style={styles.cardTitle}>{t(eventMessageKey(notification.eventType))}</Text>
               <Text style={styles.help}>
-                {notification.payload.complaintNumber ?? 'Your complaint'} ·{' '}
-                {new Date(notification.occurredAt).toLocaleString()}
+                {notification.payload.complaintNumber ?? t('complaint')} ·{' '}
+                {formatDateTime(notification.occurredAt)}
               </Text>
               {busyId === notification.id ? (
-                <ActivityIndicator accessibilityElementsHidden color="#166534" />
+                <ActivityIndicator accessibilityElementsHidden color={mobileTheme.colors.primary} />
               ) : null}
             </Pressable>
           ))
@@ -183,20 +194,47 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
+    borderRadius: mobileTheme.radius.medium,
     borderWidth: 1,
     gap: 5,
     padding: 15,
   },
-  cardTitle: { color: '#1e293b', fontSize: 16, fontWeight: '800' },
-  content: { gap: 14, padding: 20, paddingBottom: 48 },
-  empty: { color: '#64748b', paddingVertical: 24, textAlign: 'center' },
-  error: { color: '#991b1b', lineHeight: 20 },
+  cardTitle: { color: mobileTheme.colors.text, fontSize: 14, fontWeight: '800' },
+  content: { gap: 12, padding: 16, paddingBottom: 36 },
+  empty: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+    textAlign: 'center',
+  },
+  emptyCard: {
+    alignItems: 'center',
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
+    borderRadius: mobileTheme.radius.large,
+    borderWidth: 1,
+    gap: 6,
+    padding: 24,
+  },
+  emptyTitle: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '900',
+  },
+  error: {
+    color: mobileTheme.colors.danger,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+  },
   headingRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  help: { color: '#64748b', lineHeight: 20 },
-  refresh: { color: '#166534', fontWeight: '800', padding: 10 },
-  title: { color: '#14281d', fontSize: 28, fontWeight: '900' },
-  unread: { backgroundColor: '#ecfdf5', borderColor: '#86efac' },
+  help: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.helper,
+    lineHeight: 18,
+  },
+  refresh: { color: mobileTheme.colors.primary, fontSize: 14, fontWeight: '800', padding: 10 },
+  title: { color: mobileTheme.colors.text, fontSize: mobileTheme.type.title, fontWeight: '900' },
+  unread: { backgroundColor: mobileTheme.colors.primarySoft, borderColor: '#86efac' },
 });

@@ -1,18 +1,5 @@
 import type { PublicComplaintMapItem, PublicTransparencyViewport } from '@local-wellness/types';
 
-export class NearbyLocationError extends Error {
-  public readonly requiresAppSettings: boolean;
-
-  public constructor(message: string, options: Readonly<{ requiresAppSettings?: boolean }> = {}) {
-    super(message);
-    this.name = 'NearbyLocationError';
-    this.requiresAppSettings = options.requiresAppSettings ?? false;
-  }
-}
-
-export const requiresNearbyLocationSettings = (error: unknown): boolean =>
-  error instanceof NearbyLocationError && error.requiresAppSettings;
-
 export const createNearbyViewport = (
   latitude: number,
   longitude: number,

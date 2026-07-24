@@ -1,28 +1,38 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Session } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
 
-import { resolveSessionAssurance, restoreAuthSession } from '../src/auth/auth-state';
+import {
+  resolveSessionPhoneVerification,
+  restoreAuthSession,
+  scheduleAuthStateFollowUp,
+} from '../src/auth/auth-state';
 
-const session = { access_token: 'verified-access-token' } as Session;
+const session = {
+  access_token: 'verified-access-token',
+  user: { id: 'citizen-user-id' },
+} as Session;
 
-test('restores a verified mobile session', async () => {
+type UserOverrides = Omit<Partial<User>, 'phone' | 'phone_confirmed_at'> & {
+  phone?: string | undefined;
+  phone_confirmed_at?: string | undefined;
+};
+
+const user = (overrides: UserOverrides = {}): User =>
+  ({
+    id: 'citizen-user-id',
+    phone: '+919876543210',
+    phone_confirmed_at: '2026-07-23T08:00:00.000Z',
+    ...overrides,
+  }) as User;
+
+test('restores a mobile session and fails closed on storage errors', async () => {
   assert.deepEqual(await restoreAuthSession(async () => ({ data: { session }, error: null })), {
     session,
     status: 'signed-in',
   });
-});
-
-test('fails closed when mobile session restoration errors or rejects', async () => {
   assert.deepEqual(
     await restoreAuthSession(async () => ({ data: { session: null }, error: null })),
-    { status: 'signed-out' },
-  );
-  assert.deepEqual(
-    await restoreAuthSession(async () => ({
-      data: { session },
-      error: new Error('storage failed'),
-    })),
     { status: 'signed-out' },
   );
   assert.deepEqual(
@@ -33,56 +43,78 @@ test('fails closed when mobile session restoration errors or rejects', async () 
   );
 });
 
-test('grants private mobile access only to AAL2 sessions with a verified phone factor', async () => {
+test('grants private access to the matching user only after phone confirmation', async () => {
   assert.deepEqual(
-    await resolveSessionAssurance(
-      session,
-      async () => ({ data: { currentLevel: 'aal2' }, error: null }),
-      async () => true,
-    ),
+    await resolveSessionPhoneVerification(session, async () => ({
+      data: { user: user() },
+      error: null,
+    })),
     { session, status: 'signed-in' },
   );
+
+  for (const authoritativeUser of [
+    user({ phone_confirmed_at: undefined }),
+    user({ phone: undefined }),
+    user({ id: 'different-user-id' }),
+  ]) {
+    assert.deepEqual(
+      await resolveSessionPhoneVerification(session, async () => ({
+        data: { user: authoritativeUser },
+        error: null,
+      })),
+      { session, status: 'phone-verification-required' },
+    );
+  }
+});
+
+test('fails the phone gate closed when authoritative user inspection fails', async () => {
   assert.deepEqual(
-    await resolveSessionAssurance(
-      session,
-      async () => ({ data: { currentLevel: 'aal2' }, error: null }),
-      async () => false,
-    ),
-    { session, status: 'mfa-required' },
+    await resolveSessionPhoneVerification(session, async () => {
+      throw new Error('provider unavailable');
+    }),
+    { session, status: 'phone-verification-required' },
   );
   assert.deepEqual(
-    await resolveSessionAssurance(
-      session,
-      async () => ({ data: { currentLevel: 'aal1' }, error: null }),
-      async () => true,
-    ),
-    { session, status: 'mfa-required' },
+    await resolveSessionPhoneVerification(session, async () => ({
+      data: { user: null },
+      error: new Error('expired'),
+    })),
+    { session, status: 'phone-verification-required' },
   );
 });
 
-test('fails the private mobile gate closed when assurance inspection fails', async () => {
+test('allows email-password sessions during the explicit observe rollout', async () => {
   assert.deepEqual(
-    await resolveSessionAssurance(
+    await resolveSessionPhoneVerification(
       session,
       async () => {
-        throw new Error('provider unavailable');
+        throw new Error('phone provider is not configured');
       },
-      async () => true,
-    ),
-    { session, status: 'mfa-required' },
-  );
-});
-
-test('allows email-password sessions during the staged phone MFA observe rollout', async () => {
-  assert.deepEqual(
-    await resolveSessionAssurance(
-      session,
-      async () => {
-        throw new Error('phone MFA provider is not configured');
-      },
-      async () => false,
       false,
     ),
     { session, status: 'signed-in' },
   );
+});
+
+test('defers Supabase auth follow-up work until after the auth callback returns', async () => {
+  let invoked = false;
+
+  scheduleAuthStateFollowUp(() => {
+    invoked = true;
+  });
+
+  assert.equal(invoked, false);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(invoked, true);
+});
+
+test('cancels stale Supabase auth follow-up work', async () => {
+  let invoked = false;
+  const cancel = scheduleAuthStateFollowUp(() => {
+    invoked = true;
+  });
+
+  cancel();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(invoked, false);
 });

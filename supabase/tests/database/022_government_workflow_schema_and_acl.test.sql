@@ -38,8 +38,8 @@ select is(
       and relation.relrowsecurity
       and relation.relforcerowsecurity
   ),
-  68,
-  'all private complaint tables enable and force RLS'
+  67,
+  'all retained private complaint tables enable and force RLS'
 );
 
 select is(

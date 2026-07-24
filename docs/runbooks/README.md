@@ -9,6 +9,7 @@ security, or legal approval.
 - [Release verification and rollback](release-and-rollback.md)
 - [Backup and restore rehearsal](backup-and-restore.md)
 - [Incident, support, and moderation](incident-support-and-moderation.md)
+- [Citizen lost-phone factor reset (superseded historical procedure)](citizen-lost-phone-factor-reset.md)
 - [Governance correction and contact refresh](governance-data-correction.md)
 - [Pilot go/no-go](pilot-go-no-go.md)
 

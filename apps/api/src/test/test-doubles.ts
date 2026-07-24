@@ -37,7 +37,7 @@ export const activeProfile: Profile = {
 
 export const apiConfiguration: ApiConfiguration = {
   allowedOrigins: ['https://citizen.example.com', 'https://government.example.com'],
-  citizenPhoneMfaMode: 'observe',
+  citizenPhoneVerificationMode: 'observe',
   governmentInviteRedirectUrl: 'https://government.example.com/auth/callback',
   port: 3001,
   privilegedMfaMode: 'observe',
@@ -79,7 +79,7 @@ export class FakeIdentityStore extends IdentityStore {
   public governmentInvitationAuthorityFilter: readonly string[] | null | undefined;
   public revokeDeviceCalls = 0;
   public privilegedMfaRequired = false;
-  public verifiedPhoneMfa = true;
+  public verifiedPhone = true;
 
   public async appendAuthAuditEvent(input: AppendAuthAuditEvent): Promise<RecordedAuthAuditEvent> {
     this.auditEvents.push(input);
@@ -124,8 +124,8 @@ export class FakeIdentityStore extends IdentityStore {
     return this.privilegedMfaRequired;
   }
 
-  public async userHasVerifiedPhoneMfa(): Promise<boolean> {
-    return this.verifiedPhoneMfa;
+  public async userHasVerifiedPhone(): Promise<boolean> {
+    return this.verifiedPhone;
   }
 
   public async persistGovernmentInvitation(): Promise<PersistedGovernmentInvitation> {

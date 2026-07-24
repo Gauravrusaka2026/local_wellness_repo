@@ -23,7 +23,6 @@ const serviceRoleKey = firstEnvironmentValue(
   'SUPABASE_SERVICE_ROLE_KEY',
 );
 const hasLocalConfiguration = Boolean(supabaseUrl && anonKey && serviceRoleKey);
-const hasSmsProvider = process.env['LOCAL_SUPABASE_SMS_ENABLED'] === 'true';
 const requiresLocalConfiguration = process.env['REQUIRE_LOCAL_SUPABASE'] === 'true';
 const seededMaharashtraStateAuthorityId = '984805ee-52b9-5be0-bed2-3951cc6cab2d';
 
@@ -169,6 +168,14 @@ const getInvitationUrl = (html) => {
   return new URL(href.replaceAll('&amp;', '&'));
 };
 
+const normalizeProviderPhone = (phone) => {
+  assert.equal(typeof phone, 'string');
+  const digits = phone.startsWith('+') ? phone.slice(1) : phone;
+  assert.match(digits, /^[1-9]\d{7,14}$/u);
+
+  return `+${digits}`;
+};
+
 test(
   'local Supabase sends a code-only citizen email and verifies its OTP',
   { skip: hasLocalConfiguration ? false : 'Local Supabase environment is not running.' },
@@ -219,38 +226,139 @@ test(
 );
 
 test(
-  'local Supabase supports a citizen phone OTP session when SMS delivery is enabled',
-  {
-    skip: !hasLocalConfiguration
-      ? 'Local Supabase environment is not running.'
-      : !hasSmsProvider
-        ? 'Set LOCAL_SUPABASE_SMS_ENABLED=true after configuring a local SMS provider.'
-        : false,
-  },
+  'local Supabase links and confirms a citizen phone without Advanced Phone MFA',
+  { skip: hasLocalConfiguration ? false : 'Local Supabase environment is not running.' },
   async () => {
     const { adminClient, publicClient } = createLocalClients();
     let createdUserId;
 
     try {
+      const email = `phone-confirmation-${Date.now()}@localwellness.test`;
+      const password = 'initial secure password';
       const phone = '+12025550123';
-      const { error: requestPhoneOtpError } = await publicClient.auth.signInWithOtp({ phone });
-      assert.equal(requestPhoneOtpError, null);
+      const { data: signUp, error: signUpError } = await publicClient.auth.signUp({
+        email,
+        password,
+      });
+      assert.equal(signUpError, null);
+      assert.ok(signUp.session?.access_token);
+      assert.ok(signUp.user?.id);
+      createdUserId = signUp.user.id;
+
+      const { data: phoneChange, error: phoneChangeError } = await publicClient.auth.updateUser({
+        phone,
+      });
+      assert.equal(phoneChangeError, null);
+      assert.equal(phoneChange.user.id, createdUserId);
 
       const { data: phoneVerification, error: phoneVerificationError } =
-        await publicClient.auth.verifyOtp({ phone, token: '123456', type: 'sms' });
+        await publicClient.auth.verifyOtp({ phone, token: '123456', type: 'phone_change' });
       assert.equal(phoneVerificationError, null);
-      assert.ok(phoneVerification.session?.access_token);
-      assert.ok(phoneVerification.user?.id);
-      createdUserId = phoneVerification.user.id;
+      assert.equal(phoneVerification.user?.id, createdUserId);
+      assert.equal(normalizeProviderPhone(phoneVerification.user?.phone), phone);
+      assert.ok(phoneVerification.user?.phone_confirmed_at);
 
-      const { data: phoneProfile, error: phoneProfileError } = await publicClient
-        .from('profiles')
-        .select('id,phone,status')
-        .eq('id', phoneVerification.user.id)
-        .single();
-      assert.equal(phoneProfileError, null);
-      assert.equal(phoneProfile.phone, phone);
-      assert.equal(phoneProfile.status, 'active');
+      const { data: hasVerifiedPhone, error: verifiedPhoneError } = await adminClient.rpc(
+        'user_has_verified_phone',
+        { p_user_id: createdUserId },
+      );
+      assert.equal(verifiedPhoneError, null);
+      assert.equal(hasVerifiedPhone, true);
+    } finally {
+      if (createdUserId) {
+        const { error } = await adminClient.auth.admin.deleteUser(createdUserId);
+        assert.equal(error, null);
+      }
+    }
+  },
+);
+
+test(
+  'local Supabase authorizes a password update with an existing-phone SMS session',
+  { skip: hasLocalConfiguration ? false : 'Local Supabase environment is not running.' },
+  async () => {
+    const { adminClient } = createLocalClients();
+    const passwordClient = createClient(supabaseUrl, anonKey, clientOptions);
+    const signInClient = createClient(supabaseUrl, anonKey, clientOptions);
+    let createdUserId;
+
+    try {
+      const email = `phone-password-${Date.now()}@localwellness.test`;
+      const oldPassword = 'initial secure password';
+      const newPassword = 'updated secure password';
+      const phone = '+12025550124';
+      const { data: created, error: createError } = await adminClient.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        password: oldPassword,
+        phone,
+        phone_confirm: true,
+      });
+      assert.equal(createError, null);
+      assert.ok(created.user?.id);
+      createdUserId = created.user.id;
+
+      const { error: requestError } = await passwordClient.auth.signInWithOtp({
+        phone,
+        options: { shouldCreateUser: false },
+      });
+      assert.equal(requestError, null);
+
+      const { data: verified, error: verifyError } = await passwordClient.auth.verifyOtp({
+        phone,
+        token: '654321',
+        type: 'sms',
+      });
+      assert.equal(verifyError, null);
+      assert.equal(verified.user?.id, createdUserId);
+      assert.equal(normalizeProviderPhone(verified.user?.phone), phone);
+      assert.ok(verified.session?.access_token);
+
+      const { data: updated, error: updateError } = await passwordClient.auth.updateUser({
+        password: newPassword,
+      });
+      assert.equal(updateError, null);
+      assert.equal(updated.user.id, createdUserId);
+
+      const { data: newPasswordSignIn, error: newPasswordSignInError } =
+        await signInClient.auth.signInWithPassword({ email, password: newPassword });
+      assert.equal(newPasswordSignInError, null);
+      assert.equal(newPasswordSignIn.user?.id, createdUserId);
+
+      const stalePasswordClient = createClient(supabaseUrl, anonKey, clientOptions);
+      const { error: oldPasswordSignInError } = await stalePasswordClient.auth.signInWithPassword({
+        email,
+        password: oldPassword,
+      });
+      assert.ok(oldPasswordSignInError);
+    } finally {
+      if (createdUserId) {
+        const { error } = await adminClient.auth.admin.deleteUser(createdUserId);
+        assert.equal(error, null);
+      }
+    }
+  },
+);
+
+test(
+  'local Supabase rejects phone-only account creation while Phone Auth remains enabled',
+  { skip: hasLocalConfiguration ? false : 'Local Supabase environment is not running.' },
+  async () => {
+    const { adminClient, publicClient } = createLocalClients();
+    const phone = '+12025550125';
+    let createdUserId;
+
+    try {
+      const { data, error } = await publicClient.auth.signUp({
+        phone,
+        password: 'phone-only accounts are not allowed',
+      });
+      createdUserId = data.user?.id;
+
+      assert.ok(error);
+      assert.match(error.message, /email address/i);
+      assert.equal(data.user, null);
+      assert.equal(data.session, null);
     } finally {
       if (createdUserId) {
         const { error } = await adminClient.auth.admin.deleteUser(createdUserId);

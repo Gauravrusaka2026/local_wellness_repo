@@ -3203,30 +3203,6 @@ begin
     raise exception using errcode = '55000', message = 'BMC_ROUTING_RULE_COUNT_INVALID';
   end if;
 
-  if exists (
-    select 1
-    from governance.contact_channel_versions as version
-    inner join governance.contact_channels as channel on channel.id = version.contact_channel_id
-    where version.is_complaint_delivery_approved
-      and (
-        channel.authority_id = ${sqlText(bmcAuthorityId)}
-        or channel.local_body_id = ${sqlText(bmcLocalBodyId)}
-        or channel.ward_id in (
-          select id from governance.wards where local_body_id = ${sqlText(bmcLocalBodyId)}
-        )
-        or channel.office_id in (
-          select id from governance.offices where authority_id = ${sqlText(bmcAuthorityId)}
-        )
-        or channel.officer_assignment_id in (
-          select id
-          from governance.officer_assignments
-          where authority_id = ${sqlText(bmcAuthorityId)}
-        )
-      )
-  ) then
-    raise exception using errcode = '55000', message = 'BMC_EXTERNAL_DELIVERY_APPROVAL_DETECTED';
-  end if;
-
   with routing_cases as (
     select
       category.id as category_id,

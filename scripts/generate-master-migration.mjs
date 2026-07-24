@@ -16,6 +16,7 @@ const checkOnly = process.argv.includes('--check');
 const sqlString = (value) => `'${value.replaceAll("'", "''")}'`;
 const relation = (qualifiedName) =>
   `pg_temp.local_wellness_relation_exists(${sqlString(qualifiedName)})`;
+const absentRelation = (qualifiedName) => `not ${relation(qualifiedName)}`;
 const functionNamed = (schema, name) =>
   `pg_temp.local_wellness_function_exists(${sqlString(schema)}, ${sqlString(name)})`;
 const procedure = (signature) => `pg_temp.local_wellness_procedure_exists(${sqlString(signature)})`;
@@ -29,6 +30,19 @@ const trigger = (schema, table, name) =>
   `pg_temp.local_wellness_trigger_exists(${sqlString(schema)}, ${sqlString(table)}, ${sqlString(name)})`;
 const constraint = (schema, table, name) =>
   `pg_temp.local_wellness_constraint_exists(${sqlString(schema)}, ${sqlString(table)}, ${sqlString(name)})`;
+const constraintDefinitionContains = (schema, table, name, fragment) =>
+  `coalesce(pg_catalog.position(${sqlString(fragment)} in (
+        select pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        from pg_catalog.pg_constraint as constraint_record
+        inner join pg_catalog.pg_class as relation_record
+          on relation_record.oid = constraint_record.conrelid
+        inner join pg_catalog.pg_namespace as namespace_record
+          on namespace_record.oid = relation_record.relnamespace
+        where namespace_record.nspname = ${sqlString(schema)}
+          and relation_record.relname = ${sqlString(table)}
+          and constraint_record.conname = ${sqlString(name)}
+        limit 1
+      )), 0) > 0`;
 const column = (schema, table, name) =>
   `pg_temp.local_wellness_column_exists(${sqlString(schema)}, ${sqlString(table)}, ${sqlString(name)})`;
 const forcedRls = (qualifiedName) =>
@@ -193,12 +207,18 @@ const fingerprintDefinitions = new Map([
   [
     '20260713201000_governance_synchronization_foundation.sql',
     {
-      present: relation('governance.source_endpoints'),
-      complete: all(
+      present: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
         relation('governance.source_endpoints'),
-        relation('governance.raw_snapshots'),
-        relation('governance.sync_review_events'),
-        trigger('governance', 'sync_review_events', 'sync_review_events_reject_delete'),
+      ),
+      complete: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
+        all(
+          relation('governance.source_endpoints'),
+          relation('governance.raw_snapshots'),
+          relation('governance.sync_review_events'),
+          trigger('governance', 'sync_review_events', 'sync_review_events_reject_delete'),
+        ),
       ),
     },
   ],
@@ -242,34 +262,56 @@ const fingerprintDefinitions = new Map([
   [
     '20260714110000_governance_sync_scheduling_and_contacts.sql',
     {
-      present: relation('governance.sync_source_leases'),
-      complete: all(
+      present: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
         relation('governance.sync_source_leases'),
-        relation('governance.contact_channel_versions'),
-        relation('governance.current_verified_contacts'),
-        trigger('governance', 'contact_channel_versions', 'contact_channel_versions_reject_delete'),
+      ),
+      complete: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
+        all(
+          relation('governance.sync_source_leases'),
+          relation('governance.contact_channel_versions'),
+          relation('governance.current_verified_contacts'),
+          trigger(
+            'governance',
+            'contact_channel_versions',
+            'contact_channel_versions_reject_delete',
+          ),
+        ),
       ),
     },
   ],
   [
     '20260714111000_governance_sync_service_rpc.sql',
     {
-      present: functionNamed('public', 'claim_due_governance_sync_sources'),
-      complete: all(
+      present: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
         functionNamed('public', 'claim_due_governance_sync_sources'),
-        functionNamed('public', 'record_governance_sync_snapshot'),
-        functionNamed('public', 'fail_governance_sync_run'),
+      ),
+      complete: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
+        all(
+          functionNamed('public', 'claim_due_governance_sync_sources'),
+          functionNamed('public', 'record_governance_sync_snapshot'),
+          functionNamed('public', 'fail_governance_sync_run'),
+        ),
       ),
     },
   ],
   [
     '20260714112000_governance_sync_scope.sql',
     {
-      present: relation('governance.sync_scope_targets'),
-      complete: all(
+      present: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
         relation('governance.sync_scope_targets'),
-        functionNamed('private', 'enforce_governance_sync_scope_target'),
-        trigger('governance', 'sync_scope_targets', 'sync_scope_targets_enforce'),
+      ),
+      complete: any(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
+        all(
+          relation('governance.sync_scope_targets'),
+          functionNamed('private', 'enforce_governance_sync_scope_target'),
+          trigger('governance', 'sync_scope_targets', 'sync_scope_targets_enforce'),
+        ),
       ),
     },
   ],
@@ -659,6 +701,117 @@ const fingerprintDefinitions = new Map([
           'routing',
           'ward_issue_contacts',
           'ward_issue_contacts_active_email_provenance_check',
+        ),
+      ),
+    },
+  ],
+  [
+    '20260723100000_password_change_audit_event.sql',
+    {
+      present: constraintDefinitionContains(
+        'public',
+        'auth_audit_events',
+        'auth_audit_events_event_type_check',
+        'password_changed',
+      ),
+      complete: constraintDefinitionContains(
+        'public',
+        'auth_audit_events',
+        'auth_audit_events_event_type_check',
+        'password_changed',
+      ),
+    },
+  ],
+  [
+    '20260723110000_prune_deferred_v1_subsystems.sql',
+    {
+      present: functionNamed('private', 'v1_deferred_subsystems_pruned'),
+      complete: all(
+        functionNamed('private', 'v1_deferred_subsystems_pruned'),
+        absentRelation('governance.source_endpoints'),
+        absentRelation('governance.sync_runs'),
+        absentRelation('governance.contact_channels'),
+        absentRelation('complaints.complaint_comments'),
+        functionNamed('governance', 'resolve_complaint_contact_readiness'),
+        functionNamed('complaints', 'assignment_delivery_readiness'),
+      ),
+    },
+  ],
+  [
+    '20260723120000_jagruksetu_complaint_taxonomy.sql',
+    {
+      present: column('routing', 'issue_categories', 'category_purpose'),
+      complete: all(
+        column('routing', 'issue_categories', 'category_purpose'),
+        column('routing', 'issue_categories', 'taxonomy_code'),
+        column('routing', 'issue_categories', 'workflow_type'),
+        column('routing', 'issue_categories', 'sensitivity_class'),
+        column('routing', 'issue_categories', 'routing_profile_category_id'),
+        functionNamed('public', 'list_complaint_taxonomy'),
+        functionNamed('complaints', 'assert_taxonomy_selection'),
+        trigger('complaints', 'complaint_drafts', 'complaint_drafts_validate_taxonomy_selection'),
+        trigger('complaints', 'complaints', 'complaints_validate_taxonomy_on_submission'),
+      ),
+    },
+  ],
+  [
+    '20260723130000_citizen_phone_verification_without_mfa.sql',
+    {
+      present: functionNamed('public', 'user_has_verified_phone'),
+      complete: all(
+        functionNamed('public', 'user_has_verified_phone'),
+        functionExecutePrivilege('service_role', 'public.user_has_verified_phone(uuid)'),
+      ),
+    },
+  ],
+  [
+    '20260724100000_require_email_identity_for_auth_signup.sql',
+    {
+      present: functionNamed('public', 'hook_require_email_identity'),
+      complete: all(
+        functionNamed('public', 'hook_require_email_identity'),
+        functionExecutePrivilege(
+          'supabase_auth_admin',
+          'public.hook_require_email_identity(jsonb)',
+        ),
+      ),
+    },
+  ],
+  [
+    '20260724110000_v1_bmc_general_intake_and_handoffs.sql',
+    {
+      present: relation('routing.complaint_handoff_actions'),
+      complete: all(
+        relation('routing.complaint_handoff_actions'),
+        forcedRls('routing.complaint_handoff_actions'),
+        constraintDefinitionContains(
+          'routing',
+          'issue_categories',
+          'issue_categories_routing_status_check',
+          'protected_handoff',
+        ),
+        functionNamed('public', 'list_complaint_taxonomy'),
+        functionNamed('complaints', 'complaint_category_display_name'),
+      ),
+    },
+  ],
+  [
+    '20260724120000_verified_civic_area_office_contacts.sql',
+    {
+      present: relation('governance.offices_verified_civic_area_scope_idx'),
+      complete: all(
+        relation('governance.offices_verified_civic_area_scope_idx'),
+        functionDefinitionContains(
+          'public.resolve_verified_governing_bodies(double precision,double precision,double precision,timestamp with time zone)',
+          "'offices'",
+        ),
+        functionDefinitionContains(
+          'public.resolve_verified_governing_bodies(double precision,double precision,double precision,timestamp with time zone)',
+          'limit 25',
+        ),
+        functionExecutePrivilege(
+          'service_role',
+          'public.resolve_verified_governing_bodies(double precision,double precision,double precision,timestamp with time zone)',
         ),
       ),
     },

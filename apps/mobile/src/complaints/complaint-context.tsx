@@ -37,6 +37,7 @@ import {
   getComplaintDraft,
   getComplaintMediaStatus,
   getUserFacingComplaintError,
+  listComplaintTaxonomy,
   listRoutingCategoryCatalog,
   setComplaintLocation,
   shouldRotateSubmitIdempotencyKeyAfterError,
@@ -46,7 +47,11 @@ import {
 import { createComplaintIdempotencyKey, createComplaintIdempotencyKeys } from './idempotency';
 import { rotateComplaintSubmitIdempotencyKey } from './idempotency-format';
 import { assessMediaDistance } from './location-evidence';
-import { captureCurrentLocation, requiresLocationPermissionSettings } from './location-service';
+import {
+  captureComplaintEvidenceLocation,
+  captureComplaintEvidenceLocationAutomatically,
+  requiresLocationPermissionSettings,
+} from '../location/device-location';
 import {
   clearMediaCaptureLocation,
   loadMediaCaptureLocation,
@@ -72,11 +77,13 @@ import {
   type ComplaintMutationGuardState,
   type ComplaintOperationName,
 } from './mutation-guard';
+import { getSelectedComplaintTaxonomyItem } from './taxonomy-selection';
 
 type ComplaintContextValue = Readonly<{
   acknowledgeDuplicates: (value: boolean) => void;
   acknowledgeEmergency: (value: boolean) => void;
   captureLocation: () => Promise<void>;
+  captureLocationAutomatically: () => Promise<boolean>;
   checkDuplicates: () => Promise<void>;
   clearError: () => void;
   discardDraft: () => Promise<void>;
@@ -196,9 +203,13 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         if (!isCurrent) return;
         loadedResume = resume;
         resumeRef.current = resume;
-        const categories = await listRoutingCategoryCatalog(session.accessToken);
+        const [categories, taxonomyItems] = await Promise.all([
+          listRoutingCategoryCatalog(session.accessToken),
+          listComplaintTaxonomy(session.accessToken),
+        ]);
         if (!isCurrent) return;
         dispatch({ categories, type: 'categories_loaded' });
+        dispatch({ taxonomyItems, type: 'taxonomy_loaded' });
 
         if (resume?.draftId) {
           const draft = await getComplaintDraft(session.accessToken, resume.draftId);
@@ -276,8 +287,12 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
           const activeSession = requireSession();
           dispatch({ message: null, type: 'error' });
           try {
-            const categories = await listRoutingCategoryCatalog(activeSession.accessToken);
+            const [categories, taxonomyItems] = await Promise.all([
+              listRoutingCategoryCatalog(activeSession.accessToken),
+              listComplaintTaxonomy(activeSession.accessToken),
+            ]);
             dispatch({ categories, type: 'categories_loaded' });
+            dispatch({ taxonomyItems, type: 'taxonomy_loaded' });
           } catch (error) {
             dispatch({ message: getUserFacingComplaintError(error), type: 'error' });
             throw error;
@@ -424,14 +439,12 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         const activeSession = requireSession();
         const draft = requireDraft();
         try {
-          if (input.categoryId !== undefined) {
+          if (input.categoryId !== undefined && input.categoryId !== null) {
             const category = state.categories.find(
               (candidate) => candidate.id === input.categoryId,
             );
-            if (category?.submissionAvailability !== 'available') {
-              throw new Error(
-                'This category is not currently available for verified complaint submission.',
-              );
+            if (!category) {
+              throw new Error('The selected routing profile is not in the current catalog.');
             }
           }
           const categoryChanged =
@@ -464,16 +477,21 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     ],
   );
 
-  const captureLocation = useCallback(
-    (): Promise<void> =>
+  const captureLocationWithMode = useCallback(
+    (mode: 'automatic' | 'explicit'): Promise<boolean> =>
       runComplaintOperation(
         'capture_location',
         async () => {
           const activeSession = requireSession();
           const draft = requireDraft();
-          dispatch({ message: null, type: 'error' });
           try {
-            const location = await captureCurrentLocation();
+            const location =
+              mode === 'explicit'
+                ? await captureComplaintEvidenceLocation()
+                : await captureComplaintEvidenceLocationAutomatically();
+            if (location === null) return false;
+
+            dispatch({ message: null, type: 'error' });
             const updated = await setComplaintLocation(
               activeSession.accessToken,
               draft.id,
@@ -486,6 +504,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
               assets: await loadAssetOptions(activeSession.accessToken, state.categories, updated),
               type: 'assets_loaded',
             });
+            return true;
           } catch (error) {
             dispatch({
               locationSettingsRequired: requiresLocationPermissionSettings(error),
@@ -504,6 +523,15 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
       runComplaintOperation,
       state.categories,
     ],
+  );
+
+  const captureLocation = useCallback(async (): Promise<void> => {
+    await captureLocationWithMode('explicit');
+  }, [captureLocationWithMode]);
+
+  const captureLocationAutomatically = useCallback(
+    (): Promise<boolean> => captureLocationWithMode('automatic'),
+    [captureLocationWithMode],
   );
 
   const loadNearbyAssets = useCallback(
@@ -721,6 +749,10 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
           const resume = resumeRef.current;
           if (resume === null) throw new Error('The resumable submission state is unavailable.');
           const category = getSelectedCategory(state);
+          const taxonomyItem = getSelectedComplaintTaxonomyItem(state.taxonomyItems, draft);
+          if (taxonomyItem === null) {
+            throw new Error('Choose and save a primary category and complaint type.');
+          }
           const readiness = getDraftReadiness(draft, category);
           if (!readiness.isReady) {
             throw new Error(`Complete the required fields: ${readiness.missing.join(', ')}.`);
@@ -740,7 +772,8 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
               'Review and acknowledge the similar-report suggestions before submitting.',
             );
           }
-          if (category?.isEmergency === true && !state.emergencyAcknowledged) {
+          const isEmergencyIssue = taxonomyItem.isEmergency || category?.isEmergency === true;
+          if (isEmergencyIssue && !state.emergencyAcknowledged) {
             throw new Error('Acknowledge the emergency-services warning before submitting.');
           }
 
@@ -749,7 +782,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
               acknowledgedDuplicateSuggestionIds: getAcknowledgedDuplicateSuggestionIds(
                 state.duplicateCheck,
               ),
-              ...(category?.isEmergency === true ? { emergencyDisclaimerAcknowledged: true } : {}),
+              ...(isEmergencyIssue ? { emergencyDisclaimerAcknowledged: true } : {}),
             };
             const receipt = await submitComplaintDraft(
               activeSession.accessToken,
@@ -840,6 +873,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
         dispatch({ type: 'emergency_acknowledged', value: acknowledged });
       },
       captureLocation,
+      captureLocationAutomatically,
       checkDuplicates,
       clearError: () => dispatch({ message: null, type: 'error' }),
       discardDraft,
@@ -857,6 +891,7 @@ export const ComplaintProvider = ({ children }: Readonly<{ children: ReactNode }
     }),
     [
       captureLocation,
+      captureLocationAutomatically,
       checkDuplicates,
       discardDraft,
       goToStep,

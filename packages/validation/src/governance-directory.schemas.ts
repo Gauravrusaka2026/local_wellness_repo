@@ -21,6 +21,20 @@ const verifiedGovernanceEntitySummarySchema = z
   })
   .strict();
 
+export const verifiedCivicAreaOfficeSchema = z
+  .object({
+    name: z.string().trim().min(1).max(240),
+    type: z.string().trim().min(1).max(120),
+    address: z.string().trim().min(1).max(1_000).optional(),
+    phone: z.string().trim().min(1).max(240).optional(),
+    email: z.string().trim().toLowerCase().pipe(z.email().max(254)).optional(),
+    lastVerifiedOn: z.iso.date(),
+    sourceUrl: z.url().refine((url) => url.startsWith('https://'), {
+      message: 'Office source URL must use HTTPS.',
+    }),
+  })
+  .strict();
+
 export const verifiedGoverningBodyMatchSchema = z
   .object({
     state: verifiedGovernanceEntitySummarySchema,
@@ -29,6 +43,7 @@ export const verifiedGoverningBodyMatchSchema = z
     authority: verifiedGovernanceEntitySummarySchema,
     localBody: verifiedGovernanceEntitySummarySchema,
     ward: verifiedGovernanceEntitySummarySchema.nullable(),
+    offices: z.array(verifiedCivicAreaOfficeSchema).max(25).optional(),
   })
   .strict()
   .superRefine((match, context) => {

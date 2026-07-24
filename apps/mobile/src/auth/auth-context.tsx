@@ -14,14 +14,22 @@ import { Platform } from 'react-native';
 
 import { signOut as signOutFromSupabase } from './auth-service';
 import { recordAuthAuditEventSafely } from '../api/auth-audit';
-import { getPublicPhoneMfaMode, validateMobileRuntimeEnvironment } from '../config/environment';
-import { resolveSessionAssurance, type AssuredAuthState } from './auth-state';
+import {
+  getPublicPhoneVerificationMode,
+  validateMobileRuntimeEnvironment,
+} from '../config/environment';
+import { clearCurrentAreaLocationCache } from '../location/device-location';
+import {
+  resolveSessionPhoneVerification,
+  scheduleAuthStateFollowUp,
+  type VerifiedAuthState,
+} from './auth-state';
 import { getSupabaseClient } from './supabase';
 
 type AuthState =
   | Readonly<{ status: 'configuration-error'; message: string }>
   | Readonly<{ status: 'loading' }>
-  | AssuredAuthState;
+  | VerifiedAuthState;
 
 type AuthContextValue = Readonly<{
   refreshAssurance: () => Promise<void>;
@@ -34,37 +42,42 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) => {
   const [state, setState] = useState<AuthState>({ status: 'loading' });
   const authResolutionId = useRef(0);
+  const locationCacheOwnerId =
+    state.status === 'signed-in' || state.status === 'phone-verification-required'
+      ? state.session.user.id
+      : null;
 
-  const resolveSession = useCallback(async (session: Session) => {
-    const resolutionId = ++authResolutionId.current;
+  useEffect(() => {
+    clearCurrentAreaLocationCache();
+  }, [locationCacheOwnerId]);
+
+  const resolveSession = useCallback(async (session: Session, requestedResolutionId?: number) => {
+    const resolutionId = requestedResolutionId ?? ++authResolutionId.current;
     const supabase = getSupabaseClient();
-    const nextState = await resolveSessionAssurance(
+    const nextState = await resolveSessionPhoneVerification(
       session,
-      () => supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-      async () => {
-        const factors = await supabase.auth.mfa.listFactors();
-        if (factors.error) throw factors.error;
-        return factors.data.phone.length > 0;
-      },
-      getPublicPhoneMfaMode() === 'enforce',
+      () => supabase.auth.getUser(),
+      getPublicPhoneVerificationMode() === 'enforce',
     );
     if (authResolutionId.current === resolutionId) setState(nextState);
   }, []);
 
   useEffect(() => {
     let isMounted = true;
+    let cancelScheduledResolution: (() => void) | undefined;
 
     try {
       validateMobileRuntimeEnvironment({ isNativeRuntime: Platform.OS !== 'web' });
       const supabase = getSupabaseClient();
+      const initialResolutionId = ++authResolutionId.current;
 
       void supabase.auth.getSession().then(({ data, error }) => {
-        if (!isMounted) return;
+        if (!isMounted || authResolutionId.current !== initialResolutionId) return;
         if (error || data.session === null) {
           setState({ status: 'signed-out' });
           return;
         }
-        void resolveSession(data.session);
+        void resolveSession(data.session, initialResolutionId);
       });
 
       const {
@@ -74,11 +87,19 @@ export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) =>
           return;
         }
 
+        cancelScheduledResolution?.();
+        cancelScheduledResolution = undefined;
+
         if (session === null) {
           authResolutionId.current += 1;
           setState({ status: 'signed-out' });
         } else {
-          void resolveSession(session);
+          const resolutionId = ++authResolutionId.current;
+          cancelScheduledResolution = scheduleAuthStateFollowUp(() => {
+            cancelScheduledResolution = undefined;
+            if (!isMounted || authResolutionId.current !== resolutionId) return;
+            void resolveSession(session, resolutionId);
+          });
         }
 
         if (event === 'TOKEN_REFRESHED' && session?.access_token) {
@@ -88,6 +109,8 @@ export const AuthProvider = ({ children }: Readonly<{ children: ReactNode }>) =>
 
       return () => {
         isMounted = false;
+        authResolutionId.current += 1;
+        cancelScheduledResolution?.();
         subscription.unsubscribe();
       };
     } catch (error) {

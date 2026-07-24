@@ -40,3 +40,24 @@ test('keeps reviewed legacy callback failures safe for existing account links', 
     'The secure email link is invalid or expired. Request a new email.',
   );
 });
+
+test('gives actionable password-change verification and expiry guidance', () => {
+  assert.equal(
+    getUserFacingAuthError(
+      new Error('Fresh phone verification is required before changing the password.'),
+      'password',
+    ),
+    'A previously confirmed phone is required. Verify the newest SMS code, or contact support if you no longer control that phone.',
+  );
+  assert.equal(
+    getUserFacingAuthError(new Error('The password-change session has expired.'), 'password'),
+    'This password-change session has expired. Sign in or request a new recovery email.',
+  );
+  assert.equal(
+    getUserFacingAuthError(
+      new Error('The password changed, but this device could not clear its session.'),
+      'password',
+    ),
+    'Your password changed, but this device could not sign out safely. Close the app before continuing and review active sessions.',
+  );
+});

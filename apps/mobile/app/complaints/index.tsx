@@ -22,8 +22,11 @@ import {
   type ComplaintStatusGroup,
 } from '../../src/dashboard/complaint-summary';
 import { AppBottomNavigation } from '../../src/ui/app-bottom-navigation';
+import { CivicIcon } from '../../src/ui/civic-icon';
 import { ComplaintCard } from '../../src/ui/complaint-card';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
+import { mobileTheme } from '../../src/ui/theme';
 
 type ComplaintFilter = 'all' | ComplaintStatusGroup;
 
@@ -37,16 +40,12 @@ type LoadState =
       nextCursor: string | null;
     }>;
 
-const filters: readonly Readonly<{ key: ComplaintFilter; label: string }>[] = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'attention', label: 'Needs you' },
-  { key: 'resolved', label: 'Resolved' },
-];
+const filterKeys: readonly ComplaintFilter[] = ['all', 'active', 'attention', 'resolved'];
 
 export default function ComplaintListScreen() {
   const auth = useAuth();
   const router = useRouter();
+  const { t } = useLocalization();
   const [attempt, setAttempt] = useState(0);
   const [filter, setFilter] = useState<ComplaintFilter>('all');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -95,19 +94,21 @@ export default function ComplaintListScreen() {
     );
   }, [filter, loadState]);
 
-  if (auth.state.status === 'loading') return <LoadingScreen label="Restoring your session…" />;
+  if (auth.state.status === 'loading') return <LoadingScreen label={t('restoringSession')} />;
   if (auth.state.status === 'configuration-error') {
     return <ErrorScreen message={auth.state.message} />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
-  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
-  if (loadState.status === 'loading') return <LoadingScreen label="Loading your complaints…" />;
+  if (auth.state.status === 'phone-verification-required') {
+    return <Redirect href="/auth/phone-verification" />;
+  }
+  if (loadState.status === 'loading') return <LoadingScreen label={t('loadingComplaints')} />;
   if (loadState.status === 'error') {
     return (
       <ErrorScreen
-        action={{ label: 'Try again', onPress: () => setAttempt((value) => value + 1) }}
+        action={{ label: t('tryAgain'), onPress: () => setAttempt((value) => value + 1) }}
         message={loadState.message}
-        title="Complaints unavailable"
+        title={t('unableToContinue')}
       />
     );
   }
@@ -161,6 +162,12 @@ export default function ComplaintListScreen() {
   };
 
   const summary = buildComplaintDashboardSummary(loadState.items);
+  const filterLabels: Readonly<Record<ComplaintFilter, string>> = {
+    active: t('active'),
+    all: t('all'),
+    attention: t('needsYou'),
+    resolved: t('resolved'),
+  };
 
   return (
     <Screen>
@@ -168,41 +175,41 @@ export default function ComplaintListScreen() {
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
-            colors={['#17683b']}
+            colors={[mobileTheme.colors.primary]}
             onRefresh={() => void refresh()}
             refreshing={isRefreshing}
-            tintColor="#17683b"
+            tintColor={mobileTheme.colors.primary}
           />
         }
       >
         <View style={styles.header}>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>MY ACTIVITY</Text>
+            <Text style={styles.eyebrow}>{t('myActivity').toUpperCase()}</Text>
             <Text accessibilityRole="header" style={styles.title}>
-              Your complaints
+              {t('yourComplaints')}
             </Text>
           </View>
         </View>
 
         <View style={styles.summaryCard}>
-          <SummaryItem label={loadState.hasMore ? 'Loaded' : 'Total'} value={summary.total} />
+          <SummaryItem label={loadState.hasMore ? t('loaded') : t('total')} value={summary.total} />
           <View style={styles.summaryDivider} />
-          <SummaryItem label="Active" value={summary.active} />
+          <SummaryItem label={t('active')} value={summary.active} />
           <View style={styles.summaryDivider} />
-          <SummaryItem label="Needs you" value={summary.attention} />
+          <SummaryItem label={t('needsYou')} value={summary.attention} />
           <View style={styles.summaryDivider} />
-          <SummaryItem label="Resolved" value={summary.resolved} />
+          <SummaryItem label={t('resolved')} value={summary.resolved} />
         </View>
 
         <View accessibilityRole="tablist" style={styles.filters}>
-          {filters.map((candidate) => {
-            const isSelected = filter === candidate.key;
+          {filterKeys.map((candidate) => {
+            const isSelected = filter === candidate;
             return (
               <Pressable
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isSelected }}
-                key={candidate.key}
-                onPress={() => setFilter(candidate.key)}
+                key={candidate}
+                onPress={() => setFilter(candidate)}
                 style={({ pressed }) => [
                   styles.filter,
                   isSelected && styles.filterSelected,
@@ -210,7 +217,7 @@ export default function ComplaintListScreen() {
                 ]}
               >
                 <Text style={[styles.filterText, isSelected && styles.filterTextSelected]}>
-                  {candidate.label}
+                  {filterLabels[candidate]}
                 </Text>
               </Pressable>
             );
@@ -226,19 +233,13 @@ export default function ComplaintListScreen() {
         {filteredItems.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIcon}>
-              <Text accessibilityElementsHidden style={styles.emptyIconText}>
-                ✓
-              </Text>
+              <CivicIcon color={mobileTheme.colors.primary} name="complaint" />
             </View>
             <Text style={styles.emptyTitle}>
-              {loadState.items.length === 0
-                ? 'No submitted complaints'
-                : `No ${filters.find(({ key }) => key === filter)?.label.toLowerCase()} complaints`}
+              {loadState.items.length === 0 ? t('noComplaints') : t('noFilteredComplaints')}
             </Text>
             <Text style={styles.emptyText}>
-              {loadState.items.length === 0
-                ? 'Tap Report below to get started.'
-                : 'Try another status.'}
+              {loadState.items.length === 0 ? t('tapReportToStart') : t('tryAnotherStatus')}
             </Text>
           </View>
         ) : (
@@ -262,9 +263,12 @@ export default function ComplaintListScreen() {
             style={({ pressed }) => [styles.loadMoreButton, pressed && styles.pressed]}
           >
             {isLoadingMore ? (
-              <ActivityIndicator accessibilityLabel="Loading more complaints" color="#17683b" />
+              <ActivityIndicator
+                accessibilityLabel={t('loadingMore')}
+                color={mobileTheme.colors.primary}
+              />
             ) : (
-              <Text style={styles.loadMoreText}>Load more</Text>
+              <Text style={styles.loadMoreText}>{t('loadMore')}</Text>
             )}
           </Pressable>
         ) : null}
@@ -282,15 +286,15 @@ const SummaryItem = ({ label, value }: Readonly<{ label: string; value: number }
 );
 
 const styles = StyleSheet.create({
-  content: { gap: 17, padding: 20, paddingBottom: 36 },
+  content: { gap: 14, padding: 16, paddingBottom: 28 },
   emptyCard: {
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#e0e8e2',
-    borderRadius: 20,
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
+    borderRadius: mobileTheme.radius.large,
     borderWidth: 1,
     gap: 9,
-    padding: 30,
+    padding: 24,
   },
   emptyIcon: {
     alignItems: 'center',
@@ -301,10 +305,24 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     width: 48,
   },
-  emptyIconText: { color: '#1f7141', fontSize: 24, fontWeight: '900' },
-  emptyText: { color: '#64766a', lineHeight: 21, textAlign: 'center' },
-  emptyTitle: { color: '#173b27', fontSize: 19, fontWeight: '900', textAlign: 'center' },
-  eyebrow: { color: '#2b774c', fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
+  emptyText: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+    textAlign: 'center',
+  },
+  emptyTitle: {
+    color: mobileTheme.colors.text,
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  eyebrow: {
+    color: mobileTheme.colors.primary,
+    fontSize: mobileTheme.type.caption,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
   filter: {
     alignItems: 'center',
     borderColor: '#d4dfd7',
@@ -316,8 +334,8 @@ const styles = StyleSheet.create({
   },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filterSelected: { backgroundColor: '#1b6940', borderColor: '#1b6940' },
-  filterText: { color: '#506559', fontSize: 13, fontWeight: '800' },
-  filterTextSelected: { color: '#ffffff' },
+  filterText: { color: mobileTheme.colors.muted, fontSize: 12, fontWeight: '800' },
+  filterTextSelected: { color: mobileTheme.colors.white },
   header: { alignItems: 'flex-start', flexDirection: 'row', gap: 12, marginTop: 8 },
   headerCopy: { flex: 1, gap: 5 },
   list: { gap: 11 },
@@ -330,18 +348,7 @@ const styles = StyleSheet.create({
     minHeight: 50,
     padding: 12,
   },
-  loadMoreText: { color: '#17683b', fontWeight: '900' },
-  menuButton: {
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: '#dce6df',
-    borderRadius: 14,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-  menuGlyph: { color: '#235c3b', fontSize: 24, fontWeight: '800' },
+  loadMoreText: { color: mobileTheme.colors.primary, fontSize: 14, fontWeight: '900' },
   operationError: {
     backgroundColor: '#fff0f0',
     borderRadius: 12,
@@ -361,5 +368,5 @@ const styles = StyleSheet.create({
   summaryItem: { alignItems: 'center', flex: 1, gap: 3 },
   summaryLabel: { color: '#cbe1d3', fontSize: 10, fontWeight: '700', textAlign: 'center' },
   summaryValue: { color: '#ffffff', fontSize: 20, fontWeight: '900' },
-  title: { color: '#153b27', fontSize: 29, fontWeight: '900' },
+  title: { color: mobileTheme.colors.text, fontSize: mobileTheme.type.title, fontWeight: '900' },
 });

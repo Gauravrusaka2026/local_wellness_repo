@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "datasetKey": "jagruksetu_bmc_intake_v1",
+  "datasetVersion": "2026-07-24.v1",
+  "valid": true,
+  "sourceHashes": {
+    "taxonomy": "30688cf8af038d059770c1b2c50ba02e7547e473e406ab61ad4227c8b475a6ad",
+    "sourceRegistry": "456bcca2e23c2cdc44a0e79b1c0b492cf7aa1302a69baef19c4072a4a2c76f47",
+    "handoffActions": "3984e702e69b858c5ed7487391f5cc341dfeec73700d9d2a6c780bdfe5cd3b8a",
+    "migration": "20cd17c36b742ed0fd118d6b197d8836d42c801bb68779d91ea9eb79b2293fb2"
+  },
+  "counts": {
+    "taxonomyPrimaryCategories": 17,
+    "taxonomyLeaves": 340,
+    "specializedWardLeaves": 13,
+    "genericWardLeaves": 243,
+    "internallyMappedLeaves": 256,
+    "protectedHandoffLeaves": 84,
+    "pendingLeaves": 0,
+    "distinctOperationalProfiles": 13,
+    "BmcOperationalWards": 26,
+    "expectedPrivateWardContacts": 338,
+    "officialSources": 7,
+    "handoffActions": 29
+  },
+  "checks": [
+    "All 340 taxonomy leaves are classified exactly once.",
+    "The 13 existing specialized route mappings are preserved.",
+    "The remaining 243 PUBLIC or RESTRICTED leaves use the generic ward profile.",
+    "All 84 PRIVATE or EMERGENCY_PRIVATE leaves use official handoff actions.",
+    "No client-visible action contains an email address.",
+    "Every browser target is HTTPS on an approved official host.",
+    "Every call target contains only 3 to 15 digits."
+  ]
+}

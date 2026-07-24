@@ -15,22 +15,29 @@ import {
 import { useAuth } from '../../src/auth/auth-context';
 import { getUserFacingAuthError } from '../../src/auth/auth-service';
 import { AppBottomNavigation } from '../../src/ui/app-bottom-navigation';
+import { CivicIcon, type CivicIconName } from '../../src/ui/civic-icon';
+import { PageIntro } from '../../src/ui/compact-ui';
+import { useLocalization } from '../../src/ui/localization';
 import { ErrorScreen, LoadingScreen, Screen } from '../../src/ui/screen';
+import { mobileTheme } from '../../src/ui/theme';
 
 export default function MenuScreen() {
   const auth = useAuth();
   const router = useRouter();
+  const { t } = useLocalization();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
-  if (auth.state.status === 'loading') return <LoadingScreen label="Restoring your session…" />;
+  if (auth.state.status === 'loading') return <LoadingScreen label={t('restoringSession')} />;
   if (auth.state.status === 'configuration-error') {
-    return <ErrorScreen message={auth.state.message} title="App configuration required" />;
+    return <ErrorScreen message={auth.state.message} title={t('appConfigurationRequired')} />;
   }
   if (auth.state.status === 'signed-out') return <Redirect href="/auth" />;
-  if (auth.state.status === 'mfa-required') return <Redirect href="/auth/phone-verification" />;
+  if (auth.state.status === 'phone-verification-required') {
+    return <Redirect href="/auth/phone-verification" />;
+  }
 
-  const identifier = auth.state.session.user.email ?? auth.state.session.user.phone ?? 'Citizen';
+  const identifier = auth.state.session.user.email ?? auth.state.session.user.phone ?? t('citizen');
 
   const signOut = async (): Promise<void> => {
     setIsSigningOut(true);
@@ -47,74 +54,75 @@ export default function MenuScreen() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>JAGRUKSETU</Text>
-          <Text accessibilityRole="header" style={styles.title}>
-            Menu
-          </Text>
-          <Text numberOfLines={1} style={styles.identifier}>
-            Signed in as {identifier}
-          </Text>
+          <PageIntro
+            eyebrow={t('appName').toUpperCase()}
+            subtitle={t('signedInAs', { identifier })}
+            title={t('menu')}
+          />
         </View>
 
-        <MenuSection title="My activity">
+        <MenuSection title={t('myActivity')}>
           <MenuLink
-            description="See receipts, progress and resolution updates"
-            glyph="☷"
-            label="Your complaints"
+            description={t('yourComplaintsHint')}
+            icon="complaint"
+            label={t('yourComplaints')}
             onPress={() => router.push('/complaints')}
           />
           <MenuDivider />
           <MenuLink
-            description="Read government messages and status alerts"
-            glyph="🔔"
-            label="Notifications"
+            description={t('notificationsHint')}
+            icon="bell"
+            label={t('notifications')}
             onPress={() => router.push('/notifications')}
+            tone="info"
           />
         </MenuSection>
 
-        <MenuSection title="Explore">
+        <MenuSection title={t('explore')}>
           <MenuLink
-            description="Find verified municipality, ward and office coverage"
-            glyph="◎"
-            label="Governing bodies"
+            description={t('governingBodiesHint')}
+            icon="office"
+            label={t('governingBodies')}
             onPress={() => router.push('/governance' as Href)}
+            tone="accent"
           />
           <MenuDivider />
           <MenuLink
-            description="Explore reviewed, privacy-protected public reports"
-            glyph="⌖"
-            label="Nearby reports"
+            description={t('nearbyReportsHint')}
+            icon="community"
+            label={t('nearbyReports')}
             onPress={() => router.push('/transparency')}
+            tone="info"
           />
         </MenuSection>
 
-        <MenuSection title="Account">
+        <MenuSection title={t('account')}>
           <MenuLink
-            description="Update your name and preferred language"
-            glyph="○"
-            label="Profile"
+            description={t('profileHint')}
+            icon="profile"
+            label={t('profile')}
             onPress={() => router.push('/profile')}
           />
         </MenuSection>
 
         <View style={styles.emergencyCard}>
           <View style={styles.emergencyCopy}>
-            <Text style={styles.emergencyTitle}>Emergency help</Text>
-            <Text style={styles.emergencyText}>For immediate danger, call 112.</Text>
+            <Text style={styles.emergencyTitle}>{t('emergencyHelp')}</Text>
+            <Text style={styles.emergencyText}>{t('emergencyBody')}</Text>
           </View>
           <Pressable
-            accessibilityHint="Opens your phone app with emergency number 112"
+            accessibilityHint={t('call112Hint')}
             accessibilityRole="button"
             onPress={() => void Linking.openURL('tel:112')}
             style={({ pressed }) => [styles.callButton, pressed && styles.pressed]}
           >
-            <Text style={styles.callButtonText}>Call 112</Text>
+            <Text style={styles.callButtonText}>{t('call112')}</Text>
           </Pressable>
         </View>
 
         <View style={styles.trustCard}>
-          <Text style={styles.trustTitle}>Your report, your choice</Text>
-          <Text style={styles.trustText}>Choose what to share when you review a report.</Text>
+          <Text style={styles.trustTitle}>{t('reportChoiceTitle')}</Text>
+          <Text style={styles.trustText}>{t('reportChoiceBody')}</Text>
         </View>
 
         <Pressable
@@ -125,9 +133,15 @@ export default function MenuScreen() {
           style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
         >
           {isSigningOut ? (
-            <ActivityIndicator accessibilityLabel="Signing out" color="#a12626" />
+            <ActivityIndicator
+              accessibilityLabel={t('signingOut')}
+              color={mobileTheme.colors.danger}
+            />
           ) : (
-            <Text style={styles.signOutText}>Sign out</Text>
+            <View style={styles.signOutContent}>
+              <CivicIcon color={mobileTheme.colors.danger} name="sign-out" />
+              <Text style={styles.signOutText}>{t('signOut')}</Text>
+            </View>
           )}
         </Pressable>
         {signOutError === null ? null : (
@@ -136,7 +150,9 @@ export default function MenuScreen() {
           </Text>
         )}
 
-        <Text style={styles.versionText}>JagrukSetu · Citizen application</Text>
+        <Text style={styles.versionText}>
+          {t('appName')} · {t('appCitizenLabel')}
+        </Text>
       </ScrollView>
       <AppBottomNavigation current="menu" />
     </Screen>
@@ -154,14 +170,16 @@ const MenuSection = ({ children, title }: Readonly<{ children: ReactNode; title:
 
 const MenuLink = ({
   description,
-  glyph,
+  icon,
   label,
   onPress,
+  tone = 'primary',
 }: Readonly<{
   description: string;
-  glyph: string;
+  icon: CivicIconName;
   label: string;
   onPress: () => void;
+  tone?: 'accent' | 'info' | 'primary';
 }>) => (
   <Pressable
     accessibilityHint={description}
@@ -169,17 +187,31 @@ const MenuLink = ({
     onPress={onPress}
     style={({ pressed }) => [styles.menuLink, pressed && styles.pressed]}
   >
-    <View style={styles.menuIcon}>
-      <Text accessibilityElementsHidden style={styles.menuIconText}>
-        {glyph}
-      </Text>
+    <View
+      style={[
+        styles.menuIcon,
+        tone === 'accent'
+          ? styles.menuIconAccent
+          : tone === 'info'
+            ? styles.menuIconInfo
+            : styles.menuIconPrimary,
+      ]}
+    >
+      <CivicIcon
+        color={
+          tone === 'accent'
+            ? mobileTheme.colors.accent
+            : tone === 'info'
+              ? mobileTheme.colors.info
+              : mobileTheme.colors.primary
+        }
+        name={icon}
+      />
     </View>
     <View style={styles.menuCopy}>
       <Text style={styles.menuLabel}>{label}</Text>
     </View>
-    <Text accessibilityElementsHidden style={styles.chevron}>
-      ›
-    </Text>
+    <CivicIcon color={mobileTheme.colors.muted} name="chevron-right" />
   </Pressable>
 );
 
@@ -188,68 +220,101 @@ const MenuDivider = () => <View style={styles.divider} />;
 const styles = StyleSheet.create({
   callButton: {
     alignItems: 'center',
-    backgroundColor: '#a33b18',
-    borderRadius: 12,
+    backgroundColor: mobileTheme.colors.accent,
+    borderRadius: mobileTheme.radius.medium,
     justifyContent: 'center',
     minHeight: 46,
     paddingHorizontal: 15,
   },
-  callButtonText: { color: '#ffffff', fontWeight: '900' },
-  chevron: { color: '#4b755d', fontSize: 27 },
-  content: { gap: 16, padding: 18, paddingBottom: 32 },
-  divider: { backgroundColor: '#e4ebe6', height: 1, marginLeft: 64 },
+  callButtonText: { color: mobileTheme.colors.white, fontSize: 14, fontWeight: '900' },
+  content: { gap: 14, padding: 16, paddingBottom: 24 },
+  divider: { backgroundColor: mobileTheme.colors.border, height: 1, marginLeft: 64 },
   emergencyCard: {
     alignItems: 'center',
-    backgroundColor: '#fff2eb',
+    backgroundColor: mobileTheme.colors.accentSoft,
     borderColor: '#ffd1be',
-    borderRadius: 18,
+    borderRadius: mobileTheme.radius.large,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 14,
     padding: 16,
   },
   emergencyCopy: { flex: 1, gap: 5 },
-  emergencyText: { color: '#7b3c22', fontSize: 13, lineHeight: 19 },
-  emergencyTitle: { color: '#8e3315', fontSize: 17, fontWeight: '900' },
-  eyebrow: { color: '#2b774c', fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
-  header: { gap: 5, marginTop: 8 },
-  identifier: { color: '#65766b', fontSize: 14 },
+  emergencyText: {
+    color: '#7b3c22',
+    fontSize: mobileTheme.type.helper,
+    lineHeight: 18,
+  },
+  emergencyTitle: {
+    color: '#8e3315',
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '900',
+  },
+  header: { marginTop: 4 },
   menuCopy: { flex: 1 },
   menuIcon: {
     alignItems: 'center',
-    backgroundColor: '#eaf4ed',
-    borderRadius: 13,
-    height: 40,
+    borderRadius: mobileTheme.radius.medium,
+    height: 42,
     justifyContent: 'center',
-    width: 40,
+    width: 42,
   },
-  menuIconText: { color: '#1e6a3f', fontSize: 22, fontWeight: '700' },
-  menuLabel: { color: '#183b28', fontSize: 16, fontWeight: '800' },
+  menuIconAccent: { backgroundColor: mobileTheme.colors.accentSoft },
+  menuIconInfo: { backgroundColor: mobileTheme.colors.infoSoft },
+  menuIconPrimary: { backgroundColor: mobileTheme.colors.primarySoft },
+  menuLabel: { color: mobileTheme.colors.text, fontSize: 14, fontWeight: '800' },
   menuLink: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 60, padding: 10 },
   pressed: { opacity: 0.68 },
   sectionBlock: { gap: 9 },
   sectionCard: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e0e8e2',
-    borderRadius: 18,
+    backgroundColor: mobileTheme.colors.surface,
+    borderColor: mobileTheme.colors.border,
+    borderRadius: mobileTheme.radius.large,
     borderWidth: 1,
     overflow: 'hidden',
   },
-  sectionTitle: { color: '#486052', fontSize: 13, fontWeight: '900', letterSpacing: 0.3 },
+  sectionTitle: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.helper,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
   signOutButton: {
     alignItems: 'center',
-    borderColor: '#c65a5a',
-    borderRadius: 14,
+    borderColor: mobileTheme.colors.danger,
+    borderRadius: mobileTheme.radius.medium,
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 52,
     padding: 12,
   },
-  signOutError: { color: '#992828', lineHeight: 21, textAlign: 'center' },
-  signOutText: { color: '#a12626', fontSize: 16, fontWeight: '900' },
-  title: { color: '#153b27', fontSize: 30, fontWeight: '900' },
-  trustCard: { backgroundColor: '#edf7f0', borderRadius: 17, gap: 6, padding: 16 },
-  trustText: { color: '#4e6857', lineHeight: 21 },
-  trustTitle: { color: '#1a5935', fontSize: 16, fontWeight: '900' },
-  versionText: { color: '#819087', fontSize: 12, textAlign: 'center' },
+  signOutContent: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+  signOutError: {
+    color: mobileTheme.colors.danger,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+    textAlign: 'center',
+  },
+  signOutText: { color: mobileTheme.colors.danger, fontSize: 14, fontWeight: '900' },
+  trustCard: {
+    backgroundColor: mobileTheme.colors.primarySoft,
+    borderRadius: mobileTheme.radius.large,
+    gap: 6,
+    padding: 14,
+  },
+  trustText: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.body,
+    lineHeight: mobileTheme.type.bodyLineHeight,
+  },
+  trustTitle: {
+    color: mobileTheme.colors.primaryDark,
+    fontSize: mobileTheme.type.heading,
+    fontWeight: '900',
+  },
+  versionText: {
+    color: mobileTheme.colors.muted,
+    fontSize: mobileTheme.type.helper,
+    textAlign: 'center',
+  },
 });

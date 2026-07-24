@@ -13,8 +13,8 @@
 -- Any partial/non-contiguous fingerprint or source failure rolls back the part.
 -- Dashboard execution does not repair supabase_migrations.schema_migrations.
 -- Seed data remains intentionally separate under supabase/seed.
--- Complete source cutoff: 20260720
--- Complete source count: 48
+-- Complete source cutoff: 20260724
+-- Complete source count: 55
 -- Migrations in this part: 23
 -- Part source range: 20260713100000_phase_1_identity_and_access.sql through 20260714124000_phase_5_government_workflow_security_and_rpc.sql
 --
@@ -397,8 +397,10 @@ values
   (
     12,
     '20260713201000_governance_synchronization_foundation.sql',
-    (pg_temp.local_wellness_relation_exists('governance.source_endpoints')),
-    (pg_temp.local_wellness_relation_exists('governance.source_endpoints')
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.source_endpoints')),
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.source_endpoints')
       and pg_temp.local_wellness_relation_exists('governance.raw_snapshots')
       and pg_temp.local_wellness_relation_exists('governance.sync_review_events')
       and pg_temp.local_wellness_trigger_exists('governance', 'sync_review_events', 'sync_review_events_reject_delete'))
@@ -434,8 +436,10 @@ values
   (
     16,
     '20260714110000_governance_sync_scheduling_and_contacts.sql',
-    (pg_temp.local_wellness_relation_exists('governance.sync_source_leases')),
-    (pg_temp.local_wellness_relation_exists('governance.sync_source_leases')
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.sync_source_leases')),
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.sync_source_leases')
       and pg_temp.local_wellness_relation_exists('governance.contact_channel_versions')
       and pg_temp.local_wellness_relation_exists('governance.current_verified_contacts')
       and pg_temp.local_wellness_trigger_exists('governance', 'contact_channel_versions', 'contact_channel_versions_reject_delete'))
@@ -443,16 +447,20 @@ values
   (
     17,
     '20260714111000_governance_sync_service_rpc.sql',
-    (pg_temp.local_wellness_function_exists('public', 'claim_due_governance_sync_sources')),
-    (pg_temp.local_wellness_function_exists('public', 'claim_due_governance_sync_sources')
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_function_exists('public', 'claim_due_governance_sync_sources')),
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_function_exists('public', 'claim_due_governance_sync_sources')
       and pg_temp.local_wellness_function_exists('public', 'record_governance_sync_snapshot')
       and pg_temp.local_wellness_function_exists('public', 'fail_governance_sync_run'))
   ),
   (
     18,
     '20260714112000_governance_sync_scope.sql',
-    (pg_temp.local_wellness_relation_exists('governance.sync_scope_targets')),
-    (pg_temp.local_wellness_relation_exists('governance.sync_scope_targets')
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.sync_scope_targets')),
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.sync_scope_targets')
       and pg_temp.local_wellness_function_exists('private', 'enforce_governance_sync_scope_target')
       and pg_temp.local_wellness_trigger_exists('governance', 'sync_scope_targets', 'sync_scope_targets_enforce'))
   ),
@@ -720,6 +728,104 @@ values
       and pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_source_reported_status')
       and pg_temp.local_wellness_column_exists('routing', 'ward_issue_contacts', 'email_owner_approved_for_routing')
       and pg_temp.local_wellness_constraint_exists('routing', 'ward_issue_contacts', 'ward_issue_contacts_active_email_provenance_check'))
+  ),
+  (
+    49,
+    '20260723100000_password_change_audit_event.sql',
+    (coalesce(pg_catalog.position('password_changed' in (
+        select pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        from pg_catalog.pg_constraint as constraint_record
+        inner join pg_catalog.pg_class as relation_record
+          on relation_record.oid = constraint_record.conrelid
+        inner join pg_catalog.pg_namespace as namespace_record
+          on namespace_record.oid = relation_record.relnamespace
+        where namespace_record.nspname = 'public'
+          and relation_record.relname = 'auth_audit_events'
+          and constraint_record.conname = 'auth_audit_events_event_type_check'
+        limit 1
+      )), 0) > 0),
+    (coalesce(pg_catalog.position('password_changed' in (
+        select pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        from pg_catalog.pg_constraint as constraint_record
+        inner join pg_catalog.pg_class as relation_record
+          on relation_record.oid = constraint_record.conrelid
+        inner join pg_catalog.pg_namespace as namespace_record
+          on namespace_record.oid = relation_record.relnamespace
+        where namespace_record.nspname = 'public'
+          and relation_record.relname = 'auth_audit_events'
+          and constraint_record.conname = 'auth_audit_events_event_type_check'
+        limit 1
+      )), 0) > 0)
+  ),
+  (
+    50,
+    '20260723110000_prune_deferred_v1_subsystems.sql',
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')),
+    (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      and not pg_temp.local_wellness_relation_exists('governance.source_endpoints')
+      and not pg_temp.local_wellness_relation_exists('governance.sync_runs')
+      and not pg_temp.local_wellness_relation_exists('governance.contact_channels')
+      and not pg_temp.local_wellness_relation_exists('complaints.complaint_comments')
+      and pg_temp.local_wellness_function_exists('governance', 'resolve_complaint_contact_readiness')
+      and pg_temp.local_wellness_function_exists('complaints', 'assignment_delivery_readiness'))
+  ),
+  (
+    51,
+    '20260723120000_jagruksetu_complaint_taxonomy.sql',
+    (pg_temp.local_wellness_column_exists('routing', 'issue_categories', 'category_purpose')),
+    (pg_temp.local_wellness_column_exists('routing', 'issue_categories', 'category_purpose')
+      and pg_temp.local_wellness_column_exists('routing', 'issue_categories', 'taxonomy_code')
+      and pg_temp.local_wellness_column_exists('routing', 'issue_categories', 'workflow_type')
+      and pg_temp.local_wellness_column_exists('routing', 'issue_categories', 'sensitivity_class')
+      and pg_temp.local_wellness_column_exists('routing', 'issue_categories', 'routing_profile_category_id')
+      and pg_temp.local_wellness_function_exists('public', 'list_complaint_taxonomy')
+      and pg_temp.local_wellness_function_exists('complaints', 'assert_taxonomy_selection')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaint_drafts', 'complaint_drafts_validate_taxonomy_selection')
+      and pg_temp.local_wellness_trigger_exists('complaints', 'complaints', 'complaints_validate_taxonomy_on_submission'))
+  ),
+  (
+    52,
+    '20260723130000_citizen_phone_verification_without_mfa.sql',
+    (pg_temp.local_wellness_function_exists('public', 'user_has_verified_phone')),
+    (pg_temp.local_wellness_function_exists('public', 'user_has_verified_phone')
+      and pg_temp.local_wellness_function_execute_privilege('service_role', 'public.user_has_verified_phone(uuid)'))
+  ),
+  (
+    53,
+    '20260724100000_require_email_identity_for_auth_signup.sql',
+    (pg_temp.local_wellness_function_exists('public', 'hook_require_email_identity')),
+    (pg_temp.local_wellness_function_exists('public', 'hook_require_email_identity')
+      and pg_temp.local_wellness_function_execute_privilege('supabase_auth_admin', 'public.hook_require_email_identity(jsonb)'))
+  ),
+  (
+    54,
+    '20260724110000_v1_bmc_general_intake_and_handoffs.sql',
+    (pg_temp.local_wellness_relation_exists('routing.complaint_handoff_actions')),
+    (pg_temp.local_wellness_relation_exists('routing.complaint_handoff_actions')
+      and pg_temp.local_wellness_forced_rls('routing.complaint_handoff_actions')
+      and coalesce(pg_catalog.position('protected_handoff' in (
+        select pg_catalog.pg_get_constraintdef(constraint_record.oid)
+        from pg_catalog.pg_constraint as constraint_record
+        inner join pg_catalog.pg_class as relation_record
+          on relation_record.oid = constraint_record.conrelid
+        inner join pg_catalog.pg_namespace as namespace_record
+          on namespace_record.oid = relation_record.relnamespace
+        where namespace_record.nspname = 'routing'
+          and relation_record.relname = 'issue_categories'
+          and constraint_record.conname = 'issue_categories_routing_status_check'
+        limit 1
+      )), 0) > 0
+      and pg_temp.local_wellness_function_exists('public', 'list_complaint_taxonomy')
+      and pg_temp.local_wellness_function_exists('complaints', 'complaint_category_display_name'))
+  ),
+  (
+    55,
+    '20260724120000_verified_civic_area_office_contacts.sql',
+    (pg_temp.local_wellness_relation_exists('governance.offices_verified_civic_area_scope_idx')),
+    (pg_temp.local_wellness_relation_exists('governance.offices_verified_civic_area_scope_idx')
+      and pg_catalog.position('''offices''' in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('public.resolve_verified_governing_bodies(double precision,double precision,double precision,timestamp with time zone)'))) > 0
+      and pg_catalog.position('limit 25' in pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('public.resolve_verified_governing_bodies(double precision,double precision,double precision,timestamp with time zone)'))) > 0
+      and pg_temp.local_wellness_function_execute_privilege('service_role', 'public.resolve_verified_governing_bodies(double precision,double precision,double precision,timestamp with time zone)'))
   );
 
 do $detect_state$
@@ -733,7 +839,7 @@ begin
   from local_wellness_bundle_fingerprints as fingerprint
   where not fingerprint.is_complete;
 
-  detected_cutoff := coalesce(first_missing - 1, 48);
+  detected_cutoff := coalesce(first_missing - 1, 55);
 
   if first_missing is not null then
     select fingerprint.migration_name
@@ -791,7 +897,7 @@ begin
       hint = 'Execute master.part-1.sql successfully before Part 2.';
   end if;
 
-  raise notice 'Local Wellness detected migration cutoff: % of 48', detected_cutoff;
+  raise notice 'Local Wellness detected migration cutoff: % of 55', detected_cutoff;
 end;
 $detect_state$;
 
@@ -9405,7 +9511,8 @@ comment on table governance.sync_review_events is
   'Append-only review actions preserving actor attribution and every verification/routing decision.';
 $migration_20260713201000_governance_synchronization_foundation$;
 
-  if not (pg_temp.local_wellness_relation_exists('governance.source_endpoints')
+  if not (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.source_endpoints')
       and pg_temp.local_wellness_relation_exists('governance.raw_snapshots')
       and pg_temp.local_wellness_relation_exists('governance.sync_review_events')
       and pg_temp.local_wellness_trigger_exists('governance', 'sync_review_events', 'sync_review_events_reject_delete')) then
@@ -15316,7 +15423,8 @@ comment on view governance.current_verified_contacts is
   'Service-only projection of effective, manually verified, non-placeholder published contact versions.';
 $migration_20260714110000_governance_sync_scheduling_and_contacts$;
 
-  if not (pg_temp.local_wellness_relation_exists('governance.sync_source_leases')
+  if not (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.sync_source_leases')
       and pg_temp.local_wellness_relation_exists('governance.contact_channel_versions')
       and pg_temp.local_wellness_relation_exists('governance.current_verified_contacts')
       and pg_temp.local_wellness_trigger_exists('governance', 'contact_channel_versions', 'contact_channel_versions_reject_delete')) then
@@ -15955,7 +16063,8 @@ comment on function public.fail_governance_sync_run(uuid, uuid, uuid, text, text
   'Fails a retrieval run, records a sanitized audit event, and applies bounded exponential retry backoff.';
 $migration_20260714111000_governance_sync_service_rpc$;
 
-  if not (pg_temp.local_wellness_function_exists('public', 'claim_due_governance_sync_sources')
+  if not (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_function_exists('public', 'claim_due_governance_sync_sources')
       and pg_temp.local_wellness_function_exists('public', 'record_governance_sync_snapshot')
       and pg_temp.local_wellness_function_exists('public', 'fail_governance_sync_run')) then
     raise exception using
@@ -16257,7 +16366,8 @@ comment on column governance.sync_scope_targets.is_routing_eligible is
   'Independent safety gate that can be true only after platform review and only when the referenced canonical entity is itself verified and routing eligible.';
 $migration_20260714112000_governance_sync_scope$;
 
-  if not (pg_temp.local_wellness_relation_exists('governance.sync_scope_targets')
+  if not (pg_temp.local_wellness_function_exists('private', 'v1_deferred_subsystems_pruned')
+      or pg_temp.local_wellness_relation_exists('governance.sync_scope_targets')
       and pg_temp.local_wellness_function_exists('private', 'enforce_governance_sync_scope_target')
       and pg_temp.local_wellness_trigger_exists('governance', 'sync_scope_targets', 'sync_scope_targets_enforce')) then
     raise exception using

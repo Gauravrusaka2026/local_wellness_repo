@@ -1,10 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  complaintHandoffActionKinds,
+  complaintTaxonomyRoutingStatuses,
+  complaintTaxonomySensitivityClasses,
   routingConfidenceBands,
   complaintMediaKinds,
   routingDecisionStatuses,
   routingEntityTypes,
   routingVerificationStatuses,
+  type ComplaintTaxonomyCatalogItem,
   type JurisdictionMatch,
   type JurisdictionResolution,
   type RoutingCandidate,
@@ -70,6 +74,76 @@ const categoryRowSchema = z
   .strict();
 
 const categoryRowsSchema = z.array(categoryRowSchema).max(500);
+
+const isSecureHttpsUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' &&
+      url.hostname.length > 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+};
+
+const complaintHandoffActionRowSchema = z
+  .object({
+    description: z.string().trim().min(1).max(500),
+    key: z.string().regex(/^[a-z][a-z0-9_]{1,79}$/u),
+    kind: z.enum(complaintHandoffActionKinds),
+    label: z.string().trim().min(1).max(120),
+    priority: z.number().int().min(0).max(32_767),
+    target: z.string().trim().min(1).max(2_048),
+  })
+  .strict()
+  .superRefine((action, context) => {
+    const targetIsValid =
+      action.kind === 'call'
+        ? /^[0-9]{3,15}$/u.test(action.target)
+        : isSecureHttpsUrl(action.target);
+    if (!targetIsValid) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Complaint handoff target is invalid.',
+        path: ['target'],
+      });
+    }
+  });
+
+const complaintTaxonomyRowSchema = z
+  .object({
+    handoff_actions: z.array(complaintHandoffActionRowSchema).max(20),
+    taxonomy_id: uuidSchema,
+    primary_category_id: uuidSchema,
+    primary_code: z.string().regex(/^[A-Z]{3}$/u),
+    primary_name: z.string().trim().min(1).max(160),
+    subcategory_code: z.string().regex(/^[A-Z]{3}-[0-9]{3}$/u),
+    subcategory_name: z.string().trim().min(1).max(240),
+    subcategory_description: z.string().trim().min(1).max(1_000).nullable(),
+    workflow_type: z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/u),
+    sensitivity_class: z.enum(complaintTaxonomySensitivityClasses),
+    routing_status: z.enum(complaintTaxonomyRoutingStatuses),
+    routing_profile_category_id: nullableUuidSchema,
+    routing_profile_code: z
+      .string()
+      .regex(/^[a-z][a-z0-9_]{1,79}$/u)
+      .nullable(),
+    routing_profile_name: z.string().trim().min(1).max(160).nullable(),
+    submission_available: z.boolean(),
+    requires_asset: z.boolean(),
+    requires_location: z.boolean(),
+    is_emergency: z.boolean(),
+    minimum_media_count: z.number().int().min(0).max(20),
+    maximum_media_count: z.number().int().min(0).max(20),
+    required_attributes: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/u)).max(20),
+    recommended_media_kinds: z.array(z.enum(complaintMediaKinds)).max(3),
+  })
+  .strict();
+
+const complaintTaxonomyRowsSchema = z.array(complaintTaxonomyRowSchema).max(400);
 
 const publishedMediaRequirementsSchema = z
   .object({ recommended: z.array(z.enum(complaintMediaKinds)).max(3).optional() })
@@ -398,6 +472,92 @@ const decodeCatalogCategory = (
   ...decodeCategory(row),
   submissionAvailability,
 });
+
+const decodeComplaintTaxonomyItem = (
+  row: z.infer<typeof complaintTaxonomyRowSchema>,
+): ComplaintTaxonomyCatalogItem => ({
+  id: row.taxonomy_id,
+  primaryCategoryId: row.primary_category_id,
+  primaryCode: row.primary_code,
+  primaryName: row.primary_name,
+  handoffActions: row.handoff_actions,
+  subcategoryCode: row.subcategory_code,
+  subcategoryName: row.subcategory_name,
+  subcategoryDescription: row.subcategory_description,
+  workflowType: row.workflow_type,
+  sensitivityClass: row.sensitivity_class,
+  routingStatus: row.routing_status,
+  routingProfileCategoryId: row.routing_profile_category_id,
+  routingProfileCode: row.routing_profile_code,
+  routingProfileName: row.routing_profile_name,
+  submissionAvailability: row.submission_available ? 'available' : 'unavailable',
+  requiresAsset: row.requires_asset,
+  requiresLocation: row.requires_location,
+  isEmergency: row.is_emergency,
+  minimumMediaCount: row.minimum_media_count,
+  maximumMediaCount: row.maximum_media_count,
+  requiredAttributes: row.required_attributes,
+  recommendedMediaKinds: row.recommended_media_kinds,
+});
+
+const assertComplaintTaxonomyRows = (
+  rows: readonly z.infer<typeof complaintTaxonomyRowSchema>[],
+): void => {
+  const ids = new Set<string>();
+  const primaryCategories = new Map<string, Readonly<{ id: string; name: string }>>();
+  const subcategoryCodes = new Set<string>();
+
+  for (const row of rows) {
+    const primaryCategory = primaryCategories.get(row.primary_code);
+    const hasCompleteRoutingProfile =
+      row.routing_profile_category_id !== null &&
+      row.routing_profile_code !== null &&
+      row.routing_profile_name !== null;
+    const hasNoRoutingProfile =
+      row.routing_profile_category_id === null &&
+      row.routing_profile_code === null &&
+      row.routing_profile_name === null;
+    const hasProtectedSensitivity =
+      row.sensitivity_class === 'PRIVATE' || row.sensitivity_class === 'EMERGENCY_PRIVATE';
+    const handoffActionKeys = new Set(row.handoff_actions.map((action) => action.key));
+    const hasUniqueHandoffActions = handoffActionKeys.size === row.handoff_actions.length;
+    const hasProtectedHandoff =
+      row.routing_status === 'protected_handoff' &&
+      hasProtectedSensitivity &&
+      hasNoRoutingProfile &&
+      !row.submission_available &&
+      row.handoff_actions.length > 0;
+    const hasNoHandoff =
+      row.routing_status !== 'protected_handoff' && row.handoff_actions.length === 0;
+
+    if (
+      ids.has(row.taxonomy_id) ||
+      subcategoryCodes.has(row.subcategory_code) ||
+      (primaryCategory !== undefined &&
+        (primaryCategory.id !== row.primary_category_id ||
+          primaryCategory.name !== row.primary_name)) ||
+      !row.subcategory_code.startsWith(`${row.primary_code}-`) ||
+      row.maximum_media_count < row.minimum_media_count ||
+      new Set(row.required_attributes).size !== row.required_attributes.length ||
+      !hasUniqueHandoffActions ||
+      (!hasCompleteRoutingProfile && !hasNoRoutingProfile) ||
+      (row.routing_status === 'mapped' &&
+        (!hasCompleteRoutingProfile || hasProtectedSensitivity)) ||
+      (row.routing_status !== 'mapped' && !hasNoRoutingProfile) ||
+      (row.submission_available && row.routing_status !== 'mapped') ||
+      (!hasProtectedHandoff && !hasNoHandoff)
+    ) {
+      throw new RoutingDataAccessError('list complaint taxonomy');
+    }
+
+    ids.add(row.taxonomy_id);
+    primaryCategories.set(row.primary_code, {
+      id: row.primary_category_id,
+      name: row.primary_name,
+    });
+    subcategoryCodes.add(row.subcategory_code);
+  }
+};
 
 const assertCategoryRowIntegrity = (
   rows: readonly z.infer<typeof categoryRowSchema>[],
@@ -845,6 +1005,14 @@ export class SupabaseRoutingStore extends RoutingStore {
         ? decodeCatalogCategory(publishedRow, 'available')
         : decodeCatalogCategory(row, 'unavailable');
     });
+  }
+
+  public async listComplaintTaxonomy(): Promise<ComplaintTaxonomyCatalogItem[]> {
+    const operation = 'list complaint taxonomy';
+    const data = await this.callRpc(operation, 'list_complaint_taxonomy', {});
+    const rows = decode(complaintTaxonomyRowsSchema, data, operation);
+    assertComplaintTaxonomyRows(rows);
+    return rows.map(decodeComplaintTaxonomyItem);
   }
 
   public async discoverRoutingAssets(

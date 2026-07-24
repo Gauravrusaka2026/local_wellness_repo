@@ -6,6 +6,11 @@ The token/localisation/mobile-progress work requires no SQL Editor execution or 
 change. Do not run master or BMC seed artifacts for this UI slice; empty/unavailable states remain
 expected when reviewed transparency or routing data is not active.
 
+The later detailed complaint-taxonomy slice is different: it has its own generated migration/seed
+artifact documented under **Hosted SQL Editor: JagrukSetu complaint taxonomy** below.
+The subsequent full BMC intake mapping and protected official actions have a second generated
+artifact documented under **Hosted SQL Editor: JagrukSetu BMC intake**.
+
 ## Purpose
 
 This guide defines the verified local Supabase workflow and the separate operator steps required to activate managed environments.
@@ -93,7 +98,7 @@ create extension if not exists unaccent;
 Enable:
 
 - email/password for citizen clients;
-- Advanced Phone MFA enrollment and verification for staged citizen verification;
+- the ordinary Phone provider, phone confirmations and Twilio Verify for citizen phone verification;
 - TOTP MFA for government and platform-administrator assurance;
 - reviewed invitation/PKCE flows for government users.
 
@@ -122,12 +127,15 @@ Use a final scheme after naming is finalized.
 
 The local redirect allow-list includes the citizen web, government dashboard, admin console and mobile callback routes. Each managed environment must replace these with its exact deployed HTTPS origins while retaining only required development URLs in non-production projects.
 
-Citizen account creation/sign-in uses email/password, and password recovery uses the managed
-recovery email plus an exact allow-listed callback. Turn **Confirm Email** off only when verified
-phone MFA is intentionally the account-verification step; otherwise signup may return no usable
-session until email is confirmed. Government/admin code and provider-default link templates remain
-supported. Template editing is optional, but redirect configuration and delivered-flow testing are
-not. Local template files do not update a hosted project automatically.
+Citizen account creation/sign-in uses email/password, then requires a confirmed phone through
+ordinary Supabase Phone Auth before protected citizen access. Citizen sessions remain AAL1.
+Password recovery uses the managed recovery email plus an exact allow-listed callback and then a
+fresh OTP sent to the account's already confirmed phone. An account without that phone fails closed
+into reviewed support recovery. Choose the Confirm Email policy independently; signup may return no
+usable session until email is confirmed when it remains enabled.
+Government/admin code and provider-default link templates remain supported. Template editing is
+optional, but redirect configuration and delivered-flow testing are not. Local template files do
+not update a hosted project automatically.
 
 The authenticated citizen account page reads the application profile through the NestJS
 `GET /api/v1/me` endpoint; it does not read a fabricated profile from Auth metadata. Configure
@@ -212,11 +220,28 @@ remain incomplete under `AUTH-001`.
 
 ---
 
-## 6. Configure Citizen Phone MFA
+## 6. Configure Citizen Phone Verification
 
-Enable Advanced Phone MFA enrollment and verification, then select a supported SMS provider or a
-reviewed Send SMS Hook backed by a real carrier. Supabase Storage and Edge Functions do not deliver
-SMS by themselves and must not be used as a custom OTP credential store.
+Enable the ordinary Phone provider and configure Twilio Verify under
+**Authentication → Sign In / Providers → Phone**. Keep credentials only in Supabase/provider secret
+storage. Enable phone confirmations and Phone Auth signup capability. Supabase rejects
+`signInWithOtp({ phone, shouldCreateUser: false })` with `phone_provider_disabled` when that
+provider signup gate is off, including for an existing linked email/password account. Apply
+`20260724100000_require_email_identity_for_auth_signup.sql`, then activate
+`public.hook_require_email_identity` under the managed project's **Before User Created** Auth Hook.
+The hook rejects every new user without a non-empty email, so phone-only creation fails while OTP
+sign-in for an existing linked phone remains available. Supabase Storage and Edge Functions do not
+deliver SMS by themselves and must not be used as a custom OTP credential store. Advanced Phone
+MFA Enrollment/Verification can remain disabled for citizens; privileged TOTP stays enabled
+separately.
+
+If the app reports `sms_send_failed`, inspect Twilio Verify delivery rather than changing database
+schema. Wrong/expired OTPs, rate limits, disabled phone confirmations and identity mismatches have
+separate application errors.
+
+For Twilio Verify, confirm an `AC…` Account SID, current Auth Token and `VA…` Verify Service SID
+(not a Messaging Service SID), active service, India geographic permissions and any trial
+recipient restrictions. Store no value in Git or the client bundle.
 
 Before production:
 
@@ -229,13 +254,36 @@ Before production:
 - test invalid OTP;
 - monitor cost.
 
-Keep `API_CITIZEN_PHONE_MFA_MODE`, `NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE`, and
-`EXPO_PUBLIC_PHONE_MFA_MODE` at `observe` until these checks and a recovery test pass. Then switch
-all three to `enforce` together and rebuild/restart the clients and API.
+Set `API_CITIZEN_PHONE_VERIFICATION_MODE=enforce`,
+`EXPO_PUBLIC_PHONE_VERIFICATION_MODE=enforce`, and
+`NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE=enforce`. Production API startup rejects any weaker
+citizen setting. The former `*_PHONE_MFA_MODE` names are deprecated compatibility inputs.
+Rebuild/restart clients and the API after changing these values.
+
+Signed-in and recovery password changes always start a fresh ordinary phone OTP on an isolated
+client with `shouldCreateUser: false`. That option remains a required client control but does not
+replace the server-side creation hook. A lost confirmed phone has no email-only bypass. Use
+reviewed support recovery; do not delete or edit Auth rows directly. Test invalid, expired and
+resent codes, provider throttling, exact user/phone matching, global sign-out, old-session
+rejection, an allowed existing-linked-phone OTP, and a denied new phone-only account on a physical
+device before release.
 
 Do not rely on Supabase test OTP settings in production.
 
-The committed local configuration reserves one development-only phone/OTP mapping for repeatable tests. Supabase CLI Auth still disables phone sign-in unless an SMS provider is configured, so the phone E2E case is skipped by default and runs only when a real local provider is available and `LOCAL_SUPABASE_SMS_ENABLED=true`. Never copy the reserved mapping into a hosted environment.
+When using the SQL Editor fallback, run
+`supabase/deploy/citizen-phone-verification-without-mfa.sql` as one query. The artifact commits both
+functions, requests an immediate PostgREST schema reload and returns five boolean installation and
+grant checks; all five must be `true`. Creating the hook function does not activate it: separately
+select `public.hook_require_email_identity` under **Authentication → Hooks → Before User Created**.
+If the API still logs `determine verified phone state`, probe
+`public.user_has_verified_phone(uuid)` through the service role and treat `PGRST202` as an
+unapplied migration or stale schema-cache condition, not a Twilio delivery error.
+
+The committed local configuration reserves deterministic development-only phone/OTP mappings and
+a non-secret placeholder `[auth.sms.twilio_verify]` block. GoTrue disables phone login when no SMS
+provider block exists, so the placeholder enables only the local deterministic test path; it does
+not deliver SMS and must never be copied to a hosted environment. Hosted projects require real
+Twilio Verify credentials in managed secret storage.
 
 ---
 
@@ -270,17 +318,18 @@ government-documents-private
 Never create `complaint-public-media` or publish an original merely to make a client preview work.
 Public derivatives require a later privacy/moderation decision and migration.
 
-Phase 3 migrations also create:
+Historical Phase 3 migrations created:
 
 ```text
 governance-raw-snapshots
 ```
 
-This bucket is private and reserved for immutable, content-addressed official-source snapshots. It
-is not a client upload surface and does not replace the read-only repository bootstrap CSVs. No
-retrieval is activated by creating the bucket. The `governance-sync-fetch` Edge Function implements
-the generic reviewed HTTPS fetch/Storage adapter, but the ten PMC/BMC pilot sources are seeded as
-draft and unverified and there is no committed Cron job.
+This bucket was private and reserved for immutable, content-addressed official-source snapshots. It
+was never a client upload surface and did not replace the read-only repository bootstrap CSVs.
+ADR-0031 retires that undeployed synchronization runtime for V1 and removes its database metadata,
+but SQL intentionally leaves any existing bucket and objects untouched. After retention review,
+remove objects only through the Supabase Storage API or Dashboard and remove the empty bucket if
+desired. Never delete `storage.objects` rows with SQL.
 
 Policies:
 
@@ -299,10 +348,11 @@ Phase 1 migrations create the unexposed `private` helper schema and keep exposed
 `public` for Supabase data-API RLS. Phase 2 creates `governance`, but intentionally leaves it out of
 the `[api].schemas` allow-list. Its tables use forced RLS and explicit grants as defense in depth;
 server-side imports and the jurisdiction resolver use trusted database/service-role access. Phase 3
-creates the similarly unexposed, forced-RLS `routing` schema and adds synchronization tables to
-`governance`. The retrieval/contact slice keeps its leases, events, evidence, and contact versions
-in that same unexposed forced-RLS schema and exposes only four service-role retrieval RPCs. Phase 4
-creates the unexposed, forced-RLS `complaints` schema. Phases 5–9 extend that private schema with
+creates the similarly unexposed, forced-RLS `routing` schema. Historical Phase 3 synchronization
+and versioned-contact tables in `governance` are removed by
+`20260723110000_prune_deferred_v1_subsystems.sql`; V1 uses the private
+`routing.ward_issue_contacts` matrix instead. Phase 4 creates the unexposed, forced-RLS
+`complaints` schema. Phases 5–9 extend that private schema with
 government workflow, communication, citizen accountability, reviewed public projections, SLA/
 escalation, and KPI evidence. Narrow `public` wrappers provide service-role-only operations without
 granting clients any private schema. Future integrations/audit schemas must be created only by their
@@ -460,10 +510,11 @@ pnpm database:master:check
 
 `supabase/master.sql` is the complete clean-database artifact. For an existing project created from
 an earlier Local Wellness master, run `supabase/master.part-1.sql` and then
-`supabase/master.part-2.sql`. Both files include the full ordered history in a 23/24 split. They
-fingerprint completed migrations, skip them as whole units, and execute only missing exact sources.
-Keep applications stopped between parts and run at low traffic. Stop on any `LOCAL_WELLNESS_*`
-error; it indicates partial or non-contiguous state that blanket `IF NOT EXISTS` would conceal.
+`supabase/master.part-2.sql`. Part 1 ends at the complete Phase 5 boundary; Part 2 contains the
+remaining ordered migrations. They fingerprint completed migrations, skip them as whole units, and
+execute only missing exact sources. Keep applications stopped between parts and run at low traffic.
+Stop on any `LOCAL_WELLNESS_*` error; it indicates partial or non-contiguous state that blanket
+`IF NOT EXISTS` would conceal.
 
 Each part is one advisory-locked transaction and validates its target before commit. The check
 command validates all generated files, and all exclude `supabase/seed/`. Dashboard execution does
@@ -513,15 +564,168 @@ RPC repeatedly until a trusted sender provider has been configured.
 
 The latest checked artifact is 286,915 bytes with ordered payload SHA-256
 `bf3f3ee8a902160ab726484468f0996639816dece02ef47ec8b6ac6ee1d1bb72`. A clean local reset applied
-all 48 migrations and seeds, and all 48 pgTAP files passed 1,645 assertions. Re-run the drift check
+all 49 then-current migrations and seeds, and all 49 then-current pgTAP files passed 1,649
+assertions before the V1 prune migration was added. Re-run the current drift and database checks
 immediately before hosted SQL Editor use; local verification is not evidence of hosted application.
 
-Generate and drift-check this focused artifact with:
+### Hosted SQL Editor: prune deferred V1 tables
+
+Migration `20260723110000_prune_deferred_v1_subsystems.sql` removes 14 undeployed governance
+synchronization/versioned-contact tables plus unused `complaints.complaint_comments`. On the exact
+repository schema it reduces custom application tables from 129 to 114 while retaining complaint
+capture, owner Community reads, government workflow, `routing.ward_issue_contacts` and
+`complaints.ward_email_outbox`.
+
+Before running it:
+
+1. In **Dashboard → Database → Backups**, confirm a restorable backup exists. If Point-in-Time
+   Recovery is enabled, record a recovery point immediately before the change. Database backups do
+   not restore deleted Storage objects.
+2. Confirm `routing.ward_issue_contacts` contains a complete owner-approved matrix with at least 26
+   wards × 12 categories. When retired governance tables contain historical rows, the migration
+   rejects an empty, partial, non-rectangular or unapproved replacement matrix. A clean bootstrap
+   may prune empty legacy tables before seed 54 runs.
+3. Stop any manually deployed `governance-sync-fetch` invocation and disable every external or
+   Supabase Cron caller for it.
+4. Run this preflight while the old schema still exists; it must return `0`:
+
+   ```sql
+   select count(*) as active_sync_leases
+   from governance.sync_source_leases
+   where expires_at > current_timestamp;
+   ```
+
+5. Confirm `complaints.complaint_comments` is empty. Preserve and migrate any existing comment
+   history before retrying; the migration refuses to delete it.
+6. In **Dashboard → SQL Editor → New query**, paste and run the complete repository file
+   `supabase/migrations/20260723110000_prune_deferred_v1_subsystems.sql`. Do not extract only its
+   `drop` statements.
+
+SQL Editor does not populate or repair `supabase_migrations.schema_migrations`. Record the operator,
+project reference, file checksum and result in the private deployment log. After success, verify:
+
+```sql
+select
+  pg_catalog.to_regprocedure(
+    'private.v1_deferred_subsystems_pruned()'
+  ) is not null as marker_exists,
+  private.v1_deferred_subsystems_pruned() as marker_value;
+
+select count(*) as custom_application_tables
+from pg_catalog.pg_tables
+where schemaname = any(array[
+  'public',
+  'private',
+  'governance',
+  'routing',
+  'complaints'
+]::text[]);
+
+select
+  pg_catalog.to_regclass('routing.ward_issue_contacts') is not null
+    as ward_routes_present,
+  pg_catalog.to_regclass('complaints.ward_email_outbox') is not null
+    as ward_email_outbox_present,
+  pg_catalog.to_regprocedure(
+    'public.claim_v1_ward_emails(text,integer,integer)'
+  ) is not null as ward_email_claim_present;
+```
+
+The count is `114` immediately after the prune and `115` after the later protected-handoff
+migration; a target with operator-created tables may be higher.
+Use the complete retired-table and retired-RPC checks in
+[the deployment runbook](deployment.md#v1-deferred-subsystem-prune--hosted-sql-editor-runbook), then
+smoke one authenticated complaint, its owner-only read, a scoped Government Dashboard read and one
+email outbox claim/complete cycle.
+
+The migration leaves any private `governance-raw-snapshots` bucket untouched. After retention
+review, optionally delete its objects through the Supabase Storage API or Dashboard and then remove
+the empty bucket. Never delete `storage.objects` rows with SQL. See Supabase's
+[backup](https://supabase.com/docs/guides/platform/backups) and
+[Storage deletion](https://supabase.com/docs/guides/storage/management/delete-objects)
+documentation.
+
+No hosted project is claimed to have applied this migration.
+
+### Hosted SQL Editor: JagrukSetu complaint taxonomy
+
+After the target is reconciled through the prune migration and contains the twelve existing
+operational V1 profiles, run the complete generated artifact:
+
+```text
+supabase/deploy/jagruksetu-complaint-taxonomy-v1.sql
+```
+
+It applies migration `20260723120000_jagruksetu_complaint_taxonomy.sql` followed by generated seed
+`55_jagruksetu_complaint_taxonomy.generated.sql`. Check it before execution with
+`pnpm taxonomy:check`. At this intermediate step, before the BMC intake artifact, the expected
+result is 17 primaries, 340 subcategories, 19 workflows, 13 mapped leaves and 327 pending leaves.
+All 20 `COR` leaves remain private, protected and unmapped.
+
+Deploy the corresponding API endpoint and mobile build together. Verify the authenticated catalog,
+mapped draft resume/submission and pending/protected fail-closed states. The file does not install
+an official contact, activate an independent Corruption recipient, or update the Supabase migration
+ledger. This repository has not applied it to hosted Supabase.
+
+### Hosted SQL Editor: JagrukSetu BMC intake
+
+After the taxonomy artifact, 312-row V1 ward matrix and migrations through
+`20260724100000_require_email_identity_for_auth_signup.sql` are present, run:
+
+```text
+supabase/deploy/jagruksetu-bmc-intake-v1.sql
+```
+
+The generated file embeds migration
+`20260724110000_v1_bmc_general_intake_and_handoffs.sql` followed by seed
+`56_jagruksetu_bmc_intake.generated.sql`. Verify it first with
+`pnpm governance:jagruksetu:intake:check`.
+
+Expected final counts are 340 classified leaves, 256 submittable leaves (13 specialised plus 243
+general ward), 84 protected official handoffs, 13 operational profiles, 338 active private
+ward/profile contacts, 29 approved actions and 115 application-owned tables. A protected handoff
+must show only an official call or credential-free HTTPS action; it must not create a complaint,
+Community item or email job.
+
+Deploy the matching API before the mobile build. Smoke a specialised submission, a general
+submission, a protected telephone action and a protected browser action. The SQL Editor does not
+update the migration ledger, and this repository has not applied the artifact to hosted Supabase.
+
+### Hosted SQL Editor: civic-area office contacts
+
+After the target contains migration
+`20260724110000_v1_bmc_general_intake_and_handoffs.sql` and the intended
+`governance.offices`/official source-reference rows, apply
+`20260724120000_verified_civic_area_office_contacts.sql` through the normal managed migration
+workflow. When SQL Editor is the only available path, run the byte-identical, rerunnable artifact:
+
+```text
+supabase/deploy/civic-area-office-contacts.sql
+```
+
+The migration creates no office rows. It makes an office eligible only when the office is active,
+verified, non-placeholder, has a verification date, has an active official HTTPS source and has at
+least one nonblank public address, public phone or public email. A resolved ward receives its exact
+ward offices plus wardless municipality-wide offices explicitly scoped to the resolved local body,
+sorted and limited to 25.
+
+The service-role-only projection excludes database identifiers, geometry, officer identities,
+officer mobile numbers, WhatsApp numbers, private delivery recipients, routing evidence and
+`routing.ward_issue_contacts`. Deploy the matching API and mobile build together, then smoke an
+eligible ward, an empty ward, exact-ward scoping, municipality-wide fallback, safe phone/email
+actions and direct-client denial. SQL Editor execution does not update
+`supabase_migrations.schema_migrations`; record the operator, project, file checksum and result in
+the private deployment log. This repository does not claim that the artifact has been applied to
+hosted Supabase.
+
+The historical migrations-39-through-43 artifact remains drift-checked with:
 
 ```bash
 pnpm database:current-session:generate
 pnpm database:current-session:check
 ```
+
+It is not the prune migration and must not be run after the target has reached migration 50.
 
 ---
 
@@ -560,57 +764,18 @@ Examples:
 
 Do not place the entire backend inside Edge Functions if NestJS is the primary API.
 
-### Governance retrieval
+### Retired governance retrieval
 
-Deploy `supabase/functions/governance-sync-fetch`. It is deliberately limited to claiming reviewed
-due sources, safe HTTPS retrieval, immutable private Storage preservation, and snapshot/failure RPC
-finalization. It does not parse, match, review, publish, or send complaints.
+Do not deploy or schedule `supabase/functions/governance-sync-fetch` for V1. ADR-0031 retires that
+undeployed machine boundary and migration
+`20260723110000_prune_deferred_v1_subsystems.sql` removes the database tables and four public RPCs
+it required. If a hosted operator deployed the function or configured an external/Supabase Cron
+outside this repository, stop that caller before applying the prune migration.
 
-The committed local configuration sets:
-
-```toml
-[functions.governance-sync-fetch]
-verify_jwt = false
-```
-
-Keep that exception scoped to this function. It validates a dedicated high-entropy dispatch secret
-in constant time before it can call the claim RPC. Test POST rejection with no/incorrect secret,
-method rejection, body limits, and an empty claim result before activating a schedule.
-
-After deploying the migrations and function in a non-production project:
-
-1. create a unique `GOVERNANCE_SYNC_DISPATCH_SECRET` of at least 32 characters;
-2. store it as a Supabase Edge Function secret;
-3. store the Cron caller copy in the managed environment's encrypted secret/Vault facility, not in
-   a migration, source row, shell history, or committed SQL;
-4. create a Supabase Cron HTTP POST to the deployed `governance-sync-fetch` URL with
-   `x-governance-sync-secret` and an optional `{"limit":1,"leaseSeconds":300}` body;
-5. keep the Cron job disabled until at least one source has completed endpoint/parser/cardinality,
-   retention, and security review;
-6. activate sources one at a time with attributed approval and a future `next_sync_at`, then verify
-   claim, snapshot, `304`, failure/backoff, and audit behavior in development and staging.
-
-The server key is supplied by the Edge runtime (`SUPABASE_SECRET_KEY`, with the legacy
-`SUPABASE_SERVICE_ROLE_KEY` fallback). Never provide either key in the Cron request. The function
-claims exactly one source per dispatch and accepts a 300–900 second lease, defaulting to 300; the
-trusted database RPC accepts 180–900 seconds. It heartbeats after retrieval and after a Storage
-write. Expired claims are failed and backed off rather than reclaimed in the same call. The function
-accepts only exact allowlisted HTTPS port 443 hosts without fragments and manually validates every
-redirect, expected supported MIME, timeout, and response-size limit. Raw objects use
-`<source-endpoint-id>/<sha256>.<extension>` in `governance-raw-snapshots` with no overwrite.
-
-The database computes a deterministic SHA-256 for every source contract. Source activation requires
-the stored approval hash to match the current contract exactly and attributes approval to a user
-with a current global `platform_admin` role. Snapshot finalization checks the exact
-`storage.objects` size and MIME metadata; referenced objects are immutable. The Edge function
-retains newly uploaded bytes after a failed or ambiguous finalization because eager deletion could
-race a late commit. Operators must run grace-period orphan reconciliation that rechecks database
-links before removal.
-
-The migration introduces `source_contract_sha256` using nullable/backfill/`NOT NULL` sequencing:
-existing endpoint rows are deterministically hashed by the trigger before the constraint is applied.
-Keep the root migration-safety regression in the release gate for upgrades from a populated Phase 3
-database.
+The unused `@local-wellness/database/governance-sync` export and its source/tests are also removed.
+`@local-wellness/database/governance-import` remains the canonical offline tooling for
+source-validated governance imports. A future automated refresh requires a new ADR and must not
+silently recreate the retired schema or custom-secret boundary.
 
 ---
 
@@ -622,9 +787,9 @@ Set function secrets:
 supabase secrets set KEY=value
 ```
 
-For governance retrieval, set `GOVERNANCE_SYNC_DISPATCH_SECRET` independently in every managed
-environment. Rotate both the Edge secret and encrypted Cron caller value together. A rotation must
-not edit source registry rows or expose either value in synchronization audit events.
+The retired governance synchronization runtime does not require
+`GOVERNANCE_SYNC_DISPATCH_SECRET`. Remove an obsolete secret only after confirming no manually
+deployed caller still depends on it; secret removal is separate from the database migration.
 
 Use environment-specific secrets.
 
@@ -690,19 +855,20 @@ SUPABASE_DB_URL=
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
-EXPO_PUBLIC_PHONE_MFA_MODE=observe
+EXPO_PUBLIC_PHONE_VERIFICATION_MODE=enforce
 
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_REALTIME_URL=http://localhost:3002
-NEXT_PUBLIC_CITIZEN_PHONE_MFA_MODE=observe
+NEXT_PUBLIC_CITIZEN_ACCESS_MODE=public-only
+NEXT_PUBLIC_CITIZEN_PHONE_VERIFICATION_MODE=enforce
 
 GOVERNMENT_INVITE_REDIRECT_URL=
 API_ALLOWED_ORIGINS=
 API_PRIVILEGED_MFA_MODE=observe
-API_CITIZEN_PHONE_MFA_MODE=observe
+API_CITIZEN_PHONE_VERIFICATION_MODE=enforce
 GOVERNANCE_SYNC_DISPATCH_SECRET=
 
 EXPO_PUBLIC_API_URL=
@@ -753,6 +919,16 @@ the hosted worker's secret store. A successful SMTP connection or `sent` outbox 
 by itself prove that the ward mailbox accepted or acted on the complaint; verify a controlled
 recipient delivery before representing external routing as operational.
 
+Start only that channel with:
+
+```bash
+pnpm --filter @local-wellness/workers dev:ward-email
+```
+
+Use `pnpm --filter @local-wellness/workers ward-email:send-once` only for a deliberate, bounded
+one-row smoke. Worker package scripts load the ignored repository-root `.env`; do not create an
+app-local environment file and do not start the combined worker merely to activate SMTP.
+
 Use an untracked repository-root `.env` as the single local source, export it into the process
 before starting Supabase CLI or the full workspace command, and do not create any app-local
 `.env.local`. The API, mobile, Citizen Web, Government Dashboard, and Admin Console package scripts
@@ -771,8 +947,9 @@ Phase 1 local verification is complete:
 - repository-pinned CLI and committed local configuration validated;
 - identity migrations reset successfully;
 - migration, RLS and generated-type checks pass locally and are enforced by CI;
-- citizen email/password, recovery, and staged Phone MFA client tests pass;
-- privileged TOTP/AAL and citizen verified-phone/AAL API policy tests pass;
+- citizen email/password, fresh-phone-OTP password change/recovery, and confirmed-phone client
+  tests pass;
+- privileged TOTP/AAL and citizen confirmed-phone API policy tests pass;
 - real phone delivery remains provider-gated for E2E.
 
 Phase 2 local verification is complete for the available baseline:
@@ -786,13 +963,12 @@ Phase 2 local verification is complete for the available baseline:
 
 These checks pass locally: seven Phase 2 migrations, two generated governance seed files, 22 forced-RLS governance tables and all 194 Phase 2 pgTAP assertions. The canonical source, generated seeds and validation report are reviewed artifacts. Follow `docs/governance-data.md` for refreshes; never modify the CSVs or generated SQL in place.
 
-Phase 3 adds three migrations, the engineering-category seed, routing/synchronization package tests,
-API tests, and pgTAP plans for routing schema/security, placeholder exclusion, synchronization
-lifecycle, PostGIS candidates, fallback behavior, and decision auditing. The clean reset, database
-lint, generated-type drift check, and repository-wide validation passed locally. All 450 assertions
-passed across 11 pgTAP plans, including 102 Phase 3 assertions, and the generated types cover
-`public`, `governance`, and `routing`. Exact observed results are recorded in
-`docs/worklogs/phase-3-routing/testing.md`.
+At the historical Phase 3 checkpoint, three migrations, the engineering-category seed,
+routing/synchronization package tests, API tests and pgTAP plans covered routing schema/security,
+placeholder exclusion, synchronization lifecycle, PostGIS candidates, fallback behavior and
+decision auditing. That checkpoint passed 450 assertions across 11 pgTAP plans, including 102
+Phase 3 assertions. Exact historical results remain in
+`docs/worklogs/phase-3-routing/testing.md`; they do not describe the pruned V1 schema.
 
 The canonical Maharashtra/Phase 3 baseline remains deliberately non-operational: 12
 draft/unverified categories, zero operational categories, no verified Pune rule set, and no route
@@ -809,18 +985,13 @@ replay, duplicate checks, and malformed/placeholder/location/media rejection. Th
 cover `public`, `governance`, `routing`, and `complaints`. Exact observed results are recorded in
 `docs/worklogs/phase-4-complaint-capture/testing.md`.
 
-The governance retrieval/contact/scope slice adds three forward migrations, the draft-only pilot
-source and ward-scope seeds, database plans 016–018, Edge fetch-helper tests, and pure
-contact-normalizer tests. A reset shows ten PMC/BMC endpoint contracts with zero active/claimable
-scheduled sources plus ten service-only ward targets (five per municipality), all draft,
-unverified, unapproved, and non-routable. The final clean run passed 657 assertions across 18 pgTAP
-plans; plans 016–018 contribute 100 assertions (`44 + 26 + 30`). Eleven Edge helper cases, nine
-contact-normalizer cases, all three database-package test files, and the root migration-safety
-regression passed. The populated upgrade fixture backfilled its existing source endpoint to a
-64-character SHA-256 before `NOT NULL` enforcement.
-Database lint reported only PostGIS extension-owned diagnostics. Repeat the clean reset, schema
-lint, all pgTAP plans, generated-type drift check, and Edge/package tests after any migration,
-contract, or function change.
+Before retirement, the governance retrieval/contact/scope slice added three forward migrations,
+draft-only pilot source/ward-scope seeds, database plans 016–018, Edge fetch-helper tests and pure
+contact-normalizer tests. Its final historical clean run passed 657 assertions across 18 pgTAP
+plans. ADR-0031 removes that database surface; the inactive pilot seeds, synchronization pgTAP
+plans, Edge helper/function and `@local-wellness/database/governance-sync` source/tests are no
+longer part of the current V1 reset or release gate. Current plan
+`050_v1_database_pruning.test.sql` verifies intentional absence and retained V1 behavior instead.
 
 The positive Pune complaint fixtures are synthetic and transactionally rolled back. The generated
 BMC pack is the only non-synthetic local activation: it exposes three asset-independent categories
@@ -861,12 +1032,13 @@ retry/dead behavior, and no direct public-comment access. Push and email rows mu
 `unsupported`; do not configure a provider or mark them delivered without the later provider,
 consent, preference, privacy, and destination-lifecycle work.
 
-Do not leave either process running merely because an API or client is under test. Start workers only
-for notification/SLA/KPI behavior and realtime only for Socket.IO delivery behavior, then stop them
-afterward. With the committed environment template, realtime adaptively backs off from a 10-second
-base interval to 15 seconds while idle or failing. Each notification, SLA, and KPI loop independently
-backs off from 10 seconds to 60 seconds. A claimed row resets only that loop to its configured base
-interval. These PostgreSQL-backed loops do not require Redis, BullMQ, or Sentry.
+Do not leave the combined workers or realtime process running merely because an API or client is
+under test. Start combined workers only for notification/SLA/KPI behavior, the isolated ward-email
+worker only when external complaint delivery is intended, and realtime only for Socket.IO delivery
+behavior. With the committed environment template, realtime adaptively backs off from a 10-second
+base interval to 15 seconds while idle or failing. Each notification, SLA, and KPI loop
+independently backs off from 10 seconds to 60 seconds; the isolated ward-email loop uses a fixed
+60-second cadence. These PostgreSQL-backed loops do not require Redis, BullMQ, or Sentry.
 
 Phase 7 adds two resolution-accountability migrations and pgTAP plans 026–027. They extend
 resolution records with nullable historical completion fields, add effective-dated policy and
@@ -905,14 +1077,20 @@ the deterministic master SQL also passed drift checks.
 
 Phase 10 adds six migrations through
 `20260716117000_phase_10_routing_delivery_readiness.sql`. They add PostgreSQL-backed API quotas and
-readiness probes, privileged and citizen MFA verification helpers, the owner-private profile-image
+readiness probes, privileged MFA and citizen phone-verification helpers, the owner-private profile-image
 bucket/metadata, 50 m complaint/media proximity constraints, and routing delivery-readiness
 metadata. Two later additive migrations add BMC ward relationship versions and the service-only
 government invitation selector projection through
 `20260716119000_government_invitation_scope_options.sql`. The current repository cutoff is the
-48th migration, `20260720103000_v1_ward_email_provenance.sql`; the deterministic SQL
-Editor split is migrations 1–23 and 24–48. Apply these as
+55th migration, `20260724120000_verified_civic_area_office_contacts.sql`; the deterministic SQL
+Editor split is migrations 1–23 and 24–55. Apply these as
 incremental migrations to an existing project; never apply `supabase/master.sql` as an upgrade.
+
+The latest full clean reset before migration 55 covered migration 54, all 50 then-current pgTAP
+files/1,640 assertions, application-schema database lint, generated database types and
+deterministic master-SQL drift verification. Migration 55 was then applied directly to local
+Supabase and its focused plan passed 15 assertions. These local results do not apply the
+migrations, Phone-provider settings or Auth Hook binding to hosted Supabase.
 
 The BMC generator now emits governance/checksum seeds `50`/`51` and routing/verification seeds
 `52`/`53`. A clean local reset applies all four in order. The routing pair activates only garbage
@@ -944,12 +1122,33 @@ quarantined and does not alter the Supabase migration ledger.
 
 Before managed Phase 10 activation:
 
-- keep citizen and privileged MFA modes at `observe` while enrollment, recovery, and AAL behavior
-  are tested; enable all matching API/client enforcement values together only afterward;
-- enable Advanced Phone MFA and configure an approved SMS provider or reviewed Send SMS Hook;
-  complete India TRAI/DLT requirements, provider/project limits, CAPTCHA, and real-device tests;
+- keep privileged TOTP policy aligned with its separate rollout, but keep mobile/API citizen phone
+  verification in `enforce`; do not deploy a production API with a weaker citizen mode;
+- retain the ordinary Phone provider and approved Twilio configuration; complete India TRAI/DLT
+  requirements, provider/project limits, CAPTCHA, recovery operations and real-device tests;
+- apply `20260723100000_password_change_audit_event.sql` through the ordinary migration workflow
+  before testing the new password lifecycle; running it in SQL Editor changes schema but does not
+  repair the Supabase CLI migration ledger;
+- apply `20260723130000_citizen_phone_verification_without_mfa.sql` followed by
+  `20260724100000_require_email_identity_for_auth_signup.sql`, then activate the Before User
+  Created Auth Hook before enabling the renamed API enforcement setting; when the ordinary
+  migration workflow is unavailable, run the complete
+  `supabase/deploy/citizen-phone-verification-without-mfa.sql` SQL Editor artifact and reconcile
+  the migration ledger separately;
+- keep Citizen Web at `NEXT_PUBLIC_CITIZEN_ACCESS_MODE=public-only` until protected web parity and
+  its managed authentication smoke are explicitly approved;
 - verify `profile-images-private` remains private, owner Storage policies work, and signed reads do
   not leak into transparency responses;
+- on representative Android and iOS builds, verify bounded current-area reuse across Community,
+  Nearby, and Profile, explicit-refresh/TTL behavior, permission recovery, Auth cache clearing, and
+  fresh complaint/media evidence acquisition. This mobile-only coordination requires no Supabase
+  migration, project setting, database schedule, background-location permission, or persisted
+  coordinate store;
+- after one successful installed-app submission, verify Community shows the complaint in its
+  signed-in **Your reports** preview even with location denied or transparency unavailable. Confirm
+  a second account cannot read it and that it does not enter public map/heat/ranking/engagement
+  results before reviewed publication. This preview reuses the existing complaint API/RLS and
+  requires no migration or Supabase setting;
 - verify `/health/live` and `/health/ready`, quota concurrency/`Retry-After`, secret scanning, and
   release smoke without logging secrets, OTPs, object paths, or exact locations;
 - load only reviewed official pilot geometry, routes, authority memberships, assignments, and
@@ -993,8 +1192,9 @@ explicitly applied to staging.
 The owner subsequently replaced the configured staging project and reports applying a generated
 master SQL file to it. That report does not identify the artifact revision and the database ledger
 was not reachable for independent verification in this session. Treat the current target as
-unreconciled: compare `supabase_migrations.schema_migrations` with all 48 current migration files,
-verify schema objects and RLS, and establish the seed/Auth/profile/role state before enabling any
+unreconciled: compare `supabase_migrations.schema_migrations` with all 55 current migration files
+through `20260724120000_verified_civic_area_office_contacts.sql`, verify schema objects and RLS,
+and establish the seed/Auth/profile/role state before enabling any
 application, worker, Edge Function, schedule, routing, transparency, SLA, or KPI capability. A
 later credential-safe read audit found `/health/ready` healthy and all five expected private
 Storage buckets present, so the earlier missing-readiness-RPC failure is no longer current. That
@@ -1014,11 +1214,14 @@ Before managed identity activation, operators must:
 - create separate development, staging and production projects;
 - link only the intended non-production project from developer environments;
 - enable required extensions through reviewed migrations;
-- enable citizen email/password and decide whether email confirmation or phone MFA is the signup-
+- enable citizen email/password and decide whether email confirmation or confirmed phone is the signup-
   verification step;
 - configure exact password-recovery/invite redirect allow-lists; custom government/admin code-only
   and token-hash invite templates remain optional;
-- enable TOTP plus Advanced Phone MFA, then configure a real SMS provider before enforcement;
+- enable privileged TOTP, configure the ordinary Phone provider/Twilio Verify, enable phone
+  confirmations and Phone Auth signup capability, activate
+  `public.hook_require_email_identity` as the Before User Created Auth Hook, prove phone-only
+  creation is denied, and retain mandatory citizen enforcement;
 - configure SMS/email delivery, provider rate limits and abuse controls;
 - select secret storage and restrict production credentials;
 - configure environment-specific CI/deployment secrets;
@@ -1029,26 +1232,16 @@ Before managed identity activation, operators must:
 The staging credential-replacement prerequisite is satisfied for the current project. Continue to
 keep privileged keys and the database URL server-side, and never reuse them for production.
 
-Before managed routing or governance synchronization activation, operators must also:
+Before managed routing activation, operators must also:
 
 - verify Pune Municipal Corporation and selected ward geometry against approved official sources;
 - review category ownership, departments, officer roles, current assignments, assets, confidence
   policy, rules, and fallback records;
-- approve each source endpoint, retrieval cadence, parser contract, secret reference, and raw
-  snapshot retention/access policy, storing the exact current contract SHA-256 through an active
-  global platform-administrator approval;
-- deploy and test the custom-secret Edge retrieval/snapshot adapter, PostgreSQL claim leases,
-  `304` reuse, failure backoff, and private content-addressed Storage;
-- implement and test source-specific parsing, candidate persistence, matching, review, and
-  transactional publication adapters without changing the canonical bootstrap files;
-- keep the ten PMC/BMC seed endpoints draft/unverified until each has stable fixtures, reviewed
-  cardinality/layout expectations, and attributed activation approval;
-- keep the ten pilot ward scope targets draft/unverified/non-routable until each canonical hierarchy,
-  official identity, and boundary is reviewed by an active global platform administrator; preserve
-  the V1 numeric bootstrap targets as audit history, then create a new reviewed scope for BMC
-  administrative wards `A`–`E` and Pune's current official numeric wards `1`–`5`; never ordinal-map
-  `BRIH-W01`–`BRIH-W05` to the BMC letters;
-- for the current non-production BMC mobile demo, open **SQL Editor → New query** and run
+- use the retained offline `@local-wellness/database/governance-import` tooling and canonical
+  governance files for reviewed source updates; do not reactivate the retired synchronization
+  tables, Edge Function, Cron boundary or package export;
+- only for a legacy non-production BMC bootstrap that has not applied migrations 47 or 50, open
+  **SQL Editor → New query** and run
   `supabase/deploy/current-session/01_migrations_39_through_43.sql` first when migration 38 is
   confirmed complete; if its baseline/partial/non-contiguous guard fails, stop and reconcile or use
   the two adaptive master parts as appropriate; this compact artifact installs schema only and does
@@ -1060,18 +1253,21 @@ Before managed routing or governance synchronization activation, operators must 
   `BMC_MOBILE_DEMO_SCHEMA_NOT_CURRENT`, reconcile through all 43 migrations first; verify all 12
   visible categories, three operational categories, 66 rules, 22 one-to-one ward crosswalks,
   unavailable split K/P wards, and disabled external delivery; do not apply the broad Phase 2 seed
-  afterward without immediately rerunning all four parts;
-- apply `20260718100000_complaint_routing_evidence_diagnostics.sql` after the schema/BMC data is
-  present, run the read-only submission runtime audit, and require an authenticated complaint
-  receipt before declaring hosted submission operational;
-- verify that a source-authenticated value remains staged, public visibility requires attributed
-  manual verification, and complaint delivery requires its separate explicit approval;
-- verify contact publication binds the target owner UUID, value, source URL, evidence-value hash,
-  and delivery decision and that each approved review can be consumed only once;
+  afterward without immediately rerunning all four parts; this legacy bundle aborts if the V1 ward
+  facade or prune marker exists;
+- after that legacy bootstrap, apply exact migrations 44, 45 and 46 in order, run
+  `supabase/deploy/v1-simple-ward-routing.sql` for migrations 47/48 plus the 312-row seed, then
+  reconcile migrations 49 and 50; run the read-only submission runtime audit and require an
+  authenticated complaint receipt before declaring hosted submission operational;
+- apply the taxonomy artifact for migration 51/seed 55, reconcile Auth migrations 52–53, then apply
+  `supabase/deploy/jagruksetu-bmc-intake-v1.sql` for migration 54/seed 56; verify 256 ordinary
+  submission leaves, 84 protected handoffs and 338 private contacts;
+- verify that public visibility still requires reviewed publication and that complaint delivery
+  remains a separate provider-confirmed operation;
 - run hosted service-role routing smoke tests and confirm that anon/authenticated roles cannot call
   the database RPCs directly;
-- confirm that exact routing coordinates and raw snapshots are excluded from logs and client
-  responses.
+- confirm that exact routing coordinates and private recipient values are excluded from logs and
+  client responses.
 
 Before managed complaint capture activation, operators must also:
 
@@ -1135,8 +1331,11 @@ Before managed Phase 7 activation, operators must also:
 Before enabling the mobile verified-governance directory, operators must also:
 
 - apply `20260716104000_verified_governing_body_projection.sql` through the incremental migration
-  workflow and regenerate/check the committed database types; the 45-migration master SQL is only
+  workflow and regenerate/check the committed database types; the current master SQL is only
   for a clean database and must not be applied over staging history;
+- apply `20260724120000_verified_civic_area_office_contacts.sql` when the optional sanitized office
+  list is required, using `supabase/deploy/civic-area-office-contacts.sql` only as the documented
+  SQL Editor fallback;
 - repeat plan `028_verified_governing_body_projection.test.sql` and application-schema database
   lint in managed development, then verify `anon`/`authenticated` cannot execute the RPC while the
   trusted API service role can;
@@ -1146,8 +1345,10 @@ Before enabling the mobile verified-governance directory, operators must also:
 - activate only reviewed current official-source, verified, non-placeholder, routing-eligible
   entity and boundary versions. Until pilot geometry meets that rule, an unsupported result is the
   required staging behavior;
-- verify the response contains no UUID, geometry, officer, email, phone, private office, routing, or
-  placeholder field before connecting a physical Expo Go client over a LAN-reachable API URL.
+- verify the base response contains no UUID, geometry, officer, contact, routing or placeholder
+  field. When optional offices are enabled, permit only their public address/phone/email fields and
+  verify that identifiers, officer mobiles, WhatsApp, private recipients and routing evidence
+  remain absent before connecting a physical Expo Go client over a LAN-reachable API URL.
 
 This migration and managed/device smoke are not recorded as complete in the current repository
 state.

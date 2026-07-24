@@ -186,7 +186,12 @@ const receipt: ComplaintReceipt = {
   visibility: 'private',
   categoryId: ids.category,
   submittedAt: now,
-  routing: routedResult,
+  routing: {
+    confidence: routedResult.confidence,
+    explanation: routedResult.explanation,
+    status: routedResult.status,
+    target: routedResult.target,
+  },
 };
 
 const detail: ComplaintDetail = {
@@ -798,6 +803,7 @@ describe('API complaint capture contract', () => {
       .expect(201);
 
     assert.equal(response.body.data.id, ids.complaint);
+    assert.equal(Object.hasOwn(response.body.data.routing, 'categoryId'), false);
     assert.equal(routingService.commands.length, 1);
     assert.equal(routingService.commands[0]?.idempotencyKey, 'server-routing-request-0001');
     assert.equal(routingService.commands[0]?.actor.id, activeProfile.id);
@@ -807,7 +813,12 @@ describe('API complaint capture contract', () => {
         actorUserId: activeProfile.id,
         categoryId: ids.category,
         emergencyDisclaimerAcknowledged: true,
-        routing: routedResult,
+        routing: {
+          confidence: routedResult.confidence,
+          explanation: routedResult.explanation,
+          status: routedResult.status,
+          target: routedResult.target,
+        },
         routingDecisionId: ids.routingDecision,
         submissionRequestId: ids.submission,
       },

@@ -18,6 +18,7 @@ import type {
   ComplaintResolutionFeedbackInput,
   ComplaintResolutionFeedbackResult,
   ComplaintTimeline,
+  ComplaintTaxonomyCatalogItem,
   CreateComplaintReopenEvidenceUploadIntentInput,
   CreatePrivateComplaintMessageInput,
   FinalizeComplaintReopenEvidenceInput,
@@ -68,6 +69,7 @@ import {
   decodeComplaintResolutionContext,
   decodeComplaintResolutionFeedbackResult,
   decodeComplaintTimeline,
+  decodeComplaintTaxonomyCatalog,
   decodeReopenComplaintResult,
   decodeRoutingCategoryCatalog,
   decodeRoutingAssetDiscovery,
@@ -81,6 +83,13 @@ export const listRoutingCategoryCatalog = (
 ): Promise<RoutingCategoryCatalogItem[]> =>
   createClient(accessToken).get('/api/v1/routing/categories/catalog', {
     decode: decodeRoutingCategoryCatalog,
+  });
+
+export const listComplaintTaxonomy = (
+  accessToken: string,
+): Promise<ComplaintTaxonomyCatalogItem[]> =>
+  createClient(accessToken).get('/api/v1/routing/categories/taxonomy', {
+    decode: decodeComplaintTaxonomyCatalog,
   });
 
 export const discoverRoutingAssets = (
@@ -349,6 +358,11 @@ const routingEvidenceMismatchCodes = new Set([
   'COMPLAINT_ROUTING_REQUEST_MISMATCH',
   'COMPLAINT_ROUTING_STATUS_MISMATCH',
 ]);
+
+const unknownSubmissionOutcomeErrorCodes = new Set(['INVALID_RESPONSE', 'NETWORK_ERROR']);
+
+export const isComplaintSubmissionOutcomeUnknown = (error: unknown): boolean =>
+  error instanceof ApiClientError && unknownSubmissionOutcomeErrorCodes.has(error.code);
 
 export const shouldRotateSubmitIdempotencyKeyAfterError = (error: unknown): boolean =>
   error instanceof ApiClientError &&

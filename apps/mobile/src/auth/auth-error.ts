@@ -1,6 +1,10 @@
 import { ConfigurationError } from '@local-wellness/config';
 
 import { AuthInputError } from './auth-input';
+import {
+  PhoneConfirmationConfigurationError,
+  PhoneVerificationSecurityError,
+} from './phone-verification';
 
 export type AuthErrorOperation = 'complete' | 'password' | 'request' | 'verify';
 
@@ -8,7 +12,12 @@ export const getUserFacingAuthError = (
   error: unknown,
   operation: AuthErrorOperation = 'complete',
 ): string => {
-  if (error instanceof AuthInputError || error instanceof ConfigurationError) {
+  if (
+    error instanceof AuthInputError ||
+    error instanceof ConfigurationError ||
+    error instanceof PhoneConfirmationConfigurationError ||
+    error instanceof PhoneVerificationSecurityError
+  ) {
     return error.message;
   }
 
@@ -21,6 +30,30 @@ export const getUserFacingAuthError = (
 
     if (operation === 'password' && normalizedMessage.includes('invalid login credentials')) {
       return 'The email or password is incorrect.';
+    }
+
+    if (
+      operation === 'password' &&
+      (normalizedMessage.includes('fresh phone verification') ||
+        normalizedMessage.includes('phone verification is required') ||
+        normalizedMessage.includes('previously verified phone number is required'))
+    ) {
+      return 'A previously confirmed phone is required. Verify the newest SMS code, or contact support if you no longer control that phone.';
+    }
+
+    if (
+      operation === 'password' &&
+      normalizedMessage.includes('password-change session has expired')
+    ) {
+      return 'This password-change session has expired. Sign in or request a new recovery email.';
+    }
+
+    if (
+      operation === 'password' &&
+      normalizedMessage.includes('password changed') &&
+      normalizedMessage.includes('could not clear its session')
+    ) {
+      return 'Your password changed, but this device could not sign out safely. Close the app before continuing and review active sessions.';
     }
 
     if (operation === 'complete' && normalizedMessage.includes('code verifier')) {
